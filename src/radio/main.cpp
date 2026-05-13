@@ -155,6 +155,18 @@ String bytesToString(const std::string &bytes) {
   return value;
 }
 
+String bytesToString(const String &bytes) {
+  String value;
+  value.reserve(bytes.length());
+  for (size_t i = 0; i < bytes.length(); ++i) {
+    char c = bytes.charAt(i);
+    if (c != '\0') {
+      value += c;
+    }
+  }
+  return value;
+}
+
 void printStatus() {
   Serial.println();
   Serial.println(F("Status"));
