@@ -52,6 +52,7 @@ GoPro <-- BLE/Wi-Fi --> ESP32-S3 radio <-- UART framed protocol --> ESP32-P4 UI/
 ```
 
 Wiring diagram: [docs/p4_s3_uart_wiring.svg](docs/p4_s3_uart_wiring.svg)
+Watch-style display wiring concept: [docs/p4_watch_display_wiring.svg](docs/p4_watch_display_wiring.svg)
 
 Default UART pins:
 
@@ -120,6 +121,11 @@ The simulator receives:
 ## LCD / Touch Driver Slot
 
 The current UI target is a serial simulator. To turn it into the real P4 firmware, replace the serial rendering/input in `src/ui/main.cpp` with the actual P4 LCD/touch backend once the panel is known.
+
+Recommended display paths:
+
+- Lowest-risk P4 EV-board bring-up: Espressif's supported MIPI-DSI LCD adapter. It is not watch-sized, but the BSP path is known.
+- Watch-style prototype: 1.43-inch round 466x466 AMOLED with CO5300-class QSPI display interface and CST820-class I2C capacitive touch. This is close to a smartwatch face, but it will need a custom display/touch driver.
 
 Needed hardware details:
 
