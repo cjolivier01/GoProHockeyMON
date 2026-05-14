@@ -14,6 +14,7 @@
 #include <lvgl.h>
 
 #include "esp_heap_caps.h"
+#include "esp_sleep.h"
 #include "esp_timer.h"
 
 #ifndef GOPRO_LOCAL_WIFI_SSID
@@ -167,6 +168,34 @@ void setDisplayOn(bool enabled) {
     lv_label_set_text(statusLabel, "Display sleeping");
     setAction("Display off");
   }
+}
+
+void enterLowPowerShutdown() {
+  recording = false;
+  WiFi.disconnect(true, true);
+  WiFi.mode(WIFI_OFF);
+
+  if (statusLabel) {
+    lv_label_set_text(statusLabel, "Powering off");
+  }
+  if (actionLabel) {
+    lv_label_set_text(actionLabel, "Hold PWR to wake");
+  }
+  lv_timer_handler();
+  gfx->setBrightness(0);
+  Serial.println("Entering low-power shutdown");
+  delay(200);
+
+  if (pmuOnline) {
+    power.setPowerKeyPressOnTime(XPOWERS_POWERON_1S);
+    power.setPowerKeyPressOffTime(XPOWERS_POWEROFF_4S);
+    power.setLongPressPowerOFF();
+    power.enableLongPressShutdown();
+    power.shutdown();
+  }
+
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+  esp_deep_sleep_start();
 }
 
 String cameraBaseUrl() {
@@ -582,6 +611,9 @@ void initPowerKey() {
 
   power.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
   power.clearIrqStatus();
+  power.setPowerKeyPressOnTime(XPOWERS_POWERON_1S);
+  power.setPowerKeyPressOffTime(XPOWERS_POWEROFF_4S);
+  power.setLongPressPowerOFF();
   power.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ | XPOWERS_AXP2101_PKEY_LONG_IRQ);
   Serial.println("AXP2101 PWR button enabled");
 }
@@ -624,7 +656,12 @@ void handlePowerButton() {
   lastPmuPollMs = now;
 
   power.getIrqStatus();
-  if (power.isPekeyShortPressIrq() || power.isPekeyLongPressIrq()) {
+  if (power.isPekeyLongPressIrq()) {
+    power.clearIrqStatus();
+    enterLowPowerShutdown();
+    return;
+  }
+  if (power.isPekeyShortPressIrq()) {
     setDisplayOn(!displayOn);
   }
   power.clearIrqStatus();
