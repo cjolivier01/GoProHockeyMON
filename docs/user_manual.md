@@ -120,7 +120,9 @@ The UI is organized after the GoPro rear screen:
 - Capture settings and Pro Controls are separate pages.
 - Dashboard-style connection and physical-button controls live on their own page.
 
-The settings list is based on the Open GoPro setting groups available over BLE/Wi-Fi. Because legal options vary by camera model, firmware, current preset, and whether the camera is recording, the current firmware exposes the setting groups and has `Sync State` / `Sync Presets` controls. The next step is to populate exact option pickers from the synced camera capabilities before sending individual setting changes.
+The settings list is based on the Open GoPro setting groups available over BLE/Wi-Fi. Because legal options vary by camera model, firmware, current preset, and whether the camera is recording, the firmware queries the camera before showing options. Tapping a setting opens an option sheet. The remote queries the current value, asks the camera for currently available options, shows those options, and sends `/gopro/camera/setting?setting=<id>&option=<option>` when you choose one.
+
+`Sync State` refreshes the current values from `/gopro/camera/state`. `Sync Presets` refreshes the current preset tree from `/gopro/camera/presets/get?include-hidden=1`.
 
 See [gopro_ui_research.md](gopro_ui_research.md).
 

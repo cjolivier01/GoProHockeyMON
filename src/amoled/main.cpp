@@ -55,6 +55,8 @@ constexpr uint32_t kBatteryRefreshMs = 5000;
 constexpr uint32_t kBleScanSeconds = 7;
 constexpr uint32_t kWifiTimeoutMs = 25000;
 constexpr size_t kMaxJpegBytes = 220 * 1024;
+constexpr size_t kMaxSettingOptions = 40;
+constexpr size_t kVisibleSettingOptions = 6;
 constexpr int kPreviewX = 20;
 constexpr int kPreviewY = 76;
 constexpr int kPreviewW = 328;
@@ -97,6 +99,16 @@ lv_color_t *drawBuf2 = nullptr;
 BLEAdvertisedDevice *bestBleDevice = nullptr;
 BLEClient *bleClient = nullptr;
 
+struct SettingDefinition {
+  const char *name;
+  uint16_t id;
+};
+
+struct SettingValue {
+  uint16_t id;
+  int option;
+};
+
 lv_obj_t *statusLabel = nullptr;
 lv_obj_t *wifiLabel = nullptr;
 lv_obj_t *cameraLabel = nullptr;
@@ -110,6 +122,11 @@ lv_obj_t *tileView = nullptr;
 lv_obj_t *captureModeLabel = nullptr;
 lv_obj_t *captureSettingLabel = nullptr;
 lv_obj_t *recordPill = nullptr;
+lv_obj_t *settingSheet = nullptr;
+lv_obj_t *settingSheetTitle = nullptr;
+lv_obj_t *settingOptionButtons[kVisibleSettingOptions] = {};
+lv_obj_t *settingOptionLabels[kVisibleSettingOptions] = {};
+lv_obj_t *settingPagerLabel = nullptr;
 uint32_t lastPreviewUpdate = 0;
 uint32_t lastPmuPollMs = 0;
 uint32_t lastBatteryUpdate = 0;
@@ -124,6 +141,12 @@ String goProPassword;
 String captureMode = "Video";
 String captureSetting = "16:9 | 4K | 60 | W";
 IPAddress cameraIp;
+const SettingDefinition *activeSetting = nullptr;
+SettingValue settingValues[48] = {};
+size_t settingValueCount = 0;
+int settingOptions[kMaxSettingOptions] = {};
+size_t settingOptionCount = 0;
+size_t settingOptionOffset = 0;
 int jpegDrawX = kPreviewX;
 int jpegDrawY = kPreviewY;
 bool bootLast = HIGH;
@@ -252,6 +275,40 @@ String bytesToString(const std::string &bytes) {
     }
   }
   return value;
+}
+
+void storeSettingValue(uint16_t id, int option) {
+  for (size_t i = 0; i < settingValueCount; ++i) {
+    if (settingValues[i].id == id) {
+      settingValues[i].option = option;
+      return;
+    }
+  }
+  if (settingValueCount < sizeof(settingValues) / sizeof(settingValues[0])) {
+    settingValues[settingValueCount++] = {id, option};
+  }
+}
+
+int getStoredSettingValue(uint16_t id) {
+  for (size_t i = 0; i < settingValueCount; ++i) {
+    if (settingValues[i].id == id) {
+      return settingValues[i].option;
+    }
+  }
+  return -1;
+}
+
+bool addSettingOption(int option) {
+  for (size_t i = 0; i < settingOptionCount; ++i) {
+    if (settingOptions[i] == option) {
+      return true;
+    }
+  }
+  if (settingOptionCount >= kMaxSettingOptions) {
+    return false;
+  }
+  settingOptions[settingOptionCount++] = option;
+  return true;
 }
 
 void setDisplayOn(bool enabled) {
@@ -611,14 +668,313 @@ bool httpGetGoPro(const String &path) {
   return status >= 200 && status < 300;
 }
 
+int httpGetGoProBody(const String &path, String &body) {
+  body = "";
+  if (WiFi.status() != WL_CONNECTED) {
+    setAction("WiFi not connected");
+    return -1;
+  }
+
+  HTTPClient http;
+  http.setTimeout(kHttpTimeoutMs);
+  String url = cameraBaseUrl() + path;
+  if (!http.begin(url)) {
+    setAction("HTTP begin failed");
+    return -1;
+  }
+  int status = http.GET();
+  body = http.getString();
+  http.end();
+  Serial.printf("GET %s -> %d, %u bytes\n", url.c_str(), status, body.length());
+  return status;
+}
+
 bool setGoProSetting(uint16_t settingId, uint16_t optionId, const char *label) {
   String path = "/gopro/camera/setting?setting=";
   path += settingId;
   path += "&option=";
   path += optionId;
   bool ok = httpGetGoPro(path);
+  if (ok) {
+    storeSettingValue(settingId, optionId);
+  }
   setAction(ok ? label : "Setting command failed");
   return ok;
+}
+
+void collectIntegerArrayOptions(JsonVariant value) {
+  if (value.is<JsonArray>()) {
+    bool numericArray = false;
+    for (JsonVariant item : value.as<JsonArray>()) {
+      if (item.is<int>()) {
+        numericArray = true;
+        addSettingOption(item.as<int>());
+      }
+    }
+    if (numericArray) {
+      return;
+    }
+  }
+
+  if (value.is<JsonObject>()) {
+    for (JsonPair pair : value.as<JsonObject>()) {
+      collectIntegerArrayOptions(pair.value());
+    }
+  } else if (value.is<JsonArray>()) {
+    for (JsonVariant item : value.as<JsonArray>()) {
+      collectIntegerArrayOptions(item);
+    }
+  }
+}
+
+bool parseCameraState(const String &body) {
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, body);
+  if (error) {
+    setAction("Camera state JSON parse failed");
+    return false;
+  }
+
+  JsonObject settings = doc["settings"].as<JsonObject>();
+  if (settings.isNull()) {
+    settings = doc["setting"].as<JsonObject>();
+  }
+  if (settings.isNull()) {
+    setAction("Camera state has no settings object");
+    return false;
+  }
+
+  for (JsonPair pair : settings) {
+    const char *key = pair.key().c_str();
+    if (!key) {
+      continue;
+    }
+    int id = atoi(key);
+    if (id <= 0) {
+      continue;
+    }
+    if (pair.value().is<int>()) {
+      storeSettingValue(id, pair.value().as<int>());
+    } else if (pair.value()["option"].is<int>()) {
+      storeSettingValue(id, pair.value()["option"].as<int>());
+    }
+  }
+  setAction("Camera state synced");
+  return true;
+}
+
+bool syncCameraState() {
+  String body;
+  int status = httpGetGoProBody("/gopro/camera/state", body);
+  if (status != 200) {
+    setAction("Camera state sync failed");
+    return false;
+  }
+  return parseCameraState(body);
+}
+
+bool syncCameraPresets() {
+  String body;
+  int status = httpGetGoProBody("/gopro/camera/presets/get?include-hidden=1", body);
+  if (status != 200) {
+    setAction("Preset sync failed");
+    return false;
+  }
+  JsonDocument doc;
+  if (deserializeJson(doc, body)) {
+    setAction("Preset JSON parse failed");
+    return false;
+  }
+  setAction("Presets synced");
+  return true;
+}
+
+const char *knownOptionName(uint16_t settingId, int option) {
+  switch (settingId) {
+    case 108:
+    case 192:
+    case 193:
+    case 232:
+    case 233:
+      switch (option) {
+        case 0: return "4:3";
+        case 1: return "16:9";
+        case 3: return "8:7";
+        case 4: return "9:16";
+        case 5: return "1:1";
+        case 6: return "21:9";
+      }
+      break;
+    case 2:
+      switch (option) {
+        case 1: return "4K";
+        case 4: return "2.7K";
+        case 6: return "1080";
+        case 7: return "720";
+        case 9: return "5.3K";
+        case 24: return "5K";
+        case 25: return "4K 4:3";
+        case 26: return "5.3K 8:7";
+        case 27: return "4K 8:7";
+      }
+      break;
+    case 3:
+    case 234:
+      switch (option) {
+        case 0: return "240";
+        case 1: return "120";
+        case 2: return "100";
+        case 5: return "60";
+        case 6: return "50";
+        case 8: return "30";
+        case 9: return "25";
+        case 10: return "24";
+        case 13: return "200";
+        case 15: return "400";
+      }
+      break;
+    case 121:
+    case 122:
+    case 123:
+      switch (option) {
+        case 19: return "Wide";
+        case 30: return "Linear";
+        case 31: return "Superview";
+        case 32: return "Linear+HL";
+        case 100: return "HyperView";
+        case 101: return "Wide";
+        case 102: return "Linear";
+      }
+      break;
+    case 135:
+    case 167:
+    case 168:
+    case 173:
+    case 175:
+    case 177:
+    case 180:
+    case 183:
+    case 186:
+    case 187:
+    case 190:
+    case 194:
+    case 236:
+      switch (option) {
+        case 0: return "Off";
+        case 1: return "On";
+        case 2: return "Auto";
+      }
+      break;
+    case 182:
+      switch (option) {
+        case 0: return "Standard";
+        case 1: return "High";
+      }
+      break;
+    case 216:
+      switch (option) {
+        case 0: return "Mute";
+        case 1: return "Low";
+        case 2: return "Medium";
+        case 3: return "High";
+        case 100: return "Off";
+      }
+      break;
+    case 178:
+      switch (option) {
+        case 0: return "2.4 GHz";
+        case 1: return "5 GHz";
+      }
+      break;
+  }
+  return nullptr;
+}
+
+String optionDisplayName(uint16_t settingId, int option) {
+  const char *known = knownOptionName(settingId, option);
+  if (known) {
+    return String(known) + " (" + option + ")";
+  }
+  return String("Option ") + option;
+}
+
+void addFallbackOptions(uint16_t settingId) {
+  switch (settingId) {
+    case 108:
+    case 192:
+    case 193:
+    case 232:
+    case 233: {
+      const int values[] = {0, 1, 3, 4, 5, 6};
+      for (int value : values) addSettingOption(value);
+      break;
+    }
+    case 2: {
+      const int values[] = {1, 4, 6, 7, 9, 24, 25, 26, 27};
+      for (int value : values) addSettingOption(value);
+      break;
+    }
+    case 3:
+    case 234: {
+      const int values[] = {0, 1, 2, 5, 6, 8, 9, 10, 13, 15};
+      for (int value : values) addSettingOption(value);
+      break;
+    }
+    case 121:
+    case 122:
+    case 123: {
+      const int values[] = {19, 30, 31, 32, 100, 101, 102};
+      for (int value : values) addSettingOption(value);
+      break;
+    }
+    case 182:
+    case 183:
+    case 178: {
+      const int values[] = {0, 1, 2};
+      for (int value : values) addSettingOption(value);
+      break;
+    }
+    default: {
+      const int values[] = {0, 1, 2, 3, 4, 5, 100};
+      for (int value : values) addSettingOption(value);
+      break;
+    }
+  }
+}
+
+bool querySettingOptions(const SettingDefinition &setting) {
+  settingOptionCount = 0;
+  settingOptionOffset = 0;
+
+  String body;
+  String path = "/gopro/camera/setting?setting=";
+  path += setting.id;
+  int status = httpGetGoProBody(path, body);
+  if (status == 200) {
+    JsonDocument doc;
+    if (!deserializeJson(doc, body) && doc["option"].is<int>()) {
+      int current = doc["option"].as<int>();
+      storeSettingValue(setting.id, current);
+      addSettingOption(current);
+    }
+  }
+
+  path = "/gopro/camera/setting?setting=";
+  path += setting.id;
+  path += "&option=65535";
+  body = "";
+  status = httpGetGoProBody(path, body);
+  if (status == 403 || status == 400) {
+    JsonDocument doc;
+    if (!deserializeJson(doc, body)) {
+      collectIntegerArrayOptions(doc.as<JsonVariant>());
+    }
+  }
+
+  if (settingOptionCount == 0) {
+    addFallbackOptions(setting.id);
+  }
+  return settingOptionCount > 0;
 }
 
 void setPairingMode() {
@@ -856,19 +1212,108 @@ void onDashboardConnect(lv_event_t *) {
 }
 
 void onSettingSync(lv_event_t *) {
-  httpGetGoPro("/gopro/camera/state");
+  syncCameraState();
 }
 
 void onPresetSync(lv_event_t *) {
-  httpGetGoPro("/gopro/camera/presets/get?include-hidden=1");
+  syncCameraPresets();
 }
 
-void onSettingPlaceholder(lv_event_t *event) {
-  const char *label = static_cast<const char *>(lv_event_get_user_data(event));
-  String message = "Select ";
-  message += label ? label : "setting";
-  message += " after camera state sync";
-  setAction(message.c_str());
+void refreshSettingSheet() {
+  if (!settingSheet || !activeSetting) {
+    return;
+  }
+
+  String title = activeSetting->name;
+  int current = getStoredSettingValue(activeSetting->id);
+  if (current >= 0) {
+    title += " | current ";
+    title += optionDisplayName(activeSetting->id, current);
+  }
+  lv_label_set_text(settingSheetTitle, title.c_str());
+
+  for (size_t i = 0; i < kVisibleSettingOptions; ++i) {
+    size_t optionIndex = settingOptionOffset + i;
+    if (optionIndex < settingOptionCount) {
+      int option = settingOptions[optionIndex];
+      String label = optionDisplayName(activeSetting->id, option);
+      if (option == current) {
+        label += " *";
+      }
+      lv_label_set_text(settingOptionLabels[i], label.c_str());
+      lv_obj_clear_flag(settingOptionButtons[i], LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_add_flag(settingOptionButtons[i], LV_OBJ_FLAG_HIDDEN);
+    }
+  }
+
+  String pager = String(settingOptionOffset + 1) + "-";
+  pager += min(settingOptionOffset + kVisibleSettingOptions, settingOptionCount);
+  pager += " of ";
+  pager += settingOptionCount;
+  lv_label_set_text(settingPagerLabel, pager.c_str());
+}
+
+void closeSettingSheet() {
+  if (settingSheet) {
+    lv_obj_add_flag(settingSheet, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+void onSettingClose(lv_event_t *) {
+  closeSettingSheet();
+}
+
+void onSettingNext(lv_event_t *) {
+  if (settingOptionOffset + kVisibleSettingOptions < settingOptionCount) {
+    settingOptionOffset += kVisibleSettingOptions;
+    refreshSettingSheet();
+  }
+}
+
+void onSettingPrev(lv_event_t *) {
+  if (settingOptionOffset >= kVisibleSettingOptions) {
+    settingOptionOffset -= kVisibleSettingOptions;
+  } else {
+    settingOptionOffset = 0;
+  }
+  refreshSettingSheet();
+}
+
+void onSettingOption(lv_event_t *event) {
+  if (!activeSetting) {
+    return;
+  }
+  uintptr_t visibleIndex = reinterpret_cast<uintptr_t>(lv_event_get_user_data(event));
+  size_t optionIndex = settingOptionOffset + visibleIndex;
+  if (optionIndex >= settingOptionCount) {
+    return;
+  }
+  int option = settingOptions[optionIndex];
+  String label = String(activeSetting->name) + " -> " + optionDisplayName(activeSetting->id, option);
+  if (setGoProSetting(activeSetting->id, option, label.c_str())) {
+    refreshSettingSheet();
+  }
+}
+
+void onSettingOpen(lv_event_t *event) {
+  const SettingDefinition *setting =
+      static_cast<const SettingDefinition *>(lv_event_get_user_data(event));
+  if (!setting) {
+    return;
+  }
+  activeSetting = setting;
+  if (!settingSheet) {
+    return;
+  }
+  lv_obj_clear_flag(settingSheet, LV_OBJ_FLAG_HIDDEN);
+  lv_label_set_text(settingSheetTitle, "Loading options...");
+  lv_timer_handler();
+
+  if (!querySettingOptions(*setting)) {
+    setAction("No options for setting");
+  }
+  refreshSettingSheet();
 }
 
 lv_obj_t *makePanelLabel(lv_obj_t *parent, const char *text, int x, int y, int size = 14,
@@ -880,6 +1325,47 @@ lv_obj_t *makePanelLabel(lv_obj_t *parent, const char *text, int x, int y, int s
   lv_obj_set_pos(label, x, y);
   return label;
 }
+
+const SettingDefinition kCaptureSettings[] = {
+    {"Aspect Ratio", 108},
+    {"Resolution", 2},
+    {"Frame Rate", 234},
+    {"Video FPS Legacy", 3},
+    {"Digital Lens", 121},
+    {"Photo Lens", 122},
+    {"TimeWarp Lens", 123},
+    {"HyperSmooth", 135},
+    {"Horizon Level", 150},
+    {"Scheduled", 168},
+    {"Duration", 156},
+    {"HindSight", 167},
+};
+
+const SettingDefinition kProSettings[] = {
+    {"Bit Depth", 183},
+    {"Bit Rate", 182},
+    {"Max Lens", 162},
+    {"Max Lens Mod", 189},
+    {"Max Lens Enable", 190},
+    {"Media Format", 128},
+    {"Photo Output", 125},
+    {"Anti-Flicker", 134},
+    {"Performance", 173},
+    {"Control Mode", 175},
+    {"Video Mode", 180},
+    {"Profiles", 184},
+};
+
+const SettingDefinition kSystemSettings[] = {
+    {"Camera Mode", 194},
+    {"Photo Mode", 227},
+    {"Wireless Band", 178},
+    {"Auto WiFi AP", 236},
+    {"Beeps", 216},
+    {"Screen Saver", 219},
+    {"GPS", 83},
+    {"LED", 91},
+};
 
 void createUi() {
   lv_obj_t *screen = lv_scr_act();
@@ -999,20 +1485,18 @@ void createUi() {
   makePanelLabel(captureSettingsTile, "Capture Settings", 20, 18, 18);
   makePanelLabel(captureSettingsTile, "Resolution, frame rate, lens, and aspect", 20, 44, 14,
                  lv_color_hex(0x96a2b4));
-  const char *captureSettings[] = {"Aspect Ratio", "Resolution", "Frame Rate", "Digital Lens",
-                                   "HyperSmooth", "Scheduled Capture", "Duration", "HindSight"};
-  for (int i = 0; i < 8; ++i) {
+  for (int i = 0; i < static_cast<int>(sizeof(kCaptureSettings) / sizeof(kCaptureSettings[0])); ++i) {
     int x = 20 + (i % 2) * 168;
     int y = 82 + (i / 2) * 48;
-    lv_obj_t *button = makeChip(captureSettingsTile, captureSettings[i], x, y, 156,
+    lv_obj_t *button = makeChip(captureSettingsTile, kCaptureSettings[i].name, x, y, 156,
                                 lv_color_hex(0x1b2638));
-    lv_obj_add_event_cb(button, onSettingPlaceholder, LV_EVENT_CLICKED,
-                        const_cast<char *>(captureSettings[i]));
+    lv_obj_add_event_cb(button, onSettingOpen, LV_EVENT_CLICKED,
+                        const_cast<SettingDefinition *>(&kCaptureSettings[i]));
   }
-  lv_obj_t *syncState = makeChip(captureSettingsTile, "Sync State", 20, 288, 156,
+  lv_obj_t *syncState = makeChip(captureSettingsTile, "Sync State", 20, 314, 156,
                                  lv_color_hex(0x2c7be5));
   lv_obj_add_event_cb(syncState, onSettingSync, LV_EVENT_CLICKED, nullptr);
-  lv_obj_t *syncPresets = makeChip(captureSettingsTile, "Sync Presets", 192, 288, 156,
+  lv_obj_t *syncPresets = makeChip(captureSettingsTile, "Sync Presets", 192, 314, 156,
                                    lv_color_hex(0x2c7be5));
   lv_obj_add_event_cb(syncPresets, onPresetSync, LV_EVENT_CLICKED, nullptr);
 
@@ -1021,15 +1505,13 @@ void createUi() {
   makePanelLabel(protuneTile, "Pro Controls", 20, 18, 18);
   makePanelLabel(protuneTile, "Advanced settings exposed by Open GoPro", 20, 44, 14,
                  lv_color_hex(0x96a2b4));
-  const char *protune[] = {"Bit Depth", "Bit Rate", "Shutter", "EV Comp", "White Balance",
-                           "ISO Min", "ISO Max", "Sharpness", "Color", "Audio", "RAW Audio",
-                           "Wind"};
-  for (int i = 0; i < 12; ++i) {
+  for (int i = 0; i < static_cast<int>(sizeof(kProSettings) / sizeof(kProSettings[0])); ++i) {
     int x = 20 + (i % 2) * 168;
     int y = 82 + (i / 2) * 40;
-    lv_obj_t *button = makeChip(protuneTile, protune[i], x, y, 156, lv_color_hex(0x1b2638));
-    lv_obj_add_event_cb(button, onSettingPlaceholder, LV_EVENT_CLICKED,
-                        const_cast<char *>(protune[i]));
+    lv_obj_t *button = makeChip(protuneTile, kProSettings[i].name, x, y, 156,
+                                lv_color_hex(0x1b2638));
+    lv_obj_add_event_cb(button, onSettingOpen, LV_EVENT_CLICKED,
+                        const_cast<SettingDefinition *>(&kProSettings[i]));
   }
 
   lv_obj_t *dashboardTile = lv_tileview_add_tile(tileView, 4, 0, LV_DIR_LEFT);
@@ -1045,10 +1527,44 @@ void createUi() {
   lv_obj_t *dashState = makeChip(dashboardTile, "Camera State", 192, 132, 156,
                                  lv_color_hex(0x009a88));
   lv_obj_add_event_cb(dashState, onSettingSync, LV_EVENT_CLICKED, nullptr);
-  makePanelLabel(dashboardTile, "PWR short: display off/on", 20, 206, 14, lv_color_hex(0xc3ccd8));
-  makePanelLabel(dashboardTile, "PWR long: PMU shutdown", 20, 230, 14, lv_color_hex(0xc3ccd8));
-  makePanelLabel(dashboardTile, "BOOT short: record", 20, 254, 14, lv_color_hex(0xc3ccd8));
-  makePanelLabel(dashboardTile, "BOOT long: pair", 20, 278, 14, lv_color_hex(0xc3ccd8));
+  for (int i = 0; i < static_cast<int>(sizeof(kSystemSettings) / sizeof(kSystemSettings[0])); ++i) {
+    int x = 20 + (i % 2) * 168;
+    int y = 188 + (i / 2) * 40;
+    lv_obj_t *button = makeChip(dashboardTile, kSystemSettings[i].name, x, y, 156,
+                                lv_color_hex(0x1b2638));
+    lv_obj_add_event_cb(button, onSettingOpen, LV_EVENT_CLICKED,
+                        const_cast<SettingDefinition *>(&kSystemSettings[i]));
+  }
+  makePanelLabel(dashboardTile, "PWR short display | PWR long power | BOOT rec/pair", 20, 350, 14,
+                 lv_color_hex(0xc3ccd8));
+
+  settingSheet = lv_obj_create(screen);
+  lv_obj_set_size(settingSheet, 332, 352);
+  lv_obj_align(settingSheet, LV_ALIGN_CENTER, 0, 18);
+  lv_obj_set_style_radius(settingSheet, 8, 0);
+  lv_obj_set_style_bg_color(settingSheet, lv_color_hex(0x111827), 0);
+  lv_obj_set_style_border_color(settingSheet, lv_color_hex(0x334155), 0);
+  lv_obj_set_style_border_width(settingSheet, 1, 0);
+  lv_obj_set_style_pad_all(settingSheet, 12, 0);
+  lv_obj_clear_flag(settingSheet, LV_OBJ_FLAG_SCROLLABLE);
+
+  settingSheetTitle = makePanelLabel(settingSheet, "Setting", 12, 12, 18);
+  for (size_t i = 0; i < kVisibleSettingOptions; ++i) {
+    settingOptionButtons[i] = makeChip(settingSheet, "", 12, 48 + i * 40, 308,
+                                       lv_color_hex(0x1f2937));
+    settingOptionLabels[i] = lv_obj_get_child(settingOptionButtons[i], 0);
+    lv_obj_add_event_cb(settingOptionButtons[i], onSettingOption, LV_EVENT_CLICKED,
+                        reinterpret_cast<void *>(i));
+  }
+
+  lv_obj_t *prev = makeChip(settingSheet, "Prev", 12, 294, 70, lv_color_hex(0x334155));
+  lv_obj_add_event_cb(prev, onSettingPrev, LV_EVENT_CLICKED, nullptr);
+  settingPagerLabel = makePanelLabel(settingSheet, "0 of 0", 112, 304, 14, lv_color_hex(0xc3ccd8));
+  lv_obj_t *next = makeChip(settingSheet, "Next", 184, 294, 70, lv_color_hex(0x334155));
+  lv_obj_add_event_cb(next, onSettingNext, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t *close = makeChip(settingSheet, "Close", 262, 294, 58, lv_color_hex(0x7f1d1d));
+  lv_obj_add_event_cb(close, onSettingClose, LV_EVENT_CLICKED, nullptr);
+  lv_obj_add_flag(settingSheet, LV_OBJ_FLAG_HIDDEN);
 }
 
 void updateWifiStatus() {

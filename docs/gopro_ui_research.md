@@ -70,8 +70,9 @@ The BLE documentation lists the major configurable setting IDs, including:
 Current firmware status:
 
 - The UI exposes these settings as GoPro-style groups and buttons.
-- `Sync State` calls `/gopro/camera/state`.
-- `Sync Presets` calls `/gopro/camera/presets/get?include-hidden=1`.
-- Individual setting buttons currently use a shared selection handler. The next step is to populate per-camera option IDs from the synced preset/capability response before sending `/gopro/camera/setting?setting=<id>&option=<option>`.
+- `Sync State` calls `/gopro/camera/state` and parses the returned `settings` object into the current setting cache.
+- `Sync Presets` calls `/gopro/camera/presets/get?include-hidden=1` to refresh the camera's current preset tree.
+- Individual setting buttons open a dynamic option sheet. The firmware queries `/gopro/camera/setting?setting=<id>` for the current option, intentionally probes `/gopro/camera/setting?setting=<id>&option=65535` to let the camera return its currently valid options, and then sends `/gopro/camera/setting?setting=<id>&option=<option>` for the selected option.
+- If the camera cannot return an option list, the sheet falls back to common documented option IDs for that setting so the UI remains usable while still reporting command success/failure from the camera.
 
 This is intentional because Open GoPro warns that setting availability and legal option combinations vary by camera model, firmware, current preset, and whether the camera is encoding.
