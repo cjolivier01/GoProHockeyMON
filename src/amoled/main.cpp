@@ -45,6 +45,7 @@ constexpr uint32_t kHttpTimeoutMs = 6500;
 constexpr uint32_t kButtonDebounceMs = 35;
 constexpr uint32_t kBootLongPressMs = 1200;
 constexpr uint32_t kPmuPollMs = 150;
+constexpr uint32_t kBatteryRefreshMs = 5000;
 constexpr size_t kMaxJpegBytes = 220 * 1024;
 constexpr int kPreviewX = 20;
 constexpr int kPreviewY = 76;
@@ -83,9 +84,12 @@ lv_obj_t *previewBox = nullptr;
 lv_obj_t *previewLabel = nullptr;
 lv_obj_t *actionLabel = nullptr;
 lv_obj_t *batteryBar = nullptr;
+lv_obj_t *batteryLabel = nullptr;
+lv_obj_t *wifiIndicator = nullptr;
 lv_obj_t *modeRoller = nullptr;
 uint32_t lastPreviewUpdate = 0;
 uint32_t lastPmuPollMs = 0;
+uint32_t lastBatteryUpdate = 0;
 bool recording = false;
 bool displayOn = true;
 bool pmuOnline = false;
@@ -168,6 +172,42 @@ void setDisplayOn(bool enabled) {
     lv_label_set_text(statusLabel, "Display sleeping");
     setAction("Display off");
   }
+}
+
+void updateBatteryStatus(bool force = false) {
+  if (!batteryBar || !batteryLabel || (!force && millis() - lastBatteryUpdate < kBatteryRefreshMs)) {
+    return;
+  }
+  lastBatteryUpdate = millis();
+
+  if (!pmuOnline) {
+    lv_bar_set_value(batteryBar, 0, LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x5a6472), LV_PART_INDICATOR);
+    lv_label_set_text(batteryLabel, "--%");
+    return;
+  }
+
+  int percent = power.getBatteryPercent();
+  if (percent < 0) {
+    lv_bar_set_value(batteryBar, 0, LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x5a6472), LV_PART_INDICATOR);
+    lv_label_set_text(batteryLabel, power.isVbusIn() ? "USB" : "--%");
+    return;
+  }
+
+  percent = constrain(percent, 0, 100);
+  lv_bar_set_value(batteryBar, percent, LV_ANIM_OFF);
+  if (percent <= 15) {
+    lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0xf03e3e), LV_PART_INDICATOR);
+  } else if (percent <= 35) {
+    lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0xf0b429), LV_PART_INDICATOR);
+  } else {
+    lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x47d16c), LV_PART_INDICATOR);
+  }
+
+  char text[8];
+  snprintf(text, sizeof(text), "%d%%", percent);
+  lv_label_set_text(batteryLabel, text);
 }
 
 void enterLowPowerShutdown() {
@@ -459,11 +499,22 @@ void createUi() {
   lv_obj_align(statusLabel, LV_ALIGN_TOP_LEFT, 20, 48);
 
   batteryBar = lv_bar_create(screen);
-  lv_obj_set_size(batteryBar, 76, 9);
-  lv_obj_align(batteryBar, LV_ALIGN_TOP_RIGHT, -20, 22);
-  lv_bar_set_value(batteryBar, 74, LV_ANIM_OFF);
+  lv_obj_set_size(batteryBar, 52, 9);
+  lv_obj_align(batteryBar, LV_ALIGN_TOP_RIGHT, -64, 24);
+  lv_bar_set_range(batteryBar, 0, 100);
+  lv_bar_set_value(batteryBar, 0, LV_ANIM_OFF);
   lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x28303c), LV_PART_MAIN);
   lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x47d16c), LV_PART_INDICATOR);
+
+  batteryLabel = lv_label_create(screen);
+  lv_label_set_text(batteryLabel, "--%");
+  lv_obj_set_style_text_color(batteryLabel, lv_color_hex(0xc3ccd8), 0);
+  lv_obj_align(batteryLabel, LV_ALIGN_TOP_RIGHT, -20, 18);
+
+  wifiIndicator = lv_label_create(screen);
+  lv_label_set_text(wifiIndicator, "WIFI --");
+  lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x5a6472), 0);
+  lv_obj_align(wifiIndicator, LV_ALIGN_TOP_RIGHT, -20, 38);
 
   previewBox = lv_obj_create(screen);
   lv_obj_set_size(previewBox, kPreviewW, kPreviewH);
@@ -534,10 +585,16 @@ void updateWifiStatus() {
     text += WiFi.localIP().toString();
     lv_label_set_text(wifiLabel, text.c_str());
     lv_label_set_text(statusLabel, "Local WiFi connected");
+    lv_label_set_text(wifiIndicator, "WIFI ON");
+    lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x47d16c), 0);
   } else if (status == WL_IDLE_STATUS) {
     lv_label_set_text(wifiLabel, "WiFi: connecting");
+    lv_label_set_text(wifiIndicator, "WIFI ..");
+    lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0xf0b429), 0);
   } else {
     lv_label_set_text(wifiLabel, "WiFi: disconnected");
+    lv_label_set_text(wifiIndicator, "WIFI --");
+    lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x5a6472), 0);
   }
 }
 
@@ -614,6 +671,9 @@ void initPowerKey() {
   power.setPowerKeyPressOnTime(XPOWERS_POWERON_1S);
   power.setPowerKeyPressOffTime(XPOWERS_POWEROFF_4S);
   power.setLongPressPowerOFF();
+  power.enableBattDetection();
+  power.enableBattVoltageMeasure();
+  power.enableVbusVoltageMeasure();
   power.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ | XPOWERS_AXP2101_PKEY_LONG_IRQ);
   Serial.println("AXP2101 PWR button enabled");
 }
@@ -735,6 +795,7 @@ void setup() {
   esp_timer_start_periodic(tickTimer, kLvglTickMs * 1000);
 
   createUi();
+  updateBatteryStatus(true);
   Serial.println("AMOLED UI ready");
 }
 
@@ -742,6 +803,7 @@ void loop() {
   lv_timer_handler();
   handleBootButton();
   handlePowerButton();
+  updateBatteryStatus();
   updateWifiStatus();
   updatePreview();
   delay(5);
