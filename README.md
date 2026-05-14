@@ -16,7 +16,7 @@ The project now has two firmware roles:
   - `http://10.5.5.9:8080/gopro/camera/stream/start?port=8554`
 - Listens for the camera's UDP preview stream on ESP32 UDP port `8554`.
 - Can proxy received stream packets to another host on the network.
-- Can connect to the local/home Wi-Fi configured in `platformio.ini` as `razor`.
+- Connects to the GoPro camera Wi-Fi AP using credentials read over BLE.
 
 ## Build Targets
 
