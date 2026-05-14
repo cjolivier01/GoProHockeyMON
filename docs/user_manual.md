@@ -37,7 +37,7 @@ AMOLED UI ready
 
 ## Main Screen
 
-The first screen has the GoPro controls, preview area, camera state, Wi-Fi state, battery level, and Wi-Fi indicator.
+The default screen is now the capture/preview screen, matching the basic GoPro rear-screen flow. Swipe left or right to move between pages. The battery and Wi-Fi cluster stays visible at the top on every page.
 
 ![Home idle screen](images/ui/01-home-idle.svg)
 
@@ -51,11 +51,18 @@ Top-right indicators:
 
 ## Touch Controls
 
-- `Wake`: scan/connect BLE, read GoPro Wi-Fi credentials, enable GoPro AP, and join it.
+- `Connect`: scan/connect BLE, read GoPro Wi-Fi credentials, enable GoPro AP, and join it.
 - `Pair`: finish BLE pairing while the GoPro is in pairing mode.
 - `WiFi`: read BLE Wi-Fi credentials if needed, enable the GoPro AP, and connect Wi-Fi.
 - `REC`: start or stop GoPro video recording over HTTP.
-- Mode roller: currently displays `Video`, `Photo`, `TimeWarp`, `Playback`, and `Settings`. The current firmware UI shows these modes; deeper mode/preset control is still being expanded.
+
+Swipe pages:
+
+- Capture: preview, remaining time, record state, mode, aspect, resolution, FPS, lens, camera connection, and REC.
+- Modes: Video, Photo, and TimeWarp mode cards.
+- Capture Settings: aspect ratio, resolution, frame rate, digital lens, HyperSmooth, scheduled capture, duration, and HindSight.
+- Pro Controls: bit depth, bit rate, shutter, EV comp, white balance, ISO, sharpness, color, audio, RAW audio, and wind.
+- Dashboard: connect, pair, camera state, and physical button reference.
 
 ## Side Buttons
 
@@ -73,7 +80,7 @@ Do not hold BOOT while resetting or powering the ESP32-S3. Holding BOOT at reset
 1. On the GoPro, open the Bluetooth pairing screen.
 2. On the remote, tap `Pair`, or long-press BOOT.
 3. The remote scans for GoPro BLE devices and sends the Open GoPro pairing finish command.
-4. After pairing, use `Wake` or `WiFi` to connect to the GoPro camera AP.
+4. After pairing, use `Connect` or `WiFi` to connect to the GoPro camera AP.
 
 ![Pairing screen](images/ui/02-pairing.svg)
 
@@ -87,7 +94,7 @@ After the BLE connection succeeds, the remote reads the GoPro AP SSID and passwo
 
 ## Connecting To GoPro Wi-Fi
 
-Tap `Wake` or `WiFi`.
+Tap `Connect` or `WiFi`.
 
 The remote does the full Wi-Fi setup automatically:
 
@@ -102,6 +109,20 @@ The remote does the full Wi-Fi setup automatically:
 When connected, the top-right Wi-Fi indicator turns green and the `WiFi:` line shows the ESP32 address on the GoPro AP.
 
 ![Wi-Fi connected preview screen](images/ui/06-wifi-preview.svg)
+
+## GoPro-Style Settings
+
+The UI is organized after the GoPro rear screen:
+
+- Default capture page first.
+- Swipe left/right to change pages.
+- Capture overlay shows mode and capture format like `16:9 | 4K | 60 | W`.
+- Capture settings and Pro Controls are separate pages.
+- Dashboard-style connection and physical-button controls live on their own page.
+
+The settings list is based on the Open GoPro setting groups available over BLE/Wi-Fi. Because legal options vary by camera model, firmware, current preset, and whether the camera is recording, the current firmware exposes the setting groups and has `Sync State` / `Sync Presets` controls. The next step is to populate exact option pickers from the synced camera capabilities before sending individual setting changes.
+
+See [gopro_ui_research.md](gopro_ui_research.md).
 
 ## JPEG Preview
 
@@ -159,7 +180,7 @@ On USB power, the board may not appear fully off because USB continues to supply
 2. Confirm the main screen appears.
 3. Put the GoPro into pairing mode if this is the first connection.
 4. Tap `Pair`.
-5. Tap `Wake` or `WiFi`.
+5. Tap `Connect` or `WiFi`.
 6. Wait for `WIFI ON`.
 7. Use `REC` to start/stop recording.
 8. Short-press PWR to blank the screen between uses.
@@ -181,7 +202,7 @@ The remote read credentials but could not join the camera AP. Wait a few seconds
 
 `Connect WiFi for JPEG preview`
 
-The remote has not joined the GoPro AP yet. Tap `Wake` or `WiFi`.
+The remote has not joined the GoPro AP yet. Tap `Connect` or `WiFi`.
 
 `Preview paused while recording`
 

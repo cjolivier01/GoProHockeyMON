@@ -16,12 +16,12 @@
   <text x="48" y="331" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="14">Video</text>
   <text x="46" y="358" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">TimeWarp</text>
   <rect x="166" y="284" width="88" height="48" rx="14" fill="#2c7be5"/>
-  <text x="193" y="314" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">Wake</text>
+  <text x="184" y="314" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">Connect</text>
   <rect x="260" y="284" width="88" height="48" rx="14" fill="#7c4dff"/>
   <text x="290" y="314" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">Pair</text>
   <rect x="166" y="340" width="88" height="48" rx="14" fill="#009a88"/>
   <text x="193" y="370" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">WiFi</text>
   <rect x="260" y="340" width="88" height="48" rx="14" fill="#e03131"/>
   <text x="289" y="370" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">REC</text>
-  <text x="115" y="414" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Touch controls ready</text>
+  <text x="92" y="414" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Swipe for modes and settings</text>
 </svg>

@@ -106,7 +106,10 @@ lv_obj_t *actionLabel = nullptr;
 lv_obj_t *batteryBar = nullptr;
 lv_obj_t *batteryLabel = nullptr;
 lv_obj_t *wifiIndicator = nullptr;
-lv_obj_t *modeRoller = nullptr;
+lv_obj_t *tileView = nullptr;
+lv_obj_t *captureModeLabel = nullptr;
+lv_obj_t *captureSettingLabel = nullptr;
+lv_obj_t *recordPill = nullptr;
 uint32_t lastPreviewUpdate = 0;
 uint32_t lastPmuPollMs = 0;
 uint32_t lastBatteryUpdate = 0;
@@ -118,6 +121,8 @@ String latestPreviewPath;
 String lastBleName;
 String goProSsid;
 String goProPassword;
+String captureMode = "Video";
+String captureSetting = "16:9 | 4K | 60 | W";
 IPAddress cameraIp;
 int jpegDrawX = kPreviewX;
 int jpegDrawY = kPreviewY;
@@ -161,7 +166,7 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
 }
 
 void styleButton(lv_obj_t *button, lv_color_t color) {
-  lv_obj_set_style_radius(button, 14, 0);
+  lv_obj_set_style_radius(button, 8, 0);
   lv_obj_set_style_bg_color(button, color, 0);
   lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
   lv_obj_set_style_border_width(button, 0, 0);
@@ -176,6 +181,13 @@ lv_obj_t *makeButton(lv_obj_t *parent, const char *text, lv_color_t color) {
   lv_label_set_text(label, text);
   lv_obj_center(label);
   return button;
+}
+
+lv_obj_t *makeChip(lv_obj_t *parent, const char *text, int x, int y, int w, lv_color_t color) {
+  lv_obj_t *chip = makeButton(parent, text, color);
+  lv_obj_set_size(chip, w, 34);
+  lv_obj_set_pos(chip, x, y);
+  return chip;
 }
 
 void setAction(const char *message) {
@@ -599,6 +611,16 @@ bool httpGetGoPro(const String &path) {
   return status >= 200 && status < 300;
 }
 
+bool setGoProSetting(uint16_t settingId, uint16_t optionId, const char *label) {
+  String path = "/gopro/camera/setting?setting=";
+  path += settingId;
+  path += "&option=";
+  path += optionId;
+  bool ok = httpGetGoPro(path);
+  setAction(ok ? label : "Setting command failed");
+  return ok;
+}
+
 void setPairingMode() {
   if (!displayOn) {
     setDisplayOn(true);
@@ -801,6 +823,64 @@ void onRecord(lv_event_t *) {
   toggleRecording();
 }
 
+void selectMode(const char *mode, const char *setting, const char *endpoint) {
+  captureMode = mode;
+  captureSetting = setting;
+  if (captureModeLabel) {
+    lv_label_set_text(captureModeLabel, captureMode.c_str());
+  }
+  if (captureSettingLabel) {
+    lv_label_set_text(captureSettingLabel, captureSetting.c_str());
+  }
+  lv_label_set_text(statusLabel, captureMode.c_str());
+  if (WiFi.status() == WL_CONNECTED && endpoint && endpoint[0]) {
+    httpGetGoPro(endpoint);
+  }
+  setAction(captureSetting.c_str());
+}
+
+void onModeVideo(lv_event_t *) {
+  selectMode("Video", "16:9 | 4K | 60 | W", "");
+}
+
+void onModePhoto(lv_event_t *) {
+  selectMode("Photo", "8:7 | 27MP | Wide", "");
+}
+
+void onModeTimeWarp(lv_event_t *) {
+  selectMode("TimeWarp", "16:9 | 4K | Auto", "");
+}
+
+void onDashboardConnect(lv_event_t *) {
+  connectGoProWifiFromBle();
+}
+
+void onSettingSync(lv_event_t *) {
+  httpGetGoPro("/gopro/camera/state");
+}
+
+void onPresetSync(lv_event_t *) {
+  httpGetGoPro("/gopro/camera/presets/get?include-hidden=1");
+}
+
+void onSettingPlaceholder(lv_event_t *event) {
+  const char *label = static_cast<const char *>(lv_event_get_user_data(event));
+  String message = "Select ";
+  message += label ? label : "setting";
+  message += " after camera state sync";
+  setAction(message.c_str());
+}
+
+lv_obj_t *makePanelLabel(lv_obj_t *parent, const char *text, int x, int y, int size = 14,
+                         lv_color_t color = lv_color_hex(0xf4f7fb)) {
+  lv_obj_t *label = lv_label_create(parent);
+  lv_label_set_text(label, text);
+  lv_obj_set_style_text_font(label, size >= 18 ? &lv_font_montserrat_18 : &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_color(label, color, 0);
+  lv_obj_set_pos(label, x, y);
+  return label;
+}
+
 void createUi() {
   lv_obj_t *screen = lv_scr_act();
   lv_obj_set_style_bg_color(screen, lv_color_hex(0x090b10), 0);
@@ -808,12 +888,12 @@ void createUi() {
   lv_obj_set_style_text_font(screen, &lv_font_montserrat_14, 0);
 
   lv_obj_t *title = lv_label_create(screen);
-  lv_label_set_text(title, "GoPro Remote");
+  lv_label_set_text(title, "GoPro");
   lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
   lv_obj_align(title, LV_ALIGN_TOP_LEFT, 18, 14);
 
   statusLabel = lv_label_create(screen);
-  lv_label_set_text(statusLabel, "Display online");
+  lv_label_set_text(statusLabel, "Ready");
   lv_obj_set_style_text_color(statusLabel, lv_color_hex(0x96a2b4), 0);
   lv_obj_align(statusLabel, LV_ALIGN_TOP_LEFT, 20, 48);
 
@@ -835,11 +915,23 @@ void createUi() {
   lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x5a6472), 0);
   lv_obj_align(wifiIndicator, LV_ALIGN_TOP_RIGHT, -20, 38);
 
-  previewBox = lv_obj_create(screen);
+  tileView = lv_tileview_create(screen);
+  lv_obj_set_size(tileView, LCD_WIDTH, LCD_HEIGHT - 70);
+  lv_obj_align(tileView, LV_ALIGN_BOTTOM_MID, 0, 0);
+  lv_obj_set_style_bg_color(tileView, lv_color_hex(0x090b10), 0);
+  lv_obj_set_style_border_width(tileView, 0, 0);
+  lv_obj_set_style_pad_all(tileView, 0, 0);
+  lv_obj_clear_flag(tileView, LV_OBJ_FLAG_SCROLL_ELASTIC);
+  lv_obj_set_scrollbar_mode(tileView, LV_SCROLLBAR_MODE_OFF);
+
+  lv_obj_t *captureTile = lv_tileview_add_tile(tileView, 0, 0, LV_DIR_RIGHT);
+  lv_obj_set_style_bg_color(captureTile, lv_color_hex(0x090b10), 0);
+
+  previewBox = lv_obj_create(captureTile);
   lv_obj_set_size(previewBox, kPreviewW, kPreviewH);
-  lv_obj_align(previewBox, LV_ALIGN_TOP_MID, 0, 76);
-  lv_obj_set_style_radius(previewBox, 18, 0);
-  lv_obj_set_style_bg_color(previewBox, lv_color_hex(0x152033), 0);
+  lv_obj_set_pos(previewBox, kPreviewX, 6);
+  lv_obj_set_style_radius(previewBox, 8, 0);
+  lv_obj_set_style_bg_color(previewBox, lv_color_hex(0x101827), 0);
   lv_obj_set_style_border_color(previewBox, lv_color_hex(0x2b3a52), 0);
   lv_obj_set_style_border_width(previewBox, 1, 0);
   lv_obj_clear_flag(previewBox, LV_OBJ_FLAG_SCROLLABLE);
@@ -849,47 +941,114 @@ void createUi() {
   lv_obj_set_style_text_color(previewLabel, lv_color_hex(0xdde7f5), 0);
   lv_obj_center(previewLabel);
 
-  cameraLabel = lv_label_create(screen);
+  recordPill = lv_obj_create(captureTile);
+  lv_obj_set_size(recordPill, 76, 28);
+  lv_obj_set_pos(recordPill, 272, 18);
+  lv_obj_set_style_radius(recordPill, 8, 0);
+  lv_obj_set_style_bg_color(recordPill, lv_color_hex(0x1b2638), 0);
+  lv_obj_set_style_border_width(recordPill, 0, 0);
+  lv_obj_t *recDot = lv_obj_create(recordPill);
+  lv_obj_set_size(recDot, 10, 10);
+  lv_obj_set_pos(recDot, 10, 9);
+  lv_obj_set_style_radius(recDot, 5, 0);
+  lv_obj_set_style_bg_color(recDot, lv_color_hex(0xe03131), 0);
+  lv_obj_set_style_border_width(recDot, 0, 0);
+  makePanelLabel(recordPill, "REC", 28, 7, 14, lv_color_hex(0xf4f7fb));
+
+  makePanelLabel(captureTile, "9H:59", 22, 14, 18, lv_color_hex(0xf4f7fb));
+  captureModeLabel = makePanelLabel(captureTile, captureMode.c_str(), 22, 170, 18);
+  captureSettingLabel = makePanelLabel(captureTile, captureSetting.c_str(), 22, 194, 14,
+                                       lv_color_hex(0xc3ccd8));
+
+  cameraLabel = lv_label_create(captureTile);
   lv_label_set_text(cameraLabel, "Camera: not paired");
   lv_obj_set_style_text_color(cameraLabel, lv_color_hex(0xc3ccd8), 0);
-  lv_obj_align(cameraLabel, LV_ALIGN_TOP_LEFT, 20, 240);
+  lv_obj_set_pos(cameraLabel, 20, 224);
 
-  wifiLabel = lv_label_create(screen);
+  wifiLabel = lv_label_create(captureTile);
   lv_label_set_text(wifiLabel, "WiFi: idle");
   lv_obj_set_style_text_color(wifiLabel, lv_color_hex(0x96a2b4), 0);
-  lv_obj_align(wifiLabel, LV_ALIGN_TOP_LEFT, 20, 262);
+  lv_obj_set_pos(wifiLabel, 20, 246);
 
-  modeRoller = lv_roller_create(screen);
-  lv_roller_set_options(modeRoller, "Video\nPhoto\nTimeWarp\nPlayback\nSettings",
-                        LV_ROLLER_MODE_NORMAL);
-  lv_roller_set_visible_row_count(modeRoller, 3);
-  lv_obj_set_size(modeRoller, 136, 86);
-  lv_obj_align(modeRoller, LV_ALIGN_BOTTOM_LEFT, 18, -78);
-
-  lv_obj_t *wake = makeButton(screen, "Wake", lv_color_hex(0x2c7be5));
-  lv_obj_set_size(wake, 88, 48);
-  lv_obj_align(wake, LV_ALIGN_BOTTOM_LEFT, 166, -116);
-  lv_obj_add_event_cb(wake, onWake, LV_EVENT_CLICKED, nullptr);
-
-  lv_obj_t *pair = makeButton(screen, "Pair", lv_color_hex(0x7c4dff));
-  lv_obj_set_size(pair, 88, 48);
-  lv_obj_align(pair, LV_ALIGN_BOTTOM_RIGHT, -20, -116);
-  lv_obj_add_event_cb(pair, onPair, LV_EVENT_CLICKED, nullptr);
-
-  lv_obj_t *wifi = makeButton(screen, "WiFi", lv_color_hex(0x009a88));
-  lv_obj_set_size(wifi, 88, 48);
-  lv_obj_align(wifi, LV_ALIGN_BOTTOM_LEFT, 166, -60);
-  lv_obj_add_event_cb(wifi, onWifi, LV_EVENT_CLICKED, nullptr);
-
-  lv_obj_t *rec = makeButton(screen, "REC", lv_color_hex(0xe03131));
-  lv_obj_set_size(rec, 88, 48);
-  lv_obj_align(rec, LV_ALIGN_BOTTOM_RIGHT, -20, -60);
+  lv_obj_t *connect = makeChip(captureTile, "Connect", 20, 284, 96, lv_color_hex(0x2c7be5));
+  lv_obj_add_event_cb(connect, onWifi, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t *rec = makeChip(captureTile, "REC", 252, 284, 96, lv_color_hex(0xe03131));
   lv_obj_add_event_cb(rec, onRecord, LV_EVENT_CLICKED, nullptr);
 
-  actionLabel = lv_label_create(screen);
-  lv_label_set_text(actionLabel, "Touch controls ready");
+  actionLabel = lv_label_create(captureTile);
+  lv_label_set_text(actionLabel, "Swipe for modes and settings");
   lv_obj_set_style_text_color(actionLabel, lv_color_hex(0x96a2b4), 0);
-  lv_obj_align(actionLabel, LV_ALIGN_BOTTOM_MID, 0, -18);
+  lv_obj_align(actionLabel, LV_ALIGN_BOTTOM_MID, 0, -20);
+
+  lv_obj_t *modeTile = lv_tileview_add_tile(tileView, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+  lv_obj_set_style_bg_color(modeTile, lv_color_hex(0x090b10), 0);
+  makePanelLabel(modeTile, "Modes", 20, 18, 18);
+  makePanelLabel(modeTile, "Swipe left/right like the GoPro rear screen", 20, 44, 14,
+                 lv_color_hex(0x96a2b4));
+  lv_obj_t *video = makeChip(modeTile, "Video", 20, 84, 328, lv_color_hex(0x2c7be5));
+  lv_obj_add_event_cb(video, onModeVideo, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t *photo = makeChip(modeTile, "Photo", 20, 132, 328, lv_color_hex(0x009a88));
+  lv_obj_add_event_cb(photo, onModePhoto, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t *timeWarp = makeChip(modeTile, "TimeWarp", 20, 180, 328, lv_color_hex(0x7c4dff));
+  lv_obj_add_event_cb(timeWarp, onModeTimeWarp, LV_EVENT_CLICKED, nullptr);
+  makePanelLabel(modeTile, "Main overlay shows mode, aspect, resolution, fps, lens", 20, 242, 14,
+                 lv_color_hex(0xc3ccd8));
+
+  lv_obj_t *captureSettingsTile = lv_tileview_add_tile(tileView, 2, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+  lv_obj_set_style_bg_color(captureSettingsTile, lv_color_hex(0x090b10), 0);
+  makePanelLabel(captureSettingsTile, "Capture Settings", 20, 18, 18);
+  makePanelLabel(captureSettingsTile, "Resolution, frame rate, lens, and aspect", 20, 44, 14,
+                 lv_color_hex(0x96a2b4));
+  const char *captureSettings[] = {"Aspect Ratio", "Resolution", "Frame Rate", "Digital Lens",
+                                   "HyperSmooth", "Scheduled Capture", "Duration", "HindSight"};
+  for (int i = 0; i < 8; ++i) {
+    int x = 20 + (i % 2) * 168;
+    int y = 82 + (i / 2) * 48;
+    lv_obj_t *button = makeChip(captureSettingsTile, captureSettings[i], x, y, 156,
+                                lv_color_hex(0x1b2638));
+    lv_obj_add_event_cb(button, onSettingPlaceholder, LV_EVENT_CLICKED,
+                        const_cast<char *>(captureSettings[i]));
+  }
+  lv_obj_t *syncState = makeChip(captureSettingsTile, "Sync State", 20, 288, 156,
+                                 lv_color_hex(0x2c7be5));
+  lv_obj_add_event_cb(syncState, onSettingSync, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t *syncPresets = makeChip(captureSettingsTile, "Sync Presets", 192, 288, 156,
+                                   lv_color_hex(0x2c7be5));
+  lv_obj_add_event_cb(syncPresets, onPresetSync, LV_EVENT_CLICKED, nullptr);
+
+  lv_obj_t *protuneTile = lv_tileview_add_tile(tileView, 3, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+  lv_obj_set_style_bg_color(protuneTile, lv_color_hex(0x090b10), 0);
+  makePanelLabel(protuneTile, "Pro Controls", 20, 18, 18);
+  makePanelLabel(protuneTile, "Advanced settings exposed by Open GoPro", 20, 44, 14,
+                 lv_color_hex(0x96a2b4));
+  const char *protune[] = {"Bit Depth", "Bit Rate", "Shutter", "EV Comp", "White Balance",
+                           "ISO Min", "ISO Max", "Sharpness", "Color", "Audio", "RAW Audio",
+                           "Wind"};
+  for (int i = 0; i < 12; ++i) {
+    int x = 20 + (i % 2) * 168;
+    int y = 82 + (i / 2) * 40;
+    lv_obj_t *button = makeChip(protuneTile, protune[i], x, y, 156, lv_color_hex(0x1b2638));
+    lv_obj_add_event_cb(button, onSettingPlaceholder, LV_EVENT_CLICKED,
+                        const_cast<char *>(protune[i]));
+  }
+
+  lv_obj_t *dashboardTile = lv_tileview_add_tile(tileView, 4, 0, LV_DIR_LEFT);
+  lv_obj_set_style_bg_color(dashboardTile, lv_color_hex(0x090b10), 0);
+  makePanelLabel(dashboardTile, "Dashboard", 20, 18, 18);
+  makePanelLabel(dashboardTile, "Connection and remote power controls", 20, 44, 14,
+                 lv_color_hex(0x96a2b4));
+  lv_obj_t *dashConnect = makeChip(dashboardTile, "Connect Camera", 20, 84, 328,
+                                   lv_color_hex(0x2c7be5));
+  lv_obj_add_event_cb(dashConnect, onDashboardConnect, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t *dashPair = makeChip(dashboardTile, "Pair BLE", 20, 132, 156, lv_color_hex(0x7c4dff));
+  lv_obj_add_event_cb(dashPair, onPair, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t *dashState = makeChip(dashboardTile, "Camera State", 192, 132, 156,
+                                 lv_color_hex(0x009a88));
+  lv_obj_add_event_cb(dashState, onSettingSync, LV_EVENT_CLICKED, nullptr);
+  makePanelLabel(dashboardTile, "PWR short: display off/on", 20, 206, 14, lv_color_hex(0xc3ccd8));
+  makePanelLabel(dashboardTile, "PWR long: PMU shutdown", 20, 230, 14, lv_color_hex(0xc3ccd8));
+  makePanelLabel(dashboardTile, "BOOT short: record", 20, 254, 14, lv_color_hex(0xc3ccd8));
+  makePanelLabel(dashboardTile, "BOOT long: pair", 20, 278, 14, lv_color_hex(0xc3ccd8));
 }
 
 void updateWifiStatus() {
@@ -903,7 +1062,7 @@ void updateWifiStatus() {
     String text = "WiFi: ";
     text += WiFi.localIP().toString();
     lv_label_set_text(wifiLabel, text.c_str());
-    lv_label_set_text(statusLabel, "Local WiFi connected");
+    lv_label_set_text(statusLabel, "GoPro WiFi connected");
     lv_label_set_text(wifiIndicator, "WIFI ON");
     lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x47d16c), 0);
   } else if (status == WL_IDLE_STATUS) {

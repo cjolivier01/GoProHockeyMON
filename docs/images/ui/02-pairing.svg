@@ -9,7 +9,7 @@
   <text x="20" y="252" fill="#c3ccd8" font-family="Arial" font-size="14">Camera: use GoPro pairing mode</text>
   <text x="20" y="274" fill="#96a2b4" font-family="Arial" font-size="14">WiFi: idle</text>
   <rect x="18" y="284" width="136" height="86" rx="8" fill="#151922" stroke="#343b49"/><text x="48" y="331" fill="#f4f7fb" font-family="Arial" font-size="14">Video</text>
-  <rect x="166" y="284" width="88" height="48" rx="14" fill="#2c7be5"/><text x="193" y="314" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Wake</text>
+  <rect x="166" y="284" width="88" height="48" rx="14" fill="#2c7be5"/><text x="184" y="314" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Connect</text>
   <rect x="260" y="284" width="88" height="48" rx="14" fill="#7c4dff"/><text x="290" y="314" fill="#fff" font-family="Arial" font-size="14" font-weight="700">Pair</text>
   <rect x="166" y="340" width="88" height="48" rx="14" fill="#009a88"/><text x="193" y="370" fill="#fff" font-family="Arial" font-size="14" font-weight="700">WiFi</text>
   <rect x="260" y="340" width="88" height="48" rx="14" fill="#e03131"/><text x="289" y="370" fill="#fff" font-family="Arial" font-size="14" font-weight="700">REC</text>
