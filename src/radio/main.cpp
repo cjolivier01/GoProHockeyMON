@@ -567,6 +567,11 @@ bool startUdpListener() {
 }
 
 bool startStream() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println(F("WiFi is not connected; not starting UDP stream listener."));
+    return false;
+  }
+
   if (!startUdpListener()) {
     return false;
   }
@@ -866,6 +871,9 @@ void readSerialCommands() {
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(GOPRO_BUTTON_PIN, INPUT_PULLUP);
+  g_buttonLast = digitalRead(GOPRO_BUTTON_PIN);
+  g_buttonStable = g_buttonLast;
+  g_buttonLastChangeMs = millis();
   setLed(false);
 
   Serial.begin(115200);
