@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <BLEDevice.h>
+#include <BLEScan.h>
 #include <HTTPClient.h>
 #include <Wire.h>
 #include <WiFi.h>
@@ -33,6 +35,10 @@
 #define GOPRO_CAMERA_WIFI_PASSWORD ""
 #endif
 
+#ifndef GOPRO_CAMERA_NAME_FILTER
+#define GOPRO_CAMERA_NAME_FILTER "GoPro,MISSION,GP"
+#endif
+
 #ifndef GOPRO_CAMERA_IP
 #define GOPRO_CAMERA_IP "10.5.5.9"
 #endif
@@ -46,12 +52,24 @@ constexpr uint32_t kButtonDebounceMs = 35;
 constexpr uint32_t kBootLongPressMs = 1200;
 constexpr uint32_t kPmuPollMs = 150;
 constexpr uint32_t kBatteryRefreshMs = 5000;
+constexpr uint32_t kBleScanSeconds = 7;
+constexpr uint32_t kWifiTimeoutMs = 25000;
 constexpr size_t kMaxJpegBytes = 220 * 1024;
 constexpr int kPreviewX = 20;
 constexpr int kPreviewY = 76;
 constexpr int kPreviewW = 328;
 constexpr int kPreviewH = 150;
 constexpr int kBootButtonPin = 0;
+
+const BLEUUID kControlService("0000fea6-0000-1000-8000-00805f9b34fb");
+const BLEUUID kWifiService("b5f90001-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kCameraManagementService("b5f90090-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kWifiSsid("b5f90002-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kWifiPassword("b5f90003-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kCommand("b5f90072-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kCommandResponse("b5f90073-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kCameraManagementCommand("b5f90091-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kCameraManagementResponse("b5f90092-aa8d-11e3-9046-0002a5d5c51b");
 
 Adafruit_XCA9554 expander;
 XPowersPMU power;
@@ -76,6 +94,8 @@ lv_disp_drv_t displayDriver;
 lv_indev_drv_t touchDriver;
 lv_color_t *drawBuf1 = nullptr;
 lv_color_t *drawBuf2 = nullptr;
+BLEAdvertisedDevice *bestBleDevice = nullptr;
+BLEClient *bleClient = nullptr;
 
 lv_obj_t *statusLabel = nullptr;
 lv_obj_t *wifiLabel = nullptr;
@@ -93,7 +113,11 @@ uint32_t lastBatteryUpdate = 0;
 bool recording = false;
 bool displayOn = true;
 bool pmuOnline = false;
+bool bleConnected = false;
 String latestPreviewPath;
+String lastBleName;
+String goProSsid;
+String goProPassword;
 IPAddress cameraIp;
 int jpegDrawX = kPreviewX;
 int jpegDrawY = kPreviewY;
@@ -159,6 +183,63 @@ void setAction(const char *message) {
     lv_label_set_text(actionLabel, message);
   }
   Serial.println(message);
+}
+
+String trimCopy(String value) {
+  value.trim();
+  return value;
+}
+
+bool containsIgnoreCase(const String &text, const String &needle) {
+  String lowerText = text;
+  String lowerNeedle = needle;
+  lowerText.toLowerCase();
+  lowerNeedle.toLowerCase();
+  return lowerText.indexOf(lowerNeedle) >= 0;
+}
+
+bool nameMatchesFilter(const String &name) {
+  if (name.isEmpty()) {
+    return false;
+  }
+
+  String filters = GOPRO_CAMERA_NAME_FILTER;
+  int start = 0;
+  while (start < filters.length()) {
+    int comma = filters.indexOf(',', start);
+    if (comma < 0) {
+      comma = filters.length();
+    }
+    String token = trimCopy(filters.substring(start, comma));
+    if (!token.isEmpty() && containsIgnoreCase(name, token)) {
+      return true;
+    }
+    start = comma + 1;
+  }
+  return false;
+}
+
+String bytesToString(const String &bytes) {
+  String value;
+  value.reserve(bytes.length());
+  for (size_t i = 0; i < bytes.length(); ++i) {
+    char c = bytes.charAt(i);
+    if (c != '\0') {
+      value += c;
+    }
+  }
+  return value;
+}
+
+String bytesToString(const std::string &bytes) {
+  String value;
+  value.reserve(bytes.length());
+  for (char c : bytes) {
+    if (c != '\0') {
+      value += c;
+    }
+  }
+  return value;
 }
 
 void setDisplayOn(bool enabled) {
@@ -242,6 +323,263 @@ String cameraBaseUrl() {
   return String("http://") + cameraIp.toString() + ":8080";
 }
 
+void commandResponseNotify(BLERemoteCharacteristic *, uint8_t *data, size_t length, bool) {
+  Serial.print(F("BLE command response:"));
+  for (size_t i = 0; i < length; ++i) {
+    Serial.print(' ');
+    if (data[i] < 0x10) {
+      Serial.print('0');
+    }
+    Serial.print(data[i], HEX);
+  }
+  Serial.println();
+}
+
+class ScanCallbacks : public BLEAdvertisedDeviceCallbacks {
+ public:
+  void onResult(BLEAdvertisedDevice device) override {
+    String name = device.haveName() ? String(device.getName().c_str()) : "";
+    bool hasControlService = device.haveServiceUUID() && device.isAdvertisingService(kControlService);
+
+    if (!hasControlService && !nameMatchesFilter(name)) {
+      return;
+    }
+
+    Serial.print(F("BLE candidate: "));
+    Serial.print(name.isEmpty() ? F("(no name)") : name);
+    Serial.print(F(" rssi="));
+    Serial.print(device.getRSSI());
+    Serial.print(F(" addr="));
+    Serial.println(device.getAddress().toString().c_str());
+
+    if (bestBleDevice == nullptr || device.getRSSI() > bestBleDevice->getRSSI()) {
+      delete bestBleDevice;
+      bestBleDevice = new BLEAdvertisedDevice(device);
+    }
+  }
+};
+
+bool scanForCamera() {
+  delete bestBleDevice;
+  bestBleDevice = nullptr;
+
+  lv_label_set_text(statusLabel, "Scanning BLE");
+  setAction("Scanning for GoPro BLE");
+
+  BLEScan *scan = BLEDevice::getScan();
+  ScanCallbacks callbacks;
+  scan->setAdvertisedDeviceCallbacks(&callbacks, false);
+  scan->setActiveScan(true);
+  scan->setInterval(100);
+  scan->setWindow(99);
+  scan->start(kBleScanSeconds, false);
+  scan->clearResults();
+
+  if (bestBleDevice == nullptr) {
+    lv_label_set_text(cameraLabel, "Camera: BLE not found");
+    setAction("No GoPro BLE device found");
+    return false;
+  }
+
+  lastBleName = bestBleDevice->haveName() ? String(bestBleDevice->getName().c_str()) : "";
+  String label = "Camera: ";
+  label += lastBleName.isEmpty() ? bestBleDevice->getAddress().toString().c_str() : lastBleName;
+  lv_label_set_text(cameraLabel, label.c_str());
+  Serial.print(F("Selected BLE device: "));
+  Serial.println(label);
+  return true;
+}
+
+bool connectBle() {
+  if (bleConnected && bleClient != nullptr && bleClient->isConnected()) {
+    return true;
+  }
+
+  if (bestBleDevice == nullptr && !scanForCamera()) {
+    return false;
+  }
+
+  if (bleClient == nullptr) {
+    bleClient = BLEDevice::createClient();
+  }
+
+  lv_label_set_text(statusLabel, "Connecting BLE");
+  setAction("Connecting GoPro BLE");
+  if (!bleClient->connect(bestBleDevice)) {
+    bleConnected = false;
+    lv_label_set_text(cameraLabel, "Camera: BLE connect failed");
+    setAction("BLE connect failed");
+    return false;
+  }
+
+  bleConnected = true;
+  BLERemoteService *control = bleClient->getService(kControlService);
+  if (control != nullptr) {
+    BLERemoteCharacteristic *response = control->getCharacteristic(kCommandResponse);
+    if (response != nullptr && response->canNotify()) {
+      response->registerForNotify(commandResponseNotify);
+    }
+  }
+
+  lv_label_set_text(statusLabel, "BLE connected");
+  setAction("BLE connected");
+  return true;
+}
+
+bool readGoProWifiCredentials() {
+  if (!connectBle()) {
+    return false;
+  }
+
+  BLERemoteService *wifi = bleClient->getService(kWifiService);
+  if (wifi == nullptr) {
+    setAction("GoPro WiFi BLE service missing");
+    return false;
+  }
+
+  BLERemoteCharacteristic *ssid = wifi->getCharacteristic(kWifiSsid);
+  BLERemoteCharacteristic *password = wifi->getCharacteristic(kWifiPassword);
+  if (ssid == nullptr || password == nullptr || !ssid->canRead() || !password->canRead()) {
+    setAction("GoPro WiFi credentials unreadable");
+    return false;
+  }
+
+  goProSsid = bytesToString(ssid->readValue());
+  goProPassword = bytesToString(password->readValue());
+
+  Serial.print(F("GoPro AP SSID: "));
+  Serial.println(goProSsid);
+  Serial.print(F("GoPro AP password length: "));
+  Serial.println(goProPassword.length());
+
+  if (goProSsid.isEmpty() || goProPassword.isEmpty()) {
+    setAction("GoPro WiFi credentials empty");
+    return false;
+  }
+
+  String label = "Camera AP: ";
+  label += goProSsid;
+  lv_label_set_text(cameraLabel, label.c_str());
+  setAction("Read GoPro WiFi over BLE");
+  return true;
+}
+
+bool sendBleCommand(const uint8_t *payload, size_t length) {
+  if (!connectBle()) {
+    return false;
+  }
+
+  BLERemoteService *control = bleClient->getService(kControlService);
+  if (control == nullptr) {
+    setAction("GoPro control BLE service missing");
+    return false;
+  }
+
+  BLERemoteCharacteristic *command = control->getCharacteristic(kCommand);
+  if (command == nullptr || !command->canWrite()) {
+    setAction("GoPro command characteristic missing");
+    return false;
+  }
+
+  command->writeValue(const_cast<uint8_t *>(payload), length, true);
+  delay(300);
+  return true;
+}
+
+bool sendCameraManagementCommand(const uint8_t *payload, size_t length) {
+  if (!connectBle()) {
+    return false;
+  }
+
+  BLERemoteService *management = bleClient->getService(kCameraManagementService);
+  if (management == nullptr) {
+    setAction("GoPro pairing service missing");
+    return false;
+  }
+
+  BLERemoteCharacteristic *response = management->getCharacteristic(kCameraManagementResponse);
+  if (response != nullptr && response->canNotify()) {
+    response->registerForNotify(commandResponseNotify);
+  }
+
+  BLERemoteCharacteristic *command = management->getCharacteristic(kCameraManagementCommand);
+  if (command == nullptr || !command->canWrite()) {
+    setAction("GoPro pairing command missing");
+    return false;
+  }
+
+  command->writeValue(const_cast<uint8_t *>(payload), length, true);
+  delay(500);
+  return true;
+}
+
+bool pairGoPro() {
+  const char controllerName[] = "ESP32";
+  uint8_t request[1 + 2 + 2 + 2 + sizeof(controllerName) - 1] = {
+      0x0B,
+      0x03,
+      0x01,
+      0x08,
+      0x00,
+      0x12,
+      static_cast<uint8_t>(sizeof(controllerName) - 1),
+      'E',
+      'S',
+      'P',
+      '3',
+      '2',
+  };
+  lv_label_set_text(statusLabel, "Pairing BLE");
+  lv_label_set_text(cameraLabel, "Camera: use GoPro pairing mode");
+  setAction("Pairing with GoPro BLE");
+  return sendCameraManagementCommand(request, sizeof(request));
+}
+
+bool enableGoProWifiAp() {
+  const uint8_t enableWifi[] = {0x03, 0x17, 0x01, 0x01};
+  lv_label_set_text(statusLabel, "Enabling GoPro AP");
+  setAction("Enabling GoPro WiFi AP over BLE");
+  return sendBleCommand(enableWifi, sizeof(enableWifi));
+}
+
+bool connectGoProWifiFromBle() {
+  if (goProSsid.isEmpty() && !readGoProWifiCredentials()) {
+    return false;
+  }
+  if (!enableGoProWifiAp()) {
+    return false;
+  }
+
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect(true, true);
+  delay(250);
+  WiFi.begin(goProSsid.c_str(), goProPassword.c_str());
+
+  String label = "Joining ";
+  label += goProSsid;
+  lv_label_set_text(statusLabel, label.c_str());
+  setAction(label.c_str());
+
+  uint32_t start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < kWifiTimeoutMs) {
+    lv_timer_handler();
+    delay(100);
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    lv_label_set_text(wifiLabel, "WiFi: GoPro AP failed");
+    setAction("GoPro WiFi connect failed");
+    return false;
+  }
+
+  String text = "WiFi: ";
+  text += WiFi.localIP().toString();
+  lv_label_set_text(wifiLabel, text.c_str());
+  lv_label_set_text(statusLabel, "GoPro WiFi connected");
+  setAction("Connected to GoPro WiFi");
+  return true;
+}
+
 bool httpGetGoPro(const String &path) {
   if (WiFi.status() != WL_CONNECTED) {
     setAction("WiFi not connected");
@@ -265,9 +603,8 @@ void setPairingMode() {
   if (!displayOn) {
     setDisplayOn(true);
   }
-  lv_label_set_text(statusLabel, "Pairing mode");
-  lv_label_set_text(cameraLabel, "Camera: waiting for GoPro BLE");
-  setAction("Pairing placeholder: open GoPro BLE pairing from radio module");
+  bool ok = pairGoPro();
+  setAction(ok ? "GoPro BLE pairing requested" : "GoPro BLE pairing failed");
 }
 
 void toggleRecording() {
@@ -284,23 +621,6 @@ void toggleRecording() {
     httpGetGoPro("/gopro/camera/shutter/stop");
   }
   setAction(recording ? "Recording; preview paused" : "Recording stopped");
-}
-
-bool connectConfiguredWifi() {
-  const char *ssid = GOPRO_CAMERA_WIFI_SSID[0] ? GOPRO_CAMERA_WIFI_SSID : GOPRO_LOCAL_WIFI_SSID;
-  const char *password = GOPRO_CAMERA_WIFI_SSID[0] ? GOPRO_CAMERA_WIFI_PASSWORD : GOPRO_LOCAL_WIFI_PASSWORD;
-  if (!ssid || !ssid[0]) {
-    setAction("No WiFi SSID configured");
-    return false;
-  }
-
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  String label = "Joining ";
-  label += ssid;
-  lv_label_set_text(statusLabel, label.c_str());
-  setAction(label.c_str());
-  return true;
 }
 
 bool getLatestJpegPath(String &path) {
@@ -466,8 +786,7 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
 }
 
 void onWake(lv_event_t *) {
-  lv_label_set_text(statusLabel, "BLE wake requested");
-  setAction("Wake command placeholder: pair radio service next");
+  connectGoProWifiFromBle();
 }
 
 void onPair(lv_event_t *) {
@@ -475,7 +794,7 @@ void onPair(lv_event_t *) {
 }
 
 void onWifi(lv_event_t *) {
-  connectConfiguredWifi();
+  connectGoProWifiFromBle();
 }
 
 void onRecord(lv_event_t *) {
@@ -733,6 +1052,7 @@ void setup() {
   delay(200);
   Serial.println("GoPro AMOLED UI boot");
   cameraIp.fromString(GOPRO_CAMERA_IP);
+  BLEDevice::init("ESP32-GoPro-Remote");
 
   Wire.begin(IIC_SDA, IIC_SCL);
   Wire.setClock(400000);
