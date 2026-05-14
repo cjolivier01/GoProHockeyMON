@@ -1,0 +1,39 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PlatformIO: Build",
+      "type": "shell",
+      "command": "/home/colivier/.platformio/penv/bin/pio",
+      "args": [
+        "run"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PlatformIO: Upload",
+      "type": "shell",
+      "command": "/home/colivier/.platformio/penv/bin/pio",
+      "args": [
+        "run",
+        "-t",
+        "upload"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "PlatformIO: Monitor",
+      "type": "shell",
+      "command": "/home/colivier/.platformio/penv/bin/pio",
+      "args": [
+        "device",
+        "monitor"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}
