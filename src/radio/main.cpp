@@ -93,6 +93,24 @@ void linkText(RemoteLink::MsgType type, const String &text) {
   RemoteLink::sendText(Serial2, type, text, g_linkSequence++);
 }
 
+void linkTextChunked(RemoteLink::MsgType type, const String &text, uint16_t sequence) {
+  if (text.length() <= RemoteLink::kMaxPayload) {
+    RemoteLink::sendText(Serial2, type, text, sequence);
+    return;
+  }
+  size_t offset = 0;
+  while (offset < text.length()) {
+    size_t chunkLen = min(RemoteLink::kMaxPayload, text.length() - offset);
+    RemoteLink::sendPacket(
+        Serial2,
+        type,
+        reinterpret_cast<const uint8_t *>(text.c_str() + offset),
+        static_cast<uint16_t>(chunkLen),
+        sequence++);
+    offset += chunkLen;
+  }
+}
+
 void linkLog(const String &text) {
   linkText(RemoteLink::MsgType::Log, text);
 }
@@ -692,12 +710,12 @@ void handleLinkPacket(const RemoteLink::Packet &packet) {
     }
     case RemoteLink::MsgType::GetCameraState:
       ok = httpGetGoProBody("/gopro/camera/state", body);
-      RemoteLink::sendText(Serial2, RemoteLink::MsgType::CameraJson, body, packet.sequence);
+      linkTextChunked(RemoteLink::MsgType::CameraJson, body, packet.sequence);
       sendLinkStatus();
       return;
     case RemoteLink::MsgType::GetPresets:
       ok = httpGetGoProBody("/gopro/camera/presets/get?include-hidden=1", body);
-      RemoteLink::sendText(Serial2, RemoteLink::MsgType::CameraJson, body, packet.sequence);
+      linkTextChunked(RemoteLink::MsgType::CameraJson, body, packet.sequence);
       sendLinkStatus();
       return;
     case RemoteLink::MsgType::LoadPreset:
@@ -708,7 +726,7 @@ void handleLinkPacket(const RemoteLink::Packet &packet) {
       break;
     case RemoteLink::MsgType::RawHttpGet:
       ok = httpGetGoProBody(text, body);
-      RemoteLink::sendText(Serial2, RemoteLink::MsgType::CameraJson, body, packet.sequence);
+      linkTextChunked(RemoteLink::MsgType::CameraJson, body, packet.sequence);
       sendLinkStatus();
       return;
     default:

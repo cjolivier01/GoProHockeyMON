@@ -7,7 +7,7 @@ namespace RemoteLink {
 constexpr uint8_t kSof0 = 0xA5;
 constexpr uint8_t kSof1 = 0x5A;
 constexpr uint8_t kVersion = 1;
-constexpr size_t kMaxPayload = 1024;
+constexpr size_t kMaxPayload = 1536;
 
 enum class MsgType : uint8_t {
   Ping = 0x01,

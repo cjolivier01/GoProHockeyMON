@@ -127,6 +127,7 @@ lv_obj_t *settingSheetTitle = nullptr;
 lv_obj_t *settingOptionButtons[kVisibleSettingOptions] = {};
 lv_obj_t *settingOptionLabels[kVisibleSettingOptions] = {};
 lv_obj_t *settingPagerLabel = nullptr;
+lv_obj_t *captureTileObj = nullptr;
 uint32_t lastPreviewUpdate = 0;
 uint32_t lastPmuPollMs = 0;
 uint32_t lastBatteryUpdate = 0;
@@ -145,6 +146,7 @@ const SettingDefinition *activeSetting = nullptr;
 SettingValue settingValues[48] = {};
 size_t settingValueCount = 0;
 int settingOptions[kMaxSettingOptions] = {};
+String settingOptionNames[kMaxSettingOptions];
 size_t settingOptionCount = 0;
 size_t settingOptionOffset = 0;
 int jpegDrawX = kPreviewX;
@@ -153,6 +155,10 @@ bool bootLast = HIGH;
 bool bootStable = HIGH;
 uint32_t bootLastChangeMs = 0;
 uint32_t bootPressedAtMs = 0;
+lv_point_t lastTouchPoint = {0, 0};
+uint32_t lastTouchMs = 0;
+volatile bool bleResponseSeen = false;
+volatile uint8_t bleResponseStatus = 0xFF;
 
 void touchInterrupt() {
   touch->IIC_Interrupt_Flag = true;
@@ -176,15 +182,22 @@ void flushDisplay(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colorP
 }
 
 void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
+  uint32_t now = millis();
   if (touch->IIC_Interrupt_Flag) {
     touch->IIC_Interrupt_Flag = false;
-    data->state = LV_INDEV_STATE_PR;
-    data->point.x = touch->IIC_Read_Device_Value(
+    lastTouchPoint.x = touch->IIC_Read_Device_Value(
         Arduino_IIC_Touch::Value_Information::TOUCH_COORDINATE_X);
-    data->point.y = touch->IIC_Read_Device_Value(
+    lastTouchPoint.y = touch->IIC_Read_Device_Value(
         Arduino_IIC_Touch::Value_Information::TOUCH_COORDINATE_Y);
+    lastTouchMs = now;
+    data->state = LV_INDEV_STATE_PR;
+    data->point = lastTouchPoint;
+  } else if (now - lastTouchMs < 180) {
+    data->state = LV_INDEV_STATE_PR;
+    data->point = lastTouchPoint;
   } else {
     data->state = LV_INDEV_STATE_REL;
+    data->point = lastTouchPoint;
   }
 }
 
@@ -298,16 +311,21 @@ int getStoredSettingValue(uint16_t id) {
   return -1;
 }
 
-bool addSettingOption(int option) {
+bool addSettingOption(int option, const char *displayName = nullptr) {
   for (size_t i = 0; i < settingOptionCount; ++i) {
     if (settingOptions[i] == option) {
+      if (displayName && displayName[0] && settingOptionNames[i].isEmpty()) {
+        settingOptionNames[i] = displayName;
+      }
       return true;
     }
   }
   if (settingOptionCount >= kMaxSettingOptions) {
     return false;
   }
-  settingOptions[settingOptionCount++] = option;
+  settingOptions[settingOptionCount] = option;
+  settingOptionNames[settingOptionCount] = displayName ? displayName : "";
+  settingOptionCount++;
   return true;
 }
 
@@ -402,6 +420,21 @@ void commandResponseNotify(BLERemoteCharacteristic *, uint8_t *data, size_t leng
     Serial.print(data[i], HEX);
   }
   Serial.println();
+  bleResponseStatus = length > 0 ? data[0] : 0x00;
+  bleResponseSeen = true;
+}
+
+bool waitForBleResponse(uint32_t timeoutMs) {
+  uint32_t start = millis();
+  while (!bleResponseSeen && millis() - start < timeoutMs) {
+    lv_timer_handler();
+    delay(20);
+  }
+  if (!bleResponseSeen) {
+    setAction("BLE command response timeout");
+    return false;
+  }
+  return true;
 }
 
 class ScanCallbacks : public BLEAdvertisedDeviceCallbacks {
@@ -550,9 +583,10 @@ bool sendBleCommand(const uint8_t *payload, size_t length) {
     return false;
   }
 
+  bleResponseSeen = false;
+  bleResponseStatus = 0xFF;
   command->writeValue(const_cast<uint8_t *>(payload), length, true);
-  delay(300);
-  return true;
+  return waitForBleResponse(2500);
 }
 
 bool sendCameraManagementCommand(const uint8_t *payload, size_t length) {
@@ -577,9 +611,10 @@ bool sendCameraManagementCommand(const uint8_t *payload, size_t length) {
     return false;
   }
 
+  bleResponseSeen = false;
+  bleResponseStatus = 0xFF;
   command->writeValue(const_cast<uint8_t *>(payload), length, true);
-  delay(500);
-  return true;
+  return waitForBleResponse(4000);
 }
 
 bool pairGoPro() {
@@ -611,6 +646,33 @@ bool enableGoProWifiAp() {
   return sendBleCommand(enableWifi, sizeof(enableWifi));
 }
 
+bool waitForGoProApVisible() {
+  if (goProSsid.isEmpty()) {
+    return false;
+  }
+  lv_label_set_text(statusLabel, "Waiting for camera AP");
+  setAction("Waiting for GoPro WiFi AP");
+  uint32_t start = millis();
+  while (millis() - start < kWifiTimeoutMs) {
+    int count = WiFi.scanNetworks(false, true);
+    bool found = false;
+    for (int i = 0; i < count; ++i) {
+      if (WiFi.SSID(i) == goProSsid) {
+        found = true;
+        break;
+      }
+    }
+    WiFi.scanDelete();
+    if (found) {
+      return true;
+    }
+    lv_timer_handler();
+    delay(250);
+  }
+  setAction("GoPro WiFi AP not visible");
+  return false;
+}
+
 bool connectGoProWifiFromBle() {
   if (goProSsid.isEmpty() && !readGoProWifiCredentials()) {
     return false;
@@ -622,6 +684,9 @@ bool connectGoProWifiFromBle() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(true, true);
   delay(250);
+  if (!waitForGoProApVisible()) {
+    return false;
+  }
   WiFi.begin(goProSsid.c_str(), goProPassword.c_str());
 
   String label = "Joining ";
@@ -702,7 +767,12 @@ bool setGoProSetting(uint16_t settingId, uint16_t optionId, const char *label) {
   return ok;
 }
 
-void collectIntegerArrayOptions(JsonVariant value) {
+const char *optionObjectName(JsonObject object) {
+  const char *name = object["display_name"] | object["displayName"] | object["name"] | nullptr;
+  return name;
+}
+
+void collectSettingOptions(JsonVariant value) {
   if (value.is<JsonArray>()) {
     bool numericArray = false;
     for (JsonVariant item : value.as<JsonArray>()) {
@@ -717,12 +787,21 @@ void collectIntegerArrayOptions(JsonVariant value) {
   }
 
   if (value.is<JsonObject>()) {
-    for (JsonPair pair : value.as<JsonObject>()) {
-      collectIntegerArrayOptions(pair.value());
+    JsonObject object = value.as<JsonObject>();
+    if (object["id"].is<int>()) {
+      addSettingOption(object["id"].as<int>(), optionObjectName(object));
+    } else if (object["option"].is<int>()) {
+      addSettingOption(object["option"].as<int>(), optionObjectName(object));
+    } else if (object["value"].is<int>() &&
+               (object["display_name"].is<const char *>() || object["name"].is<const char *>())) {
+      addSettingOption(object["value"].as<int>(), optionObjectName(object));
+    }
+    for (JsonPair pair : object) {
+      collectSettingOptions(pair.value());
     }
   } else if (value.is<JsonArray>()) {
     for (JsonVariant item : value.as<JsonArray>()) {
-      collectIntegerArrayOptions(item);
+      collectSettingOptions(item);
     }
   }
 }
@@ -873,11 +952,9 @@ const char *knownOptionName(uint16_t settingId, int option) {
       break;
     case 216:
       switch (option) {
-        case 0: return "Mute";
-        case 1: return "Low";
-        case 2: return "Medium";
-        case 3: return "High";
-        case 100: return "Off";
+        case 70: return "Low";
+        case 85: return "Medium";
+        case 100: return "High";
       }
       break;
     case 178:
@@ -896,6 +973,15 @@ String optionDisplayName(uint16_t settingId, int option) {
     return String(known) + " (" + option + ")";
   }
   return String("Option ") + option;
+}
+
+String activeOptionDisplayName(uint16_t settingId, int option) {
+  for (size_t i = 0; i < settingOptionCount; ++i) {
+    if (settingOptions[i] == option && !settingOptionNames[i].isEmpty()) {
+      return settingOptionNames[i] + " (" + option + ")";
+    }
+  }
+  return optionDisplayName(settingId, option);
 }
 
 void addFallbackOptions(uint16_t settingId) {
@@ -934,8 +1020,13 @@ void addFallbackOptions(uint16_t settingId) {
       for (int value : values) addSettingOption(value);
       break;
     }
+    case 216: {
+      const int values[] = {70, 85, 100};
+      for (int value : values) addSettingOption(value);
+      break;
+    }
     default: {
-      const int values[] = {0, 1, 2, 3, 4, 5, 100};
+      const int values[] = {0, 1, 2, 3, 4, 5};
       for (int value : values) addSettingOption(value);
       break;
     }
@@ -945,6 +1036,11 @@ void addFallbackOptions(uint16_t settingId) {
 bool querySettingOptions(const SettingDefinition &setting) {
   settingOptionCount = 0;
   settingOptionOffset = 0;
+  for (size_t i = 0; i < kMaxSettingOptions; ++i) {
+    settingOptionNames[i] = "";
+  }
+  bool gotCameraOptionResponse = false;
+  bool gotLegalOptions = false;
 
   String body;
   String path = "/gopro/camera/setting?setting=";
@@ -965,13 +1061,20 @@ bool querySettingOptions(const SettingDefinition &setting) {
   body = "";
   status = httpGetGoProBody(path, body);
   if (status == 403 || status == 400) {
+    gotCameraOptionResponse = true;
+    size_t beforeOptions = settingOptionCount;
     JsonDocument doc;
     if (!deserializeJson(doc, body)) {
-      collectIntegerArrayOptions(doc.as<JsonVariant>());
+      collectSettingOptions(doc.as<JsonVariant>());
+      gotLegalOptions = settingOptionCount > beforeOptions;
+    } else {
+      setAction("Option response JSON parse failed");
     }
+  } else if (status < 0) {
+    return false;
   }
 
-  if (settingOptionCount == 0) {
+  if (gotCameraOptionResponse && !gotLegalOptions) {
     addFallbackOptions(setting.id);
   }
   return settingOptionCount > 0;
@@ -989,14 +1092,25 @@ void toggleRecording() {
   if (!displayOn) {
     setDisplayOn(true);
   }
-  recording = !recording;
+  bool nextRecording = !recording;
+  lv_label_set_text(statusLabel, nextRecording ? "Starting recording" : "Stopping recording");
+  bool ok = false;
+  if (nextRecording) {
+    lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(previewLabel, "Starting recording");
+    ok = httpGetGoPro("/gopro/camera/shutter/start");
+  } else {
+    ok = httpGetGoPro("/gopro/camera/shutter/stop");
+  }
+  if (!ok) {
+    lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");
+    setAction("Recording command failed");
+    return;
+  }
+  recording = nextRecording;
   lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");
   if (recording) {
-    lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(previewLabel, "Preview paused while recording");
-    httpGetGoPro("/gopro/camera/shutter/start");
-  } else {
-    httpGetGoPro("/gopro/camera/shutter/stop");
   }
   setAction(recording ? "Recording; preview paused" : "Recording stopped");
 }
@@ -1103,15 +1217,24 @@ uint8_t *fetchGoProThumbnail(const String &path, size_t &length) {
   }
   http.end();
 
-  if (offset == 0) {
+  if (offset != static_cast<size_t>(expected)) {
     free(buffer);
+    Serial.printf("thumbnail incomplete: %u/%d bytes\n", offset, expected);
     return nullptr;
   }
   length = offset;
   return buffer;
 }
 
+bool isCaptureTileActive() {
+  return tileView == nullptr || captureTileObj == nullptr ||
+         lv_tileview_get_tile_act(tileView) == captureTileObj;
+}
+
 int drawJpegBlock(JPEGDRAW *draw) {
+  if (!isCaptureTileActive()) {
+    return 0;
+  }
   int x = jpegDrawX + draw->x;
   int y = jpegDrawY + draw->y;
   int w = draw->iWidthUsed > 0 ? draw->iWidthUsed : draw->iWidth;
@@ -1132,6 +1255,9 @@ int drawJpegBlock(JPEGDRAW *draw) {
 }
 
 bool drawJpegPreview(uint8_t *buffer, size_t length) {
+  if (!isCaptureTileActive()) {
+    return false;
+  }
   if (!jpeg.openRAM(buffer, static_cast<int>(length), drawJpegBlock)) {
     return false;
   }
@@ -1228,7 +1354,7 @@ void refreshSettingSheet() {
   int current = getStoredSettingValue(activeSetting->id);
   if (current >= 0) {
     title += " | current ";
-    title += optionDisplayName(activeSetting->id, current);
+    title += activeOptionDisplayName(activeSetting->id, current);
   }
   lv_label_set_text(settingSheetTitle, title.c_str());
 
@@ -1236,7 +1362,7 @@ void refreshSettingSheet() {
     size_t optionIndex = settingOptionOffset + i;
     if (optionIndex < settingOptionCount) {
       int option = settingOptions[optionIndex];
-      String label = optionDisplayName(activeSetting->id, option);
+      String label = activeOptionDisplayName(activeSetting->id, option);
       if (option == current) {
         label += " *";
       }
@@ -1290,7 +1416,8 @@ void onSettingOption(lv_event_t *event) {
     return;
   }
   int option = settingOptions[optionIndex];
-  String label = String(activeSetting->name) + " -> " + optionDisplayName(activeSetting->id, option);
+  String label = String(activeSetting->name) + " -> " +
+                 activeOptionDisplayName(activeSetting->id, option);
   if (setGoProSetting(activeSetting->id, option, label.c_str())) {
     refreshSettingSheet();
   }
@@ -1411,6 +1538,7 @@ void createUi() {
   lv_obj_set_scrollbar_mode(tileView, LV_SCROLLBAR_MODE_OFF);
 
   lv_obj_t *captureTile = lv_tileview_add_tile(tileView, 0, 0, LV_DIR_RIGHT);
+  captureTileObj = captureTile;
   lv_obj_set_style_bg_color(captureTile, lv_color_hex(0x090b10), 0);
 
   previewBox = lv_obj_create(captureTile);
@@ -1593,7 +1721,8 @@ void updateWifiStatus() {
 }
 
 void updatePreview() {
-  if (!displayOn || recording || millis() - lastPreviewUpdate < kPreviewRefreshMs) {
+  if (!displayOn || recording || !isCaptureTileActive() ||
+      millis() - lastPreviewUpdate < kPreviewRefreshMs) {
     return;
   }
   lastPreviewUpdate = millis();
