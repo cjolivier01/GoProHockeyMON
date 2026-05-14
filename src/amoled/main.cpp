@@ -3,14 +3,16 @@
 #include <Wire.h>
 #include <WiFi.h>
 
+#include "pin_config.h"
+
 #include <Adafruit_XCA9554.h>
 #include <ArduinoJson.h>
 #include <Arduino_DriveBus_Library.h>
 #include <Arduino_GFX_Library.h>
 #include <JPEGDEC.h>
+#include <XPowersLib.h>
 #include <lvgl.h>
 
-#include "pin_config.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
 
@@ -39,13 +41,18 @@ constexpr uint32_t kLvglTickMs = 2;
 constexpr uint8_t kDisplayBrightness = 210;
 constexpr uint32_t kPreviewRefreshMs = 2500;
 constexpr uint32_t kHttpTimeoutMs = 6500;
+constexpr uint32_t kButtonDebounceMs = 35;
+constexpr uint32_t kBootLongPressMs = 1200;
+constexpr uint32_t kPmuPollMs = 150;
 constexpr size_t kMaxJpegBytes = 220 * 1024;
 constexpr int kPreviewX = 20;
 constexpr int kPreviewY = 76;
 constexpr int kPreviewW = 328;
 constexpr int kPreviewH = 150;
+constexpr int kBootButtonPin = 0;
 
 Adafruit_XCA9554 expander;
+XPowersPMU power;
 JPEGDEC jpeg;
 
 Arduino_DataBus *bus = new Arduino_ESP32QSPI(
@@ -77,11 +84,18 @@ lv_obj_t *actionLabel = nullptr;
 lv_obj_t *batteryBar = nullptr;
 lv_obj_t *modeRoller = nullptr;
 uint32_t lastPreviewUpdate = 0;
+uint32_t lastPmuPollMs = 0;
 bool recording = false;
+bool displayOn = true;
+bool pmuOnline = false;
 String latestPreviewPath;
 IPAddress cameraIp;
 int jpegDrawX = kPreviewX;
 int jpegDrawY = kPreviewY;
+bool bootLast = HIGH;
+bool bootStable = HIGH;
+uint32_t bootLastChangeMs = 0;
+uint32_t bootPressedAtMs = 0;
 
 void touchInterrupt() {
   touch->IIC_Interrupt_Flag = true;
@@ -142,6 +156,19 @@ void setAction(const char *message) {
   Serial.println(message);
 }
 
+void setDisplayOn(bool enabled) {
+  displayOn = enabled;
+  gfx->setBrightness(enabled ? kDisplayBrightness : 0);
+  if (enabled) {
+    lv_obj_clear_flag(lv_scr_act(), LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(statusLabel, recording ? "Recording" : "Display awake");
+    setAction("Display on");
+  } else {
+    lv_label_set_text(statusLabel, "Display sleeping");
+    setAction("Display off");
+  }
+}
+
 String cameraBaseUrl() {
   return String("http://") + cameraIp.toString() + ":8080";
 }
@@ -163,6 +190,31 @@ bool httpGetGoPro(const String &path) {
   http.end();
   Serial.printf("GET %s -> %d\n", url.c_str(), status);
   return status >= 200 && status < 300;
+}
+
+void setPairingMode() {
+  if (!displayOn) {
+    setDisplayOn(true);
+  }
+  lv_label_set_text(statusLabel, "Pairing mode");
+  lv_label_set_text(cameraLabel, "Camera: waiting for GoPro BLE");
+  setAction("Pairing placeholder: open GoPro BLE pairing from radio module");
+}
+
+void toggleRecording() {
+  if (!displayOn) {
+    setDisplayOn(true);
+  }
+  recording = !recording;
+  lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");
+  if (recording) {
+    lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(previewLabel, "Preview paused while recording");
+    httpGetGoPro("/gopro/camera/shutter/start");
+  } else {
+    httpGetGoPro("/gopro/camera/shutter/stop");
+  }
+  setAction(recording ? "Recording; preview paused" : "Recording stopped");
 }
 
 bool connectConfiguredWifi() {
@@ -350,9 +402,7 @@ void onWake(lv_event_t *) {
 }
 
 void onPair(lv_event_t *) {
-  lv_label_set_text(statusLabel, "Pairing mode");
-  lv_label_set_text(cameraLabel, "Camera: waiting for GoPro BLE");
-  setAction("Pairing placeholder: open GoPro BLE pairing from radio module");
+  setPairingMode();
 }
 
 void onWifi(lv_event_t *) {
@@ -360,15 +410,7 @@ void onWifi(lv_event_t *) {
 }
 
 void onRecord(lv_event_t *) {
-  recording = !recording;
-  lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");
-  if (recording) {
-    lv_label_set_text(previewLabel, "Preview paused while recording");
-    httpGetGoPro("/gopro/camera/shutter/start");
-  } else {
-    httpGetGoPro("/gopro/camera/shutter/stop");
-  }
-  setAction(recording ? "Recording; preview paused" : "Recording stopped");
+  toggleRecording();
 }
 
 void createUi() {
@@ -471,7 +513,7 @@ void updateWifiStatus() {
 }
 
 void updatePreview() {
-  if (recording || millis() - lastPreviewUpdate < kPreviewRefreshMs) {
+  if (!displayOn || recording || millis() - lastPreviewUpdate < kPreviewRefreshMs) {
     return;
   }
   lastPreviewUpdate = millis();
@@ -525,7 +567,67 @@ bool initPowerExpander() {
     expander.digitalWrite(pin, HIGH);
   }
   delay(120);
+
+  expander.pinMode(4, INPUT);
+  expander.pinMode(5, INPUT);
   return true;
+}
+
+void initPowerKey() {
+  pmuOnline = power.begin(Wire, AXP2101_SLAVE_ADDRESS, IIC_SDA, IIC_SCL);
+  if (!pmuOnline) {
+    Serial.println("AXP2101 PMU not found; PWR button disabled");
+    return;
+  }
+
+  power.disableIRQ(XPOWERS_AXP2101_ALL_IRQ);
+  power.clearIrqStatus();
+  power.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ | XPOWERS_AXP2101_PKEY_LONG_IRQ);
+  Serial.println("AXP2101 PWR button enabled");
+}
+
+void handleBootButtonRelease(uint32_t durationMs) {
+  if (durationMs >= kBootLongPressMs) {
+    setPairingMode();
+  } else {
+    toggleRecording();
+  }
+}
+
+void handleBootButton() {
+  bool reading = digitalRead(kBootButtonPin);
+  uint32_t now = millis();
+
+  if (reading != bootLast) {
+    bootLastChangeMs = now;
+    bootLast = reading;
+  }
+
+  if ((now - bootLastChangeMs) < kButtonDebounceMs || reading == bootStable) {
+    return;
+  }
+
+  bootStable = reading;
+  if (bootStable == LOW) {
+    bootPressedAtMs = now;
+  } else if (bootPressedAtMs != 0) {
+    handleBootButtonRelease(now - bootPressedAtMs);
+    bootPressedAtMs = 0;
+  }
+}
+
+void handlePowerButton() {
+  uint32_t now = millis();
+  if (!pmuOnline || now - lastPmuPollMs < kPmuPollMs) {
+    return;
+  }
+  lastPmuPollMs = now;
+
+  power.getIrqStatus();
+  if (power.isPekeyShortPressIrq() || power.isPekeyLongPressIrq()) {
+    setDisplayOn(!displayOn);
+  }
+  power.clearIrqStatus();
 }
 }  // namespace
 
@@ -538,6 +640,11 @@ void setup() {
   Wire.begin(IIC_SDA, IIC_SCL);
   Wire.setClock(400000);
   initPowerExpander();
+  initPowerKey();
+
+  pinMode(kBootButtonPin, INPUT_PULLUP);
+  bootLast = digitalRead(kBootButtonPin);
+  bootStable = bootLast;
 
   while (!touch->begin()) {
     Serial.println("FT3168 touch init failed, retrying");
@@ -596,6 +703,8 @@ void setup() {
 
 void loop() {
   lv_timer_handler();
+  handleBootButton();
+  handlePowerButton();
   updateWifiStatus();
   updatePreview();
   delay(5);
