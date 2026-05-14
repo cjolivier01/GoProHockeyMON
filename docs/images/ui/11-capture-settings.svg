@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="368" height="448" viewBox="0 0 368 448">
+  <rect width="368" height="448" fill="#090b10"/>
+  <text x="18" y="38" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="24" font-weight="700">GoPro</text>
+  <text x="20" y="60" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Ready</text>
+  <rect x="252" y="24" width="52" height="9" rx="4" fill="#28303c"/>
+  <rect x="252" y="24" width="38" height="9" rx="4" fill="#47d16c"/>
+  <text x="313" y="29" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">74%</text>
+  <text x="300" y="49" fill="#5a6472" font-family="Arial, sans-serif" font-size="14">WIFI --</text>
+  <text x="20" y="91" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="18" font-weight="700">Capture Settings</text>
+  <text x="20" y="116" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Resolution, frame rate, lens, and aspect</text>
+  <g fill="#1b2638" font-family="Arial, sans-serif" font-size="13" font-weight="700">
+    <rect x="20" y="152" width="156" height="34" rx="8"/><text x="50" y="174" fill="#f4f7fb">Aspect Ratio</text>
+    <rect x="192" y="152" width="156" height="34" rx="8"/><text x="242" y="174" fill="#f4f7fb">Resolution</text>
+    <rect x="20" y="200" width="156" height="34" rx="8"/><text x="60" y="222" fill="#f4f7fb">Frame Rate</text>
+    <rect x="192" y="200" width="156" height="34" rx="8"/><text x="245" y="222" fill="#f4f7fb">Video FPS</text>
+    <rect x="20" y="248" width="156" height="34" rx="8"/><text x="57" y="270" fill="#f4f7fb">Digital Lens</text>
+    <rect x="192" y="248" width="156" height="34" rx="8"/><text x="246" y="270" fill="#f4f7fb">Photo Lens</text>
+    <rect x="20" y="296" width="156" height="34" rx="8"/><text x="57" y="318" fill="#f4f7fb">TimeWarp Lens</text>
+    <rect x="192" y="296" width="156" height="34" rx="8"/><text x="244" y="318" fill="#f4f7fb">HyperSmooth</text>
+  </g>
+  <rect x="20" y="384" width="156" height="34" rx="8" fill="#2c7be5"/>
+  <text x="63" y="406" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">Sync State</text>
+  <rect x="192" y="384" width="156" height="34" rx="8" fill="#2c7be5"/>
+  <text x="231" y="406" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">Sync Presets</text>
+</svg>

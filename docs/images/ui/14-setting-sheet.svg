@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="368" height="448" viewBox="0 0 368 448">
+  <rect width="368" height="448" fill="#090b10"/>
+  <text x="18" y="38" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="24" font-weight="700">GoPro</text>
+  <text x="20" y="60" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Ready</text>
+  <rect x="252" y="24" width="52" height="9" rx="4" fill="#28303c"/>
+  <rect x="252" y="24" width="38" height="9" rx="4" fill="#47d16c"/>
+  <text x="313" y="29" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">74%</text>
+  <text x="300" y="49" fill="#47d16c" font-family="Arial, sans-serif" font-size="14">WIFI ON</text>
+  <rect x="18" y="66" width="332" height="352" rx="8" fill="#111827" stroke="#334155"/>
+  <text x="30" y="99" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="18" font-weight="700">Resolution | current 4K (1)</text>
+  <g font-family="Arial, sans-serif" font-size="14" font-weight="700">
+    <rect x="30" y="114" width="308" height="34" rx="8" fill="#1f2937"/><text x="134" y="136" fill="#f4f7fb">5.3K (9)</text>
+    <rect x="30" y="154" width="308" height="34" rx="8" fill="#1f2937"/><text x="139" y="176" fill="#f4f7fb">4K (1) *</text>
+    <rect x="30" y="194" width="308" height="34" rx="8" fill="#1f2937"/><text x="134" y="216" fill="#f4f7fb">2.7K (4)</text>
+    <rect x="30" y="234" width="308" height="34" rx="8" fill="#1f2937"/><text x="132" y="256" fill="#f4f7fb">1080 (6)</text>
+    <rect x="30" y="274" width="308" height="34" rx="8" fill="#1f2937"/><text x="128" y="296" fill="#f4f7fb">5.3K 8:7 (26)</text>
+    <rect x="30" y="314" width="308" height="34" rx="8" fill="#1f2937"/><text x="134" y="336" fill="#f4f7fb">4K 8:7 (27)</text>
+  </g>
+  <rect x="30" y="360" width="70" height="34" rx="8" fill="#334155"/>
+  <text x="50" y="382" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="14" font-weight="700">Prev</text>
+  <text x="132" y="382" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">1-6 of 9</text>
+  <rect x="202" y="360" width="70" height="34" rx="8" fill="#334155"/>
+  <text x="223" y="382" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="14" font-weight="700">Next</text>
+  <rect x="280" y="360" width="58" height="34" rx="8" fill="#7f1d1d"/>
+  <text x="293" y="382" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="14" font-weight="700">Close</text>
+</svg>
