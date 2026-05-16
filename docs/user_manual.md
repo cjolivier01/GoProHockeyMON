@@ -41,7 +41,7 @@ The default screen is the capture/preview screen, matching the basic GoPro rear-
 
 ### Capture Screen
 
-The capture screen is the home screen. It shows the low-rate JPEG preview area, remaining-time placeholder, record pill, current mode, format overlay, camera connection state, Wi-Fi state, `Connect`, and `REC`.
+The capture screen is the home screen. It shows the low-rate JPEG preview area, remaining-time placeholder, record pill, current mode, format overlay, camera connection state, Wi-Fi state, and large `Connect`, `Pair`, and `REC` buttons.
 
 ![Home idle screen](images/ui/01-home-idle.svg)
 
@@ -56,6 +56,7 @@ Top-right indicators:
 ## Touch Controls
 
 - `Connect`: scan/connect BLE, read GoPro Wi-Fi credentials, enable GoPro AP, and join it.
+- `Pair`: available on the capture screen; finish BLE pairing while the GoPro is in pairing mode.
 - `REC`: start or stop GoPro video recording over HTTP.
 - `Pair BLE`: available on Dashboard; finish BLE pairing while the GoPro is in pairing mode.
 - `Camera State`: available on Dashboard; refresh current camera state.
@@ -104,17 +105,17 @@ The setting sheet appears over the current page after tapping a setting. It show
 
 The board has two side buttons:
 
-- BOOT short press: start/stop recording.
-- BOOT long press: enter GoPro BLE pairing flow.
+- Action side button short press: start/stop recording.
+- Action side button long press: enter GoPro BLE pairing flow.
 - PWR short press: turn AMOLED display off/on.
 - PWR long press: enter low-power shutdown through the AXP2101 PMU.
 
-Do not hold BOOT while resetting or powering the ESP32-S3. Holding BOOT at reset can put the ESP32 into flashing mode.
+The firmware no longer uses GPIO0/BOOT as a runtime control on this AMOLED board, because that signal can be noisy around flashing/reset. Use the on-screen `Pair` button or long-press the action side button for pairing.
 
 ## Pairing A GoPro
 
 1. On the GoPro, open the Bluetooth pairing screen.
-2. On the remote, swipe to Dashboard and tap `Pair BLE`, or long-press BOOT.
+2. On the remote, tap `Pair` on the capture screen, swipe to Dashboard and tap `Pair BLE`, or long-press the action side button.
 3. The remote scans for GoPro BLE devices and sends the Open GoPro pairing finish command.
 4. After pairing, use `Connect` or `Connect Camera` to connect to the GoPro camera AP.
 
@@ -217,10 +218,10 @@ On USB power, the board may not appear fully off because USB continues to supply
 1. Power on the ESP32-S3 remote.
 2. Confirm the main screen appears.
 3. Put the GoPro into pairing mode if this is the first connection.
-4. Swipe to Dashboard and tap `Pair BLE`, or long-press BOOT.
+4. Tap `Pair`, swipe to Dashboard and tap `Pair BLE`, or long-press the action side button.
 5. Tap `Connect` on the capture screen or `Connect Camera` on Dashboard.
 6. Wait for `WIFI ON`.
-7. Use `REC` to start/stop recording.
+7. Use `REC` or short-press the action side button to start/stop recording.
 8. Short-press PWR to blank the screen between uses.
 9. Long-press PWR for low-power shutdown.
 

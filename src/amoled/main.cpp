@@ -49,6 +49,8 @@ constexpr uint8_t kDisplayBrightness = 210;
 constexpr uint32_t kPreviewRefreshMs = 2500;
 constexpr uint32_t kHttpTimeoutMs = 6500;
 constexpr uint32_t kButtonDebounceMs = 35;
+constexpr uint32_t kActionButtonDebounceMs = 90;
+constexpr uint32_t kActionButtonMinPressMs = 120;
 constexpr uint32_t kBootLongPressMs = 1200;
 constexpr uint32_t kPmuPollMs = 150;
 constexpr uint32_t kBatteryRefreshMs = 5000;
@@ -57,6 +59,7 @@ constexpr uint32_t kWifiTimeoutMs = 25000;
 constexpr size_t kMaxJpegBytes = 220 * 1024;
 constexpr size_t kMaxSettingOptions = 40;
 constexpr size_t kVisibleSettingOptions = 6;
+constexpr uint8_t kExpanderActionButtonPin = 4;
 constexpr int kPreviewX = 20;
 constexpr int kPreviewY = 76;
 constexpr int kPreviewW = 328;
@@ -134,6 +137,7 @@ uint32_t lastBatteryUpdate = 0;
 bool recording = false;
 bool displayOn = true;
 bool pmuOnline = false;
+bool expanderOnline = false;
 bool bleConnected = false;
 String latestPreviewPath;
 String lastBleName;
@@ -155,6 +159,10 @@ bool bootLast = HIGH;
 bool bootStable = HIGH;
 uint32_t bootLastChangeMs = 0;
 uint32_t bootPressedAtMs = 0;
+bool actionButtonLast = LOW;
+bool actionButtonStable = LOW;
+uint32_t actionButtonLastChangeMs = 0;
+uint32_t actionButtonPressedAtMs = 0;
 lv_point_t lastTouchPoint = {0, 0};
 uint32_t lastTouchMs = 0;
 volatile bool bleResponseSeen = false;
@@ -224,6 +232,14 @@ lv_obj_t *makeChip(lv_obj_t *parent, const char *text, int x, int y, int w, lv_c
   lv_obj_set_size(chip, w, 34);
   lv_obj_set_pos(chip, x, y);
   return chip;
+}
+
+lv_obj_t *makeTouchButton(lv_obj_t *parent, const char *text, int x, int y, int w, int h,
+                          lv_color_t color) {
+  lv_obj_t *button = makeButton(parent, text, color);
+  lv_obj_set_size(button, w, h);
+  lv_obj_set_pos(button, x, y);
+  return button;
 }
 
 void setAction(const char *message) {
@@ -1584,13 +1600,18 @@ void createUi() {
   lv_obj_set_style_text_color(wifiLabel, lv_color_hex(0x96a2b4), 0);
   lv_obj_set_pos(wifiLabel, 20, 246);
 
-  lv_obj_t *connect = makeChip(captureTile, "Connect", 20, 284, 96, lv_color_hex(0x2c7be5));
+  lv_obj_t *connect = makeTouchButton(captureTile, "Connect", 16, 284, 106, 48,
+                                      lv_color_hex(0x2c7be5));
   lv_obj_add_event_cb(connect, onWifi, LV_EVENT_CLICKED, nullptr);
-  lv_obj_t *rec = makeChip(captureTile, "REC", 252, 284, 96, lv_color_hex(0xe03131));
+  lv_obj_t *pair = makeTouchButton(captureTile, "Pair", 131, 284, 106, 48,
+                                   lv_color_hex(0x7c4dff));
+  lv_obj_add_event_cb(pair, onPair, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t *rec = makeTouchButton(captureTile, "REC", 246, 284, 106, 48,
+                                  lv_color_hex(0xe03131));
   lv_obj_add_event_cb(rec, onRecord, LV_EVENT_CLICKED, nullptr);
 
   actionLabel = lv_label_create(captureTile);
-  lv_label_set_text(actionLabel, "Swipe for modes and settings");
+  lv_label_set_text(actionLabel, "Pair GoPro first, then Connect");
   lv_obj_set_style_text_color(actionLabel, lv_color_hex(0x96a2b4), 0);
   lv_obj_align(actionLabel, LV_ALIGN_BOTTOM_MID, 0, -20);
 
@@ -1777,7 +1798,7 @@ bool initPowerExpander() {
   }
   delay(120);
 
-  expander.pinMode(4, INPUT);
+  expander.pinMode(kExpanderActionButtonPin, INPUT);
   expander.pinMode(5, INPUT);
   return true;
 }
@@ -1809,6 +1830,16 @@ void handleBootButtonRelease(uint32_t durationMs) {
   }
 }
 
+void handleActionButtonRelease(uint32_t durationMs) {
+  if (durationMs >= kBootLongPressMs) {
+    Serial.println("Action button long press: pair");
+    setPairingMode();
+  } else if (durationMs >= kActionButtonMinPressMs) {
+    Serial.println("Action button short press: record");
+    toggleRecording();
+  }
+}
+
 void handleBootButton() {
   bool reading = digitalRead(kBootButtonPin);
   uint32_t now = millis();
@@ -1828,6 +1859,32 @@ void handleBootButton() {
   } else if (bootPressedAtMs != 0) {
     handleBootButtonRelease(now - bootPressedAtMs);
     bootPressedAtMs = 0;
+  }
+}
+
+void handleExpanderActionButton() {
+  if (!expanderOnline) {
+    return;
+  }
+
+  bool reading = expander.digitalRead(kExpanderActionButtonPin);
+  uint32_t now = millis();
+
+  if (reading != actionButtonLast) {
+    actionButtonLastChangeMs = now;
+    actionButtonLast = reading;
+  }
+
+  if ((now - actionButtonLastChangeMs) < kActionButtonDebounceMs || reading == actionButtonStable) {
+    return;
+  }
+
+  actionButtonStable = reading;
+  if (actionButtonStable == HIGH) {
+    actionButtonPressedAtMs = now;
+  } else if (actionButtonPressedAtMs != 0) {
+    handleActionButtonRelease(now - actionButtonPressedAtMs);
+    actionButtonPressedAtMs = 0;
   }
 }
 
@@ -1860,12 +1917,16 @@ void setup() {
 
   Wire.begin(IIC_SDA, IIC_SCL);
   Wire.setClock(400000);
-  initPowerExpander();
+  expanderOnline = initPowerExpander();
   initPowerKey();
 
   pinMode(kBootButtonPin, INPUT_PULLUP);
   bootLast = digitalRead(kBootButtonPin);
   bootStable = bootLast;
+  if (expanderOnline) {
+    actionButtonLast = expander.digitalRead(kExpanderActionButtonPin);
+    actionButtonStable = actionButtonLast;
+  }
 
   while (!touch->begin()) {
     Serial.println("FT3168 touch init failed, retrying");
@@ -1925,7 +1986,7 @@ void setup() {
 
 void loop() {
   lv_timer_handler();
-  handleBootButton();
+  handleExpanderActionButton();
   handlePowerButton();
   updateBatteryStatus();
   updateWifiStatus();
