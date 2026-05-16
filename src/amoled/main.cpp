@@ -112,6 +112,13 @@ struct SettingValue {
   int option;
 };
 
+enum class PendingHomeAction : uint8_t {
+  None,
+  Connect,
+  Pair,
+  Record,
+};
+
 lv_obj_t *statusLabel = nullptr;
 lv_obj_t *wifiLabel = nullptr;
 lv_obj_t *cameraLabel = nullptr;
@@ -167,6 +174,69 @@ lv_point_t lastTouchPoint = {0, 0};
 uint32_t lastTouchMs = 0;
 volatile bool bleResponseSeen = false;
 volatile uint8_t bleResponseStatus = 0xFF;
+PendingHomeAction pendingHomeAction = PendingHomeAction::None;
+uint32_t pendingHomeActionDueMs = 0;
+uint32_t lastHomeTouchMs = 0;
+bool expanderPin4Last = LOW;
+bool expanderPin5Last = LOW;
+
+bool pointInRect(int16_t x, int16_t y, int16_t rx, int16_t ry, int16_t rw, int16_t rh) {
+  return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+}
+
+PendingHomeAction hitHomeActionAt(int16_t x, int16_t y) {
+  if (pointInRect(x, y, 16, 284, 106, 48)) {
+    return PendingHomeAction::Connect;
+  }
+  if (pointInRect(x, y, 131, 284, 106, 48)) {
+    return PendingHomeAction::Pair;
+  }
+  if (pointInRect(x, y, 246, 284, 106, 48)) {
+    return PendingHomeAction::Record;
+  }
+  if (pointInRect(x, y, 16, 354, 106, 48)) {
+    return PendingHomeAction::Connect;
+  }
+  if (pointInRect(x, y, 131, 354, 106, 48)) {
+    return PendingHomeAction::Pair;
+  }
+  if (pointInRect(x, y, 246, 354, 106, 48)) {
+    return PendingHomeAction::Record;
+  }
+  return PendingHomeAction::None;
+}
+
+const char *homeActionName(PendingHomeAction action) {
+  switch (action) {
+    case PendingHomeAction::Connect: return "Connect";
+    case PendingHomeAction::Pair: return "Pair";
+    case PendingHomeAction::Record: return "REC";
+    case PendingHomeAction::None: return "None";
+  }
+  return "None";
+}
+
+PendingHomeAction hitHomeActionWithTransforms(int16_t rawX, int16_t rawY) {
+  const lv_point_t candidates[] = {
+      {rawX, rawY},
+      {rawY, rawX},
+      {static_cast<lv_coord_t>(LCD_WIDTH - 1 - rawX), rawY},
+      {rawX, static_cast<lv_coord_t>(LCD_HEIGHT - 1 - rawY)},
+      {static_cast<lv_coord_t>(LCD_WIDTH - 1 - rawX),
+       static_cast<lv_coord_t>(LCD_HEIGHT - 1 - rawY)},
+      {static_cast<lv_coord_t>(LCD_WIDTH - 1 - rawY), rawX},
+      {rawY, static_cast<lv_coord_t>(LCD_HEIGHT - 1 - rawX)},
+      {static_cast<lv_coord_t>(LCD_WIDTH - 1 - rawY),
+       static_cast<lv_coord_t>(LCD_HEIGHT - 1 - rawX)},
+  };
+  for (const lv_point_t &point : candidates) {
+    PendingHomeAction action = hitHomeActionAt(point.x, point.y);
+    if (action != PendingHomeAction::None) {
+      return action;
+    }
+  }
+  return PendingHomeAction::None;
+}
 
 void touchInterrupt() {
   touch->IIC_Interrupt_Flag = true;
@@ -193,13 +263,38 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
   uint32_t now = millis();
   if (touch->IIC_Interrupt_Flag) {
     touch->IIC_Interrupt_Flag = false;
-    lastTouchPoint.x = touch->IIC_Read_Device_Value(
+    int16_t rawX = touch->IIC_Read_Device_Value(
         Arduino_IIC_Touch::Value_Information::TOUCH_COORDINATE_X);
-    lastTouchPoint.y = touch->IIC_Read_Device_Value(
+    int16_t rawY = touch->IIC_Read_Device_Value(
         Arduino_IIC_Touch::Value_Information::TOUCH_COORDINATE_Y);
+    uint8_t fingers = touch->IIC_Read_Device_Value(
+        Arduino_IIC_Touch::Value_Information::TOUCH_FINGER_NUMBER);
+    lastTouchPoint.x = rawX;
+    lastTouchPoint.y = rawY;
     lastTouchMs = now;
     data->state = LV_INDEV_STATE_PR;
     data->point = lastTouchPoint;
+    Serial.printf("Touch raw x=%d y=%d fingers=%u\n", rawX, rawY, fingers);
+
+    PendingHomeAction action = hitHomeActionWithTransforms(rawX, rawY);
+    if (action != PendingHomeAction::None && now - lastHomeTouchMs > 600) {
+      pendingHomeAction = action;
+      pendingHomeActionDueMs = now + 300;
+      lastHomeTouchMs = now;
+      char label[56];
+      snprintf(label, sizeof(label), "%s hit %d,%d", homeActionName(action), rawX, rawY);
+      if (statusLabel) {
+        lv_label_set_text(statusLabel, label);
+      }
+      if (actionLabel) {
+        lv_label_set_text(actionLabel, label);
+      }
+      Serial.println(label);
+    } else if (statusLabel && now - lastHomeTouchMs > 300) {
+      char label[40];
+      snprintf(label, sizeof(label), "Touch %d,%d", rawX, rawY);
+      lv_label_set_text(statusLabel, label);
+    }
   } else if (now - lastTouchMs < 180) {
     data->state = LV_INDEV_STATE_PR;
     data->point = lastTouchPoint;
@@ -247,6 +342,9 @@ void setAction(const char *message) {
     lv_label_set_text(actionLabel, message);
   }
   Serial.println(message);
+  if (tileView) {
+    lv_timer_handler();
+  }
 }
 
 String trimCopy(String value) {
@@ -483,6 +581,7 @@ bool scanForCamera() {
 
   lv_label_set_text(statusLabel, "Scanning BLE");
   setAction("Scanning for GoPro BLE");
+  lv_timer_handler();
 
   BLEScan *scan = BLEDevice::getScan();
   ScanCallbacks callbacks;
@@ -523,6 +622,7 @@ bool connectBle() {
 
   lv_label_set_text(statusLabel, "Connecting BLE");
   setAction("Connecting GoPro BLE");
+  lv_timer_handler();
   if (!bleClient->connect(bestBleDevice)) {
     bleConnected = false;
     lv_label_set_text(cameraLabel, "Camera: BLE connect failed");
@@ -541,6 +641,7 @@ bool connectBle() {
 
   lv_label_set_text(statusLabel, "BLE connected");
   setAction("BLE connected");
+  lv_timer_handler();
   return true;
 }
 
@@ -652,6 +753,7 @@ bool pairGoPro() {
   lv_label_set_text(statusLabel, "Pairing BLE");
   lv_label_set_text(cameraLabel, "Camera: use GoPro pairing mode");
   setAction("Pairing with GoPro BLE");
+  lv_timer_handler();
   return sendCameraManagementCommand(request, sizeof(request));
 }
 
@@ -1888,6 +1990,62 @@ void handleExpanderActionButton() {
   }
 }
 
+void handleExpanderDiagnostics() {
+  if (!expanderOnline) {
+    return;
+  }
+  bool pin4 = expander.digitalRead(4);
+  bool pin5 = expander.digitalRead(5);
+  if (pin4 != expanderPin4Last || pin5 != expanderPin5Last) {
+    expanderPin4Last = pin4;
+    expanderPin5Last = pin5;
+    Serial.printf("Expander pins: p4=%u p5=%u\n", pin4, pin5);
+    if (actionLabel) {
+      char label[40];
+      snprintf(label, sizeof(label), "Button p4=%u p5=%u", pin4, pin5);
+      lv_label_set_text(actionLabel, label);
+    }
+  }
+}
+
+void handlePendingHomeAction() {
+  PendingHomeAction action = pendingHomeAction;
+  if (action == PendingHomeAction::None) {
+    return;
+  }
+  if (millis() < pendingHomeActionDueMs) {
+    return;
+  }
+  pendingHomeAction = PendingHomeAction::None;
+  pendingHomeActionDueMs = 0;
+  lv_timer_handler();
+  switch (action) {
+    case PendingHomeAction::Connect:
+      Serial.println("Raw touch fallback: Connect");
+      setAction("Connect pressed");
+      lv_timer_handler();
+      delay(100);
+      connectGoProWifiFromBle();
+      break;
+    case PendingHomeAction::Pair:
+      Serial.println("Raw touch fallback: Pair");
+      setAction("Pair pressed");
+      lv_timer_handler();
+      delay(100);
+      setPairingMode();
+      break;
+    case PendingHomeAction::Record:
+      Serial.println("Raw touch fallback: REC");
+      setAction("REC pressed");
+      lv_timer_handler();
+      delay(100);
+      toggleRecording();
+      break;
+    case PendingHomeAction::None:
+      break;
+  }
+}
+
 void handlePowerButton() {
   uint32_t now = millis();
   if (!pmuOnline || now - lastPmuPollMs < kPmuPollMs) {
@@ -1926,6 +2084,8 @@ void setup() {
   if (expanderOnline) {
     actionButtonLast = expander.digitalRead(kExpanderActionButtonPin);
     actionButtonStable = actionButtonLast;
+    expanderPin4Last = expander.digitalRead(4);
+    expanderPin5Last = expander.digitalRead(5);
   }
 
   while (!touch->begin()) {
@@ -1986,7 +2146,9 @@ void setup() {
 
 void loop() {
   lv_timer_handler();
+  handlePendingHomeAction();
   handleExpanderActionButton();
+  handleExpanderDiagnostics();
   handlePowerButton();
   updateBatteryStatus();
   updateWifiStatus();
