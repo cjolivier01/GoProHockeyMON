@@ -18,6 +18,9 @@
 #include "esp_heap_caps.h"
 #include "esp_sleep.h"
 #include "esp_timer.h"
+extern "C" {
+#include "h264bsd_decoder.h"
+}
 
 #ifndef GOPRO_LOCAL_WIFI_SSID
 #define GOPRO_LOCAL_WIFI_SSID ""
@@ -60,6 +63,10 @@ constexpr uint32_t kWifiTimeoutMs = 25000;
 constexpr uint32_t kDrawBufferLines = 16;
 constexpr uint16_t kPreviewStreamPort = 8554;
 constexpr uint32_t kLivePreviewStatsMs = 1000;
+constexpr size_t kTsPacketBytes = 188;
+constexpr uint16_t kGoProVideoPid = 0x1011;
+constexpr size_t kMaxH264AccessUnit = 512 * 1024;
+constexpr uint32_t kMinDecodeIntervalMs = 1000;
 constexpr size_t kMaxJpegBytes = 220 * 1024;
 constexpr size_t kMaxSettingOptions = 40;
 constexpr size_t kVisibleSettingOptions = 6;
@@ -73,6 +80,7 @@ constexpr int kPreviewX = 20;
 constexpr int kPreviewY = 76;
 constexpr int kPreviewW = 328;
 constexpr int kPreviewH = 150;
+constexpr int kTopBarH = 32;
 constexpr int kBootButtonPin = 0;
 
 const BLEUUID kControlService("0000fea6-0000-1000-8000-00805f9b34fb");
@@ -104,6 +112,7 @@ void toggleRecording();
 void initBleStack();
 bool syncCameraState();
 void updatePreview(bool force = false);
+void setPreviewFullscreen(bool fullscreen);
 
 std::unique_ptr<Arduino_IIC> touch(new Arduino_FT3x68(
     i2cBus, FT3168_DEVICE_ADDRESS, DRIVEBUS_DEFAULT_VALUE, TP_INT,
@@ -141,14 +150,20 @@ lv_obj_t *wifiLabel = nullptr;
 lv_obj_t *cameraLabel = nullptr;
 lv_obj_t *previewBox = nullptr;
 lv_obj_t *previewLabel = nullptr;
+lv_obj_t *fullscreenHint = nullptr;
 lv_obj_t *actionLabel = nullptr;
 lv_obj_t *batteryBar = nullptr;
 lv_obj_t *batteryLabel = nullptr;
 lv_obj_t *wifiIndicator = nullptr;
+lv_obj_t *bleIndicator = nullptr;
 lv_obj_t *tileView = nullptr;
 lv_obj_t *captureModeLabel = nullptr;
 lv_obj_t *captureSettingLabel = nullptr;
 lv_obj_t *recordPill = nullptr;
+lv_obj_t *timeRemainingLabel = nullptr;
+lv_obj_t *connectButton = nullptr;
+lv_obj_t *pairButton = nullptr;
+lv_obj_t *recordButton = nullptr;
 lv_obj_t *settingSheet = nullptr;
 lv_obj_t *settingSheetTitle = nullptr;
 lv_obj_t *settingOptionButtons[kVisibleSettingOptions] = {};
@@ -166,9 +181,16 @@ bool bleConnected = false;
 bool bleStackReady = false;
 bool previewStreamRequested = false;
 bool previewUdpListening = false;
+bool previewFullscreen = false;
+bool h264DecoderReady = false;
+bool h264StreamUnsupported = false;
+bool h264UnsupportedNotified = false;
 uint32_t previewBytesThisWindow = 0;
 uint32_t previewPacketsThisWindow = 0;
 uint32_t lastPreviewStatsMs = 0;
+uint32_t lastH264DecodeMs = 0;
+uint32_t h264FramesDecoded = 0;
+uint32_t h264DecodeFailures = 0;
 String lastBleName;
 String goProSsid;
 String goProPassword;
@@ -176,6 +198,9 @@ String captureMode = "Video";
 String captureSetting = "16:9 | 4K | 60 | W";
 IPAddress cameraIp;
 WiFiUDP previewUdp;
+h264bsd_hd_t h264Decoder = nullptr;
+uint8_t *h264AccessUnit = nullptr;
+size_t h264AccessUnitLen = 0;
 const SettingDefinition *activeSetting = nullptr;
 SettingValue settingValues[48] = {};
 size_t settingValueCount = 0;
@@ -194,7 +219,10 @@ bool actionButtonStable = !kExpanderActionPressedLevel;
 uint32_t actionButtonLastChangeMs = 0;
 uint32_t actionButtonPressedAtMs = 0;
 lv_point_t lastTouchPoint = {0, 0};
+lv_point_t touchStartPoint = {0, 0};
 uint32_t lastTouchMs = 0;
+uint32_t touchStartMs = 0;
+bool touchActive = false;
 volatile bool bleResponseSeen = false;
 volatile uint8_t bleResponseStatus = 0xFF;
 PendingHomeAction pendingHomeAction = PendingHomeAction::None;
@@ -240,7 +268,32 @@ const char *homeActionName(PendingHomeAction action) {
 }
 
 PendingHomeAction hitHomeActionWithTransforms(int16_t rawX, int16_t rawY) {
+  if (previewFullscreen) {
+    return PendingHomeAction::None;
+  }
   return hitHomeActionAt(rawX, rawY);
+}
+
+void handleRawPreviewSwipe(const lv_point_t &start, const lv_point_t &end, uint32_t durationMs) {
+  if (durationMs > 1200) {
+    return;
+  }
+  int dx = end.x - start.x;
+  int dy = end.y - start.y;
+  if (abs(dy) < 55 || abs(dy) < abs(dx) * 2) {
+    return;
+  }
+  if (start.y < kTopBarH || end.y < kTopBarH) {
+    return;
+  }
+
+  if (dy < 0 && previewFullscreen) {
+    Serial.printf("Raw swipe up: %d,%d -> %d,%d\n", start.x, start.y, end.x, end.y);
+    setPreviewFullscreen(false);
+  } else if (dy > 0 && !previewFullscreen) {
+    Serial.printf("Raw swipe down: %d,%d -> %d,%d\n", start.x, start.y, end.x, end.y);
+    setPreviewFullscreen(true);
+  }
 }
 
 void touchInterrupt() {
@@ -274,12 +327,29 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
         Arduino_IIC_Touch::Value_Information::TOUCH_COORDINATE_Y);
     uint8_t fingers = touch->IIC_Read_Device_Value(
         Arduino_IIC_Touch::Value_Information::TOUCH_FINGER_NUMBER);
-    lastTouchPoint.x = rawX;
-    lastTouchPoint.y = rawY;
-    lastTouchMs = now;
-    data->state = LV_INDEV_STATE_PR;
-    data->point = lastTouchPoint;
     Serial.printf("Touch raw x=%d y=%d fingers=%u\n", rawX, rawY, fingers);
+
+    if (fingers > 0) {
+      if (!touchActive) {
+        touchStartPoint.x = rawX;
+        touchStartPoint.y = rawY;
+        touchStartMs = now;
+        touchActive = true;
+      }
+      lastTouchPoint.x = rawX;
+      lastTouchPoint.y = rawY;
+      lastTouchMs = now;
+      data->state = LV_INDEV_STATE_PR;
+      data->point = lastTouchPoint;
+    } else {
+      if (touchActive) {
+        handleRawPreviewSwipe(touchStartPoint, lastTouchPoint, now - touchStartMs);
+      }
+      touchActive = false;
+      data->state = LV_INDEV_STATE_REL;
+      data->point = lastTouchPoint;
+      return;
+    }
 
     PendingHomeAction action = hitHomeActionWithTransforms(rawX, rawY);
     if (action != PendingHomeAction::None && now - lastHomeTouchMs > 600) {
@@ -359,6 +429,247 @@ void logMemory(const char *label) {
                 heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 }
 
+void setObjHidden(lv_obj_t *obj, bool hidden) {
+  if (!obj) {
+    return;
+  }
+  if (hidden) {
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+  } else {
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+void setPreviewFullscreen(bool fullscreen) {
+  previewFullscreen = fullscreen;
+  if (!previewBox || !fullscreenHint) {
+    return;
+  }
+
+  if (fullscreen) {
+    lv_obj_set_pos(previewBox, 0, 0);
+    lv_obj_set_size(previewBox, LCD_WIDTH, LCD_HEIGHT - kTopBarH);
+    lv_obj_set_style_radius(previewBox, 0, 0);
+    lv_obj_set_style_border_width(previewBox, 0, 0);
+    lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, -4);
+  } else {
+    lv_obj_set_size(previewBox, kPreviewW, kPreviewH);
+    lv_obj_set_pos(previewBox, kPreviewX, 6);
+    lv_obj_set_style_radius(previewBox, 8, 0);
+    lv_obj_set_style_border_width(previewBox, 1, 0);
+    lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, 4);
+  }
+
+  setObjHidden(recordPill, fullscreen);
+  setObjHidden(timeRemainingLabel, fullscreen);
+  setObjHidden(captureModeLabel, fullscreen);
+  setObjHidden(captureSettingLabel, fullscreen);
+  setObjHidden(cameraLabel, fullscreen);
+  setObjHidden(wifiLabel, fullscreen);
+  setObjHidden(connectButton, fullscreen);
+  setObjHidden(pairButton, fullscreen);
+  setObjHidden(recordButton, fullscreen);
+  setObjHidden(actionLabel, fullscreen);
+  lv_obj_move_foreground(previewBox);
+  lv_obj_move_foreground(fullscreenHint);
+}
+
+void onPreviewGesture(lv_event_t *) {
+  lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
+  if (dir == LV_DIR_TOP && previewFullscreen) {
+    setPreviewFullscreen(false);
+  } else if (dir == LV_DIR_BOTTOM && !previewFullscreen) {
+    setPreviewFullscreen(true);
+  }
+}
+
+bool initH264Decoder() {
+  if (h264DecoderReady) {
+    return true;
+  }
+  if (!h264AccessUnit) {
+    h264AccessUnit = static_cast<uint8_t *>(
+        heap_caps_malloc(kMaxH264AccessUnit, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!h264AccessUnit) {
+      h264AccessUnit = static_cast<uint8_t *>(
+          heap_caps_malloc(kMaxH264AccessUnit, MALLOC_CAP_8BIT));
+    }
+  }
+  if (!h264AccessUnit) {
+    Serial.println("H264 access-unit allocation failed");
+    return false;
+  }
+
+  h264bsd_cfg_t cfg = H264BSD_CFG_DEFAULT();
+  cfg.dualTaskEnable = 0;
+  h264Decoder = h264bsdAlloc(&cfg);
+  if (!h264Decoder) {
+    Serial.println("H264 decoder allocation failed");
+    return false;
+  }
+  if (h264bsdInit(h264Decoder, 1) != 0) {
+    Serial.println("H264 decoder init failed");
+    h264bsdFree(h264Decoder);
+    h264Decoder = nullptr;
+    return false;
+  }
+  h264DecoderReady = true;
+  Serial.printf("H264 decoder ready: %s\n", esp_tinyh264_get_version());
+  return true;
+}
+
+bool h264AccessUnitHasIdr(const uint8_t *data, size_t len) {
+  for (size_t i = 0; i + 5 < len; ++i) {
+    size_t nal = 0;
+    if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1) {
+      nal = i + 3;
+    } else if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 0 && data[i + 3] == 1) {
+      nal = i + 4;
+    }
+    if (nal > 0 && nal < len && (data[nal] & 0x1f) == 5) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void drawI420Preview(const uint8_t *pic, uint32_t width, uint32_t height) {
+  if (!pic || width == 0 || height == 0 || !previewBox) {
+    return;
+  }
+  uint32_t outW = previewFullscreen ? LCD_WIDTH : kPreviewW;
+  uint32_t outH = previewFullscreen ? (LCD_HEIGHT - kTopBarH) : kPreviewH;
+  uint32_t drawH = min<uint32_t>(outH, (outW * height) / width);
+  uint32_t drawY = previewFullscreen ? kTopBarH + ((outH - drawH) / 2) : (kTopBarH + 6);
+
+  uint16_t *line = static_cast<uint16_t *>(heap_caps_malloc(outW * sizeof(uint16_t), MALLOC_CAP_DMA));
+  if (!line) {
+    line = static_cast<uint16_t *>(heap_caps_malloc(outW * sizeof(uint16_t), MALLOC_CAP_INTERNAL));
+  }
+  if (!line) {
+    return;
+  }
+
+  const uint8_t *yPlane = pic;
+  const uint8_t *uPlane = yPlane + width * height;
+  const uint8_t *vPlane = uPlane + (width * height) / 4;
+  for (uint32_t y = 0; y < drawH; ++y) {
+    uint32_t srcY = (y * height) / drawH;
+    for (uint32_t x = 0; x < outW; ++x) {
+      uint32_t srcX = (x * width) / outW;
+      int yy = yPlane[srcY * width + srcX];
+      int uu = uPlane[(srcY / 2) * (width / 2) + (srcX / 2)] - 128;
+      int vv = vPlane[(srcY / 2) * (width / 2) + (srcX / 2)] - 128;
+      int r = constrain(yy + ((1436 * vv) >> 10), 0, 255);
+      int g = constrain(yy - ((352 * uu + 731 * vv) >> 10), 0, 255);
+      int b = constrain(yy + ((1814 * uu) >> 10), 0, 255);
+      line[x] = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
+    }
+    gfx->draw16bitRGBBitmap(0, drawY + y, line, outW, 1);
+  }
+  free(line);
+}
+
+void decodeH264AccessUnit() {
+  if (h264StreamUnsupported) {
+    h264AccessUnitLen = 0;
+    return;
+  }
+  if (h264AccessUnitLen == 0 || millis() - lastH264DecodeMs < kMinDecodeIntervalMs) {
+    return;
+  }
+  if (!h264AccessUnitHasIdr(h264AccessUnit, h264AccessUnitLen)) {
+    h264AccessUnitLen = 0;
+    return;
+  }
+  lastH264DecodeMs = millis();
+  if (!initH264Decoder()) {
+    h264AccessUnitLen = 0;
+    return;
+  }
+
+  u8 *pic = nullptr;
+  u32 width = 0;
+  u32 height = 0;
+  u32 remaining = h264AccessUnitLen;
+  uint32_t ret = h264bsdDecode(h264Decoder, h264AccessUnit, &remaining, &pic, &width, &height);
+  Serial.printf("H264 decode AU len=%u ret=%u remaining=%u size=%ux%u\n",
+                h264AccessUnitLen, ret, remaining, width, height);
+  if (ret == H264BSD_PIC_RDY && pic && width > 0 && height > 0) {
+    h264FramesDecoded++;
+    lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    drawI420Preview(pic, width, height);
+  } else if (ret == H264BSD_ERROR || ret == H264BSD_PARAM_SET_ERROR || ret == H264BSD_MEMALLOC_ERROR) {
+    h264DecodeFailures++;
+    if (h264DecodeFailures >= 3) {
+      h264StreamUnsupported = true;
+      if (!h264UnsupportedNotified) {
+        h264UnsupportedNotified = true;
+        setAction("Live stream connected; decoder needs P4/host");
+      }
+    }
+    lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(previewLabel, h264StreamUnsupported
+                                        ? "Stream connected\nP4/host decoder required"
+                                        : "Trying H.264 decode");
+  }
+  h264AccessUnitLen = 0;
+}
+
+void appendH264Payload(const uint8_t *payload, size_t len, bool start) {
+  if (start && h264AccessUnitLen > 0) {
+    decodeH264AccessUnit();
+    h264AccessUnitLen = 0;
+  }
+  if (!initH264Decoder()) {
+    return;
+  }
+  if (len == 0 || h264AccessUnitLen + len > kMaxH264AccessUnit) {
+    h264AccessUnitLen = 0;
+    return;
+  }
+  memcpy(h264AccessUnit + h264AccessUnitLen, payload, len);
+  h264AccessUnitLen += len;
+}
+
+void processTsPacket(const uint8_t *packet) {
+  if (packet[0] != 0x47) {
+    return;
+  }
+  bool payloadStart = packet[1] & 0x40;
+  uint16_t pid = ((packet[1] & 0x1f) << 8) | packet[2];
+  if (pid != kGoProVideoPid) {
+    return;
+  }
+  uint8_t adaptation = (packet[3] >> 4) & 0x03;
+  size_t offset = 4;
+  if (adaptation == 0 || adaptation == 2) {
+    return;
+  }
+  if (adaptation == 3) {
+    offset += 1 + packet[offset];
+    if (offset >= kTsPacketBytes) {
+      return;
+    }
+  }
+
+  if (payloadStart) {
+    if (kTsPacketBytes - offset < 9 || packet[offset] != 0 || packet[offset + 1] != 0 ||
+        packet[offset + 2] != 1) {
+      return;
+    }
+    uint8_t flags = packet[offset + 7];
+    uint8_t headerLen = packet[offset + 8];
+    (void)flags;
+    offset += 9 + headerLen;
+    if (offset >= kTsPacketBytes) {
+      appendH264Payload(nullptr, 0, true);
+      return;
+    }
+  }
+  appendH264Payload(packet + offset, kTsPacketBytes - offset, payloadStart);
+}
+
 void configureBleSecurity() {
   if (bleSecurityCallbacks == nullptr) {
     bleSecurityCallbacks = new BLESecurityCallbacks();
@@ -402,6 +713,9 @@ void shutdownBleForWifi() {
   }
   bleClient = nullptr;
   bleConnected = false;
+  if (bleIndicator) {
+    lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
+  }
   delete bestBleDevice;
   bestBleDevice = nullptr;
   BLEDevice::deinit(false);
@@ -528,7 +842,7 @@ void updateBatteryStatus(bool force = false) {
   if (!pmuOnline) {
     lv_bar_set_value(batteryBar, 0, LV_ANIM_OFF);
     lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x5a6472), LV_PART_INDICATOR);
-    lv_label_set_text(batteryLabel, "--%");
+    lv_label_set_text(batteryLabel, LV_SYMBOL_BATTERY_EMPTY);
     return;
   }
 
@@ -536,7 +850,7 @@ void updateBatteryStatus(bool force = false) {
   if (percent < 0) {
     lv_bar_set_value(batteryBar, 0, LV_ANIM_OFF);
     lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x5a6472), LV_PART_INDICATOR);
-    lv_label_set_text(batteryLabel, power.isVbusIn() ? "USB" : "--%");
+    lv_label_set_text(batteryLabel, power.isVbusIn() ? LV_SYMBOL_USB : LV_SYMBOL_BATTERY_EMPTY);
     return;
   }
 
@@ -550,9 +864,15 @@ void updateBatteryStatus(bool force = false) {
     lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x47d16c), LV_PART_INDICATOR);
   }
 
-  char text[8];
-  snprintf(text, sizeof(text), "%d%%", percent);
-  lv_label_set_text(batteryLabel, text);
+  if (percent <= 15) {
+    lv_label_set_text(batteryLabel, LV_SYMBOL_BATTERY_1);
+  } else if (percent <= 35) {
+    lv_label_set_text(batteryLabel, LV_SYMBOL_BATTERY_2);
+  } else if (percent <= 70) {
+    lv_label_set_text(batteryLabel, LV_SYMBOL_BATTERY_3);
+  } else {
+    lv_label_set_text(batteryLabel, LV_SYMBOL_BATTERY_FULL);
+  }
 }
 
 void enterLowPowerShutdown() {
@@ -691,6 +1011,9 @@ bool connectBle() {
   logMemory("Before BLE connect");
   if (!bleClient->connectTimeout(bestBleDevice, kBleConnectTimeoutMs)) {
     bleConnected = false;
+    if (bleIndicator) {
+      lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
+    }
     delete bleClient;
     bleClient = nullptr;
     lv_label_set_text(cameraLabel, "Camera: BLE connect failed");
@@ -699,6 +1022,9 @@ bool connectBle() {
   }
 
   bleConnected = true;
+  if (bleIndicator) {
+    lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x2c7be5), 0);
+  }
   logMemory("After BLE connect");
   BLERemoteService *control = bleClient->getService(kControlService);
   if (control != nullptr) {
@@ -1362,6 +1688,11 @@ void setPairingMode() {
   }
   bool ok = pairGoPro();
   setAction(ok ? "GoPro BLE pairing requested" : "GoPro BLE pairing failed");
+  if (ok) {
+    delay(300);
+    setAction("Pair complete; connecting WiFi");
+    connectGoProWifiFromBle();
+  }
 }
 
 bool beginGoproAction(const char *name) {
@@ -1458,6 +1789,18 @@ bool beginLivePreviewUdp() {
   return true;
 }
 
+int startGoProStreamPath(const String &path, const char *stopPath, const char *label) {
+  int status = httpGetGoProStatus(path);
+  if (status == 409) {
+    Serial.printf("%s already active; stopping stale stream\n", label);
+    httpGetGoProStatus(stopPath);
+    delay(500);
+    status = httpGetGoProStatus(path);
+  }
+  Serial.printf("%s start status=%d path=%s\n", label, status, path.c_str());
+  return status;
+}
+
 bool startGoProLivePreview() {
   if (WiFi.status() != WL_CONNECTED) {
     return false;
@@ -1470,30 +1813,39 @@ bool startGoProLivePreview() {
     return true;
   }
 
-  String path = "/gopro/camera/stream/start?port=";
-  path += kPreviewStreamPort;
-  int status = httpGetGoProStatus(path);
-  if (status == 409) {
-    Serial.println("Preview stream already active; stopping stale stream");
-    httpGetGoProStatus("/gopro/camera/stream/stop");
-    delay(500);
-    status = httpGetGoProStatus(path);
+  h264StreamUnsupported = false;
+  h264UnsupportedNotified = false;
+  h264DecodeFailures = 0;
+  h264FramesDecoded = 0;
+  h264AccessUnitLen = 0;
+  httpGetGoProStatus("/gopro/camera/stream/stop");
+  httpGetGoProStatus("/gopro/webcam/stop");
+  delay(300);
+
+  String streamName = "GoPro webcam 480p";
+  int status = startGoProStreamPath("/gopro/webcam/start?res=4&fov=0",
+                                    "/gopro/webcam/stop", streamName.c_str());
+  if (status < 200 || status >= 300) {
+    streamName = "GoPro webcam 720p";
+    status = startGoProStreamPath("/gopro/webcam/start?res=7&fov=0",
+                                  "/gopro/webcam/stop", streamName.c_str());
   }
   if (status < 200 || status >= 300) {
-    status = httpGetGoProStatus("/gopro/camera/stream/start");
-  }
-  if (status == 409) {
-    Serial.println("Default preview stream already active; stopping stale stream");
-    httpGetGoProStatus("/gopro/camera/stream/stop");
-    delay(500);
-    status = httpGetGoProStatus("/gopro/camera/stream/start");
+    Serial.println("Webcam stream failed; falling back to preview stream");
+    streamName = "GoPro preview";
+    String path = "/gopro/camera/stream/start?port=";
+    path += kPreviewStreamPort;
+    status = startGoProStreamPath(path, "/gopro/camera/stream/stop", streamName.c_str());
   }
   bool ok = status >= 200 && status < 300;
   previewStreamRequested = ok;
   if (ok) {
     lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
-    lv_label_set_text(previewLabel, "Live preview stream starting");
-    setAction("GoPro live preview stream started");
+    String label = streamName + " starting";
+    lv_label_set_text(previewLabel, label.c_str());
+    setPreviewFullscreen(true);
+    String action = streamName + " started";
+    setAction(action.c_str());
   } else {
     lv_label_set_text(previewLabel, "Live preview start failed");
   }
@@ -1513,10 +1865,14 @@ void pollLivePreviewUdp() {
     previewPacketsThisWindow++;
     previewBytesThisWindow += static_cast<uint32_t>(packetSize);
     while (packetSize > 0) {
-      uint8_t scratch[188];
-      int readLen = previewUdp.read(scratch, min(packetSize, static_cast<int>(sizeof(scratch))));
+      uint8_t scratch[kTsPacketBytes];
+      int toRead = min(packetSize, static_cast<int>(sizeof(scratch)));
+      int readLen = previewUdp.read(scratch, toRead);
       if (readLen <= 0) {
         break;
+      }
+      if (readLen == static_cast<int>(kTsPacketBytes)) {
+        processTsPacket(scratch);
       }
       packetSize -= readLen;
     }
@@ -1528,11 +1884,15 @@ void pollLivePreviewUdp() {
 
   uint32_t elapsed = max<uint32_t>(1, millis() - lastPreviewStatsMs);
   uint32_t kbps = (previewBytesThisWindow * 8UL) / elapsed;
-  char label[96];
-  snprintf(label, sizeof(label), "Live GoPro preview\nUDP %u packets/s\n%u kbps",
-           previewPacketsThisWindow, kbps);
   lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
-  lv_label_set_text(previewLabel, label);
+  if (h264StreamUnsupported) {
+    lv_label_set_text(previewLabel, "Stream connected\nP4/host decoder required");
+  } else {
+    const char *label = previewPacketsThisWindow > 0
+                            ? "Live GoPro feed\ntrying decoder"
+                            : "Live GoPro feed\nwaiting for packets";
+    lv_label_set_text(previewLabel, label);
+  }
   Serial.printf("Preview UDP: %u packets, %u bytes, %u kbps\n", previewPacketsThisWindow,
                 previewBytesThisWindow, kbps);
   previewBytesThisWindow = 0;
@@ -1814,36 +2174,51 @@ void createUi() {
   lv_obj_set_style_text_color(screen, lv_color_hex(0xf4f7fb), 0);
   lv_obj_set_style_text_font(screen, &lv_font_montserrat_14, 0);
 
+  lv_obj_t *topBar = lv_obj_create(screen);
+  lv_obj_set_size(topBar, LCD_WIDTH, kTopBarH);
+  lv_obj_set_pos(topBar, 0, 0);
+  lv_obj_set_style_radius(topBar, 0, 0);
+  lv_obj_set_style_bg_color(topBar, lv_color_hex(0x05070b), 0);
+  lv_obj_set_style_border_width(topBar, 0, 0);
+  lv_obj_set_style_pad_all(topBar, 0, 0);
+  lv_obj_clear_flag(topBar, LV_OBJ_FLAG_SCROLLABLE);
+
   lv_obj_t *title = lv_label_create(screen);
   lv_label_set_text(title, "GoPro");
-  lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
-  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 18, 14);
+  lv_obj_set_style_text_font(title, &lv_font_montserrat_18, 0);
+  lv_obj_set_style_text_color(title, lv_color_hex(0xf4f7fb), 0);
+  lv_obj_align(title, LV_ALIGN_TOP_LEFT, 12, 7);
 
   statusLabel = lv_label_create(screen);
   lv_label_set_text(statusLabel, "Ready");
   lv_obj_set_style_text_color(statusLabel, lv_color_hex(0x96a2b4), 0);
-  lv_obj_align(statusLabel, LV_ALIGN_TOP_LEFT, 20, 48);
+  lv_obj_add_flag(statusLabel, LV_OBJ_FLAG_HIDDEN);
 
   batteryBar = lv_bar_create(screen);
-  lv_obj_set_size(batteryBar, 52, 9);
-  lv_obj_align(batteryBar, LV_ALIGN_TOP_RIGHT, -64, 24);
+  lv_obj_set_size(batteryBar, 38, 7);
+  lv_obj_align(batteryBar, LV_ALIGN_TOP_RIGHT, -66, 13);
   lv_bar_set_range(batteryBar, 0, 100);
   lv_bar_set_value(batteryBar, 0, LV_ANIM_OFF);
   lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x28303c), LV_PART_MAIN);
   lv_obj_set_style_bg_color(batteryBar, lv_color_hex(0x47d16c), LV_PART_INDICATOR);
 
   batteryLabel = lv_label_create(screen);
-  lv_label_set_text(batteryLabel, "--%");
+  lv_label_set_text(batteryLabel, LV_SYMBOL_BATTERY_EMPTY);
   lv_obj_set_style_text_color(batteryLabel, lv_color_hex(0xc3ccd8), 0);
-  lv_obj_align(batteryLabel, LV_ALIGN_TOP_RIGHT, -20, 18);
+  lv_obj_align(batteryLabel, LV_ALIGN_TOP_RIGHT, -24, 7);
 
   wifiIndicator = lv_label_create(screen);
-  lv_label_set_text(wifiIndicator, "WIFI --");
+  lv_label_set_text(wifiIndicator, LV_SYMBOL_WIFI);
   lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x5a6472), 0);
-  lv_obj_align(wifiIndicator, LV_ALIGN_TOP_RIGHT, -20, 38);
+  lv_obj_align(wifiIndicator, LV_ALIGN_TOP_RIGHT, -122, 7);
+
+  bleIndicator = lv_label_create(screen);
+  lv_label_set_text(bleIndicator, LV_SYMBOL_BLUETOOTH);
+  lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
+  lv_obj_align(bleIndicator, LV_ALIGN_TOP_RIGHT, -148, 7);
 
   tileView = lv_tileview_create(screen);
-  lv_obj_set_size(tileView, LCD_WIDTH, LCD_HEIGHT - 70);
+  lv_obj_set_size(tileView, LCD_WIDTH, LCD_HEIGHT - kTopBarH);
   lv_obj_align(tileView, LV_ALIGN_BOTTOM_MID, 0, 0);
   lv_obj_set_style_bg_color(tileView, lv_color_hex(0x090b10), 0);
   lv_obj_set_style_border_width(tileView, 0, 0);
@@ -1854,6 +2229,7 @@ void createUi() {
   lv_obj_t *captureTile = lv_tileview_add_tile(tileView, 0, 0, LV_DIR_RIGHT);
   captureTileObj = captureTile;
   lv_obj_set_style_bg_color(captureTile, lv_color_hex(0x090b10), 0);
+  lv_obj_add_event_cb(captureTile, onPreviewGesture, LV_EVENT_GESTURE, nullptr);
 
   previewBox = lv_obj_create(captureTile);
   lv_obj_set_size(previewBox, kPreviewW, kPreviewH);
@@ -1863,11 +2239,21 @@ void createUi() {
   lv_obj_set_style_border_color(previewBox, lv_color_hex(0x2b3a52), 0);
   lv_obj_set_style_border_width(previewBox, 1, 0);
   lv_obj_clear_flag(previewBox, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(previewBox, onPreviewGesture, LV_EVENT_GESTURE, nullptr);
 
   previewLabel = lv_label_create(previewBox);
   lv_label_set_text(previewLabel, "Live preview standby");
   lv_obj_set_style_text_color(previewLabel, lv_color_hex(0xdde7f5), 0);
   lv_obj_center(previewLabel);
+
+  fullscreenHint = lv_obj_create(previewBox);
+  lv_obj_set_size(fullscreenHint, 78, 3);
+  lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, 4);
+  lv_obj_set_style_radius(fullscreenHint, 2, 0);
+  lv_obj_set_style_bg_color(fullscreenHint, lv_color_hex(0xf4f7fb), 0);
+  lv_obj_set_style_bg_opa(fullscreenHint, LV_OPA_90, 0);
+  lv_obj_set_style_border_width(fullscreenHint, 0, 0);
+  lv_obj_clear_flag(fullscreenHint, LV_OBJ_FLAG_SCROLLABLE);
 
   recordPill = lv_obj_create(captureTile);
   lv_obj_set_size(recordPill, 76, 28);
@@ -1883,7 +2269,7 @@ void createUi() {
   lv_obj_set_style_border_width(recDot, 0, 0);
   makePanelLabel(recordPill, "REC", 28, 7, 14, lv_color_hex(0xf4f7fb));
 
-  makePanelLabel(captureTile, "9H:59", 22, 14, 18, lv_color_hex(0xf4f7fb));
+  timeRemainingLabel = makePanelLabel(captureTile, "9H:59", 22, 14, 18, lv_color_hex(0xf4f7fb));
   captureModeLabel = makePanelLabel(captureTile, captureMode.c_str(), 22, 170, 18);
   captureSettingLabel = makePanelLabel(captureTile, captureSetting.c_str(), 22, 194, 14,
                                        lv_color_hex(0xc3ccd8));
@@ -1897,19 +2283,20 @@ void createUi() {
   lv_label_set_text(wifiLabel, "WiFi: idle");
   lv_obj_set_style_text_color(wifiLabel, lv_color_hex(0x96a2b4), 0);
   lv_obj_set_pos(wifiLabel, 20, 246);
+  lv_obj_add_flag(wifiLabel, LV_OBJ_FLAG_HIDDEN);
 
-  lv_obj_t *connect = makeTouchButton(captureTile, "Connect", 12, kHomeButtonY, kHomeButtonW,
-                                      kHomeButtonH,
-                                      lv_color_hex(0x2c7be5));
-  lv_obj_add_event_cb(connect, onWifi, LV_EVENT_CLICKED, nullptr);
-  lv_obj_t *pair = makeTouchButton(captureTile, "Pair", 128, kHomeButtonY, kHomeButtonW,
-                                   kHomeButtonH,
-                                   lv_color_hex(0x7c4dff));
-  lv_obj_add_event_cb(pair, onPair, LV_EVENT_CLICKED, nullptr);
-  lv_obj_t *rec = makeTouchButton(captureTile, "REC", 244, kHomeButtonY, kHomeButtonW,
+  connectButton = makeTouchButton(captureTile, "Connect", 12, kHomeButtonY, kHomeButtonW,
                                   kHomeButtonH,
-                                  lv_color_hex(0xe03131));
-  lv_obj_add_event_cb(rec, onRecord, LV_EVENT_CLICKED, nullptr);
+                                  lv_color_hex(0x2c7be5));
+  lv_obj_add_event_cb(connectButton, onWifi, LV_EVENT_CLICKED, nullptr);
+  pairButton = makeTouchButton(captureTile, "Pair", 128, kHomeButtonY, kHomeButtonW,
+                               kHomeButtonH,
+                               lv_color_hex(0x7c4dff));
+  lv_obj_add_event_cb(pairButton, onPair, LV_EVENT_CLICKED, nullptr);
+  recordButton = makeTouchButton(captureTile, "REC", 244, kHomeButtonY, kHomeButtonW,
+                                 kHomeButtonH,
+                                 lv_color_hex(0xe03131));
+  lv_obj_add_event_cb(recordButton, onRecord, LV_EVENT_CLICKED, nullptr);
 
   actionLabel = lv_label_create(captureTile);
   lv_label_set_text(actionLabel, "Pair GoPro first, then Connect");
@@ -2029,11 +2416,11 @@ void updateWifiStatus() {
     text += WiFi.localIP().toString();
     lv_label_set_text(wifiLabel, text.c_str());
     lv_label_set_text(statusLabel, "GoPro WiFi connected");
-    lv_label_set_text(wifiIndicator, "WIFI ON");
+    lv_label_set_text(wifiIndicator, LV_SYMBOL_WIFI);
     lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x47d16c), 0);
   } else if (status == WL_IDLE_STATUS) {
     lv_label_set_text(wifiLabel, "WiFi: connecting");
-    lv_label_set_text(wifiIndicator, "WIFI ..");
+    lv_label_set_text(wifiIndicator, LV_SYMBOL_WIFI);
     lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0xf0b429), 0);
   } else {
     previewStreamRequested = false;
@@ -2042,7 +2429,7 @@ void updateWifiStatus() {
       previewUdpListening = false;
     }
     lv_label_set_text(wifiLabel, "WiFi: disconnected");
-    lv_label_set_text(wifiIndicator, "WIFI --");
+    lv_label_set_text(wifiIndicator, LV_SYMBOL_WIFI);
     lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x5a6472), 0);
   }
 }
