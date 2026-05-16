@@ -58,6 +58,8 @@ constexpr uint32_t kBleScanSeconds = 7;
 constexpr uint32_t kBleConnectTimeoutMs = 10000;
 constexpr uint32_t kWifiTimeoutMs = 25000;
 constexpr uint32_t kDrawBufferLines = 16;
+constexpr uint16_t kPreviewStreamPort = 8554;
+constexpr uint32_t kLivePreviewStatsMs = 1000;
 constexpr size_t kMaxJpegBytes = 220 * 1024;
 constexpr size_t kMaxSettingOptions = 40;
 constexpr size_t kVisibleSettingOptions = 6;
@@ -162,13 +164,18 @@ bool pmuOnline = false;
 bool expanderOnline = false;
 bool bleConnected = false;
 bool bleStackReady = false;
-String latestPreviewPath;
+bool previewStreamRequested = false;
+bool previewUdpListening = false;
+uint32_t previewBytesThisWindow = 0;
+uint32_t previewPacketsThisWindow = 0;
+uint32_t lastPreviewStatsMs = 0;
 String lastBleName;
 String goProSsid;
 String goProPassword;
 String captureMode = "Video";
 String captureSetting = "16:9 | 4K | 60 | W";
 IPAddress cameraIp;
+WiFiUDP previewUdp;
 const SettingDefinition *activeSetting = nullptr;
 SettingValue settingValues[48] = {};
 size_t settingValueCount = 0;
@@ -736,7 +743,6 @@ bool readGoProWifiCredentials() {
   Serial.println(goProSsid);
   Serial.print(F("GoPro AP password length: "));
   Serial.println(goProPassword.length());
-
   if (goProSsid.isEmpty() || goProPassword.isEmpty()) {
     setAction("GoPro WiFi credentials empty");
     return false;
@@ -1416,122 +1422,90 @@ void toggleRecording() {
   setAction(recording ? "Recording; preview paused" : "Recording stopped");
 }
 
-bool getLatestJpegPath(String &path) {
-  path = "";
+bool beginLivePreviewUdp() {
+  if (previewUdpListening) {
+    return true;
+  }
+  previewUdp.stop();
+  if (!previewUdp.begin(kPreviewStreamPort)) {
+    Serial.println("Preview UDP bind failed");
+    return false;
+  }
+  previewUdpListening = true;
+  previewBytesThisWindow = 0;
+  previewPacketsThisWindow = 0;
+  lastPreviewStatsMs = millis();
+  Serial.printf("Preview UDP listening on %u\n", kPreviewStreamPort);
+  return true;
+}
+
+bool startGoProLivePreview() {
   if (WiFi.status() != WL_CONNECTED) {
     return false;
   }
-
-  HTTPClient http;
-  http.setTimeout(kHttpTimeoutMs);
-  String url = cameraBaseUrl() + "/gopro/media/list";
-  if (!http.begin(url)) {
+  if (!beginLivePreviewUdp()) {
+    lv_label_set_text(previewLabel, "Live preview UDP bind failed");
     return false;
   }
-
-  int status = http.GET();
-  if (status < 200 || status >= 300) {
-    http.end();
-    Serial.printf("media/list failed: %d\n", status);
-    return false;
+  if (previewStreamRequested) {
+    return true;
   }
 
-  String body = http.getString();
-  http.end();
-  Serial.printf("media/list -> %d, %u bytes\n", status, body.length());
-
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, body);
-  if (error) {
-    Serial.printf("media/list JSON parse failed: %s\n", error.c_str());
-    return false;
+  String path = "/gopro/camera/stream/start?port=";
+  path += kPreviewStreamPort;
+  bool ok = httpGetGoPro(path);
+  if (!ok) {
+    ok = httpGetGoPro("/gopro/camera/stream/start");
   }
-
-  uint32_t newest = 0;
-  for (JsonObject directory : doc["media"].as<JsonArray>()) {
-    const char *dir = directory["d"] | "";
-    for (JsonObject file : directory["fs"].as<JsonArray>()) {
-      const char *name = file["n"] | "";
-      String lower = name;
-      lower.toLowerCase();
-      if (!lower.endsWith(".jpg")) {
-        continue;
-      }
-
-      uint32_t modified = file["mod"] | file["cre"] | 0;
-      if (path.isEmpty() || modified >= newest) {
-        newest = modified;
-        path = String(dir) + "/" + name;
-      }
-    }
-  }
-  if (path.isEmpty()) {
-    Serial.println("media/list contained no JPEG files");
+  previewStreamRequested = ok;
+  if (ok) {
+    lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(previewLabel, "Live preview stream starting");
+    setAction("GoPro live preview stream started");
   } else {
-    Serial.print("Latest JPEG path: ");
-    Serial.println(path);
+    lv_label_set_text(previewLabel, "Live preview start failed");
   }
-  return !path.isEmpty();
+  return ok;
 }
 
-uint8_t *fetchGoProThumbnail(const String &path, size_t &length) {
-  length = 0;
-  HTTPClient http;
-  http.setTimeout(kHttpTimeoutMs);
-  String url = cameraBaseUrl() + "/gopro/media/thumbnail?path=" + path;
-  if (!http.begin(url)) {
-    return nullptr;
+void pollLivePreviewUdp() {
+  if (!previewUdpListening) {
+    return;
   }
 
-  int status = http.GET();
-  if (status < 200 || status >= 300) {
-    http.end();
-    Serial.printf("thumbnail failed: %d\n", status);
-    return nullptr;
-  }
-
-  int expected = http.getSize();
-  if (expected <= 0 || static_cast<size_t>(expected) > kMaxJpegBytes) {
-    http.end();
-    Serial.printf("thumbnail size rejected: %d\n", expected);
-    return nullptr;
-  }
-
-  uint8_t *buffer = static_cast<uint8_t *>(
-      heap_caps_malloc(expected, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-  if (!buffer) {
-    buffer = static_cast<uint8_t *>(heap_caps_malloc(expected, MALLOC_CAP_8BIT));
-  }
-  if (!buffer) {
-    http.end();
-    setAction("No RAM for JPEG");
-    return nullptr;
-  }
-
-  WiFiClient *stream = http.getStreamPtr();
-  size_t offset = 0;
-  uint32_t start = millis();
-  while (offset < static_cast<size_t>(expected) && millis() - start < kHttpTimeoutMs) {
-    int available = stream->available();
-    if (available <= 0) {
-      delay(2);
-      continue;
+  for (uint8_t packets = 0; packets < 12; ++packets) {
+    int packetSize = previewUdp.parsePacket();
+    if (packetSize <= 0) {
+      break;
     }
-    int readLen = stream->readBytes(buffer + offset,
-                                    min(available, expected - static_cast<int>(offset)));
-    if (readLen > 0) {
-      offset += readLen;
+    previewPacketsThisWindow++;
+    previewBytesThisWindow += static_cast<uint32_t>(packetSize);
+    while (packetSize > 0) {
+      uint8_t scratch[188];
+      int readLen = previewUdp.read(scratch, min(packetSize, static_cast<int>(sizeof(scratch))));
+      if (readLen <= 0) {
+        break;
+      }
+      packetSize -= readLen;
     }
   }
-  http.end();
 
-  if (offset != static_cast<size_t>(expected)) {
-    free(buffer);
-    Serial.printf("thumbnail incomplete: %u/%d bytes\n", offset, expected);
-    return nullptr;
+  if (millis() - lastPreviewStatsMs < kLivePreviewStatsMs) {
+    return;
   }
-  length = offset;
-  return buffer;
+
+  uint32_t elapsed = max<uint32_t>(1, millis() - lastPreviewStatsMs);
+  uint32_t kbps = (previewBytesThisWindow * 8UL) / elapsed;
+  char label[96];
+  snprintf(label, sizeof(label), "Live GoPro preview\nUDP %u packets/s\n%u kbps",
+           previewPacketsThisWindow, kbps);
+  lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+  lv_label_set_text(previewLabel, label);
+  Serial.printf("Preview UDP: %u packets, %u bytes, %u kbps\n", previewPacketsThisWindow,
+                previewBytesThisWindow, kbps);
+  previewBytesThisWindow = 0;
+  previewPacketsThisWindow = 0;
+  lastPreviewStatsMs = millis();
 }
 
 bool isCaptureTileActive() {
@@ -1859,7 +1833,7 @@ void createUi() {
   lv_obj_clear_flag(previewBox, LV_OBJ_FLAG_SCROLLABLE);
 
   previewLabel = lv_label_create(previewBox);
-  lv_label_set_text(previewLabel, "JPEG preview standby");
+  lv_label_set_text(previewLabel, "Live preview standby");
   lv_obj_set_style_text_color(previewLabel, lv_color_hex(0xdde7f5), 0);
   lv_obj_center(previewLabel);
 
@@ -2030,6 +2004,11 @@ void updateWifiStatus() {
     lv_label_set_text(wifiIndicator, "WIFI ..");
     lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0xf0b429), 0);
   } else {
+    previewStreamRequested = false;
+    if (previewUdpListening) {
+      previewUdp.stop();
+      previewUdpListening = false;
+    }
     lv_label_set_text(wifiLabel, "WiFi: disconnected");
     lv_label_set_text(wifiIndicator, "WIFI --");
     lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x5a6472), 0);
@@ -2053,45 +2032,25 @@ void updatePreview(bool force) {
     return;
   }
   if (!force && millis() - lastPreviewUpdate < kPreviewRefreshMs) {
+    pollLivePreviewUdp();
     return;
   }
   lastPreviewUpdate = millis();
   Serial.printf("Preview update force=%u wifi=%u\n", force ? 1 : 0, WiFi.status());
 
   if (WiFi.status() != WL_CONNECTED) {
-    lv_label_set_text(previewLabel, "Connect WiFi for JPEG preview");
+    lv_label_set_text(previewLabel, "Connect WiFi for live preview");
     if (force) {
       Serial.println("Preview skipped: WiFi not connected");
     }
     return;
   }
 
-  String path;
-  if (!getLatestJpegPath(path)) {
-    lv_label_set_text(previewLabel, "No GoPro JPEG media found");
+  if (!startGoProLivePreview()) {
     return;
   }
-  latestPreviewPath = path;
-
-  size_t jpegLength = 0;
-  uint8_t *jpegData = fetchGoProThumbnail(path, jpegLength);
-  if (!jpegData) {
-    lv_label_set_text(previewLabel, "JPEG fetch failed");
-    return;
-  }
-
-  lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
-  bool ok = drawJpegPreview(jpegData, jpegLength);
-  free(jpegData);
-  if (!ok) {
-    lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
-    lv_label_set_text(previewLabel, "JPEG decode failed");
-    return;
-  }
-
-  String label = "JPEG: ";
-  label += latestPreviewPath;
-  lv_label_set_text(statusLabel, label.c_str());
+  pollLivePreviewUdp();
+  lv_label_set_text(statusLabel, "Live preview stream active");
 }
 
 bool initPowerExpander() {
