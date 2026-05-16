@@ -55,11 +55,13 @@ constexpr uint32_t kBootLongPressMs = 1200;
 constexpr uint32_t kPmuPollMs = 150;
 constexpr uint32_t kBatteryRefreshMs = 5000;
 constexpr uint32_t kBleScanSeconds = 7;
+constexpr uint32_t kBleConnectTimeoutMs = 10000;
 constexpr uint32_t kWifiTimeoutMs = 25000;
 constexpr size_t kMaxJpegBytes = 220 * 1024;
 constexpr size_t kMaxSettingOptions = 40;
 constexpr size_t kVisibleSettingOptions = 6;
-constexpr uint8_t kExpanderActionButtonPin = 4;
+constexpr uint8_t kExpanderActionButtonPin = 5;
+constexpr bool kExpanderActionPressedLevel = LOW;
 constexpr int kPreviewX = 20;
 constexpr int kPreviewY = 76;
 constexpr int kPreviewW = 328;
@@ -166,8 +168,8 @@ bool bootLast = HIGH;
 bool bootStable = HIGH;
 uint32_t bootLastChangeMs = 0;
 uint32_t bootPressedAtMs = 0;
-bool actionButtonLast = LOW;
-bool actionButtonStable = LOW;
+bool actionButtonLast = !kExpanderActionPressedLevel;
+bool actionButtonStable = !kExpanderActionPressedLevel;
 uint32_t actionButtonLastChangeMs = 0;
 uint32_t actionButtonPressedAtMs = 0;
 lv_point_t lastTouchPoint = {0, 0};
@@ -177,8 +179,8 @@ volatile uint8_t bleResponseStatus = 0xFF;
 PendingHomeAction pendingHomeAction = PendingHomeAction::None;
 uint32_t pendingHomeActionDueMs = 0;
 uint32_t lastHomeTouchMs = 0;
-bool expanderPin4Last = LOW;
-bool expanderPin5Last = LOW;
+bool expanderActionPinLast = !kExpanderActionPressedLevel;
+bool goproActionBusy = false;
 
 bool pointInRect(int16_t x, int16_t y, int16_t rx, int16_t ry, int16_t rw, int16_t rh) {
   return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
@@ -623,8 +625,10 @@ bool connectBle() {
   lv_label_set_text(statusLabel, "Connecting BLE");
   setAction("Connecting GoPro BLE");
   lv_timer_handler();
-  if (!bleClient->connect(bestBleDevice)) {
+  if (!bleClient->connectTimeout(bestBleDevice, kBleConnectTimeoutMs)) {
     bleConnected = false;
+    delete bleClient;
+    bleClient = nullptr;
     lv_label_set_text(cameraLabel, "Camera: BLE connect failed");
     setAction("BLE connect failed");
     return false;
@@ -1901,7 +1905,7 @@ bool initPowerExpander() {
   delay(120);
 
   expander.pinMode(kExpanderActionButtonPin, INPUT);
-  expander.pinMode(5, INPUT);
+  expander.pinMode(4, INPUT);
   return true;
 }
 
@@ -1982,7 +1986,7 @@ void handleExpanderActionButton() {
   }
 
   actionButtonStable = reading;
-  if (actionButtonStable == HIGH) {
+  if (actionButtonStable == kExpanderActionPressedLevel) {
     actionButtonPressedAtMs = now;
   } else if (actionButtonPressedAtMs != 0) {
     handleActionButtonRelease(now - actionButtonPressedAtMs);
@@ -1994,15 +1998,13 @@ void handleExpanderDiagnostics() {
   if (!expanderOnline) {
     return;
   }
-  bool pin4 = expander.digitalRead(4);
-  bool pin5 = expander.digitalRead(5);
-  if (pin4 != expanderPin4Last || pin5 != expanderPin5Last) {
-    expanderPin4Last = pin4;
-    expanderPin5Last = pin5;
-    Serial.printf("Expander pins: p4=%u p5=%u\n", pin4, pin5);
+  bool pin = expander.digitalRead(kExpanderActionButtonPin);
+  if (pin != expanderActionPinLast) {
+    expanderActionPinLast = pin;
+    Serial.printf("Action pin p%u=%u\n", kExpanderActionButtonPin, pin);
     if (actionLabel) {
       char label[40];
-      snprintf(label, sizeof(label), "Button p4=%u p5=%u", pin4, pin5);
+      snprintf(label, sizeof(label), "Action p%u=%u", kExpanderActionButtonPin, pin);
       lv_label_set_text(actionLabel, label);
     }
   }
@@ -2013,9 +2015,14 @@ void handlePendingHomeAction() {
   if (action == PendingHomeAction::None) {
     return;
   }
+  if (goproActionBusy) {
+    pendingHomeAction = PendingHomeAction::None;
+    return;
+  }
   if (millis() < pendingHomeActionDueMs) {
     return;
   }
+  goproActionBusy = true;
   pendingHomeAction = PendingHomeAction::None;
   pendingHomeActionDueMs = 0;
   lv_timer_handler();
@@ -2044,6 +2051,7 @@ void handlePendingHomeAction() {
     case PendingHomeAction::None:
       break;
   }
+  goproActionBusy = false;
 }
 
 void handlePowerButton() {
@@ -2084,8 +2092,9 @@ void setup() {
   if (expanderOnline) {
     actionButtonLast = expander.digitalRead(kExpanderActionButtonPin);
     actionButtonStable = actionButtonLast;
-    expanderPin4Last = expander.digitalRead(4);
-    expanderPin5Last = expander.digitalRead(5);
+    expanderActionPinLast = actionButtonLast;
+    Serial.printf("Action pin p%u initial=%u pressed=%u\n", kExpanderActionButtonPin,
+                  actionButtonLast, kExpanderActionPressedLevel);
   }
 
   while (!touch->begin()) {
