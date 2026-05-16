@@ -990,6 +990,25 @@ bool httpGetGoPro(const String &path) {
   return status >= 200 && status < 300;
 }
 
+int httpGetGoProStatus(const String &path) {
+  if (WiFi.status() != WL_CONNECTED) {
+    setAction("WiFi not connected");
+    return -1;
+  }
+
+  HTTPClient http;
+  http.setTimeout(kHttpTimeoutMs);
+  String url = cameraBaseUrl() + path;
+  if (!http.begin(url)) {
+    setAction("HTTP begin failed");
+    return -1;
+  }
+  int status = http.GET();
+  http.end();
+  Serial.printf("GET %s -> %d\n", url.c_str(), status);
+  return status;
+}
+
 int httpGetGoProBody(const String &path, String &body) {
   body = "";
   if (WiFi.status() != WL_CONNECTED) {
@@ -1453,10 +1472,23 @@ bool startGoProLivePreview() {
 
   String path = "/gopro/camera/stream/start?port=";
   path += kPreviewStreamPort;
-  bool ok = httpGetGoPro(path);
-  if (!ok) {
-    ok = httpGetGoPro("/gopro/camera/stream/start");
+  int status = httpGetGoProStatus(path);
+  if (status == 409) {
+    Serial.println("Preview stream already active; stopping stale stream");
+    httpGetGoProStatus("/gopro/camera/stream/stop");
+    delay(500);
+    status = httpGetGoProStatus(path);
   }
+  if (status < 200 || status >= 300) {
+    status = httpGetGoProStatus("/gopro/camera/stream/start");
+  }
+  if (status == 409) {
+    Serial.println("Default preview stream already active; stopping stale stream");
+    httpGetGoProStatus("/gopro/camera/stream/stop");
+    delay(500);
+    status = httpGetGoProStatus("/gopro/camera/stream/start");
+  }
+  bool ok = status >= 200 && status < 300;
   previewStreamRequested = ok;
   if (ok) {
     lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
@@ -2316,6 +2348,7 @@ void loop() {
   handlePowerButton();
   updateBatteryStatus();
   updateWifiStatus();
+  pollLivePreviewUdp();
   updatePreview();
   delay(5);
 }
