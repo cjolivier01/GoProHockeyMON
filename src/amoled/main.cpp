@@ -117,8 +117,11 @@ std::shared_ptr<Arduino_IIC_DriveBus> i2cBus =
 
 void touchInterrupt();
 void toggleRecording();
+void runRecordAction();
+void runSnapshotAction();
 void initBleStack();
 bool syncCameraState();
+bool fetchSnapshotPreview();
 void updatePreview(bool force = false);
 void setPreviewFullscreen(bool fullscreen);
 
@@ -158,6 +161,8 @@ lv_obj_t *wifiLabel = nullptr;
 lv_obj_t *cameraLabel = nullptr;
 lv_obj_t *previewBox = nullptr;
 lv_obj_t *previewLabel = nullptr;
+lv_obj_t *recordingOverlay = nullptr;
+lv_obj_t *recordingOverlayLabel = nullptr;
 lv_obj_t *fullscreenHint = nullptr;
 lv_obj_t *actionLabel = nullptr;
 lv_obj_t *batteryBar = nullptr;
@@ -195,6 +200,9 @@ bool h264StreamUnsupported = false;
 bool h264UnsupportedNotified = false;
 bool snapshotPreviewPrepared = false;
 bool snapshotPreviewBusy = false;
+bool previewHasImage = false;
+uint32_t recordingStartedMs = 0;
+uint32_t lastRecordingOverlayMs = 0;
 uint32_t previewBytesThisWindow = 0;
 uint32_t previewPacketsThisWindow = 0;
 uint32_t lastPreviewStatsMs = 0;
@@ -247,23 +255,11 @@ bool pointInRect(int16_t x, int16_t y, int16_t rx, int16_t ry, int16_t rw, int16
 }
 
 PendingHomeAction hitHomeActionAt(int16_t x, int16_t y) {
-  if (pointInRect(x, y, 12, kHomeButtonY, kHomeButtonW, kHomeButtonH)) {
-    return PendingHomeAction::Connect;
-  }
   if (pointInRect(x, y, 128, kHomeButtonY, kHomeButtonW, kHomeButtonH)) {
     return PendingHomeAction::Pair;
   }
-  if (pointInRect(x, y, 244, kHomeButtonY, kHomeButtonW, kHomeButtonH)) {
-    return PendingHomeAction::Record;
-  }
-  if (pointInRect(x, y, 12, kHomeButtonAbsY, kHomeButtonW, kHomeButtonH)) {
-    return PendingHomeAction::Connect;
-  }
   if (pointInRect(x, y, 128, kHomeButtonAbsY, kHomeButtonW, kHomeButtonH)) {
     return PendingHomeAction::Pair;
-  }
-  if (pointInRect(x, y, 244, kHomeButtonAbsY, kHomeButtonW, kHomeButtonH)) {
-    return PendingHomeAction::Record;
   }
   return PendingHomeAction::None;
 }
@@ -298,12 +294,10 @@ void handleRawPreviewSwipe(const lv_point_t &start, const lv_point_t &end, uint3
     return;
   }
 
-  if (dy < 0 && previewFullscreen) {
-    Serial.printf("Raw swipe up: %d,%d -> %d,%d\n", start.x, start.y, end.x, end.y);
+  if (dy > 0 && previewFullscreen) {
+    Serial.printf("Raw swipe down exits fullscreen: %d,%d -> %d,%d\n",
+                  start.x, start.y, end.x, end.y);
     setPreviewFullscreen(false);
-  } else if (dy > 0 && !previewFullscreen) {
-    Serial.printf("Raw swipe down: %d,%d -> %d,%d\n", start.x, start.y, end.x, end.y);
-    setPreviewFullscreen(true);
   }
 }
 
@@ -486,9 +480,12 @@ void setPreviewFullscreen(bool fullscreen) {
     lv_obj_set_style_border_width(previewBox, 1, 0);
     lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, 4);
   }
+  if (recordingOverlay) {
+    lv_obj_center(recordingOverlay);
+  }
 
-  setObjHidden(recordPill, fullscreen);
-  setObjHidden(timeRemainingLabel, fullscreen);
+  setObjHidden(recordPill, true);
+  setObjHidden(timeRemainingLabel, true);
   setObjHidden(captureModeLabel, fullscreen);
   setObjHidden(captureSettingLabel, fullscreen);
   setObjHidden(cameraLabel, fullscreen);
@@ -497,17 +494,60 @@ void setPreviewFullscreen(bool fullscreen) {
   setObjHidden(pairButton, fullscreen);
   setObjHidden(recordButton, fullscreen);
   setObjHidden(actionLabel, fullscreen);
+  setObjHidden(recordingOverlay, !recording);
   lv_obj_move_foreground(previewBox);
+  if (recordingOverlay) {
+    lv_obj_move_foreground(recordingOverlay);
+  }
   lv_obj_move_foreground(fullscreenHint);
 }
 
 void onPreviewGesture(lv_event_t *) {
   lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
-  if (dir == LV_DIR_TOP && previewFullscreen) {
+  if (dir == LV_DIR_BOTTOM && previewFullscreen) {
     setPreviewFullscreen(false);
-  } else if (dir == LV_DIR_BOTTOM && !previewFullscreen) {
-    setPreviewFullscreen(true);
   }
+}
+
+String formatElapsed(uint32_t elapsedMs) {
+  uint32_t totalSeconds = elapsedMs / 1000;
+  uint32_t hours = totalSeconds / 3600;
+  uint32_t minutes = (totalSeconds / 60) % 60;
+  uint32_t seconds = totalSeconds % 60;
+  char text[16];
+  if (hours > 0) {
+    snprintf(text, sizeof(text), "%lu:%02lu:%02lu",
+             static_cast<unsigned long>(hours),
+             static_cast<unsigned long>(minutes),
+             static_cast<unsigned long>(seconds));
+  } else {
+    snprintf(text, sizeof(text), "%02lu:%02lu",
+             static_cast<unsigned long>(minutes),
+             static_cast<unsigned long>(seconds));
+  }
+  return String(text);
+}
+
+void updateRecordingOverlay(bool force = false) {
+  if (!recordingOverlay || !recordingOverlayLabel) {
+    return;
+  }
+  if (!recording) {
+    lv_obj_add_flag(recordingOverlay, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+
+  uint32_t now = millis();
+  if (!force && now - lastRecordingOverlayMs < 1000) {
+    return;
+  }
+  lastRecordingOverlayMs = now;
+
+  String text = "RECORDING\n";
+  text += formatElapsed(recordingStartedMs == 0 ? 0 : now - recordingStartedMs);
+  lv_label_set_text(recordingOverlayLabel, text.c_str());
+  lv_obj_clear_flag(recordingOverlay, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_move_foreground(recordingOverlay);
 }
 
 bool initH264Decoder() {
@@ -1324,7 +1364,10 @@ bool connectGoProWifiFromBle() {
   setAction("Connected to GoPro WiFi");
   syncCameraState();
   lastPreviewUpdate = 0;
-  updatePreview(true);
+  if (previewLabel && !previewHasImage) {
+    lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(previewLabel, "Press lower button for snapshot");
+  }
   return true;
 }
 
@@ -1910,6 +1953,30 @@ void runRecordAction() {
   endGoproAction();
 }
 
+void runSnapshotAction() {
+  if (!beginGoproAction("snapshot")) {
+    return;
+  }
+  if (!displayOn) {
+    setDisplayOn(true);
+  }
+  if (recording) {
+    setAction("Snapshot disabled while recording");
+    endGoproAction();
+    return;
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    setAction("Connecting for snapshot");
+    if (!connectGoProWifiFromBle()) {
+      setAction("Camera WiFi not connected");
+      endGoproAction();
+      return;
+    }
+  }
+  fetchSnapshotPreview();
+  endGoproAction();
+}
+
 void toggleRecording() {
   if (!displayOn) {
     setDisplayOn(true);
@@ -1918,10 +1985,24 @@ void toggleRecording() {
   lv_label_set_text(statusLabel, nextRecording ? "Starting recording" : "Stopping recording");
   bool ok = false;
   if (nextRecording) {
-    lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
-    lv_label_set_text(previewLabel, "Starting recording");
+    if (previewFullscreen) {
+      setPreviewFullscreen(false);
+    }
+    if (previewLabel) {
+      lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    }
+    setAction("Starting recording");
     snapshotPreviewPrepared = false;
-    httpGetGoPro("/gopro/camera/presets/set_group?id=1000");
+    if (httpGetGoPro("/gopro/camera/presets/set_group?id=1000")) {
+      captureMode = "Video";
+      captureSetting = "16:9 | 4K | 60 | W";
+      if (captureModeLabel) {
+        lv_label_set_text(captureModeLabel, captureMode.c_str());
+      }
+      if (captureSettingLabel) {
+        lv_label_set_text(captureSettingLabel, captureSetting.c_str());
+      }
+    }
     delay(250);
     ok = httpGetGoPro("/gopro/camera/shutter/start");
   } else {
@@ -1933,10 +2014,23 @@ void toggleRecording() {
     return;
   }
   recording = nextRecording;
-  lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");
   if (recording) {
-    lv_label_set_text(previewLabel, "Preview paused while recording");
+    recordingStartedMs = millis();
+    lastRecordingOverlayMs = 0;
+  } else {
+    recordingStartedMs = 0;
+    lastRecordingOverlayMs = 0;
   }
+  lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");
+  if (previewLabel) {
+    if (previewHasImage || recording) {
+      lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+      lv_label_set_text(previewLabel, "Press lower button for snapshot");
+    }
+  }
+  updateRecordingOverlay(true);
   setAction(recording ? "Recording; preview paused" : "Recording stopped");
 }
 
@@ -2169,6 +2263,11 @@ bool downloadAndDrawPreviewJpeg(const String &path, uint8_t *buffer, size_t capa
     Serial.printf("JPEG response too small: %u bytes\n", static_cast<unsigned>(jpegLength));
     return false;
   }
+  setPreviewFullscreen(true);
+  if (previewLabel) {
+    lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+  }
+  lv_timer_handler();
   return drawJpegPreview(buffer, jpegLength);
 }
 
@@ -2184,15 +2283,24 @@ bool fetchSnapshotPreview() {
   }
   previewStreamRequested = false;
 
-  lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
-  lv_label_set_text(previewLabel, "Preparing photo preview");
+  if (previewLabel) {
+    if (previewHasImage) {
+      lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+      lv_label_set_text(previewLabel, "Preparing snapshot");
+    }
+  }
+  setAction("Preparing snapshot");
   lv_timer_handler();
 
   if (!snapshotPreviewPrepared) {
     httpGetGoProStatus("/gopro/webcam/stop");
     httpGetGoProStatus("/gopro/camera/stream/stop");
     if (!httpGetGoPro("/gopro/camera/presets/set_group?id=1001")) {
-      lv_label_set_text(previewLabel, "Photo preset failed");
+      if (previewLabel && !previewHasImage) {
+        lv_label_set_text(previewLabel, "Photo preset failed");
+      }
       snapshotPreviewBusy = false;
       return false;
     }
@@ -2210,11 +2318,17 @@ bool fetchSnapshotPreview() {
 
   String beforePath;
   fetchLatestJpegPath(beforePath);
-  lv_label_set_text(previewLabel, "Capturing preview");
+  if (previewLabel && !previewHasImage) {
+    lv_label_set_text(previewLabel, "Capturing snapshot");
+  }
+  setAction("Capturing snapshot");
   lv_timer_handler();
 
   if (!httpGetGoPro("/gopro/camera/shutter/start")) {
-    lv_label_set_text(previewLabel, "Snapshot failed");
+    if (previewLabel && !previewHasImage) {
+      lv_label_set_text(previewLabel, "Snapshot failed");
+    }
+    setAction("Snapshot failed");
     snapshotPreviewBusy = false;
     return false;
   }
@@ -2233,7 +2347,10 @@ bool fetchSnapshotPreview() {
   }
 
   if (newPath.isEmpty()) {
-    lv_label_set_text(previewLabel, "Snapshot media not found");
+    if (previewLabel && !previewHasImage) {
+      lv_label_set_text(previewLabel, "Snapshot media not found");
+    }
+    setAction("Snapshot media not found");
     snapshotPreviewBusy = false;
     return false;
   }
@@ -2245,7 +2362,10 @@ bool fetchSnapshotPreview() {
   }
   if (jpegBuffer == nullptr) {
     deleteGoProMedia(newPath);
-    lv_label_set_text(previewLabel, "JPEG buffer allocation failed");
+    if (previewLabel && !previewHasImage) {
+      lv_label_set_text(previewLabel, "JPEG buffer allocation failed");
+    }
+    setAction("JPEG buffer allocation failed");
     snapshotPreviewBusy = false;
     return false;
   }
@@ -2268,13 +2388,23 @@ bool fetchSnapshotPreview() {
   snapshotPreviewBusy = false;
 
   if (drawn) {
-    lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    previewHasImage = true;
+    if (previewLabel) {
+      lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    }
     lv_label_set_text(statusLabel, "Snapshot preview");
     setAction(deleted ? "Preview JPEG deleted" : "Preview JPEG delete failed");
     return true;
   }
 
-  lv_label_set_text(previewLabel, downloaded ? "JPEG decode failed" : "JPEG download failed");
+  if (previewLabel) {
+    if (previewHasImage) {
+      lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    } else {
+      lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+      lv_label_set_text(previewLabel, downloaded ? "JPEG decode failed" : "JPEG download failed");
+    }
+  }
   setAction(deleted ? "Deleted failed preview JPEG" : "Preview failed; delete failed");
   return false;
 }
@@ -2563,6 +2693,23 @@ void createUi() {
   lv_obj_set_style_text_color(previewLabel, lv_color_hex(0xdde7f5), 0);
   lv_obj_center(previewLabel);
 
+  recordingOverlay = lv_obj_create(previewBox);
+  lv_obj_set_size(recordingOverlay, 154, 58);
+  lv_obj_center(recordingOverlay);
+  lv_obj_set_style_radius(recordingOverlay, 6, 0);
+  lv_obj_set_style_bg_color(recordingOverlay, lv_color_hex(0xd71920), 0);
+  lv_obj_set_style_bg_opa(recordingOverlay, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(recordingOverlay, 0, 0);
+  lv_obj_set_style_pad_all(recordingOverlay, 0, 0);
+  lv_obj_clear_flag(recordingOverlay, LV_OBJ_FLAG_SCROLLABLE);
+  recordingOverlayLabel = lv_label_create(recordingOverlay);
+  lv_label_set_text(recordingOverlayLabel, "RECORDING\n00:00");
+  lv_obj_set_style_text_align(recordingOverlayLabel, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_set_style_text_color(recordingOverlayLabel, lv_color_hex(0xffffff), 0);
+  lv_obj_set_style_text_font(recordingOverlayLabel, &lv_font_montserrat_18, 0);
+  lv_obj_center(recordingOverlayLabel);
+  lv_obj_add_flag(recordingOverlay, LV_OBJ_FLAG_HIDDEN);
+
   fullscreenHint = lv_obj_create(previewBox);
   lv_obj_set_size(fullscreenHint, 78, 3);
   lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, 4);
@@ -2585,8 +2732,10 @@ void createUi() {
   lv_obj_set_style_bg_color(recDot, lv_color_hex(0xe03131), 0);
   lv_obj_set_style_border_width(recDot, 0, 0);
   makePanelLabel(recordPill, "REC", 28, 7, 14, lv_color_hex(0xf4f7fb));
+  lv_obj_add_flag(recordPill, LV_OBJ_FLAG_HIDDEN);
 
   timeRemainingLabel = makePanelLabel(captureTile, "9H:59", 22, 14, 18, lv_color_hex(0xf4f7fb));
+  lv_obj_add_flag(timeRemainingLabel, LV_OBJ_FLAG_HIDDEN);
   captureModeLabel = makePanelLabel(captureTile, captureMode.c_str(), 22, 170, 18);
   captureSettingLabel = makePanelLabel(captureTile, captureSetting.c_str(), 22, 194, 14,
                                        lv_color_hex(0xc3ccd8));
@@ -2602,21 +2751,13 @@ void createUi() {
   lv_obj_set_pos(wifiLabel, 20, 246);
   lv_obj_add_flag(wifiLabel, LV_OBJ_FLAG_HIDDEN);
 
-  connectButton = makeTouchButton(captureTile, "Connect", 12, kHomeButtonY, kHomeButtonW,
-                                  kHomeButtonH,
-                                  lv_color_hex(0x2c7be5));
-  lv_obj_add_event_cb(connectButton, onWifi, LV_EVENT_CLICKED, nullptr);
   pairButton = makeTouchButton(captureTile, "Pair", 128, kHomeButtonY, kHomeButtonW,
                                kHomeButtonH,
                                lv_color_hex(0x7c4dff));
   lv_obj_add_event_cb(pairButton, onPair, LV_EVENT_CLICKED, nullptr);
-  recordButton = makeTouchButton(captureTile, "REC", 244, kHomeButtonY, kHomeButtonW,
-                                 kHomeButtonH,
-                                 lv_color_hex(0xe03131));
-  lv_obj_add_event_cb(recordButton, onRecord, LV_EVENT_CLICKED, nullptr);
 
   actionLabel = lv_label_create(captureTile);
-  lv_label_set_text(actionLabel, "Pair GoPro first, then Connect");
+  lv_label_set_text(actionLabel, "Auto-connect on boot | lower button snapshot");
   lv_obj_set_style_text_color(actionLabel, lv_color_hex(0x96a2b4), 0);
   lv_obj_align(actionLabel, LV_ALIGN_BOTTOM_MID, 0, -20);
 
@@ -2689,7 +2830,7 @@ void createUi() {
     lv_obj_add_event_cb(button, onSettingOpen, LV_EVENT_CLICKED,
                         const_cast<SettingDefinition *>(&kSystemSettings[i]));
   }
-  makePanelLabel(dashboardTile, "PWR short display | PWR long power | BOOT rec/pair", 20, 350, 14,
+  makePanelLabel(dashboardTile, "PWR short display | PWR long power | top REC | lower snapshot", 20, 350, 14,
                  lv_color_hex(0xc3ccd8));
 
   settingSheet = lv_obj_create(screen);
@@ -2774,6 +2915,11 @@ void updatePreview(bool force) {
   lastPreviewUpdate = millis();
   Serial.printf("Preview update force=%u wifi=%u\n", force ? 1 : 0, WiFi.status());
 
+  if (previewHasImage) {
+    lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+
   if (WiFi.status() != WL_CONNECTED) {
     lv_label_set_text(previewLabel, "Connect WiFi for preview");
     if (force) {
@@ -2782,7 +2928,8 @@ void updatePreview(bool force) {
     return;
   }
 
-  fetchSnapshotPreview();
+  lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+  lv_label_set_text(previewLabel, "Press lower button for snapshot");
 }
 
 bool initPowerExpander() {
@@ -2827,20 +2974,16 @@ void initPowerKey() {
 }
 
 void handleBootButtonRelease(uint32_t durationMs) {
-  if (durationMs >= kBootLongPressMs) {
-    setPairingMode();
-  } else {
-    toggleRecording();
+  if (durationMs >= kActionButtonMinPressMs) {
+    Serial.println("Top button: record toggle");
+    runRecordAction();
   }
 }
 
 void handleActionButtonRelease(uint32_t durationMs) {
-  if (durationMs >= kBootLongPressMs) {
-    Serial.println("Action button long press: pair");
-    setPairingMode();
-  } else if (durationMs >= kActionButtonMinPressMs) {
-    Serial.println("Action button short press: record");
-    toggleRecording();
+  if (durationMs >= kActionButtonMinPressMs) {
+    Serial.println("Lower button: snapshot");
+    runSnapshotAction();
   }
 }
 
@@ -3053,7 +3196,6 @@ void loop() {
   handlePowerButton();
   updateBatteryStatus();
   updateWifiStatus();
-  pollLivePreviewUdp();
-  updatePreview();
+  updateRecordingOverlay();
   delay(5);
 }

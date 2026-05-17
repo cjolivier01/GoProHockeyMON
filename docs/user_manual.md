@@ -2,7 +2,7 @@
 
 This manual covers the current single-device ESP32-S3 AMOLED remote firmware.
 
-The remote uses Bluetooth Low Energy first. After pairing, it reads the GoPro camera Wi-Fi SSID and password over BLE, enables the camera Wi-Fi AP, then connects the ESP32-S3 to that GoPro AP for HTTP camera control and low-rate JPEG preview.
+The remote uses Bluetooth Low Energy first. After pairing, it reads the GoPro camera Wi-Fi SSID and password over BLE, enables the camera Wi-Fi AP, then connects the ESP32-S3 to that GoPro AP for HTTP camera control and manual JPEG snapshots.
 
 The screenshots below are generated UI reference images based on the current LVGL screen layout and app states. They are not photos from the physical AMOLED panel.
 
@@ -41,7 +41,7 @@ The default screen is the capture/preview screen, matching the basic GoPro rear-
 
 ### Capture Screen
 
-The capture screen is the home screen. It shows the low-rate JPEG preview area, remaining-time placeholder, record pill, current mode, format overlay, camera connection state, Wi-Fi state, and large `Connect`, `Pair`, and `REC` buttons.
+The capture screen is the home screen. It shows the JPEG preview area, current mode, format overlay, camera connection state, Wi-Fi state, and a large `Pair` button. Camera Wi-Fi connection runs automatically after boot.
 
 ![Home idle screen](images/ui/01-home-idle.svg)
 
@@ -55,9 +55,7 @@ Top-right indicators:
 
 ## Touch Controls
 
-- `Connect`: scan/connect BLE, read GoPro Wi-Fi credentials, enable GoPro AP, and join it.
 - `Pair`: available on the capture screen; finish BLE pairing while the GoPro is in pairing mode.
-- `REC`: start or stop GoPro video recording over HTTP.
 - `Pair BLE`: available on Dashboard; finish BLE pairing while the GoPro is in pairing mode.
 - `Camera State`: available on Dashboard; refresh current camera state.
 - `Sync State`: available on Capture Settings; refresh current setting values.
@@ -65,7 +63,7 @@ Top-right indicators:
 
 Swipe pages:
 
-- Capture: preview, remaining time, record state, mode, aspect, resolution, FPS, lens, camera connection, and REC.
+- Capture: preview, record state, mode, aspect, resolution, FPS, lens, camera connection, and snapshot/record button behavior.
 - Modes: Video, Photo, and TimeWarp mode cards.
 - Capture Settings: aspect ratio, resolution, frame rate, digital lens, HyperSmooth, scheduled capture, duration, and HindSight.
 - Pro Controls: bit depth, bit rate, Max Lens, media format, photo output, anti-flicker, performance, control mode, video mode, and profiles.
@@ -105,19 +103,19 @@ The setting sheet appears over the current page after tapping a setting. It show
 
 The board has two side buttons:
 
-- Action side button short press: start/stop recording.
-- Action side button long press: enter GoPro BLE pairing flow.
+- Top-right side button short press: start/stop recording.
+- Lower side button short press: take one JPEG snapshot, download/display it fullscreen, then delete it from the GoPro.
 - PWR short press: turn AMOLED display off/on.
 - PWR long press: enter low-power shutdown through the AXP2101 PMU.
 
-The firmware no longer uses GPIO0/BOOT as a runtime control on this AMOLED board, because that signal can be noisy around flashing/reset. Use the on-screen `Pair` button or long-press the action side button for pairing.
+Use the on-screen `Pair` button for pairing.
 
 ## Pairing A GoPro
 
 1. On the GoPro, open the Bluetooth pairing screen.
-2. On the remote, tap `Pair` on the capture screen, swipe to Dashboard and tap `Pair BLE`, or long-press the action side button.
+2. On the remote, tap `Pair` on the capture screen or swipe to Dashboard and tap `Pair BLE`.
 3. The remote scans for GoPro BLE devices and sends the Open GoPro pairing finish command.
-4. After pairing, use `Connect` or `Connect Camera` to connect to the GoPro camera AP.
+4. After pairing, reboot or wait for the automatic connection flow to connect to the GoPro camera AP.
 
 ![Pairing screen](images/ui/02-pairing.svg)
 
@@ -130,8 +128,6 @@ After the BLE connection succeeds, the remote reads the GoPro AP SSID and passwo
 ![BLE credentials screen](images/ui/04-ble-credentials.svg)
 
 ## Connecting To GoPro Wi-Fi
-
-Tap `Connect` on the capture screen or `Connect Camera` on the Dashboard.
 
 The remote does the full Wi-Fi setup automatically:
 
@@ -165,33 +161,33 @@ See [gopro_ui_research.md](gopro_ui_research.md).
 
 ## JPEG Preview
 
-The preview area is a low-rate JPEG preview path, not full real-time video decode.
+The preview area is a manual JPEG snapshot path, not full real-time video decode.
 
 Current behavior:
 
-- When Wi-Fi is connected and not recording, the remote requests GoPro media/thumbnail data.
-- The preview is sized for the small AMOLED screen.
-- While recording, preview is paused.
+- Press the lower side button while not recording to take one GoPro photo, download its JPEG thumbnail, display it fullscreen, and delete the captured JPEG from the camera.
+- Swipe down while the snapshot is fullscreen to return to the normal capture page.
+- While recording, snapshots are disabled.
 
 Common preview messages:
 
-- `Connect WiFi for JPEG preview`
+- `Press lower button for snapshot`
 - `No GoPro JPEG media found`
 - `JPEG fetch failed`
 - `JPEG decode failed`
-- `Preview paused while recording`
 
 ## Recording
 
-Tap `REC` or short-press BOOT.
+Short-press the top-right side button.
 
 When recording starts:
 
 - The remote sends `/gopro/camera/shutter/start`.
 - Status changes to `Recording`.
-- JPEG preview pauses.
+- The preview area shows a red `RECORDING` overlay and locally timed elapsed duration.
+- The remote does not poll the camera for the timer while recording.
 
-Tap `REC` or short-press BOOT again to stop recording. The remote sends `/gopro/camera/shutter/stop`.
+Short-press the top-right side button again to stop recording. The remote sends `/gopro/camera/shutter/stop`.
 
 ![Recording screen](images/ui/07-recording.svg)
 
@@ -218,10 +214,10 @@ On USB power, the board may not appear fully off because USB continues to supply
 1. Power on the ESP32-S3 remote.
 2. Confirm the main screen appears.
 3. Put the GoPro into pairing mode if this is the first connection.
-4. Tap `Pair`, swipe to Dashboard and tap `Pair BLE`, or long-press the action side button.
-5. Tap `Connect` on the capture screen or `Connect Camera` on Dashboard.
-6. Wait for `WIFI ON`.
-7. Use `REC` or short-press the action side button to start/stop recording.
+4. Tap `Pair` or swipe to Dashboard and tap `Pair BLE`.
+5. Wait for the automatic camera Wi-Fi connection.
+6. Press the lower side button for a snapshot preview.
+7. Press the top-right side button to start/stop recording.
 8. Short-press PWR to blank the screen between uses.
 9. Long-press PWR for low-power shutdown.
 
@@ -237,15 +233,11 @@ BLE connected, but the Wi-Fi service or characteristics were not readable. Re-pa
 
 `GoPro WiFi connect failed`
 
-The remote read credentials but could not join the camera AP. Wait a few seconds and tap `Connect` or `Connect Camera` again. The camera AP can take a moment to become visible after the BLE enable command.
+The remote read credentials but could not join the camera AP. The camera AP can take a moment to become visible after the BLE enable command. Reboot the remote or use the Dashboard connection action to retry.
 
-`Connect WiFi for JPEG preview`
+`Press lower button for snapshot`
 
-The remote has not joined the GoPro AP yet. Tap `Connect` or `Connect Camera`.
-
-`Preview paused while recording`
-
-This is expected in the current firmware. The preview path uses still JPEG fetch/decode, and it is intentionally paused while video recording.
+The remote has not joined the GoPro AP yet. Wait for automatic connection or use the Dashboard connection action.
 
 ## Build Verification
 

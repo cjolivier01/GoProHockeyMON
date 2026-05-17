@@ -14,10 +14,10 @@ The ESP32-P4 is optional worker hardware for experiments such as Wi-Fi/video buf
 - Scans for BLE devices advertising GoPro/Open GoPro service names, including `GoPro`, `MISSION`, and `GP`.
 - Connects over BLE and reads the camera Wi-Fi AP SSID/password from Open GoPro characteristics.
 - Sends the BLE Wi-Fi enable command `03:17:01:01`.
-- Joins the camera AP and starts the preview stream with:
-  - `http://10.5.5.9:8080/gopro/camera/stream/start?port=8554`
-- Listens for the camera's UDP preview stream on ESP32 UDP port `8554`.
-- Can proxy received stream packets to another host on the network.
+- Joins the camera AP for HTTP camera control.
+- On the AMOLED UI target, the lower side button takes one snapshot, downloads/displays its JPEG thumbnail fullscreen, and deletes the captured JPEG from the camera.
+- The top-right side button starts/stops video recording; while recording, the preview area shows a local elapsed-time `RECORDING` overlay without polling the camera.
+- The radio firmware can still start/listen to the GoPro UDP preview stream on ESP32 UDP port `8554` for experiments.
 - Connects to the GoPro camera Wi-Fi AP using credentials read over BLE.
 
 ## Build Targets
@@ -91,7 +91,7 @@ P4 H.264 status: the DFRobot ESP32-P4 probe decodes simple constrained-baseline 
 The optional P4 should own only worker tasks that are worth offloading:
 
 - Wi-Fi connection to the GoPro or home network, if that proves better than the S3 path
-- UDP preview stream receive/proxy
+- UDP preview stream receive/proxy experiments
 - JPEG/constrained-baseline H.264 decode experiments
 - RGB565 frame tile transfer back to the S3 UI
 
@@ -154,9 +154,9 @@ Needed hardware details:
 - pin map
 - whether the board has PSRAM and how much
 
-## Physical Controls
+## Radio Firmware Physical Controls
 
-The ESP32 `EN` button is reset-only, so firmware cannot read a long press on it. The built-in `BOOT` button is usually GPIO0 and is used as the default remote button after the board has booted.
+The non-AMOLED radio firmware can use the ESP32 `BOOT` button for diagnostics. The ESP32 `EN` button is reset-only, so firmware cannot read a long press on it. The built-in `BOOT` button is usually GPIO0 and is used as the default remote button after the board has booted.
 
 - Short BOOT press: start/stop preview stream
 - About 1 second BOOT press: wake camera, join camera AP, start stream
