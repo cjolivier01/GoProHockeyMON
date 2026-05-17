@@ -255,10 +255,11 @@ The current codebase has been built for:
 - `esp32s3_radio`
 - `esp32s3_amoled_ui`
 - `ui_esp32dev_sim`
-- `esp32p4_ui`
+- `esp32p4_ui` optional P4 worker shell
+- `dfrobot_p4_decode_probe`
 
 Run the same build matrix:
 
 ```sh
-pio run -e esp32dev -e esp32s3_radio -e esp32s3_amoled_ui -e ui_esp32dev_sim -e esp32p4_ui
+pio run -e esp32dev -e esp32s3_radio -e esp32s3_amoled_ui -e ui_esp32dev_sim -e esp32p4_ui -e dfrobot_p4_decode_probe
 ```

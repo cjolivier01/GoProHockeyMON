@@ -22,13 +22,13 @@
   </defs>
 
   <rect class="bg" width="1300" height="860"/>
-  <text class="title" x="60" y="58">ESP32-P4 Watch-Style Display Hookup</text>
-  <text class="small" x="60" y="86">Prototype route: 1.43&quot; 466x466 round AMOLED with QSPI display + I2C capacitive touch. All signal lines are 3.3 V.</text>
+  <text class="title" x="60" y="58">Legacy ESP32-P4 Watch-Style Display Hookup</text>
+  <text class="small" x="60" y="86">Superseded by the ESP32-S3 UI plan. Kept as a reference for a possible future P4 display experiment.</text>
 
   <rect class="board" x="70" y="145" width="440" height="610"/>
-  <text class="title" x="105" y="195">ESP32-P4 UI Board</text>
-  <text class="subtitle" x="105" y="224">Runs env: esp32p4_ui</text>
-  <text class="small" x="105" y="254">P4 renders UI, receives GoPro state/preview chunks from S3 radio.</text>
+  <text class="title" x="105" y="195">ESP32-P4 Experiment Board</text>
+  <text class="subtitle" x="105" y="224">Legacy concept only</text>
+  <text class="small" x="105" y="254">Current product UI is on the ESP32-S3 display board.</text>
 
   <rect class="pin" x="430" y="300" width="48" height="26"/><text class="label" x="130" y="320">GPIO10  QSPI SCLK</text>
   <rect class="pin" x="430" y="335" width="48" height="26"/><text class="label" x="130" y="355">GPIO11  QSPI D0 / MOSI</text>

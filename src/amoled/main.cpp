@@ -46,10 +46,18 @@ extern "C" {
 #define GOPRO_CAMERA_IP "10.5.5.9"
 #endif
 
+#ifndef GOPRO_DEBUG_PRINT_CAMERA_PASSWORD
+#define GOPRO_DEBUG_PRINT_CAMERA_PASSWORD 0
+#endif
+
+#ifndef GOPRO_AUTO_CONNECT_ON_BOOT
+#define GOPRO_AUTO_CONNECT_ON_BOOT 0
+#endif
+
 namespace {
 constexpr uint32_t kLvglTickMs = 2;
 constexpr uint8_t kDisplayBrightness = 210;
-constexpr uint32_t kPreviewRefreshMs = 2500;
+constexpr uint32_t kPreviewRefreshMs = 1500;
 constexpr uint32_t kHttpTimeoutMs = 6500;
 constexpr uint32_t kButtonDebounceMs = 35;
 constexpr uint32_t kActionButtonDebounceMs = 90;
@@ -185,6 +193,8 @@ bool previewFullscreen = false;
 bool h264DecoderReady = false;
 bool h264StreamUnsupported = false;
 bool h264UnsupportedNotified = false;
+bool snapshotPreviewPrepared = false;
+bool snapshotPreviewBusy = false;
 uint32_t previewBytesThisWindow = 0;
 uint32_t previewPacketsThisWindow = 0;
 uint32_t lastPreviewStatsMs = 0;
@@ -194,6 +204,7 @@ uint32_t h264DecodeFailures = 0;
 String lastBleName;
 String goProSsid;
 String goProPassword;
+String lastSnapshotMediaPath;
 String captureMode = "Video";
 String captureSetting = "16:9 | 4K | 60 | W";
 IPAddress cameraIp;
@@ -438,6 +449,22 @@ void setObjHidden(lv_obj_t *obj, bool hidden) {
   } else {
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
   }
+}
+
+int previewFrameX() {
+  return previewFullscreen ? 0 : kPreviewX;
+}
+
+int previewFrameY() {
+  return previewFullscreen ? kTopBarH : kTopBarH + 6;
+}
+
+int previewFrameW() {
+  return previewFullscreen ? LCD_WIDTH : kPreviewW;
+}
+
+int previewFrameH() {
+  return previewFullscreen ? LCD_HEIGHT - kTopBarH : kPreviewH;
 }
 
 void setPreviewFullscreen(bool fullscreen) {
@@ -1069,6 +1096,10 @@ bool readGoProWifiCredentials() {
   Serial.println(goProSsid);
   Serial.print(F("GoPro AP password length: "));
   Serial.println(goProPassword.length());
+#if GOPRO_DEBUG_PRINT_CAMERA_PASSWORD
+  Serial.print(F("GoPro AP password: "));
+  Serial.println(goProPassword);
+#endif
   if (goProSsid.isEmpty() || goProPassword.isEmpty()) {
     setAction("GoPro WiFi credentials empty");
     return false;
@@ -1354,6 +1385,140 @@ int httpGetGoProBody(const String &path, String &body) {
   http.end();
   Serial.printf("GET %s -> %d, %u bytes\n", url.c_str(), status, body.length());
   return status;
+}
+
+String urlEncodePathParam(const String &value) {
+  const char *hex = "0123456789ABCDEF";
+  String encoded;
+  encoded.reserve(value.length() + 8);
+  for (size_t i = 0; i < value.length(); ++i) {
+    uint8_t c = static_cast<uint8_t>(value[i]);
+    bool safe = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                (c >= '0' && c <= '9') || c == '/' || c == '.' ||
+                c == '-' || c == '_' || c == '~';
+    if (safe) {
+      encoded += static_cast<char>(c);
+    } else {
+      encoded += '%';
+      encoded += hex[c >> 4];
+      encoded += hex[c & 0x0f];
+    }
+  }
+  return encoded;
+}
+
+bool httpGetGoProBinary(const String &path, uint8_t *buffer, size_t capacity, size_t &length) {
+  length = 0;
+  if (WiFi.status() != WL_CONNECTED) {
+    setAction("WiFi not connected");
+    return false;
+  }
+
+  HTTPClient http;
+  http.setTimeout(kHttpTimeoutMs);
+  String url = cameraBaseUrl() + path;
+  if (!http.begin(url)) {
+    setAction("HTTP begin failed");
+    return false;
+  }
+
+  int status = http.GET();
+  Serial.printf("GET %s -> %d\n", url.c_str(), status);
+  if (status < 200 || status >= 300) {
+    http.end();
+    return false;
+  }
+
+  WiFiClient *stream = http.getStreamPtr();
+  int remaining = http.getSize();
+  uint32_t start = millis();
+  while (http.connected() && (remaining > 0 || remaining == -1)) {
+    size_t available = stream->available();
+    if (available == 0) {
+      if (remaining == 0 || millis() - start > kHttpTimeoutMs) {
+        break;
+      }
+      delay(5);
+      continue;
+    }
+
+    size_t toRead = min(available, capacity - length);
+    if (toRead == 0) {
+      http.end();
+      setAction("JPEG buffer full");
+      return false;
+    }
+    int readLen = stream->readBytes(buffer + length, toRead);
+    if (readLen <= 0) {
+      break;
+    }
+    length += static_cast<size_t>(readLen);
+    if (remaining > 0) {
+      remaining -= readLen;
+    }
+    start = millis();
+  }
+
+  http.end();
+  Serial.printf("Binary %s -> %u bytes\n", path.c_str(), length);
+  return length > 0;
+}
+
+bool parseLatestJpegPath(const String &mediaList, String &path) {
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, mediaList);
+  if (error) {
+    Serial.print(F("media/list JSON parse failed: "));
+    Serial.println(error.c_str());
+    return false;
+  }
+
+  uint32_t bestCreated = 0;
+  uint32_t bestModified = 0;
+  String bestPath;
+  JsonArray media = doc["media"].as<JsonArray>();
+  for (JsonObject directory : media) {
+    const char *folder = directory["d"] | "";
+    JsonArray files = directory["fs"].as<JsonArray>();
+    for (JsonObject file : files) {
+      const char *name = file["n"] | "";
+      String fileName(name);
+      fileName.toUpperCase();
+      if (!fileName.endsWith(".JPG")) {
+        continue;
+      }
+      uint32_t created = strtoul(file["cre"] | "0", nullptr, 10);
+      uint32_t modified = strtoul(file["mod"] | "0", nullptr, 10);
+      String candidate = String(folder) + "/" + name;
+      if (bestPath.isEmpty() || created > bestCreated ||
+          (created == bestCreated && modified > bestModified) ||
+          (created == bestCreated && modified == bestModified && candidate > bestPath)) {
+        bestPath = candidate;
+        bestCreated = created;
+        bestModified = modified;
+      }
+    }
+  }
+
+  path = bestPath;
+  return !path.isEmpty();
+}
+
+bool fetchLatestJpegPath(String &path) {
+  String body;
+  int status = httpGetGoProBody("/gopro/media/list", body);
+  if (status < 200 || status >= 300) {
+    return false;
+  }
+  return parseLatestJpegPath(body, path);
+}
+
+bool deleteGoProMedia(const String &path) {
+  if (path.isEmpty()) {
+    return false;
+  }
+  String endpoint = "/gopro/media/delete/file?path=" + urlEncodePathParam(path);
+  return httpGetGoPro(endpoint);
 }
 
 bool setGoProSetting(uint16_t settingId, uint16_t optionId, const char *label) {
@@ -1755,6 +1920,9 @@ void toggleRecording() {
   if (nextRecording) {
     lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(previewLabel, "Starting recording");
+    snapshotPreviewPrepared = false;
+    httpGetGoPro("/gopro/camera/presets/set_group?id=1000");
+    delay(250);
     ok = httpGetGoPro("/gopro/camera/shutter/start");
   } else {
     ok = httpGetGoPro("/gopro/camera/shutter/stop");
@@ -1901,26 +2069,33 @@ void pollLivePreviewUdp() {
 }
 
 bool isCaptureTileActive() {
-  return tileView == nullptr || captureTileObj == nullptr ||
-         lv_tileview_get_tile_act(tileView) == captureTileObj;
+  if (previewFullscreen || tileView == nullptr || captureTileObj == nullptr) {
+    return true;
+  }
+  lv_obj_t *activeTile = lv_tileview_get_tile_act(tileView);
+  return activeTile == nullptr || activeTile == captureTileObj;
 }
 
 int drawJpegBlock(JPEGDRAW *draw) {
   if (!isCaptureTileActive()) {
     return 0;
   }
+  int frameX = previewFrameX();
+  int frameY = previewFrameY();
+  int frameW = previewFrameW();
+  int frameH = previewFrameH();
   int x = jpegDrawX + draw->x;
   int y = jpegDrawY + draw->y;
   int w = draw->iWidthUsed > 0 ? draw->iWidthUsed : draw->iWidth;
   int h = draw->iHeight;
-  if (x >= kPreviewX + kPreviewW || y >= kPreviewY + kPreviewH) {
+  if (x >= frameX + frameW || y >= frameY + frameH) {
     return 1;
   }
-  if (x + w > kPreviewX + kPreviewW) {
-    w = kPreviewX + kPreviewW - x;
+  if (x + w > frameX + frameW) {
+    w = frameX + frameW - x;
   }
-  if (y + h > kPreviewY + kPreviewH) {
-    h = kPreviewY + kPreviewH - y;
+  if (y + h > frameY + frameH) {
+    h = frameY + frameH - y;
   }
   if (w > 0 && h > 0) {
     gfx->draw16bitRGBBitmap(x, y, draw->pPixels, w, h);
@@ -1930,18 +2105,36 @@ int drawJpegBlock(JPEGDRAW *draw) {
 
 bool drawJpegPreview(uint8_t *buffer, size_t length) {
   if (!isCaptureTileActive()) {
+    Serial.printf("JPEG draw skipped: inactive tile active=%p capture=%p fullscreen=%u\n",
+                  tileView ? lv_tileview_get_tile_act(tileView) : nullptr,
+                  captureTileObj, previewFullscreen ? 1 : 0);
     return false;
   }
   if (!jpeg.openRAM(buffer, static_cast<int>(length), drawJpegBlock)) {
+    Serial.printf("JPEG open failed: len=%u header=%02x %02x %02x %02x error=%d\n",
+                  static_cast<unsigned>(length),
+                  length > 0 ? buffer[0] : 0,
+                  length > 1 ? buffer[1] : 0,
+                  length > 2 ? buffer[2] : 0,
+                  length > 3 ? buffer[3] : 0,
+                  jpeg.getLastError());
     return false;
   }
 
+  int frameX = previewFrameX();
+  int frameY = previewFrameY();
+  int frameW = previewFrameW();
+  int frameH = previewFrameH();
+  Serial.printf("JPEG opened: len=%u size=%dx%d type=%d bpp=%d subsample=%d\n",
+                static_cast<unsigned>(length), jpeg.getWidth(), jpeg.getHeight(),
+                jpeg.getJPEGType(), jpeg.getBpp(), jpeg.getSubSample());
+
   int scale = 0;
-  if (jpeg.getWidth() > kPreviewW * 4 || jpeg.getHeight() > kPreviewH * 4) {
+  if (jpeg.getWidth() > frameW * 4 || jpeg.getHeight() > frameH * 4) {
     scale = JPEG_SCALE_EIGHTH;
-  } else if (jpeg.getWidth() > kPreviewW * 2 || jpeg.getHeight() > kPreviewH * 2) {
+  } else if (jpeg.getWidth() > frameW * 2 || jpeg.getHeight() > frameH * 2) {
     scale = JPEG_SCALE_QUARTER;
-  } else if (jpeg.getWidth() > kPreviewW || jpeg.getHeight() > kPreviewH) {
+  } else if (jpeg.getWidth() > frameW || jpeg.getHeight() > frameH) {
     scale = JPEG_SCALE_HALF;
   }
 
@@ -1953,14 +2146,137 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
              : scale == JPEG_SCALE_QUARTER ? jpeg.getHeight() / 4
              : scale == JPEG_SCALE_HALF ? jpeg.getHeight() / 2
              : jpeg.getHeight();
-  jpegDrawX = kPreviewX + max(0, (kPreviewW - outW) / 2);
-  jpegDrawY = kPreviewY + max(0, (kPreviewH - outH) / 2);
+  jpegDrawX = frameX + max(0, (frameW - outW) / 2);
+  jpegDrawY = frameY + max(0, (frameH - outH) / 2);
 
-  gfx->fillRect(kPreviewX, kPreviewY, kPreviewW, kPreviewH, 0x0000);
+  gfx->fillRect(frameX, frameY, frameW, frameH, 0x0000);
   jpeg.setPixelType(RGB565_LITTLE_ENDIAN);
   bool ok = jpeg.decode(0, 0, scale) != 0;
+  if (!ok) {
+    Serial.printf("JPEG decode failed: scale=%d error=%d\n", scale, jpeg.getLastError());
+  }
   jpeg.close();
   return ok;
+}
+
+bool downloadAndDrawPreviewJpeg(const String &path, uint8_t *buffer, size_t capacity,
+                                size_t &jpegLength) {
+  jpegLength = 0;
+  if (!httpGetGoProBinary(path, buffer, capacity, jpegLength)) {
+    return false;
+  }
+  if (jpegLength < 1024) {
+    Serial.printf("JPEG response too small: %u bytes\n", static_cast<unsigned>(jpegLength));
+    return false;
+  }
+  return drawJpegPreview(buffer, jpegLength);
+}
+
+bool fetchSnapshotPreview() {
+  if (snapshotPreviewBusy) {
+    return false;
+  }
+  snapshotPreviewBusy = true;
+
+  if (previewUdpListening) {
+    previewUdp.stop();
+    previewUdpListening = false;
+  }
+  previewStreamRequested = false;
+
+  lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+  lv_label_set_text(previewLabel, "Preparing photo preview");
+  lv_timer_handler();
+
+  if (!snapshotPreviewPrepared) {
+    httpGetGoProStatus("/gopro/webcam/stop");
+    httpGetGoProStatus("/gopro/camera/stream/stop");
+    if (!httpGetGoPro("/gopro/camera/presets/set_group?id=1001")) {
+      lv_label_set_text(previewLabel, "Photo preset failed");
+      snapshotPreviewBusy = false;
+      return false;
+    }
+    captureMode = "Photo";
+    captureSetting = "Snapshot preview";
+    if (captureModeLabel) {
+      lv_label_set_text(captureModeLabel, captureMode.c_str());
+    }
+    if (captureSettingLabel) {
+      lv_label_set_text(captureSettingLabel, captureSetting.c_str());
+    }
+    snapshotPreviewPrepared = true;
+    delay(250);
+  }
+
+  String beforePath;
+  fetchLatestJpegPath(beforePath);
+  lv_label_set_text(previewLabel, "Capturing preview");
+  lv_timer_handler();
+
+  if (!httpGetGoPro("/gopro/camera/shutter/start")) {
+    lv_label_set_text(previewLabel, "Snapshot failed");
+    snapshotPreviewBusy = false;
+    return false;
+  }
+
+  String newPath;
+  uint32_t pollStart = millis();
+  while (millis() - pollStart < 12000) {
+    delay(250);
+    lv_timer_handler();
+    String latest;
+    if (fetchLatestJpegPath(latest) && !latest.isEmpty() && latest != beforePath &&
+        latest != lastSnapshotMediaPath) {
+      newPath = latest;
+      break;
+    }
+  }
+
+  if (newPath.isEmpty()) {
+    lv_label_set_text(previewLabel, "Snapshot media not found");
+    snapshotPreviewBusy = false;
+    return false;
+  }
+
+  String encodedPath = urlEncodePathParam(newPath);
+  uint8_t *jpegBuffer = static_cast<uint8_t *>(heap_caps_malloc(kMaxJpegBytes, MALLOC_CAP_SPIRAM));
+  if (jpegBuffer == nullptr) {
+    jpegBuffer = static_cast<uint8_t *>(heap_caps_malloc(kMaxJpegBytes, MALLOC_CAP_8BIT));
+  }
+  if (jpegBuffer == nullptr) {
+    deleteGoProMedia(newPath);
+    lv_label_set_text(previewLabel, "JPEG buffer allocation failed");
+    snapshotPreviewBusy = false;
+    return false;
+  }
+
+  size_t jpegLength = 0;
+  String thumbPath = "/gopro/media/thumbnail?path=" + encodedPath;
+  bool downloaded = false;
+  bool drawn = downloadAndDrawPreviewJpeg(thumbPath, jpegBuffer, kMaxJpegBytes, jpegLength);
+  downloaded = jpegLength >= 1024;
+  if (!drawn) {
+    String screenPath = "/gopro/media/screennail?path=" + encodedPath;
+    size_t screenLength = 0;
+    drawn = downloadAndDrawPreviewJpeg(screenPath, jpegBuffer, kMaxJpegBytes, screenLength);
+    downloaded = downloaded || screenLength >= 1024;
+  }
+  heap_caps_free(jpegBuffer);
+
+  bool deleted = deleteGoProMedia(newPath);
+  lastSnapshotMediaPath = newPath;
+  snapshotPreviewBusy = false;
+
+  if (drawn) {
+    lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(statusLabel, "Snapshot preview");
+    setAction(deleted ? "Preview JPEG deleted" : "Preview JPEG delete failed");
+    return true;
+  }
+
+  lv_label_set_text(previewLabel, downloaded ? "JPEG decode failed" : "JPEG download failed");
+  setAction(deleted ? "Deleted failed preview JPEG" : "Preview failed; delete failed");
+  return false;
 }
 
 void onWake(lv_event_t *) {
@@ -1982,6 +2298,7 @@ void onRecord(lv_event_t *) {
 void selectMode(const char *mode, const char *setting, const char *endpoint) {
   captureMode = mode;
   captureSetting = setting;
+  snapshotPreviewPrepared = false;
   if (captureModeLabel) {
     lv_label_set_text(captureModeLabel, captureMode.c_str());
   }
@@ -1996,15 +2313,15 @@ void selectMode(const char *mode, const char *setting, const char *endpoint) {
 }
 
 void onModeVideo(lv_event_t *) {
-  selectMode("Video", "16:9 | 4K | 60 | W", "");
+  selectMode("Video", "16:9 | 4K | 60 | W", "/gopro/camera/presets/set_group?id=1000");
 }
 
 void onModePhoto(lv_event_t *) {
-  selectMode("Photo", "8:7 | 27MP | Wide", "");
+  selectMode("Photo", "8:7 | 27MP | Wide", "/gopro/camera/presets/set_group?id=1001");
 }
 
 void onModeTimeWarp(lv_event_t *) {
-  selectMode("TimeWarp", "16:9 | 4K | Auto", "");
+  selectMode("TimeWarp", "16:9 | 4K | Auto", "/gopro/camera/presets/set_group?id=1002");
 }
 
 void onDashboardConnect(lv_event_t *) {
@@ -2424,6 +2741,7 @@ void updateWifiStatus() {
     lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0xf0b429), 0);
   } else {
     previewStreamRequested = false;
+    snapshotPreviewPrepared = false;
     if (previewUdpListening) {
       previewUdp.stop();
       previewUdpListening = false;
@@ -2451,25 +2769,20 @@ void updatePreview(bool force) {
     return;
   }
   if (!force && millis() - lastPreviewUpdate < kPreviewRefreshMs) {
-    pollLivePreviewUdp();
     return;
   }
   lastPreviewUpdate = millis();
   Serial.printf("Preview update force=%u wifi=%u\n", force ? 1 : 0, WiFi.status());
 
   if (WiFi.status() != WL_CONNECTED) {
-    lv_label_set_text(previewLabel, "Connect WiFi for live preview");
+    lv_label_set_text(previewLabel, "Connect WiFi for preview");
     if (force) {
       Serial.println("Preview skipped: WiFi not connected");
     }
     return;
   }
 
-  if (!startGoProLivePreview()) {
-    return;
-  }
-  pollLivePreviewUdp();
-  lv_label_set_text(statusLabel, "Live preview stream active");
+  fetchSnapshotPreview();
 }
 
 bool initPowerExpander() {
@@ -2725,6 +3038,11 @@ void setup() {
   createUi();
   updateBatteryStatus(true);
   Serial.println("AMOLED UI ready");
+#if GOPRO_AUTO_CONNECT_ON_BOOT
+  pendingHomeAction = PendingHomeAction::Connect;
+  pendingHomeActionDueMs = millis() + 1500;
+  Serial.println("Auto-connect scheduled");
+#endif
 }
 
 void loop() {

@@ -64,8 +64,8 @@ void sendCommand(RemoteLink::MsgType type, const String &payload = "") {
 
 void render() {
   Serial.println();
-  Serial.println(F("=== GoPro Remote UI Host ==="));
-  Serial.println(F("Display/touch owner: P4. This build is the serial UI simulator."));
+  Serial.println(F("=== GoPro Remote P4 Worker Shell ==="));
+  Serial.println(F("Display/touch owner: ESP32-S3. This P4 build is a serial worker/simulator."));
   Serial.print(F("Radio status: "));
   Serial.println(g_status);
   Serial.print(F("Preview chunks: "));

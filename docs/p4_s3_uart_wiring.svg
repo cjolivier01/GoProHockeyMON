@@ -25,32 +25,32 @@
   </defs>
 
   <rect class="bg" x="0" y="0" width="1200" height="760"/>
-  <text class="title" x="60" y="58">GoPro Remote: ESP32-P4 UI Host + ESP32-S3 Radio Coprocessor</text>
-  <text class="small" x="60" y="86">Default firmware link: UART, 921600 baud, 3.3 V logic. Cross TX/RX and share ground.</text>
+  <text class="title" x="60" y="58">GoPro Remote: ESP32-S3 UI/Radio + Optional ESP32-P4 Worker</text>
+  <text class="small" x="60" y="86">Legacy UART bring-up link: 921600 baud, 3.3 V logic. Cross TX/RX and share ground.</text>
 
   <rect class="board" x="70" y="140" width="420" height="430"/>
   <text class="title" x="105" y="190">ESP32-P4</text>
-  <text class="subtitle" x="105" y="218">UI / display host</text>
+  <text class="subtitle" x="105" y="218">Optional worker</text>
   <rect class="screen" x="110" y="250" width="300" height="155"/>
-  <text class="label" x="135" y="310">LCD + touch connect here</text>
-  <text class="small" x="135" y="340">RGB / MIPI / SPI depends on board</text>
-  <text class="small" x="135" y="365">P4 owns UI, touch, preview display</text>
+  <text class="label" x="135" y="310">No display in current plan</text>
+  <text class="small" x="135" y="340">Worker shell / decode probe only</text>
+  <text class="small" x="135" y="365">S3 owns UI, touch, preview display</text>
 
   <rect class="pin" x="420" y="438" width="42" height="30"/>
-  <text class="label" x="245" y="459">GPIO16  RX</text>
+  <text class="label" x="205" y="459">RX / GPIO38</text>
   <rect class="pin" x="420" y="488" width="42" height="30"/>
-  <text class="label" x="245" y="509">GPIO17  TX</text>
+  <text class="label" x="205" y="509">TX / GPIO37</text>
   <rect class="pin" x="420" y="538" width="42" height="30"/>
   <text class="label" x="285" y="559">GND</text>
 
   <rect class="board" x="710" y="140" width="420" height="430"/>
   <text class="title" x="745" y="190">ESP32-S3</text>
-  <text class="subtitle" x="745" y="218">BLE / Wi-Fi radio</text>
-  <text class="label" x="760" y="278">Runs env: esp32s3_radio</text>
-  <text class="small" x="760" y="308">BLE pair / wake</text>
-  <text class="small" x="760" y="333">Wi-Fi to GoPro AP or home Wi-Fi</text>
-  <text class="small" x="760" y="358">HTTP camera controls</text>
-  <text class="small" x="760" y="383">UDP preview stream receive/proxy</text>
+  <text class="subtitle" x="745" y="218">UI / BLE / Wi-Fi radio</text>
+  <text class="label" x="760" y="278">Runs env: esp32s3_amoled_ui</text>
+  <text class="small" x="760" y="308">LCD, touch, side buttons</text>
+  <text class="small" x="760" y="333">BLE pair / wake</text>
+  <text class="small" x="760" y="358">Wi-Fi to GoPro AP or home Wi-Fi</text>
+  <text class="small" x="760" y="383">HTTP camera controls and preview UI</text>
 
   <rect class="pin" x="738" y="438" width="42" height="30"/>
   <text class="label" x="795" y="459">GPIO17  TX</text>
@@ -60,10 +60,10 @@
   <text class="label" x="795" y="559">GND</text>
 
   <path class="tx" d="M462 453 C560 420, 635 420, 738 453"/>
-  <text class="label" x="535" y="410" fill="#2563eb">S3 TX GPIO17 -> P4 RX GPIO16</text>
+  <text class="label" x="535" y="410" fill="#2563eb">S3 TX GPIO17 -> DFRobot P4 RX/GPIO38</text>
 
   <path class="rx" d="M462 503 C560 535, 635 535, 738 503"/>
-  <text class="label" x="535" y="565" fill="#dc2626">P4 TX GPIO17 -> S3 RX GPIO16</text>
+  <text class="label" x="535" y="565" fill="#dc2626">DFRobot P4 TX/GPIO37 -> S3 RX GPIO16</text>
 
   <path class="gnd" d="M462 553 L738 553"/>
   <text class="label" x="548" y="590">Common GND required</text>
@@ -73,8 +73,8 @@
 
   <rect class="note" x="70" y="610" width="300" height="90"/>
   <text class="subtitle" x="95" y="642">Firmware defaults</text>
-  <text class="small" x="95" y="668">GOPRO_UI_LINK_RX_PIN=16</text>
-  <text class="small" x="95" y="690">GOPRO_UI_LINK_TX_PIN=17</text>
+  <text class="small" x="95" y="668">GOPRO_UI_LINK_RX_PIN=38</text>
+  <text class="small" x="95" y="690">GOPRO_UI_LINK_TX_PIN=37</text>
 
   <rect class="note" x="830" y="610" width="300" height="90"/>
   <text class="subtitle" x="855" y="642">Radio defaults</text>
