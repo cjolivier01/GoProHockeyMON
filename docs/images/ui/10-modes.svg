@@ -7,7 +7,7 @@
   <text x="313" y="29" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">74%</text>
   <text x="300" y="49" fill="#5a6472" font-family="Arial, sans-serif" font-size="14">WIFI --</text>
   <text x="20" y="91" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="18" font-weight="700">Modes</text>
-  <text x="20" y="116" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Swipe left/right like the GoPro rear screen</text>
+  <text x="20" y="116" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Mode controls stay on fixed pages</text>
   <rect x="20" y="154" width="328" height="34" rx="8" fill="#2c7be5"/>
   <text x="162" y="176" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">Video</text>
   <rect x="20" y="202" width="328" height="34" rx="8" fill="#009a88"/>

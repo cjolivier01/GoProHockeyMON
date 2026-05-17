@@ -13,9 +13,7 @@
   <text x="22" y="277" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">16:9 | 4K | 60 | W</text>
   <text x="20" y="304" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">Camera AP: LEFTCAM</text>
   <text x="20" y="326" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">WiFi: connecting</text>
-  <rect x="20" y="354" width="96" height="34" rx="8" fill="#2c7be5"/>
-  <text x="43" y="376" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">Connect</text>
-  <rect x="252" y="354" width="96" height="34" rx="8" fill="#e03131"/>
-  <text x="287" y="376" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">REC</text>
+  <rect x="20" y="354" width="328" height="48" rx="8" fill="#7c4dff"/>
+  <text x="154" y="383" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">Pair New</text>
   <text x="102" y="424" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Waiting for GoPro WiFi AP</text>
 </svg>
