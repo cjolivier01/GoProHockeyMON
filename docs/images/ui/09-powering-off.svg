@@ -13,9 +13,7 @@
   <text x="22" y="277" fill="#64748b" font-family="Arial, sans-serif" font-size="14">16:9 | 4K | 60 | W</text>
   <text x="20" y="304" fill="#64748b" font-family="Arial, sans-serif" font-size="14">Camera: disconnected</text>
   <text x="20" y="326" fill="#64748b" font-family="Arial, sans-serif" font-size="14">WiFi: disconnected</text>
-  <rect x="20" y="354" width="96" height="34" rx="8" fill="#1f385f"/>
-  <text x="43" y="376" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="14" font-weight="700">Connect</text>
-  <rect x="252" y="354" width="96" height="34" rx="8" fill="#6f1f1f"/>
-  <text x="287" y="376" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="14" font-weight="700">REC</text>
+  <rect x="20" y="354" width="328" height="48" rx="8" fill="#3f2b6d"/>
+  <text x="154" y="383" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="14" font-weight="700">Pair New</text>
   <text x="127" y="424" fill="#7b8798" font-family="Arial, sans-serif" font-size="14">Entering low-power shutdown</text>
 </svg>

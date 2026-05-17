@@ -2,6 +2,7 @@
 #include <BLEDevice.h>
 #include <BLEScan.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include <Wire.h>
 #include <WiFi.h>
 
@@ -64,6 +65,7 @@ constexpr uint32_t kActionButtonDebounceMs = 90;
 constexpr uint32_t kActionButtonMinPressMs = 120;
 constexpr uint32_t kBootLongPressMs = 1200;
 constexpr uint32_t kPmuPollMs = 150;
+constexpr uint32_t kPowerDoubleClickMs = 450;
 constexpr uint32_t kBatteryRefreshMs = 5000;
 constexpr uint32_t kBleScanSeconds = 7;
 constexpr uint32_t kBleConnectTimeoutMs = 10000;
@@ -103,6 +105,7 @@ const BLEUUID kSettingsResponse("b5f90075-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kCameraManagementCommand("b5f90091-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kCameraManagementResponse("b5f90092-aa8d-11e3-9046-0002a5d5c51b");
 
+Preferences preferences;
 Adafruit_XCA9554 expander;
 XPowersPMU power;
 JPEGDEC jpeg;
@@ -122,6 +125,7 @@ void runSnapshotAction();
 void initBleStack();
 bool syncCameraState();
 bool fetchSnapshotPreview();
+void refreshCaptureOverlayFromState();
 void updatePreview(bool force = false);
 void setPreviewFullscreen(bool fullscreen);
 
@@ -210,11 +214,12 @@ uint32_t lastH264DecodeMs = 0;
 uint32_t h264FramesDecoded = 0;
 uint32_t h264DecodeFailures = 0;
 String lastBleName;
+String boundBleAddress;
 String goProSsid;
 String goProPassword;
 String lastSnapshotMediaPath;
 String captureMode = "Video";
-String captureSetting = "16:9 | 4K | 60 | W";
+String captureSetting = "Sync camera state";
 IPAddress cameraIp;
 WiFiUDP previewUdp;
 h264bsd_hd_t h264Decoder = nullptr;
@@ -237,6 +242,8 @@ bool actionButtonLast = !kExpanderActionPressedLevel;
 bool actionButtonStable = !kExpanderActionPressedLevel;
 uint32_t actionButtonLastChangeMs = 0;
 uint32_t actionButtonPressedAtMs = 0;
+uint8_t powerShortClickCount = 0;
+uint32_t powerShortClickDueMs = 0;
 lv_point_t lastTouchPoint = {0, 0};
 lv_point_t touchStartPoint = {0, 0};
 uint32_t lastTouchMs = 0;
@@ -244,6 +251,13 @@ uint32_t touchStartMs = 0;
 bool touchActive = false;
 volatile bool bleResponseSeen = false;
 volatile uint8_t bleResponseStatus = 0xFF;
+bool allowAnyCameraScan = false;
+bool pairingInProgress = false;
+bool pairingCancelRequested = false;
+bool pairingLastCancelled = false;
+bool deferBleBindingSave = false;
+bool pairButtonLongPressed = false;
+uint32_t pairButtonLongPressedAtMs = 0;
 PendingHomeAction pendingHomeAction = PendingHomeAction::None;
 uint32_t pendingHomeActionDueMs = 0;
 uint32_t lastHomeTouchMs = 0;
@@ -255,12 +269,8 @@ bool pointInRect(int16_t x, int16_t y, int16_t rx, int16_t ry, int16_t rw, int16
 }
 
 PendingHomeAction hitHomeActionAt(int16_t x, int16_t y) {
-  if (pointInRect(x, y, 128, kHomeButtonY, kHomeButtonW, kHomeButtonH)) {
-    return PendingHomeAction::Pair;
-  }
-  if (pointInRect(x, y, 128, kHomeButtonAbsY, kHomeButtonW, kHomeButtonH)) {
-    return PendingHomeAction::Pair;
-  }
+  (void)x;
+  (void)y;
   return PendingHomeAction::None;
 }
 
@@ -294,8 +304,8 @@ void handleRawPreviewSwipe(const lv_point_t &start, const lv_point_t &end, uint3
     return;
   }
 
-  if (dy > 0 && previewFullscreen) {
-    Serial.printf("Raw swipe down exits fullscreen: %d,%d -> %d,%d\n",
+  if (dy < 0 && previewFullscreen) {
+    Serial.printf("Raw swipe up exits fullscreen: %d,%d -> %d,%d\n",
                   start.x, start.y, end.x, end.y);
     setPreviewFullscreen(false);
   }
@@ -461,6 +471,17 @@ int previewFrameH() {
   return previewFullscreen ? LCD_HEIGHT - kTopBarH : kPreviewH;
 }
 
+void drawFullscreenSwipeHandle() {
+  if (!previewFullscreen) {
+    return;
+  }
+  constexpr int handleW = 78;
+  constexpr int handleH = 3;
+  int x = (LCD_WIDTH - handleW) / 2;
+  int y = LCD_HEIGHT - 8;
+  gfx->fillRect(x, y, handleW, handleH, 0xffff);
+}
+
 void setPreviewFullscreen(bool fullscreen) {
   previewFullscreen = fullscreen;
   if (!previewBox || !fullscreenHint) {
@@ -504,7 +525,7 @@ void setPreviewFullscreen(bool fullscreen) {
 
 void onPreviewGesture(lv_event_t *) {
   lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
-  if (dir == LV_DIR_BOTTOM && previewFullscreen) {
+  if (dir == LV_DIR_TOP && previewFullscreen) {
     setPreviewFullscreen(false);
   }
 }
@@ -825,6 +846,73 @@ bool nameMatchesFilter(const String &name) {
   return false;
 }
 
+void loadCameraBinding() {
+  preferences.begin("gopro", false);
+  boundBleAddress = preferences.getString("ble_addr", "");
+  if (!boundBleAddress.isEmpty()) {
+    boundBleAddress.toLowerCase();
+    Serial.print(F("Bound GoPro BLE address: "));
+    Serial.println(boundBleAddress);
+  }
+}
+
+void saveCameraBinding(BLEAdvertisedDevice &device) {
+  String address = device.getAddress().toString().c_str();
+  address.toLowerCase();
+  if (address.isEmpty()) {
+    return;
+  }
+  boundBleAddress = address;
+  preferences.putString("ble_addr", boundBleAddress);
+  Serial.print(F("Saved GoPro BLE binding: "));
+  Serial.println(boundBleAddress);
+}
+
+void requestPairingCancel() {
+  if (!pairingInProgress || pairingCancelRequested) {
+    return;
+  }
+  pairingCancelRequested = true;
+  setAction("Pairing cancel requested");
+  Serial.println("Pairing cancel requested by lower button");
+}
+
+void pollPairingCancelButton() {
+  if (!pairingInProgress || pairingCancelRequested || !expanderOnline) {
+    return;
+  }
+  if (expander.digitalRead(kExpanderActionButtonPin) == kExpanderActionPressedLevel) {
+    requestPairingCancel();
+  }
+}
+
+bool pairingCancelled() {
+  if (!pairingCancelRequested) {
+    return false;
+  }
+  setAction("Pairing cancelled");
+  return true;
+}
+
+void servicePairingUi() {
+  lv_timer_handler();
+  pollPairingCancelButton();
+}
+
+void resetBleClientForPairing() {
+  if (bleClient != nullptr && bleClient->isConnected()) {
+    bleClient->disconnect();
+    delay(150);
+  }
+  bleClient = nullptr;
+  bleConnected = false;
+  if (bleIndicator) {
+    lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
+  }
+  delete bestBleDevice;
+  bestBleDevice = nullptr;
+}
+
 String bytesToString(const String &bytes) {
   String value;
   value.reserve(bytes.length());
@@ -846,6 +934,15 @@ String bytesToString(const std::string &bytes) {
     }
   }
   return value;
+}
+
+void applyCaptureLabels() {
+  if (captureModeLabel) {
+    lv_label_set_text(captureModeLabel, captureMode.c_str());
+  }
+  if (captureSettingLabel) {
+    lv_label_set_text(captureSettingLabel, captureSetting.c_str());
+  }
 }
 
 void storeSettingValue(uint16_t id, int option) {
@@ -991,7 +1088,10 @@ void commandResponseNotify(BLERemoteCharacteristic *, uint8_t *data, size_t leng
 bool waitForBleResponse(uint32_t timeoutMs) {
   uint32_t start = millis();
   while (!bleResponseSeen && millis() - start < timeoutMs) {
-    lv_timer_handler();
+    servicePairingUi();
+    if (pairingCancelled()) {
+      return false;
+    }
     delay(20);
   }
   if (!bleResponseSeen) {
@@ -1006,8 +1106,15 @@ class ScanCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice device) override {
     String name = device.haveName() ? String(device.getName().c_str()) : "";
     bool hasControlService = device.haveServiceUUID() && device.isAdvertisingService(kControlService);
+    String address = device.getAddress().toString().c_str();
+    address.toLowerCase();
 
     if (!hasControlService && !nameMatchesFilter(name)) {
+      return;
+    }
+    if (!boundBleAddress.isEmpty() && !allowAnyCameraScan && address != boundBleAddress) {
+      Serial.print(F("Skipping unbound GoPro BLE addr="));
+      Serial.println(address);
       return;
     }
 
@@ -1031,7 +1138,9 @@ bool scanForCamera() {
   bestBleDevice = nullptr;
 
   lv_label_set_text(statusLabel, "Scanning BLE");
-  setAction("Scanning for GoPro BLE");
+  setAction(boundBleAddress.isEmpty() || allowAnyCameraScan
+                ? "Scanning for GoPro BLE"
+                : "Scanning for bound GoPro");
   lv_timer_handler();
 
   BLEScan *scan = BLEDevice::getScan();
@@ -1040,12 +1149,25 @@ bool scanForCamera() {
   scan->setActiveScan(true);
   scan->setInterval(100);
   scan->setWindow(99);
-  scan->start(kBleScanSeconds, false);
+  for (uint32_t elapsed = 0; elapsed < kBleScanSeconds; ++elapsed) {
+    if (pairingCancelled()) {
+      scan->clearResults();
+      return false;
+    }
+    scan->start(1, false);
+    servicePairingUi();
+    if (pairingCancelled()) {
+      scan->clearResults();
+      return false;
+    }
+  }
   scan->clearResults();
 
   if (bestBleDevice == nullptr) {
     lv_label_set_text(cameraLabel, "Camera: BLE not found");
-    setAction("No GoPro BLE device found");
+    setAction(boundBleAddress.isEmpty() || allowAnyCameraScan
+                  ? "No GoPro BLE device found"
+                  : "Bound GoPro BLE not found");
     return false;
   }
 
@@ -1060,11 +1182,17 @@ bool scanForCamera() {
 
 bool connectBle() {
   initBleStack();
+  if (pairingCancelled()) {
+    return false;
+  }
   if (bleConnected && bleClient != nullptr && bleClient->isConnected()) {
     return true;
   }
 
   if (bestBleDevice == nullptr && !scanForCamera()) {
+    return false;
+  }
+  if (pairingCancelled()) {
     return false;
   }
 
@@ -1074,7 +1202,7 @@ bool connectBle() {
 
   lv_label_set_text(statusLabel, "Connecting BLE");
   setAction("Connecting GoPro BLE");
-  lv_timer_handler();
+  servicePairingUi();
   logMemory("Before BLE connect");
   if (!bleClient->connectTimeout(bestBleDevice, kBleConnectTimeoutMs)) {
     bleConnected = false;
@@ -1085,6 +1213,14 @@ bool connectBle() {
     bleClient = nullptr;
     lv_label_set_text(cameraLabel, "Camera: BLE connect failed");
     setAction("BLE connect failed");
+    return false;
+  }
+  if (pairingCancelled()) {
+    if (bleClient != nullptr && bleClient->isConnected()) {
+      bleClient->disconnect();
+    }
+    bleConnected = false;
+    setAction("Pairing cancelled");
     return false;
   }
 
@@ -1115,6 +1251,9 @@ bool readGoProWifiCredentials() {
   if (!connectBle()) {
     return false;
   }
+  if (pairingCancelled()) {
+    return false;
+  }
 
   BLERemoteService *wifi = bleClient->getService(kWifiService);
   if (wifi == nullptr) {
@@ -1131,6 +1270,9 @@ bool readGoProWifiCredentials() {
 
   goProSsid = bytesToString(ssid->readValue());
   goProPassword = bytesToString(password->readValue());
+  if (pairingCancelled()) {
+    return false;
+  }
 
   Serial.print(F("GoPro AP SSID: "));
   Serial.println(goProSsid);
@@ -1143,6 +1285,9 @@ bool readGoProWifiCredentials() {
   if (goProSsid.isEmpty() || goProPassword.isEmpty()) {
     setAction("GoPro WiFi credentials empty");
     return false;
+  }
+  if (!deferBleBindingSave && boundBleAddress.isEmpty() && bestBleDevice != nullptr) {
+    saveCameraBinding(*bestBleDevice);
   }
 
   String label = "Camera AP: ";
@@ -1210,6 +1355,9 @@ bool sendCameraManagementCommand(const uint8_t *payload, size_t length) {
   if (!connectBle()) {
     return false;
   }
+  if (pairingCancelled()) {
+    return false;
+  }
 
   BLERemoteService *management = bleClient->getService(kCameraManagementService);
   if (management == nullptr) {
@@ -1235,6 +1383,17 @@ bool sendCameraManagementCommand(const uint8_t *payload, size_t length) {
 }
 
 bool pairGoPro() {
+  bool previousAllowAny = allowAnyCameraScan;
+  bool previousDeferSave = deferBleBindingSave;
+  String previousSsid = goProSsid;
+  String previousPassword = goProPassword;
+  allowAnyCameraScan = true;
+  pairingInProgress = true;
+  pairingCancelRequested = false;
+  pairingLastCancelled = false;
+  deferBleBindingSave = true;
+  resetBleClientForPairing();
+
   const char controllerName[] = "ESP32";
   uint8_t request[1 + 2 + 2 + 2 + sizeof(controllerName) - 1] = {
       0x0B,
@@ -1255,13 +1414,32 @@ bool pairGoPro() {
   setAction("Pairing with GoPro BLE");
   lv_timer_handler();
 
-  if (!readGoProWifiCredentials()) {
+  bool ok = false;
+  if (readGoProWifiCredentials() && !pairingCancelled()) {
+    setAction("Finishing GoPro pairing");
+    ok = sendCameraManagementCommand(request, sizeof(request));
+    if (ok && !pairingCancelRequested && bestBleDevice != nullptr) {
+      saveCameraBinding(*bestBleDevice);
+    }
+  } else if (!pairingCancelRequested) {
     setAction("BLE security pairing failed");
-    return false;
   }
 
-  setAction("Finishing GoPro pairing");
-  return sendCameraManagementCommand(request, sizeof(request));
+  if (pairingCancelRequested) {
+    ok = false;
+    setAction("Pairing cancelled");
+  }
+  if (!ok) {
+    goProSsid = previousSsid;
+    goProPassword = previousPassword;
+    resetBleClientForPairing();
+  }
+  allowAnyCameraScan = previousAllowAny;
+  pairingInProgress = false;
+  pairingLastCancelled = pairingCancelRequested;
+  pairingCancelRequested = false;
+  deferBleBindingSave = previousDeferSave;
+  return ok;
 }
 
 bool enableGoProWifiAp() {
@@ -1572,6 +1750,7 @@ bool setGoProSetting(uint16_t settingId, uint16_t optionId, const char *label) {
   bool ok = httpGetGoPro(path);
   if (ok) {
     storeSettingValue(settingId, optionId);
+    refreshCaptureOverlayFromState();
   }
   setAction(ok ? label : "Setting command failed");
   return ok;
@@ -1648,6 +1827,7 @@ bool parseCameraState(const String &body) {
       storeSettingValue(id, pair.value()["option"].as<int>());
     }
   }
+  refreshCaptureOverlayFromState();
   setAction("Camera state synced");
   return true;
 }
@@ -1777,6 +1957,73 @@ const char *knownOptionName(uint16_t settingId, int option) {
   return nullptr;
 }
 
+String storedOptionDisplay(uint16_t settingId, bool *found = nullptr) {
+  int option = getStoredSettingValue(settingId);
+  if (option < 0) {
+    if (found) {
+      *found = false;
+    }
+    return "";
+  }
+
+  if (found) {
+    *found = true;
+  }
+  const char *known = knownOptionName(settingId, option);
+  if (known) {
+    return known;
+  }
+  String label = "Opt ";
+  label += option;
+  return label;
+}
+
+String firstStoredOptionDisplay(const uint16_t *settingIds, size_t count, bool *found = nullptr) {
+  for (size_t i = 0; i < count; ++i) {
+    bool optionFound = false;
+    String value = storedOptionDisplay(settingIds[i], &optionFound);
+    if (optionFound) {
+      if (found) {
+        *found = true;
+      }
+      return value;
+    }
+  }
+  if (found) {
+    *found = false;
+  }
+  return "";
+}
+
+void appendCaptureSettingPart(String &text, const String &part) {
+  if (part.isEmpty()) {
+    return;
+  }
+  if (!text.isEmpty()) {
+    text += " | ";
+  }
+  text += part;
+}
+
+void refreshCaptureOverlayFromState() {
+  const uint16_t aspectIds[] = {108, 192, 193, 232, 233};
+  const uint16_t fpsIds[] = {234, 3};
+  const uint16_t lensIds[] = {121, 122, 123};
+
+  String setting;
+  appendCaptureSettingPart(setting, firstStoredOptionDisplay(aspectIds, sizeof(aspectIds) / sizeof(aspectIds[0])));
+  appendCaptureSettingPart(setting, storedOptionDisplay(2));
+  appendCaptureSettingPart(setting, firstStoredOptionDisplay(fpsIds, sizeof(fpsIds) / sizeof(fpsIds[0])));
+  appendCaptureSettingPart(setting, firstStoredOptionDisplay(lensIds, sizeof(lensIds) / sizeof(lensIds[0])));
+
+  if (!setting.isEmpty()) {
+    captureSetting = setting;
+    applyCaptureLabels();
+    Serial.print(F("Capture overlay: "));
+    Serial.println(captureSetting);
+  }
+}
+
 String optionDisplayName(uint16_t settingId, int option) {
   const char *known = knownOptionName(settingId, option);
   if (known) {
@@ -1895,7 +2142,8 @@ void setPairingMode() {
     setDisplayOn(true);
   }
   bool ok = pairGoPro();
-  setAction(ok ? "GoPro BLE pairing requested" : "GoPro BLE pairing failed");
+  setAction(ok ? "GoPro BLE pairing requested"
+               : (pairingLastCancelled ? "Pairing cancelled" : "GoPro BLE pairing failed"));
   if (ok) {
     delay(300);
     setAction("Pair complete; connecting WiFi");
@@ -1931,15 +2179,19 @@ void runConnectAction() {
   endGoproAction();
 }
 
-void runPairAction() {
-  if (!beginGoproAction("pair")) {
+void runPairNewAction() {
+  if (!beginGoproAction("pair-new")) {
     return;
   }
-  setAction("Pair pressed");
+  setAction("Pair New held");
   lv_timer_handler();
   delay(100);
   setPairingMode();
   endGoproAction();
+}
+
+void runPairAction() {
+  runPairNewAction();
 }
 
 void runRecordAction() {
@@ -1995,13 +2247,7 @@ void toggleRecording() {
     snapshotPreviewPrepared = false;
     if (httpGetGoPro("/gopro/camera/presets/set_group?id=1000")) {
       captureMode = "Video";
-      captureSetting = "16:9 | 4K | 60 | W";
-      if (captureModeLabel) {
-        lv_label_set_text(captureModeLabel, captureMode.c_str());
-      }
-      if (captureSettingLabel) {
-        lv_label_set_text(captureSettingLabel, captureSetting.c_str());
-      }
+      syncCameraState();
     }
     delay(250);
     ok = httpGetGoPro("/gopro/camera/shutter/start");
@@ -2248,6 +2494,8 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
   bool ok = jpeg.decode(0, 0, scale) != 0;
   if (!ok) {
     Serial.printf("JPEG decode failed: scale=%d error=%d\n", scale, jpeg.getLastError());
+  } else {
+    drawFullscreenSwipeHandle();
   }
   jpeg.close();
   return ok;
@@ -2305,13 +2553,7 @@ bool fetchSnapshotPreview() {
       return false;
     }
     captureMode = "Photo";
-    captureSetting = "Snapshot preview";
-    if (captureModeLabel) {
-      lv_label_set_text(captureModeLabel, captureMode.c_str());
-    }
-    if (captureSettingLabel) {
-      lv_label_set_text(captureSettingLabel, captureSetting.c_str());
-    }
+    applyCaptureLabels();
     snapshotPreviewPrepared = true;
     delay(250);
   }
@@ -2414,7 +2656,17 @@ void onWake(lv_event_t *) {
 }
 
 void onPair(lv_event_t *) {
-  runPairAction();
+  if (pairButtonLongPressed || millis() - pairButtonLongPressedAtMs < 1500) {
+    pairButtonLongPressed = false;
+    return;
+  }
+  setAction("Hold Pair New to change camera");
+}
+
+void onPairLongPressed(lv_event_t *) {
+  pairButtonLongPressed = true;
+  pairButtonLongPressedAtMs = millis();
+  runPairNewAction();
 }
 
 void onWifi(lv_event_t *) {
@@ -2429,29 +2681,27 @@ void selectMode(const char *mode, const char *setting, const char *endpoint) {
   captureMode = mode;
   captureSetting = setting;
   snapshotPreviewPrepared = false;
-  if (captureModeLabel) {
-    lv_label_set_text(captureModeLabel, captureMode.c_str());
-  }
-  if (captureSettingLabel) {
-    lv_label_set_text(captureSettingLabel, captureSetting.c_str());
-  }
+  applyCaptureLabels();
   lv_label_set_text(statusLabel, captureMode.c_str());
   if (WiFi.status() == WL_CONNECTED && endpoint && endpoint[0]) {
-    httpGetGoPro(endpoint);
+    if (httpGetGoPro(endpoint)) {
+      delay(250);
+      syncCameraState();
+    }
   }
   setAction(captureSetting.c_str());
 }
 
 void onModeVideo(lv_event_t *) {
-  selectMode("Video", "16:9 | 4K | 60 | W", "/gopro/camera/presets/set_group?id=1000");
+  selectMode("Video", "Sync camera state", "/gopro/camera/presets/set_group?id=1000");
 }
 
 void onModePhoto(lv_event_t *) {
-  selectMode("Photo", "8:7 | 27MP | Wide", "/gopro/camera/presets/set_group?id=1001");
+  selectMode("Photo", "Sync camera state", "/gopro/camera/presets/set_group?id=1001");
 }
 
 void onModeTimeWarp(lv_event_t *) {
-  selectMode("TimeWarp", "16:9 | 4K | Auto", "/gopro/camera/presets/set_group?id=1002");
+  selectMode("TimeWarp", "Sync camera state", "/gopro/camera/presets/set_group?id=1002");
 }
 
 void onDashboardConnect(lv_event_t *) {
@@ -2671,9 +2921,10 @@ void createUi() {
   lv_obj_set_style_border_width(tileView, 0, 0);
   lv_obj_set_style_pad_all(tileView, 0, 0);
   lv_obj_clear_flag(tileView, LV_OBJ_FLAG_SCROLL_ELASTIC);
+  lv_obj_clear_flag(tileView, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_set_scrollbar_mode(tileView, LV_SCROLLBAR_MODE_OFF);
 
-  lv_obj_t *captureTile = lv_tileview_add_tile(tileView, 0, 0, LV_DIR_RIGHT);
+  lv_obj_t *captureTile = lv_tileview_add_tile(tileView, 0, 0, LV_DIR_NONE);
   captureTileObj = captureTile;
   lv_obj_set_style_bg_color(captureTile, lv_color_hex(0x090b10), 0);
   lv_obj_add_event_cb(captureTile, onPreviewGesture, LV_EVENT_GESTURE, nullptr);
@@ -2751,20 +3002,21 @@ void createUi() {
   lv_obj_set_pos(wifiLabel, 20, 246);
   lv_obj_add_flag(wifiLabel, LV_OBJ_FLAG_HIDDEN);
 
-  pairButton = makeTouchButton(captureTile, "Pair", 128, kHomeButtonY, kHomeButtonW,
+  pairButton = makeTouchButton(captureTile, "Pair New", kPreviewX, kHomeButtonY, kPreviewW,
                                kHomeButtonH,
                                lv_color_hex(0x7c4dff));
   lv_obj_add_event_cb(pairButton, onPair, LV_EVENT_CLICKED, nullptr);
+  lv_obj_add_event_cb(pairButton, onPairLongPressed, LV_EVENT_LONG_PRESSED, nullptr);
 
   actionLabel = lv_label_create(captureTile);
-  lv_label_set_text(actionLabel, "Auto-connect on boot | lower button snapshot");
+  lv_label_set_text(actionLabel, "Auto-connect | hold Pair New to change camera");
   lv_obj_set_style_text_color(actionLabel, lv_color_hex(0x96a2b4), 0);
   lv_obj_align(actionLabel, LV_ALIGN_BOTTOM_MID, 0, -20);
 
-  lv_obj_t *modeTile = lv_tileview_add_tile(tileView, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+  lv_obj_t *modeTile = lv_tileview_add_tile(tileView, 1, 0, LV_DIR_NONE);
   lv_obj_set_style_bg_color(modeTile, lv_color_hex(0x090b10), 0);
   makePanelLabel(modeTile, "Modes", 20, 18, 18);
-  makePanelLabel(modeTile, "Swipe left/right like the GoPro rear screen", 20, 44, 14,
+  makePanelLabel(modeTile, "Mode controls stay on fixed pages", 20, 44, 14,
                  lv_color_hex(0x96a2b4));
   lv_obj_t *video = makeChip(modeTile, "Video", 20, 84, 328, lv_color_hex(0x2c7be5));
   lv_obj_add_event_cb(video, onModeVideo, LV_EVENT_CLICKED, nullptr);
@@ -2775,7 +3027,7 @@ void createUi() {
   makePanelLabel(modeTile, "Main overlay shows mode, aspect, resolution, fps, lens", 20, 242, 14,
                  lv_color_hex(0xc3ccd8));
 
-  lv_obj_t *captureSettingsTile = lv_tileview_add_tile(tileView, 2, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+  lv_obj_t *captureSettingsTile = lv_tileview_add_tile(tileView, 2, 0, LV_DIR_NONE);
   lv_obj_set_style_bg_color(captureSettingsTile, lv_color_hex(0x090b10), 0);
   makePanelLabel(captureSettingsTile, "Capture Settings", 20, 18, 18);
   makePanelLabel(captureSettingsTile, "Resolution, frame rate, lens, and aspect", 20, 44, 14,
@@ -2795,7 +3047,7 @@ void createUi() {
                                    lv_color_hex(0x2c7be5));
   lv_obj_add_event_cb(syncPresets, onPresetSync, LV_EVENT_CLICKED, nullptr);
 
-  lv_obj_t *protuneTile = lv_tileview_add_tile(tileView, 3, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+  lv_obj_t *protuneTile = lv_tileview_add_tile(tileView, 3, 0, LV_DIR_NONE);
   lv_obj_set_style_bg_color(protuneTile, lv_color_hex(0x090b10), 0);
   makePanelLabel(protuneTile, "Pro Controls", 20, 18, 18);
   makePanelLabel(protuneTile, "Advanced settings exposed by Open GoPro", 20, 44, 14,
@@ -2809,7 +3061,7 @@ void createUi() {
                         const_cast<SettingDefinition *>(&kProSettings[i]));
   }
 
-  lv_obj_t *dashboardTile = lv_tileview_add_tile(tileView, 4, 0, LV_DIR_LEFT);
+  lv_obj_t *dashboardTile = lv_tileview_add_tile(tileView, 4, 0, LV_DIR_NONE);
   lv_obj_set_style_bg_color(dashboardTile, lv_color_hex(0x090b10), 0);
   makePanelLabel(dashboardTile, "Dashboard", 20, 18, 18);
   makePanelLabel(dashboardTile, "Connection and remote power controls", 20, 44, 14,
@@ -2981,6 +3233,10 @@ void handleBootButtonRelease(uint32_t durationMs) {
 }
 
 void handleActionButtonRelease(uint32_t durationMs) {
+  if (pairingInProgress) {
+    requestPairingCancel();
+    return;
+  }
   if (durationMs >= kActionButtonMinPressMs) {
     Serial.println("Lower button: snapshot");
     runSnapshotAction();
@@ -3094,13 +3350,35 @@ void handlePowerButton() {
   power.getIrqStatus();
   if (power.isPekeyLongPressIrq()) {
     power.clearIrqStatus();
+    powerShortClickCount = 0;
+    powerShortClickDueMs = 0;
     enterLowPowerShutdown();
     return;
   }
   if (power.isPekeyShortPressIrq()) {
-    setDisplayOn(!displayOn);
+    powerShortClickCount++;
+    if (powerShortClickCount >= 2 && now <= powerShortClickDueMs) {
+      powerShortClickCount = 0;
+      powerShortClickDueMs = 0;
+      Serial.println("PWR double click: snapshot");
+      runSnapshotAction();
+    } else {
+      powerShortClickCount = 1;
+      powerShortClickDueMs = now + kPowerDoubleClickMs;
+      Serial.println("PWR single click pending");
+    }
   }
   power.clearIrqStatus();
+}
+
+void handlePendingPowerClick() {
+  if (powerShortClickCount == 1 && powerShortClickDueMs != 0 &&
+      millis() >= powerShortClickDueMs) {
+    powerShortClickCount = 0;
+    powerShortClickDueMs = 0;
+    Serial.println("PWR single click: display toggle");
+    setDisplayOn(!displayOn);
+  }
 }
 }  // namespace
 
@@ -3109,6 +3387,7 @@ void setup() {
   delay(200);
   Serial.println("GoPro AMOLED UI boot");
   cameraIp.fromString(GOPRO_CAMERA_IP);
+  loadCameraBinding();
   initBleStack();
 
   Wire.begin(IIC_SDA, IIC_SCL);
@@ -3194,6 +3473,7 @@ void loop() {
   handleExpanderActionButton();
   handleExpanderDiagnostics();
   handlePowerButton();
+  handlePendingPowerClick();
   updateBatteryStatus();
   updateWifiStatus();
   updateRecordingOverlay();
