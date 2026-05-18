@@ -47,11 +47,9 @@ The capture screen is the home screen. It shows the JPEG preview area, current m
 
 Top-right indicators:
 
-- Battery bar and percent: read from the AXP2101 PMU.
-- `USB`: shown if USB power is present but no battery percentage is available.
-- `WIFI --`: Wi-Fi disconnected.
-- `WIFI ..`: Wi-Fi connecting.
-- `WIFI ON`: connected to the GoPro AP.
+- Battery icon: read from the AXP2101 PMU.
+- Wi-Fi icon: gray while disconnected/connecting, green when connected to the GoPro AP.
+- Bluetooth icon: blue while BLE is connected.
 
 ## Touch Controls
 
@@ -171,7 +169,7 @@ Current behavior:
 
 Common preview messages:
 
-- `Press lower button for snapshot`
+- `Double-click lower for snapshot`
 - `No GoPro JPEG media found`
 - `JPEG fetch failed`
 - `JPEG decode failed`
@@ -235,7 +233,7 @@ BLE connected, but the Wi-Fi service or characteristics were not readable. Re-pa
 
 The remote read credentials but could not join the camera AP. The camera AP can take a moment to become visible after the BLE enable command. Reboot the remote to retry the automatic connection flow.
 
-`Press lower button for snapshot`
+`Double-click lower for snapshot`
 
 The remote has not joined the GoPro AP yet. Wait for automatic connection or reboot the remote to retry.
 

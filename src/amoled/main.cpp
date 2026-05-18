@@ -151,6 +151,8 @@ void disconnectCurrentCameraForPairing();
 void requestPairingCancel();
 void resetBleClientForPairing();
 void runForgetCameraAction();
+void handlePmuActionButton();
+void clearSnapshotPreviewState(const char *message = nullptr);
 
 std::unique_ptr<Arduino_IIC> touch(new Arduino_FT3x68(
     i2cBus, FT3168_DEVICE_ADDRESS, DRIVEBUS_DEFAULT_VALUE, TP_INT,
@@ -269,6 +271,7 @@ bool actionButtonStable = !kExpanderActionPressedLevel;
 uint32_t actionButtonLastChangeMs = 0;
 uint32_t actionButtonPressedAtMs = 0;
 uint32_t lastExpanderActionHandledMs = 0;
+uint32_t lastPmuActionHandledMs = 0;
 uint8_t actionButtonShortClickCount = 0;
 uint32_t actionButtonShortClickDueMs = 0;
 bool actionButtonLongHandled = false;
@@ -512,18 +515,36 @@ void styleButton(lv_obj_t *button, lv_color_t color) {
   lv_obj_set_style_shadow_opa(button, LV_OPA_20, 0);
 }
 
+const lv_font_t *fontForSize(int size) {
+  if (size >= 24) {
+    return &lv_font_montserrat_24;
+  }
+  if (size >= 22) {
+    return &lv_font_montserrat_22;
+  }
+  if (size >= 18) {
+    return &lv_font_montserrat_20;
+  }
+  if (size >= 16) {
+    return &lv_font_montserrat_18;
+  }
+  return &lv_font_montserrat_16;
+}
+
 lv_obj_t *makeButton(lv_obj_t *parent, const char *text, lv_color_t color) {
   lv_obj_t *button = lv_btn_create(parent);
   styleButton(button, color);
   lv_obj_t *label = lv_label_create(button);
   lv_label_set_text(label, text);
+  lv_obj_set_style_text_font(label, fontForSize(18), 0);
+  lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_center(label);
   return button;
 }
 
 lv_obj_t *makeChip(lv_obj_t *parent, const char *text, int x, int y, int w, lv_color_t color) {
   lv_obj_t *chip = makeButton(parent, text, color);
-  lv_obj_set_size(chip, w, 34);
+  lv_obj_set_size(chip, w, 40);
   lv_obj_set_pos(chip, x, y);
   return chip;
 }
@@ -646,6 +667,21 @@ void showForgetConfirm() {
 void hideForgetConfirm() {
   if (forgetConfirmPopup) {
     lv_obj_add_flag(forgetConfirmPopup, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+void clearSnapshotPreviewState(const char *message) {
+  previewHasImage = false;
+  snapshotPreviewBusy = false;
+  snapshotPreviewPrepared = false;
+  lastSnapshotMediaPath = "";
+  if (previewFullscreen) {
+    setPreviewFullscreen(false);
+  }
+  if (previewLabel) {
+    lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(previewLabel, message == nullptr ? "Double-click lower for snapshot" : message);
+    lv_obj_center(previewLabel);
   }
 }
 
@@ -1057,6 +1093,7 @@ void saveCameraBinding(BLEAdvertisedDevice &device) {
   }
   boundBleAddress = address;
   preferences.putString("ble_addr", boundBleAddress);
+  clearSnapshotPreviewState("Double-click lower for snapshot");
   Serial.print(F("Saved GoPro BLE binding: "));
   Serial.println(boundBleAddress);
 }
@@ -1102,6 +1139,7 @@ void forgetCameraBinding(bool preserveCancel = false) {
   goProSsid = "";
   goProPassword = "";
   lastBleName = "";
+  clearSnapshotPreviewState("Pair New to connect camera");
   bool cleared = preferences.clear();
   int removed = clearBleBondStore();
   resetBleClientForPairing();
@@ -1198,6 +1236,7 @@ void serviceConnectionUi() {
   }
   lv_timer_handler();
   pollPairingCancelButton();
+  handlePmuActionButton();
 }
 
 void servicePairingUi() {
@@ -1923,9 +1962,40 @@ bool tryJoinGoProWifi(uint32_t timeoutMs) {
   return false;
 }
 
+bool isLikelyGoProWifiConnected() {
+  if (WiFi.status() != WL_CONNECTED) {
+    return false;
+  }
+  if (!goProSsid.isEmpty() && WiFi.SSID() == goProSsid) {
+    return true;
+  }
+  IPAddress ip = WiFi.localIP();
+  return ip[0] == 10 && ip[1] == 5 && ip[2] == 5;
+}
+
+void markExistingGoProWifiConnected() {
+  if (wifiLabel) {
+    String text = "WiFi: ";
+    text += WiFi.localIP().toString();
+    lv_label_set_text(wifiLabel, text.c_str());
+  }
+  if (statusLabel) {
+    lv_label_set_text(statusLabel, "GoPro WiFi connected");
+  }
+  if (wifiIndicator) {
+    lv_label_set_text(wifiIndicator, LV_SYMBOL_WIFI);
+    lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x47d16c), 0);
+  }
+}
+
 bool connectGoProWifiFromBle() {
   if (operationCancelled()) {
     return false;
+  }
+  if (isLikelyGoProWifiConnected()) {
+    markExistingGoProWifiConnected();
+    setAction("Using existing GoPro WiFi");
+    return true;
   }
   if (boundBleAddress.isEmpty() && !allowAnyCameraScan) {
     if (cameraLabel) {
@@ -1988,7 +2058,7 @@ bool connectGoProWifiFromBle() {
   lastPreviewUpdate = 0;
   if (previewLabel && !previewHasImage) {
     lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
-    lv_label_set_text(previewLabel, "Press lower button for snapshot");
+    lv_label_set_text(previewLabel, "Double-click lower for snapshot");
   }
   return true;
 }
@@ -2640,6 +2710,10 @@ void runPairNewAction() {
 }
 
 void runForgetCameraAction() {
+  if (recording) {
+    setAction("Stop recording before forgetting");
+    return;
+  }
   if (!beginGoproAction("forget-camera")) {
     return;
   }
@@ -2673,7 +2747,10 @@ void runSnapshotAction() {
     endGoproAction();
     return;
   }
-  if (WiFi.status() != WL_CONNECTED) {
+  if (isLikelyGoProWifiConnected()) {
+    markExistingGoProWifiConnected();
+    setAction("Taking snapshot over GoPro WiFi");
+  } else {
     setAction("Connecting for snapshot");
     if (!connectGoProWifiFromBle()) {
       setAction("Camera WiFi not connected");
@@ -2735,7 +2812,7 @@ void toggleRecording() {
       lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
     } else {
       lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
-      lv_label_set_text(previewLabel, "Press lower button for snapshot");
+      lv_label_set_text(previewLabel, "Double-click lower for snapshot");
     }
   }
   updateRecordingOverlay(true);
@@ -3155,6 +3232,10 @@ void onPair(lv_event_t *) {
 }
 
 void onForgetCamera(lv_event_t *) {
+  if (recording) {
+    setAction("Stop recording before forgetting");
+    return;
+  }
   showForgetConfirm();
 }
 
@@ -3165,6 +3246,10 @@ void onForgetCancel(lv_event_t *) {
 
 void onForgetConfirm(lv_event_t *) {
   hideForgetConfirm();
+  if (recording) {
+    setAction("Stop recording before forgetting");
+    return;
+  }
   if (goproActionBusy || pairingInProgress) {
     requestConnectionCancel("Cancelling and forgetting camera");
     forgetCameraBinding(true);
@@ -3314,7 +3399,7 @@ lv_obj_t *makePanelLabel(lv_obj_t *parent, const char *text, int x, int y, int s
                          lv_color_t color = lv_color_hex(0xf4f7fb)) {
   lv_obj_t *label = lv_label_create(parent);
   lv_label_set_text(label, text);
-  lv_obj_set_style_text_font(label, size >= 18 ? &lv_font_montserrat_18 : &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(label, fontForSize(size), 0);
   lv_obj_set_style_text_color(label, color, 0);
   lv_obj_set_pos(label, x, y);
   return label;
@@ -3365,7 +3450,7 @@ void createUi() {
   lv_obj_t *screen = lv_scr_act();
   lv_obj_set_style_bg_color(screen, lv_color_hex(0x090b10), 0);
   lv_obj_set_style_text_color(screen, lv_color_hex(0xf4f7fb), 0);
-  lv_obj_set_style_text_font(screen, &lv_font_montserrat_14, 0);
+  lv_obj_set_style_text_font(screen, fontForSize(16), 0);
   lv_obj_add_event_cb(screen, onPageGesture, LV_EVENT_GESTURE, nullptr);
 
   lv_obj_t *topBar = lv_obj_create(screen);
@@ -3379,7 +3464,7 @@ void createUi() {
 
   lv_obj_t *title = lv_label_create(screen);
   lv_label_set_text(title, "GoPro");
-  lv_obj_set_style_text_font(title, &lv_font_montserrat_18, 0);
+  lv_obj_set_style_text_font(title, fontForSize(20), 0);
   lv_obj_set_style_text_color(title, lv_color_hex(0xf4f7fb), 0);
   lv_obj_align(title, LV_ALIGN_TOP_LEFT, 12, 7);
 
@@ -3433,10 +3518,11 @@ void createUi() {
   previewLabel = lv_label_create(previewBox);
   lv_label_set_text(previewLabel, "Preview standby");
   lv_obj_set_style_text_color(previewLabel, lv_color_hex(0xdde7f5), 0);
+  lv_obj_set_style_text_font(previewLabel, fontForSize(18), 0);
   lv_obj_center(previewLabel);
 
   recordingOverlay = lv_obj_create(previewBox);
-  lv_obj_set_size(recordingOverlay, 154, 58);
+  lv_obj_set_size(recordingOverlay, 186, 70);
   lv_obj_center(recordingOverlay);
   lv_obj_set_style_radius(recordingOverlay, 6, 0);
   lv_obj_set_style_bg_color(recordingOverlay, lv_color_hex(0xd71920), 0);
@@ -3448,7 +3534,7 @@ void createUi() {
   lv_label_set_text(recordingOverlayLabel, "RECORDING\n00:00");
   lv_obj_set_style_text_align(recordingOverlayLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_set_style_text_color(recordingOverlayLabel, lv_color_hex(0xffffff), 0);
-  lv_obj_set_style_text_font(recordingOverlayLabel, &lv_font_montserrat_18, 0);
+  lv_obj_set_style_text_font(recordingOverlayLabel, fontForSize(20), 0);
   lv_obj_center(recordingOverlayLabel);
   lv_obj_add_flag(recordingOverlay, LV_OBJ_FLAG_HIDDEN);
 
@@ -3485,11 +3571,13 @@ void createUi() {
   cameraLabel = lv_label_create(captureTile);
   lv_label_set_text(cameraLabel, "Camera: not paired");
   lv_obj_set_style_text_color(cameraLabel, lv_color_hex(0xc3ccd8), 0);
+  lv_obj_set_style_text_font(cameraLabel, fontForSize(16), 0);
   lv_obj_set_pos(cameraLabel, 20, 224);
 
   wifiLabel = lv_label_create(captureTile);
   lv_label_set_text(wifiLabel, "WiFi: idle");
   lv_obj_set_style_text_color(wifiLabel, lv_color_hex(0x96a2b4), 0);
+  lv_obj_set_style_text_font(wifiLabel, fontForSize(16), 0);
   lv_obj_set_pos(wifiLabel, 20, 246);
   lv_obj_add_flag(wifiLabel, LV_OBJ_FLAG_HIDDEN);
 
@@ -3501,7 +3589,11 @@ void createUi() {
 
   actionLabel = lv_label_create(captureTile);
   lv_label_set_text(actionLabel, "Auto-connect | tap Pair New to change camera");
+  lv_obj_set_width(actionLabel, kPreviewW);
+  lv_label_set_long_mode(actionLabel, LV_LABEL_LONG_DOT);
   lv_obj_set_style_text_color(actionLabel, lv_color_hex(0x96a2b4), 0);
+  lv_obj_set_style_text_font(actionLabel, fontForSize(16), 0);
+  lv_obj_set_style_text_align(actionLabel, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(actionLabel, LV_ALIGN_BOTTOM_MID, 0, -2);
 
   lv_obj_t *modeTile = lv_tileview_add_tile(tileView, 1, 0, LV_DIR_NONE);
@@ -3641,7 +3733,7 @@ void createUi() {
   lv_obj_set_width(pairingPopupTitle, 288);
   lv_label_set_text(pairingPopupTitle, "Pairing New Camera");
   lv_obj_set_style_text_color(pairingPopupTitle, lv_color_hex(0xf4f7fb), 0);
-  lv_obj_set_style_text_font(pairingPopupTitle, &lv_font_montserrat_18, 0);
+  lv_obj_set_style_text_font(pairingPopupTitle, fontForSize(20), 0);
   lv_obj_set_style_text_align(pairingPopupTitle, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(pairingPopupTitle, LV_ALIGN_TOP_MID, 0, 0);
 
@@ -3650,6 +3742,7 @@ void createUi() {
   lv_label_set_long_mode(pairingPopupMessage, LV_LABEL_LONG_WRAP);
   lv_label_set_text(pairingPopupMessage, "Put the GoPro in pairing mode.\nPress lower button to cancel.");
   lv_obj_set_style_text_color(pairingPopupMessage, lv_color_hex(0xc3ccd8), 0);
+  lv_obj_set_style_text_font(pairingPopupMessage, fontForSize(18), 0);
   lv_obj_set_style_text_align(pairingPopupMessage, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(pairingPopupMessage, LV_ALIGN_TOP_MID, 0, 42);
   lv_obj_add_flag(pairingPopup, LV_OBJ_FLAG_HIDDEN);
@@ -3669,7 +3762,7 @@ void createUi() {
   lv_obj_set_width(forgetTitle, 288);
   lv_label_set_text(forgetTitle, "Forget Camera?");
   lv_obj_set_style_text_color(forgetTitle, lv_color_hex(0xf4f7fb), 0);
-  lv_obj_set_style_text_font(forgetTitle, &lv_font_montserrat_18, 0);
+  lv_obj_set_style_text_font(forgetTitle, fontForSize(20), 0);
   lv_obj_set_style_text_align(forgetTitle, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(forgetTitle, LV_ALIGN_TOP_MID, 0, 0);
 
@@ -3678,6 +3771,7 @@ void createUi() {
   lv_label_set_long_mode(forgetMessage, LV_LABEL_LONG_WRAP);
   lv_label_set_text(forgetMessage, "This clears the saved BLE camera and local bond data.");
   lv_obj_set_style_text_color(forgetMessage, lv_color_hex(0xc3ccd8), 0);
+  lv_obj_set_style_text_font(forgetMessage, fontForSize(18), 0);
   lv_obj_set_style_text_align(forgetMessage, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_align(forgetMessage, LV_ALIGN_TOP_MID, 0, 42);
 
@@ -3757,7 +3851,7 @@ void updatePreview(bool force) {
   }
 
   lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
-  lv_label_set_text(previewLabel, "Press lower button for snapshot");
+  lv_label_set_text(previewLabel, "Double-click lower for snapshot");
 }
 
 bool initPowerExpander() {
@@ -3794,7 +3888,8 @@ void initPowerKey() {
   power.setPowerKeyPressOnTime(XPOWERS_POWERON_1S);
   power.setPowerKeyPressOffTime(XPOWERS_POWEROFF_4S);
   power.setLongPressPowerOFF();
-  power.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ | XPOWERS_AXP2101_PKEY_LONG_IRQ);
+  power.enableLongPressShutdown();
+  power.enableIRQ(XPOWERS_AXP2101_PKEY_SHORT_IRQ);
   power.enableBattDetection();
   power.enableBattVoltageMeasure();
   power.enableVbusVoltageMeasure();
@@ -3868,6 +3963,10 @@ void handleActionButtonRelease(uint32_t durationMs) {
     return;
   }
   if (durationMs < kActionButtonMinPressMs) {
+    return;
+  }
+  if (millis() - lastPmuActionHandledMs < kPmuDuplicateSuppressMs) {
+    Serial.println("Expander lower/action release ignored after PMU event");
     return;
   }
   lastExpanderActionHandledMs = millis();
@@ -3953,6 +4052,10 @@ void handleActionButtonHold() {
     return;
   }
   actionButtonLongHandled = true;
+  if (millis() - lastPmuActionHandledMs < kPmuDuplicateSuppressMs) {
+    Serial.println("Expander lower/action hold ignored after PMU event");
+    return;
+  }
   lastExpanderActionHandledMs = millis();
   handleLowerActionLongPress("Lower button");
 }
@@ -3972,13 +4075,16 @@ void handlePmuActionButton() {
   }
 
   power.clearIrqStatus();
+  if (longPress) {
+    Serial.println("PMU lower/action long IRQ ignored; PMU handles hardware shutdown");
+    return;
+  }
   if (millis() - lastExpanderActionHandledMs < kPmuDuplicateSuppressMs) {
     Serial.println("PMU lower/action IRQ ignored after expander event");
     return;
   }
-  if (longPress) {
-    handleLowerActionLongPress("Lower PMU button");
-  } else if (shortPress) {
+  if (shortPress) {
+    lastPmuActionHandledMs = millis();
     handleLowerActionShortClick("Lower PMU button");
   }
 }
@@ -4128,6 +4234,7 @@ void setup() {
 void loop() {
   lv_timer_handler();
   handlePendingHomeAction();
+  handleBootButton();
   handleExpanderActionButton();
   handleActionButtonHold();
   handlePmuActionButton();
