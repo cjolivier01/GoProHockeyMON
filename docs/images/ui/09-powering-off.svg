@@ -8,7 +8,7 @@
   <text x="300" y="49" fill="#5a6472" font-family="Arial, sans-serif" font-size="14">WIFI --</text>
   <rect x="20" y="76" width="328" height="150" rx="8" fill="#0d1119" stroke="#1f2937"/>
   <text x="105" y="146" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="18" font-weight="700">Low-power shutdown</text>
-  <text x="93" y="171" fill="#7b8798" font-family="Arial, sans-serif" font-size="14">Hold PWR to wake the board</text>
+  <text x="74" y="171" fill="#7b8798" font-family="Arial, sans-serif" font-size="14">Long-press lower button to shut down</text>
   <text x="22" y="253" fill="#94a3b8" font-family="Arial, sans-serif" font-size="18">Video</text>
   <text x="22" y="277" fill="#64748b" font-family="Arial, sans-serif" font-size="14">16:9 | 4K | 60 | W</text>
   <text x="20" y="304" fill="#64748b" font-family="Arial, sans-serif" font-size="14">Camera: disconnected</text>

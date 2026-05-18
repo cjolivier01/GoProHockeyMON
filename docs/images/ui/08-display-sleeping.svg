@@ -6,5 +6,5 @@
   <rect x="252" y="24" width="30" height="9" rx="4" fill="#2b8a3e"/>
   <text x="313" y="29" fill="#5a6472" font-family="Arial, sans-serif" font-size="14">58%</text>
   <text x="300" y="49" fill="#364152" font-family="Arial, sans-serif" font-size="14">WIFI --</text>
-  <text x="100" y="214" fill="#364152" font-family="Arial, sans-serif" font-size="14">Short PWR wakes display</text>
+  <text x="88" y="214" fill="#364152" font-family="Arial, sans-serif" font-size="14">Lower button wakes display</text>
 </svg>

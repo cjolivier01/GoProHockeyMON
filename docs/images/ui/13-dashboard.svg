@@ -22,5 +22,5 @@
     <rect x="20" y="338" width="156" height="34" rx="8"/><text x="78" y="360" fill="#f4f7fb">Beeps</text>
     <rect x="192" y="338" width="156" height="34" rx="8"/><text x="229" y="360" fill="#f4f7fb">Screen Saver</text>
   </g>
-  <text x="20" y="422" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">PWR short display | PWR long power | BOOT rec/pair</text>
+  <text x="20" y="422" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">Top REC start/long-stop | Lower display/double preview</text>
 </svg>
