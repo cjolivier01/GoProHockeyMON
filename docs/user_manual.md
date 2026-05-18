@@ -35,6 +35,20 @@ AXP2101 PMU initialized
 AMOLED UI ready
 ```
 
+## Serial UI Testing
+
+The AMOLED firmware has a USB serial UI test harness at `115200`:
+
+- `status`: print the current display, recording, BLE, Wi-Fi, pairing, and saved-camera state.
+- `touch X Y [hold_ms]`: inject a touch at a screen pixel through LVGL.
+- `swipe X1 Y1 X2 Y2 [duration_ms]`: inject a swipe through LVGL.
+- `lower single` / `lower double`: simulate the lower/action side button.
+- `top short` / `top long`: simulate the top-right side button.
+- `pair`, `connect`, `snapshot`, `record`, `cancel`: run the same app actions used by the UI/buttons.
+- `page home|maintenance`, `fullscreen on|off`, `forget show|confirm|cancel`, `display on|off`: force states for debugging.
+
+Use `help` in the serial monitor for the complete command list.
+
 ## Screen Reference
 
 The default screen is the capture/preview screen, matching the basic GoPro rear-screen flow. Swipe right from the preview screen to open Maintenance, and swipe left from Maintenance to return. The battery and Wi-Fi cluster stays visible at the top.

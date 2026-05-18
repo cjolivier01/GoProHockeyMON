@@ -38,6 +38,21 @@ This applies to the `esp32s3_amoled_ui` firmware. The top status banner stays vi
 
 Swipe right from the normal preview screen to open the maintenance screen, including while the remote is trying to connect over BLE or Wi-Fi. Swipe left from maintenance to return. Tap the on-screen `Pair New` button to pair a different GoPro; it is disabled while recording. The saved camera is only replaced after the new pairing succeeds. `Forget Camera` lives on the maintenance screen and requires confirmation; confirming it cancels any current BLE/Wi-Fi connection attempt, clears the saved BLE address and local bond information, and disables boot auto-connect until Pair New succeeds again.
 
+## AMOLED Serial UI Test Commands
+
+The `esp32s3_amoled_ui` target accepts USB serial commands at `115200` for repeatable UI testing:
+
+- `help` - print the command list.
+- `status` - print display, recording, BLE, Wi-Fi, pairing, and saved-camera state.
+- `touch X Y [hold_ms]` - inject a touch at a screen pixel through the LVGL input driver.
+- `swipe X1 Y1 X2 Y2 [duration_ms]` - inject a pixel-level swipe through the LVGL input driver.
+- `lower [single|double]` - simulate the lower/action side button. `lower double` runs the snapshot path.
+- `top [short|long]` - simulate the top-right side button. `top long` stops recording when already recording.
+- `pair`, `connect`, `snapshot`, `record`, and `cancel` - run the same firmware actions used by the UI/buttons.
+- `page home|maintenance`, `fullscreen on|off`, `forget show|confirm|cancel`, and `display on|off` - force specific UI states for testing.
+
+`lower shutdown` intentionally exercises the low-power shutdown path. `lower long` is ignored over serial so an accidental command does not power the device down.
+
 ## Build Targets
 
 - `esp32dev`: radio firmware for the currently attached ESP32 dev board.
@@ -77,9 +92,9 @@ The S3 AMOLED target owns:
 - Normal GoPro HTTP controls
 - JPEG snapshot preview display
 
-## Serial Commands
+## Legacy Radio Serial Commands
 
-Open the serial monitor at `115200`.
+Open the serial monitor at `115200` on the non-AMOLED radio targets.
 
 - `help` - show commands
 - `status` - print current BLE/Wi-Fi/stream state

@@ -153,6 +153,7 @@ void resetBleClientForPairing();
 void runForgetCameraAction();
 void handlePmuActionButton();
 void clearSnapshotPreviewState(const char *message = nullptr);
+void handleSerialCommands();
 
 std::unique_ptr<Arduino_IIC> touch(new Arduino_FT3x68(
     i2cBus, FT3168_DEVICE_ADDRESS, DRIVEBUS_DEFAULT_VALUE, TP_INT,
@@ -161,6 +162,7 @@ std::unique_ptr<Arduino_IIC> touch(new Arduino_FT3x68(
 lv_disp_draw_buf_t drawBuffer;
 lv_disp_drv_t displayDriver;
 lv_indev_drv_t touchDriver;
+lv_indev_t *touchInput = nullptr;
 lv_color_t *drawBuf1 = nullptr;
 lv_color_t *drawBuf2 = nullptr;
 BLEAdvertisedDevice *bestBleDevice = nullptr;
@@ -295,9 +297,27 @@ uint32_t pendingHomeActionDueMs = 0;
 uint32_t lastHomeTouchMs = 0;
 bool expanderActionPinLast = !kExpanderActionPressedLevel;
 bool goproActionBusy = false;
+String serialCommandLine;
+bool serialPointerActive = false;
+lv_point_t serialPointerStart = {0, 0};
+lv_point_t serialPointerEnd = {0, 0};
+uint32_t serialPointerStartMs = 0;
+uint32_t serialPointerDurationMs = 0;
 
 bool pointInRect(int16_t x, int16_t y, int16_t rx, int16_t ry, int16_t rw, int16_t rh) {
   return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+}
+
+lv_point_t ignoredTouchPoint() {
+  return {0, 0};
+}
+
+void consumeLvglPointer(lv_indev_data_t *data) {
+  if (touchInput) {
+    lv_indev_reset(touchInput, nullptr);
+  }
+  data->state = LV_INDEV_STATE_REL;
+  data->point = ignoredTouchPoint();
 }
 
 bool pointInPairButtonRaw(int16_t x, int16_t y) {
@@ -450,6 +470,59 @@ void flushDisplay(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colorP
 
 void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
   uint32_t now = millis();
+  if (serialPointerActive) {
+    uint32_t elapsed = now - serialPointerStartMs;
+    if (elapsed <= serialPointerDurationMs) {
+      lv_point_t point = serialPointerStart;
+      if (serialPointerDurationMs > 0) {
+        point.x = serialPointerStart.x +
+                  ((serialPointerEnd.x - serialPointerStart.x) *
+                   static_cast<int32_t>(elapsed)) /
+                      static_cast<int32_t>(serialPointerDurationMs);
+        point.y = serialPointerStart.y +
+                  ((serialPointerEnd.y - serialPointerStart.y) *
+                   static_cast<int32_t>(elapsed)) /
+                      static_cast<int32_t>(serialPointerDurationMs);
+      }
+      if (!touchActive) {
+        touchStartPoint = serialPointerStart;
+        touchStartMs = serialPointerStartMs;
+        touchActive = true;
+        rawSwipeHandled = false;
+      }
+      lastTouchPoint = point;
+      lastTouchMs = now;
+      if (!rawSwipeHandled &&
+          handleRawPreviewSwipe(touchStartPoint, lastTouchPoint, elapsed)) {
+        rawSwipeHandled = true;
+      }
+      if (rawSwipeHandled) {
+        consumeLvglPointer(data);
+      } else {
+        data->state = LV_INDEV_STATE_PR;
+        data->point = lastTouchPoint;
+      }
+      return;
+    }
+
+    lastTouchPoint = serialPointerEnd;
+    lastTouchMs = now;
+    if (touchActive && !rawSwipeHandled) {
+      rawSwipeHandled = handleRawPreviewSwipe(touchStartPoint, lastTouchPoint, elapsed);
+    }
+    bool consumedByRawSwipe = rawSwipeHandled;
+    touchActive = false;
+    rawSwipeHandled = false;
+    serialPointerActive = false;
+    if (consumedByRawSwipe) {
+      consumeLvglPointer(data);
+    } else {
+      data->state = LV_INDEV_STATE_REL;
+      data->point = lastTouchPoint;
+    }
+    return;
+  }
+
   bool pollTouch = touch->IIC_Interrupt_Flag || touchActive;
   if (pollTouch) {
     bool hadInterrupt = touch->IIC_Interrupt_Flag;
@@ -475,20 +548,30 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
       lastTouchPoint.x = rawX;
       lastTouchPoint.y = rawY;
       lastTouchMs = now;
-      data->state = LV_INDEV_STATE_PR;
-      data->point = lastTouchPoint;
       if (!rawSwipeHandled &&
           handleRawPreviewSwipe(touchStartPoint, lastTouchPoint, now - touchStartMs)) {
         rawSwipeHandled = true;
       }
+      if (rawSwipeHandled) {
+        consumeLvglPointer(data);
+      } else {
+        data->state = LV_INDEV_STATE_PR;
+        data->point = lastTouchPoint;
+      }
     } else {
+      bool consumedByRawSwipe = rawSwipeHandled;
       if (touchActive && !rawSwipeHandled) {
         rawSwipeHandled = handleRawPreviewSwipe(touchStartPoint, lastTouchPoint, now - touchStartMs);
+        consumedByRawSwipe = rawSwipeHandled;
       }
       touchActive = false;
       rawSwipeHandled = false;
-      data->state = LV_INDEV_STATE_REL;
-      data->point = lastTouchPoint;
+      if (consumedByRawSwipe) {
+        consumeLvglPointer(data);
+      } else {
+        data->state = LV_INDEV_STATE_REL;
+        data->point = lastTouchPoint;
+      }
       return;
     }
 
@@ -497,7 +580,7 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
       snprintf(label, sizeof(label), "Touch %d,%d", rawX, rawY);
       lv_label_set_text(statusLabel, label);
     }
-  } else if (now - lastTouchMs < 180) {
+  } else if (touchActive && now - lastTouchMs < 180) {
     data->state = LV_INDEV_STATE_PR;
     data->point = lastTouchPoint;
   } else {
@@ -1234,6 +1317,7 @@ void serviceConnectionUi() {
     lv_obj_clear_flag(pairingPopup, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(pairingPopup);
   }
+  handleSerialCommands();
   lv_timer_handler();
   pollPairingCancelButton();
   handlePmuActionButton();
@@ -4139,6 +4223,312 @@ void handlePairingPopupTimeout() {
     hidePairingPopup();
   }
 }
+
+size_t splitSerialCommand(String line, String tokens[], size_t maxTokens) {
+  line.trim();
+  size_t count = 0;
+  while (line.length() > 0 && count < maxTokens) {
+    int space = line.indexOf(' ');
+    if (space < 0) {
+      tokens[count++] = line;
+      break;
+    }
+    if (space > 0) {
+      tokens[count++] = line.substring(0, space);
+    }
+    line = line.substring(space + 1);
+    line.trim();
+  }
+  for (size_t i = 0; i < count; ++i) {
+    tokens[i].toLowerCase();
+  }
+  return count;
+}
+
+bool parseSerialInt(const String &token, int &value) {
+  if (token.isEmpty()) {
+    return false;
+  }
+  char *end = nullptr;
+  long parsed = strtol(token.c_str(), &end, 10);
+  if (end == token.c_str() || *end != '\0') {
+    return false;
+  }
+  value = static_cast<int>(parsed);
+  return true;
+}
+
+void printSerialHelp() {
+  Serial.println("Serial UI test commands:");
+  Serial.println("  help");
+  Serial.println("  status");
+  Serial.println("  touch X Y [hold_ms]");
+  Serial.println("  swipe X1 Y1 X2 Y2 [duration_ms]");
+  Serial.println("  lower [single|double|shutdown]");
+  Serial.println("  top [short|long]");
+  Serial.println("  pair | cancel | connect | snapshot | record");
+  Serial.println("  page home|maintenance");
+  Serial.println("  fullscreen on|off");
+  Serial.println("  forget show|confirm|cancel");
+  Serial.println("  display on|off");
+}
+
+void printSerialStatus() {
+  String ssid = WiFi.SSID();
+  String ip = WiFi.localIP().toString();
+  Serial.println("SERIAL STATUS");
+  Serial.printf("  displayOn=%u recording=%u fullscreen=%u maintenance=%u previewImage=%u\n",
+                displayOn ? 1 : 0, recording ? 1 : 0, previewFullscreen ? 1 : 0,
+                maintenancePageVisible ? 1 : 0, previewHasImage ? 1 : 0);
+  Serial.printf("  pairingInProgress=%u pairingCancel=%u pendingHome=%u busy=%u\n",
+                pairingInProgress ? 1 : 0, pairingCancelRequested ? 1 : 0,
+                static_cast<unsigned>(pendingHomeAction), goproActionBusy ? 1 : 0);
+  Serial.printf("  bleConnected=%u bound='%s' name='%s'\n",
+                bleConnected ? 1 : 0, boundBleAddress.c_str(), lastBleName.c_str());
+  Serial.printf("  wifiStatus=%u ssid='%s' ip=%s goproSsid='%s' likelyGoPro=%u\n",
+                static_cast<unsigned>(WiFi.status()), ssid.c_str(), ip.c_str(),
+                goProSsid.c_str(), isLikelyGoProWifiConnected() ? 1 : 0);
+  Serial.printf("  capture='%s' setting='%s' actionClicks=%u due=%u\n",
+                captureMode.c_str(), captureSetting.c_str(), actionButtonShortClickCount,
+                actionButtonShortClickDueMs);
+}
+
+void startSerialPointer(int x1, int y1, int x2, int y2, uint32_t durationMs) {
+  if (x1 < 0 || x1 >= LCD_WIDTH || x2 < 0 || x2 >= LCD_WIDTH ||
+      y1 < 0 || y1 >= LCD_HEIGHT || y2 < 0 || y2 >= LCD_HEIGHT) {
+    Serial.printf("Serial pointer rejected: %d,%d -> %d,%d outside %dx%d\n",
+                  x1, y1, x2, y2, LCD_WIDTH, LCD_HEIGHT);
+    return;
+  }
+  if (durationMs < 50) {
+    durationMs = 50;
+  } else if (durationMs > 2500) {
+    durationMs = 2500;
+  }
+  serialPointerStart = {static_cast<lv_coord_t>(x1), static_cast<lv_coord_t>(y1)};
+  serialPointerEnd = {static_cast<lv_coord_t>(x2), static_cast<lv_coord_t>(y2)};
+  serialPointerStartMs = millis();
+  serialPointerDurationMs = durationMs;
+  serialPointerActive = true;
+  touchActive = false;
+  rawSwipeHandled = false;
+  Serial.printf("Serial pointer: %d,%d -> %d,%d over %u ms\n",
+                x1, y1, x2, y2, durationMs);
+}
+
+bool serialActionBlocked(const String &command) {
+  if (!goproActionBusy) {
+    return false;
+  }
+  Serial.print("Serial command ignored while GoPro action is busy: ");
+  Serial.println(command);
+  return true;
+}
+
+void handleSerialCommand(String line) {
+  line.trim();
+  if (line.isEmpty()) {
+    return;
+  }
+
+  String tokens[8];
+  size_t count = splitSerialCommand(line, tokens, 8);
+  if (count == 0) {
+    return;
+  }
+
+  const String &cmd = tokens[0];
+  if (cmd == "help" || cmd == "?") {
+    printSerialHelp();
+    return;
+  }
+  if (cmd == "status") {
+    printSerialStatus();
+    return;
+  }
+  if (cmd == "touch") {
+    if (count < 3) {
+      Serial.println("usage: touch X Y [hold_ms]");
+      return;
+    }
+    int x = 0;
+    int y = 0;
+    int hold = 120;
+    if (!parseSerialInt(tokens[1], x) || !parseSerialInt(tokens[2], y) ||
+        (count >= 4 && !parseSerialInt(tokens[3], hold))) {
+      Serial.println("touch requires numeric coordinates");
+      return;
+    }
+    startSerialPointer(x, y, x, y, static_cast<uint32_t>(hold));
+    return;
+  }
+  if (cmd == "swipe") {
+    if (count < 5) {
+      Serial.println("usage: swipe X1 Y1 X2 Y2 [duration_ms]");
+      return;
+    }
+    int x1 = 0;
+    int y1 = 0;
+    int x2 = 0;
+    int y2 = 0;
+    int duration = 350;
+    if (!parseSerialInt(tokens[1], x1) || !parseSerialInt(tokens[2], y1) ||
+        !parseSerialInt(tokens[3], x2) || !parseSerialInt(tokens[4], y2) ||
+        (count >= 6 && !parseSerialInt(tokens[5], duration))) {
+      Serial.println("swipe requires numeric coordinates");
+      return;
+    }
+    startSerialPointer(x1, y1, x2, y2, static_cast<uint32_t>(duration));
+    return;
+  }
+  if (cmd == "lower") {
+    String mode = count >= 2 ? tokens[1] : "single";
+    if (mode == "single" || mode == "short") {
+      Serial.println("Serial lower single");
+      handleLowerActionShortClick("Serial lower");
+    } else if (mode == "double") {
+      Serial.println("Serial lower double");
+      handleLowerActionShortClick("Serial lower");
+      handleLowerActionShortClick("Serial lower");
+    } else if (mode == "long") {
+      Serial.println("Serial lower long ignored; use 'lower shutdown' to test shutdown");
+    } else if (mode == "shutdown") {
+      handleLowerActionLongPress("Serial lower");
+    } else {
+      Serial.println("usage: lower [single|double|shutdown]");
+    }
+    return;
+  }
+  if (cmd == "top") {
+    String mode = count >= 2 ? tokens[1] : "short";
+    if (!displayOn) {
+      Serial.println("Serial top press: display wake");
+      setDisplayOn(true);
+    }
+    if (mode == "short" || mode == "single") {
+      handleBootButtonRelease(kActionButtonMinPressMs + 40);
+    } else if (mode == "long") {
+      handleBootButtonRelease(kBootLongPressMs + 100);
+    } else {
+      Serial.println("usage: top [short|long]");
+    }
+    return;
+  }
+  if (cmd == "cancel") {
+    if (pairingUiActive()) {
+      requestPairingCancel();
+    } else if (goproActionBusy) {
+      requestConnectionCancel("Serial cancel");
+    } else {
+      hidePairingPopup();
+      hideForgetConfirm();
+      setAction("Serial cancel");
+    }
+    return;
+  }
+  if (cmd == "pair") {
+    if (!serialActionBlocked(cmd)) {
+      queuePairNewAction("serial");
+    }
+    return;
+  }
+  if (cmd == "connect") {
+    if (!serialActionBlocked(cmd)) {
+      runConnectAction();
+    }
+    return;
+  }
+  if (cmd == "snapshot") {
+    if (!serialActionBlocked(cmd)) {
+      runSnapshotAction();
+    }
+    return;
+  }
+  if (cmd == "record") {
+    if (!serialActionBlocked(cmd)) {
+      runRecordAction();
+    }
+    return;
+  }
+  if (cmd == "page") {
+    if (count < 2) {
+      Serial.println("usage: page home|maintenance");
+      return;
+    }
+    if (tokens[1] == "home") {
+      setMaintenancePageVisible(false);
+    } else if (tokens[1] == "maintenance") {
+      setMaintenancePageVisible(true);
+    } else {
+      Serial.println("usage: page home|maintenance");
+    }
+    return;
+  }
+  if (cmd == "fullscreen") {
+    if (count < 2) {
+      Serial.println("usage: fullscreen on|off");
+      return;
+    }
+    if (tokens[1] == "on") {
+      setPreviewFullscreen(true);
+    } else if (tokens[1] == "off") {
+      setPreviewFullscreen(false);
+    } else {
+      Serial.println("usage: fullscreen on|off");
+    }
+    return;
+  }
+  if (cmd == "forget") {
+    String mode = count >= 2 ? tokens[1] : "show";
+    if (mode == "show") {
+      showForgetConfirm();
+    } else if (mode == "confirm") {
+      onForgetConfirm(nullptr);
+    } else if (mode == "cancel") {
+      onForgetCancel(nullptr);
+    } else {
+      Serial.println("usage: forget show|confirm|cancel");
+    }
+    return;
+  }
+  if (cmd == "display") {
+    if (count < 2) {
+      Serial.println("usage: display on|off");
+      return;
+    }
+    if (tokens[1] == "on") {
+      setDisplayOn(true);
+    } else if (tokens[1] == "off") {
+      setDisplayOn(false);
+    } else {
+      Serial.println("usage: display on|off");
+    }
+    return;
+  }
+
+  Serial.print("Unknown serial command: ");
+  Serial.println(line);
+  printSerialHelp();
+}
+
+void handleSerialCommands() {
+  while (Serial.available() > 0) {
+    char ch = static_cast<char>(Serial.read());
+    if (ch == '\r') {
+      continue;
+    }
+    if (ch == '\n') {
+      String line = serialCommandLine;
+      serialCommandLine = "";
+      handleSerialCommand(line);
+    } else if (serialCommandLine.length() < 160) {
+      serialCommandLine += ch;
+    } else {
+      serialCommandLine = "";
+      Serial.println("Serial command too long; dropped");
+    }
+  }
+}
 }  // namespace
 
 void setup() {
@@ -4203,7 +4593,7 @@ void setup() {
   lv_indev_drv_init(&touchDriver);
   touchDriver.type = LV_INDEV_TYPE_POINTER;
   touchDriver.read_cb = readTouch;
-  lv_indev_drv_register(&touchDriver);
+  touchInput = lv_indev_drv_register(&touchDriver);
 
   const esp_timer_create_args_t tickArgs = {
       .callback = lvTick,
@@ -4232,6 +4622,7 @@ void setup() {
 }
 
 void loop() {
+  handleSerialCommands();
   lv_timer_handler();
   handlePendingHomeAction();
   handleBootButton();
