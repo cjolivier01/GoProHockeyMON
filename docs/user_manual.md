@@ -51,7 +51,7 @@ Use `help` in the serial monitor for the complete command list.
 
 ## Screen Reference
 
-The default screen is the capture/preview screen, matching the basic GoPro rear-screen flow. Swipe right from the preview screen to open Maintenance, and swipe left from Maintenance to return. The battery and Wi-Fi cluster stays visible at the top.
+The default screen is the capture/preview screen, matching the basic GoPro rear-screen flow. Swipe right from the preview screen to open Maintenance, and swipe left or single-click the lower side button from Maintenance to return. The maintenance panel follows the finger while swiping and snaps open or closed at release. The battery and Wi-Fi cluster stays visible at the top.
 
 ### Capture Screen
 
@@ -113,7 +113,7 @@ The board has two side buttons:
 
 - Top-right side button short press: start recording.
 - Top-right side button long press while recording: stop recording.
-- Lower side button single click: blank/wake the display, or exit fullscreen preview.
+- Lower side button single click: blank/wake the display, exit fullscreen preview, or return from Maintenance to the capture screen.
 - Lower side button double click: take one JPEG snapshot, download/display it fullscreen, then delete it from the GoPro.
 - Lower side button long press: enter low-power shutdown through the AXP2101 PMU.
 - Lower side button during `Pair New`: cancel the active pairing attempt without replacing the saved camera binding.

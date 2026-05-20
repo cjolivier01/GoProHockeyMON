@@ -34,9 +34,9 @@ This applies to the `esp32s3_amoled_ui` firmware. The top status banner stays vi
 | Recording | Long press stops recording; short press only shows a hold-to-stop reminder | Single click blanks/wakes the display; double click is ignored because snapshots and Pair New are disabled while recording; long press enters low-power shutdown |
 | Pair New popup / pairing scan | No recording action | Cancel Pair New and reconnect the previously saved camera |
 | Display sleeping | Start recording when idle; long press stops if already recording | Single click wakes the display |
-| Maintenance screen | Same as current recording state | Same as current display/preview state |
+| Maintenance screen | Same as current recording state | Single click returns to the normal preview screen; long press enters low-power shutdown |
 
-Swipe right from the normal preview screen to open the maintenance screen, including while the remote is trying to connect over BLE or Wi-Fi. Swipe left from maintenance to return. Tap the on-screen `Pair New` button to pair a different GoPro; it is disabled while recording. The saved camera is only replaced after the new pairing succeeds. `Forget Camera` lives on the maintenance screen and requires confirmation; confirming it cancels any current BLE/Wi-Fi connection attempt, clears the saved BLE address and local bond information, and disables boot auto-connect until Pair New succeeds again.
+Swipe right from the normal preview screen to open the maintenance screen, including while the remote is trying to connect over BLE or Wi-Fi. The maintenance screen follows the finger while swiping and snaps open/closed at release. Swipe left or single-click the lower/action side button from maintenance to return. Tap the on-screen `Pair New` button to pair a different GoPro; it is disabled while recording. The saved camera is only replaced after the new pairing succeeds. `Forget Camera` lives on the maintenance screen and requires confirmation; confirming it cancels any current BLE/Wi-Fi connection attempt, clears the saved BLE address and local bond information, and disables boot auto-connect until Pair New succeeds again.
 
 ## AMOLED Serial UI Test Commands
 
