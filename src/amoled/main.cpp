@@ -318,7 +318,6 @@ bool pairingInProgress = false;
 bool pairingCancelRequested = false;
 bool connectionCancelRequested = false;
 bool pairingLastCancelled = false;
-bool deferBleBindingSave = false;
 bool connectRetryAvailable = false;
 bool homeCameraConnected = false;
 bool selectedBleFallback = false;
@@ -469,6 +468,10 @@ void clearBleScanDevices() {
   bestBleDevice = nullptr;
   delete fallbackBleDevice;
   fallbackBleDevice = nullptr;
+}
+
+bool happenedRecently(uint32_t timestampMs, uint32_t windowMs) {
+  return timestampMs != 0 && millis() - timestampMs < windowMs;
 }
 
 bool exitFullscreenPreview(const char *source) {
@@ -1032,6 +1035,34 @@ void adoptPreviewJpegCache(uint8_t *buffer, size_t length) {
   previewJpegCacheLen = length;
 }
 
+bool shrinkAndAdoptPreviewJpegCache(uint8_t *&buffer, size_t length) {
+  if (buffer == nullptr || length == 0) {
+    return false;
+  }
+
+  uint8_t *cacheBuffer = buffer;
+  if (length < kMaxJpegBytes) {
+    uint8_t *rightSized = static_cast<uint8_t *>(
+        heap_caps_malloc(length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (rightSized == nullptr) {
+      rightSized = static_cast<uint8_t *>(heap_caps_malloc(length, MALLOC_CAP_8BIT));
+    }
+    if (rightSized != nullptr) {
+      memcpy(rightSized, buffer, length);
+      heap_caps_free(buffer);
+      cacheBuffer = rightSized;
+      Serial.printf("JPEG cache right-sized: %u bytes\n", static_cast<unsigned>(length));
+    } else {
+      Serial.printf("JPEG cache right-size allocation failed; keeping %u byte buffer\n",
+                    static_cast<unsigned>(kMaxJpegBytes));
+    }
+  }
+
+  adoptPreviewJpegCache(cacheBuffer, length);
+  buffer = nullptr;
+  return true;
+}
+
 bool redrawCachedPreviewJpeg();
 
 void drawFullscreenSwipeHandle() {
@@ -1313,12 +1344,12 @@ void decodeH264AccessUnit() {
       h264StreamUnsupported = true;
       if (!h264UnsupportedNotified) {
         h264UnsupportedNotified = true;
-        setAction("Preview connected; decoder needs P4/host");
+        setAction("Preview connected; host decoder required");
       }
     }
     lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
     lv_label_set_text(previewLabel, h264StreamUnsupported
-                                        ? "Stream connected\nP4/host decoder required"
+                                        ? "Stream connected\nHost decoder required"
                                         : "Trying H.264 decode");
   }
   h264AccessUnitLen = 0;
@@ -1487,13 +1518,11 @@ void loadCameraBinding() {
   }
 }
 
-void saveCameraBinding(BLEAdvertisedDevice &device) {
-  String address = device.getAddress().toString().c_str();
+void saveCameraBindingValues(String address, const String &name) {
   address.toLowerCase();
   if (address.isEmpty()) {
     return;
   }
-  String name = device.haveName() ? String(device.getName().c_str()) : "";
   bool changed = address != boundBleAddress ||
                  (!name.isEmpty() && name != boundBleName) ||
                  (!goProSsid.isEmpty() && goProSsid != boundGoProSsid);
@@ -1525,6 +1554,12 @@ void saveCameraBinding(BLEAdvertisedDevice &device) {
   } else {
     Serial.println(boundGoProSsid);
   }
+}
+
+void saveCameraBinding(BLEAdvertisedDevice &device) {
+  String address = device.getAddress().toString().c_str();
+  String name = device.haveName() ? String(device.getName().c_str()) : "";
+  saveCameraBindingValues(address, name);
 }
 
 int clearBleBondStore() {
@@ -2141,6 +2176,7 @@ bool connectBle() {
     }
     delete bleClient;
     bleClient = nullptr;
+    clearBleScanDevices();
     lv_label_set_text(cameraLabel, "Camera: BLE connect failed");
     if (selectedBleFallback) {
       setAction("No GoPro BLE advertisement found");
@@ -2224,10 +2260,6 @@ bool readGoProWifiCredentials() {
     setAction("GoPro WiFi credentials empty");
     return false;
   }
-  if (!deferBleBindingSave && bestBleDevice != nullptr) {
-    saveCameraBinding(*bestBleDevice);
-  }
-
   String label = "Camera AP: ";
   label += goProSsid;
   lv_label_set_text(cameraLabel, label.c_str());
@@ -2344,7 +2376,6 @@ bool sendCameraManagementCommand(const uint8_t *payload, size_t length) {
 
 bool pairGoPro() {
   bool previousAllowAny = allowAnyCameraScan;
-  bool previousDeferSave = deferBleBindingSave;
   String previousBoundBleAddress = boundBleAddress;
   String previousBoundBleName = boundBleName;
   String previousBoundGoProSsid = boundGoProSsid;
@@ -2354,7 +2385,6 @@ bool pairGoPro() {
   pairingInProgress = true;
   pairingCancelRequested = false;
   pairingLastCancelled = false;
-  deferBleBindingSave = true;
   showPairingPopup("Pairing New Camera\n\nDisconnecting current camera...");
   disconnectCurrentCameraForPairing();
   resetBleClientForPairing();
@@ -2418,7 +2448,6 @@ bool pairGoPro() {
   pairingInProgress = false;
   pairingLastCancelled = pairingCancelRequested || connectionCancelRequested;
   pairingCancelRequested = false;
-  deferBleBindingSave = previousDeferSave;
   return ok;
 }
 
@@ -2591,6 +2620,13 @@ bool connectGoProWifiFromBle() {
   if (!readGoProWifiCredentials()) {
     return false;
   }
+  String verifiedBleAddress;
+  String verifiedBleName;
+  if (bestBleDevice != nullptr) {
+    verifiedBleAddress = bestBleDevice->getAddress().toString().c_str();
+    verifiedBleAddress.toLowerCase();
+    verifiedBleName = bestBleDevice->haveName() ? String(bestBleDevice->getName().c_str()) : "";
+  }
   if (operationCancelled()) {
     return false;
   }
@@ -2633,6 +2669,9 @@ bool connectGoProWifiFromBle() {
   text += WiFi.localIP().toString();
   lv_label_set_text(wifiLabel, text.c_str());
   lv_label_set_text(statusLabel, "GoPro WiFi connected");
+  if (!verifiedBleAddress.isEmpty()) {
+    saveCameraBindingValues(verifiedBleAddress, verifiedBleName);
+  }
   setHomeCameraConnected(true);
   setAction("Connected to GoPro WiFi");
   syncCameraState();
@@ -3576,7 +3615,7 @@ void pollLivePreviewUdp() {
   uint32_t kbps = (previewBytesThisWindow * 8UL) / elapsed;
   lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
   if (h264StreamUnsupported) {
-    lv_label_set_text(previewLabel, "Stream connected\nP4/host decoder required");
+    lv_label_set_text(previewLabel, "Stream connected\nHost decoder required");
   } else {
     const char *label = previewPacketsThisWindow > 0
                             ? "GoPro preview\ntrying decoder"
@@ -3907,8 +3946,11 @@ bool fetchSnapshotPreview() {
     }
   }
   if (drawn) {
-    adoptPreviewJpegCache(jpegBuffer, jpegLength);
-    jpegBuffer = nullptr;
+    if (!shrinkAndAdoptPreviewJpegCache(jpegBuffer, jpegLength)) {
+      heap_caps_free(jpegBuffer);
+      jpegBuffer = nullptr;
+      drawn = false;
+    }
   } else {
     heap_caps_free(jpegBuffer);
     jpegBuffer = nullptr;
@@ -4699,8 +4741,8 @@ void clearDuplicatePmuActionIrq(const char *source) {
   bool shortPress = power.isPekeyShortPressIrq();
   bool longPress = power.isPekeyLongPressIrq();
   power.clearIrqStatus();
-  lastPmuActionHandledMs = millis();
   if (shortPress || longPress) {
+    lastPmuActionHandledMs = millis();
     Serial.printf("Cleared duplicate PMU action IRQ after %s short=%u long=%u\n",
                   source == nullptr ? "expander button" : source,
                   shortPress ? 1 : 0, longPress ? 1 : 0);
@@ -4714,7 +4756,7 @@ void handleActionButtonRelease(uint32_t durationMs) {
   if (durationMs < kActionButtonMinPressMs) {
     return;
   }
-  if (millis() - lastPmuActionHandledMs < kPmuDuplicateSuppressMs) {
+  if (happenedRecently(lastPmuActionHandledMs, kPmuDuplicateSuppressMs)) {
     Serial.println("Expander lower/action release ignored after PMU event");
     return;
   }
@@ -4803,7 +4845,7 @@ void handleActionButtonHold() {
     return;
   }
   actionButtonLongHandled = true;
-  if (millis() - lastPmuActionHandledMs < kPmuDuplicateSuppressMs) {
+  if (happenedRecently(lastPmuActionHandledMs, kPmuDuplicateSuppressMs)) {
     Serial.println("Expander lower/action hold ignored after PMU event");
     return;
   }
@@ -4832,7 +4874,7 @@ void handlePmuActionButton() {
     Serial.println("PMU lower/action long IRQ ignored; PMU handles hardware shutdown");
     return;
   }
-  if (millis() - lastExpanderActionHandledMs < kPmuDuplicateSuppressMs) {
+  if (happenedRecently(lastExpanderActionHandledMs, kPmuDuplicateSuppressMs)) {
     Serial.println("PMU lower/action IRQ ignored after expander event");
     return;
   }

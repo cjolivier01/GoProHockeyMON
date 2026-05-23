@@ -72,13 +72,7 @@ make snapshot        # run snapshot path over serial
 make lower-double    # simulate lower side-button double click
 ```
 
-`make ports` lists visible serial devices and prints the preferred ESP32 port. Override auto-detection with `PORT=/dev/ttyACM0` if needed, and override the selected PlatformIO environment with `ENV=...`.
-
-Build everything directly through PlatformIO:
-
-```sh
-pio run
-```
+`make ports` lists visible serial devices and prints the preferred ESP32 port. Override auto-detection with `PORT=/dev/ttyACM0` if needed, and override the selected PlatformIO environment with `ENV=...`. `make build-all` builds the active firmware matrix.
 
 Build one environment:
 
@@ -87,8 +81,6 @@ pio run -e esp32s3_radio
 pio run -e esp32s3_amoled_ui
 pio run -e ui_esp32dev_sim
 ```
-
-Legacy ESP32-P4 wiring diagrams were removed from the docs because the current product path is the single-board ESP32-S3 AMOLED remote.
 
 ## S3 AMOLED Architecture
 

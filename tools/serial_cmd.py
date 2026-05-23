@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Send one firmware serial command without toggling USB reset lines."""
+"""Send one firmware serial command using a low-level termios tty open."""
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import os
 import select
 import sys
@@ -37,6 +38,18 @@ def configure_port(fd: int, baud: int) -> None:
     attrs[2] &= ~termios.HUPCL
     attrs[3] &= ~termios.ECHO
     termios.tcsetattr(fd, termios.TCSANOW, attrs)
+
+
+def clear_modem_reset_lines(fd: int) -> None:
+    mask = 0
+    for name in ("TIOCM_DTR", "TIOCM_RTS"):
+        mask |= getattr(termios, name, 0)
+    clear_ioctl = getattr(termios, "TIOCMBIC", None)
+    if mask and clear_ioctl is not None:
+        try:
+            fcntl.ioctl(fd, clear_ioctl, mask.to_bytes(4, sys.byteorder))
+        except OSError:
+            pass
 
 
 def read_available(fd: int, max_seconds: float, quiet_after: float, emit: bool) -> bool:
@@ -84,6 +97,7 @@ def main() -> int:
     fd = os.open(args.port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
     try:
         configure_port(fd, args.baud)
+        clear_modem_reset_lines(fd)
         termios.tcflush(fd, termios.TCIFLUSH)
         drain_until_quiet(fd, args.pre_drain, args.quiet_after)
         os.write(fd, (args.command + "\n").encode("utf-8"))

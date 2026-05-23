@@ -7,6 +7,7 @@ PIO_BIN := $(shell command -v $(PIO) 2>/dev/null)
 PIO_SHEBANG := $(shell if [ -n "$(PIO_BIN)" ]; then sed -n '1s/^#!//p' "$(PIO_BIN)" 2>/dev/null; fi)
 PIO_PYTHON ?= $(if $(PIO_SHEBANG),$(PIO_SHEBANG),python3)
 ENV ?= esp32s3_amoled_ui
+ACTIVE_ENVS ?= esp32dev esp32s3_radio esp32s3_amoled_ui ui_esp32dev_sim
 DETECTED_PORT := $(shell "$(PIO_PYTHON)" "$(TOPDIR)/tools/find_esp32_port.py" 2>/dev/null)
 PORT ?= $(DETECTED_PORT)
 BAUD ?= 115200
@@ -62,7 +63,7 @@ compiledb:
 	$(PIO) run -e $(ENV) -t compiledb $(PIO_ARGS)
 
 build-all:
-	$(PIO) run $(PIO_ARGS)
+	$(PIO) run $(foreach env,$(ACTIVE_ENVS),-e $(env)) $(PIO_ARGS)
 
 radio:
 	$(PIO) run -e esp32s3_radio $(PIO_ARGS)
@@ -134,7 +135,7 @@ print_targets:
 		'' \
 		'Other Configured Environments' \
 		'-----------------------------' \
-		'build-all       Build every PlatformIO environment.' \
+		'build-all       Build active firmware environments.' \
 		'radio           Build esp32s3_radio.' \
 		'sim             Build ui_esp32dev_sim.' \
 		'ble-dump        Build esp32s3_ble_cred_dump.' \
@@ -142,6 +143,7 @@ print_targets:
 		'Variables' \
 		'---------' \
 		'ENV             PlatformIO environment (default: esp32s3_amoled_ui).' \
+		'ACTIVE_ENVS     Environments used by build-all.' \
 		'PORT            Serial/upload port; auto-detected when unset.' \
 		'BAUD            Monitor/serial baud rate (default: 115200).' \
 		'PIO             PlatformIO executable (default: pio).' \
