@@ -554,8 +554,23 @@ bool redrawCachedPreviewJpeg() {
   return ok;
 }
 
-bool downloadAndDrawPreviewJpeg(const String &path, uint8_t *buffer, size_t capacity,
-                                size_t &jpegLength) {
+bool canOpenPreviewJpeg(uint8_t *buffer, size_t length) {
+  if (!jpeg.openRAM(buffer, static_cast<int>(length), drawJpegBlock)) {
+    Serial.printf("JPEG open failed: len=%u header=%02x %02x %02x %02x error=%d\n",
+                  static_cast<unsigned>(length),
+                  length > 0 ? buffer[0] : 0,
+                  length > 1 ? buffer[1] : 0,
+                  length > 2 ? buffer[2] : 0,
+                  length > 3 ? buffer[3] : 0,
+                  jpeg.getLastError());
+    return false;
+  }
+  jpeg.close();
+  return true;
+}
+
+bool downloadPreviewJpeg(const String &path, uint8_t *buffer, size_t capacity,
+                         size_t &jpegLength) {
   jpegLength = 0;
   if (!httpGetGoProBinary(path, buffer, capacity, jpegLength)) {
     return false;
@@ -574,8 +589,7 @@ bool downloadAndDrawPreviewJpeg(const String &path, uint8_t *buffer, size_t capa
   setObjHidden(actionLabel, true);
   setObjHidden(recordingOverlay, true);
   lv_timer_handler();
-  bool ok = drawJpegPreview(buffer, jpegLength);
-  return ok;
+  return canOpenPreviewJpeg(buffer, jpegLength);
 }
 
 bool syncVideoFramingForSnapshot() {
@@ -720,12 +734,12 @@ bool fetchSnapshotPreview() {
   size_t jpegLength = 0;
   String screenPath = "/gopro/media/screennail?path=" + encodedPath;
   bool downloaded = false;
-  bool drawn = downloadAndDrawPreviewJpeg(screenPath, jpegBuffer, kMaxJpegBytes, jpegLength);
+  bool drawn = downloadPreviewJpeg(screenPath, jpegBuffer, kMaxJpegBytes, jpegLength);
   downloaded = jpegLength >= 1024;
   if (!drawn) {
     String thumbPath = "/gopro/media/thumbnail?path=" + encodedPath;
     size_t thumbLength = 0;
-    drawn = downloadAndDrawPreviewJpeg(thumbPath, jpegBuffer, kMaxJpegBytes, thumbLength);
+    drawn = downloadPreviewJpeg(thumbPath, jpegBuffer, kMaxJpegBytes, thumbLength);
     downloaded = downloaded || thumbLength >= 1024;
     if (drawn) {
       jpegLength = thumbLength;
@@ -764,8 +778,16 @@ bool fetchSnapshotPreview() {
     }
     lv_timer_handler();
     if (previewFullscreen && previewJpegCache && previewJpegCacheLen > 0) {
-      redrawCachedPreviewJpeg();
-      schedulePreviewRedraw(60);
+      drawn = redrawCachedPreviewJpeg();
+      if (!drawn) {
+        previewHasImage = false;
+        if (previewLabel) {
+          lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
+          lv_label_set_text(previewLabel, "JPEG decode failed");
+        }
+        setAction("JPEG decode failed");
+        return false;
+      }
     }
     return true;
   }
@@ -788,6 +810,7 @@ void onPair(lv_event_t *event) {
     return;
   }
   if (event && lv_event_get_target(event) == pairButton && connectRetryAvailable) {
+    setAction("Scanning again");
     runConnectAction();
     return;
   }

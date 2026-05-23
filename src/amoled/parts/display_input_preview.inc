@@ -103,6 +103,9 @@ void setConnectRetryAvailable(bool available) {
     homeCameraConnected = false;
   }
   if (pairButton) {
+    if (!recording) {
+      lv_obj_clear_state(pairButton, LV_STATE_DISABLED);
+    }
     lv_obj_add_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_bg_color(pairButton, lv_color_hex(0x2c7be5), 0);
   }
@@ -122,6 +125,9 @@ void setHomeCameraConnected(bool connected) {
       lv_obj_clear_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_set_style_bg_color(pairButton, lv_color_hex(0x136f46), 0);
     } else {
+      if (!recording) {
+        lv_obj_clear_state(pairButton, LV_STATE_DISABLED);
+      }
       lv_obj_add_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_set_style_bg_color(pairButton, lv_color_hex(0x2c7be5), 0);
     }
@@ -348,9 +354,6 @@ void flushDisplay(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colorP
   gfx->draw16bitRGBBitmap(area->x1, area->y1,
                           reinterpret_cast<uint16_t *>(&colorP->full), w, h);
 #endif
-  if (areaIntersectsPreview(area)) {
-    schedulePreviewRedraw();
-  }
   lv_disp_flush_ready(disp);
 }
 
@@ -489,9 +492,18 @@ void styleButton(lv_obj_t *button, lv_color_t color) {
   lv_obj_set_style_radius(button, 8, 0);
   lv_obj_set_style_bg_color(button, color, 0);
   lv_obj_set_style_bg_opa(button, LV_OPA_COVER, 0);
+  lv_color_t pressed = lv_color_make(
+      static_cast<uint8_t>((lv_color_to32(color) >> 16 & 0xff) * 2 / 3),
+      static_cast<uint8_t>((lv_color_to32(color) >> 8 & 0xff) * 2 / 3),
+      static_cast<uint8_t>((lv_color_to32(color) & 0xff) * 2 / 3));
+  lv_obj_set_style_bg_color(button, pressed, LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(button, LV_OPA_COVER, LV_STATE_PRESSED);
   lv_obj_set_style_border_width(button, 0, 0);
   lv_obj_set_style_shadow_width(button, 10, 0);
   lv_obj_set_style_shadow_opa(button, LV_OPA_20, 0);
+  lv_obj_set_style_shadow_width(button, 2, LV_STATE_PRESSED);
+  lv_obj_set_style_shadow_opa(button, LV_OPA_10, LV_STATE_PRESSED);
+  lv_obj_set_style_translate_y(button, 2, LV_STATE_PRESSED);
 }
 
 const lv_font_t *fontForSize(int size) {
@@ -792,39 +804,6 @@ bool shrinkAndAdoptPreviewJpegCache(uint8_t *&buffer, size_t length) {
 }
 
 bool redrawCachedPreviewJpeg();
-
-bool areaIntersectsPreview(const lv_area_t *area) {
-  if (area == nullptr || !previewHasImage || !previewFullscreen || !previewJpegCache ||
-      previewJpegCacheLen == 0 || redrawingCachedPreview) {
-    return false;
-  }
-  int16_t previewX1 = 0;
-  int16_t previewY1 = kTopBarH;
-  int16_t previewX2 = LCD_WIDTH - 1;
-  int16_t previewY2 = LCD_HEIGHT - 1;
-  return area->x1 <= previewX2 && area->x2 >= previewX1 &&
-         area->y1 <= previewY2 && area->y2 >= previewY1;
-}
-
-void schedulePreviewRedraw(uint32_t delayMs) {
-  if (!previewHasImage || !previewFullscreen || !previewJpegCache || previewJpegCacheLen == 0 ||
-      redrawingCachedPreview) {
-    return;
-  }
-  previewRedrawPending = true;
-  previewRedrawDueMs = millis() + delayMs;
-}
-
-void servicePreviewRedraw() {
-  if (!previewRedrawPending) {
-    return;
-  }
-  if (static_cast<int32_t>(millis() - previewRedrawDueMs) < 0) {
-    return;
-  }
-  previewRedrawPending = false;
-  redrawCachedPreviewJpeg();
-}
 
 void drawFullscreenSwipeHandle() {
   if (!previewFullscreen) {
