@@ -34,6 +34,7 @@ Relevant Open GoPro capabilities:
 - Start/stop capture over BLE, Wi-Fi, or USB.
 - Wake/connect over BLE.
 - Stream video and manage media over Wi-Fi/USB.
+- Retrieve media screennails/thumbnails over Wi-Fi/HTTP for photo media.
 
 The BLE documentation lists the major configurable setting IDs, including:
 
@@ -74,5 +75,6 @@ Current firmware status:
 - `Sync Presets` calls `/gopro/camera/presets/get?include-hidden=1` to refresh the camera's current preset tree.
 - Individual setting buttons open a dynamic option sheet. The firmware queries `/gopro/camera/setting?setting=<id>` for the current option, intentionally probes `/gopro/camera/setting?setting=<id>&option=65535` to let the camera return its currently valid options, and then sends `/gopro/camera/setting?setting=<id>&option=<option>` for the selected option.
 - If the camera cannot return an option list, the sheet falls back to common documented option IDs for that setting so the UI remains usable while still reporting command success/failure from the camera.
+- Snapshot preview uses the photo screennail endpoint because the S3 does not decode the H.264 preview stream. Before taking the temporary photo, the firmware switches to Video, reads `/gopro/camera/state`, then reads `/gopro/camera/presets/get` with `include-hidden` fallbacks and applies the active Video preset's `settingArray` for aspect/framing, resolution, digital lens, HyperSmooth, horizon, and Max Lens settings. The downloaded photo screennail is then center-cropped to that target video frame and an estimated stabilization crop before being drawn. Open GoPro exposes the relevant settings but not an exact per-frame electronic-stabilization crop rectangle, so fast camera motion or Auto Boost can still differ slightly from the recorded frame.
 
 This is intentional because Open GoPro warns that setting availability and legal option combinations vary by camera model, firmware, current preset, and whether the camera is encoding.

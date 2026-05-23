@@ -90,6 +90,7 @@ constexpr uint16_t kPreviewStreamPort = 8554;
 constexpr uint32_t kLivePreviewStatsMs = 1000;
 constexpr size_t kTsPacketBytes = 188;
 constexpr uint16_t kGoProVideoPid = 0x1011;
+constexpr int32_t kGoProVideoPresetGroup = 1000;
 constexpr size_t kMaxH264AccessUnit = 512 * 1024;
 constexpr uint32_t kMinDecodeIntervalMs = 1000;
 constexpr size_t kMaxJpegBytes = 512 * 1024;
@@ -168,6 +169,7 @@ void clearSnapshotPreviewState(const char *message = nullptr);
 void clearPreviewJpegCache();
 void releaseH264PreviewResources(const char *reason = nullptr);
 void handleSerialCommands();
+void clearDuplicatePmuActionIrq(const char *source);
 
 std::unique_ptr<Arduino_IIC> touch(new Arduino_FT3x68(
     i2cBus, FT3168_DEVICE_ADDRESS, DRIVEBUS_DEFAULT_VALUE, TP_INT,
@@ -193,6 +195,20 @@ struct SettingDefinition {
 struct SettingValue {
   uint16_t id;
   int option;
+};
+
+struct SnapshotVideoFraming {
+  bool valid = false;
+  uint16_t aspectW = 16;
+  uint16_t aspectH = 9;
+  uint8_t visiblePercent = 100;
+  int aspectSettingId = -1;
+  int aspectOption = -1;
+  int resolutionOption = -1;
+  int lensOption = -1;
+  int hypersmoothOption = -1;
+  int horizonOption = -1;
+  int maxLensOption = -1;
 };
 
 enum class PendingHomeAction : uint8_t {
@@ -291,8 +307,13 @@ int jpegDrawW = kPreviewW;
 int jpegDrawH = kPreviewH;
 int jpegDecodeW = 1;
 int jpegDecodeH = 1;
+int jpegCropX = 0;
+int jpegCropY = 0;
+int jpegCropW = 1;
+int jpegCropH = 1;
 uint8_t *previewJpegCache = nullptr;
 size_t previewJpegCacheLen = 0;
+SnapshotVideoFraming snapshotVideoFraming;
 bool redrawingCachedPreview = false;
 bool bootLast = HIGH;
 bool bootStable = HIGH;
@@ -1825,6 +1846,22 @@ int getStoredSettingValue(uint16_t id) {
   return -1;
 }
 
+int firstStoredSettingValue(const uint16_t *ids, size_t count, int *matchedId = nullptr) {
+  for (size_t i = 0; i < count; ++i) {
+    int value = getStoredSettingValue(ids[i]);
+    if (value >= 0) {
+      if (matchedId) {
+        *matchedId = ids[i];
+      }
+      return value;
+    }
+  }
+  if (matchedId) {
+    *matchedId = -1;
+  }
+  return -1;
+}
+
 bool addSettingOption(int option, const char *displayName = nullptr) {
   for (size_t i = 0; i < settingOptionCount; ++i) {
     if (settingOptions[i] == option) {
@@ -3072,20 +3109,297 @@ bool syncCameraState() {
   return parseCameraState(body);
 }
 
-bool syncCameraPresets() {
+bool aspectFromSettingOption(int settingId, int option, uint16_t &aspectW,
+                             uint16_t &aspectH) {
+  switch (settingId) {
+    case 108:
+    case 192:
+    case 232:
+    case 233:
+      switch (option) {
+        case 0: aspectW = 4; aspectH = 3; return true;
+        case 1: aspectW = 16; aspectH = 9; return true;
+        case 3: aspectW = 8; aspectH = 7; return true;
+        case 4: aspectW = 9; aspectH = 16; return true;
+        case 5: aspectW = 21; aspectH = 9; return true;
+        case 6: aspectW = 1; aspectH = 1; return true;
+      }
+      break;
+    case 193:
+      switch (option) {
+        case 0:
+        case 101: aspectW = 16; aspectH = 9; return true;
+        case 1:
+        case 104: aspectW = 9; aspectH = 16; return true;
+        case 2:
+        case 103: aspectW = 8; aspectH = 7; return true;
+        case 100: aspectW = 4; aspectH = 3; return true;
+        case 105: aspectW = 21; aspectH = 9; return true;
+        case 106: aspectW = 1; aspectH = 1; return true;
+      }
+      break;
+  }
+  return false;
+}
+
+bool aspectFromResolutionOption(int option, uint16_t &aspectW, uint16_t &aspectH) {
+  switch (option) {
+    case 1:
+    case 4:
+    case 9:
+    case 12:
+    case 24:
+    case 100:
+      aspectW = 16;
+      aspectH = 9;
+      return true;
+    case 6:
+    case 18:
+    case 25:
+    case 111:
+    case 112:
+    case 113:
+    case 152:
+    case 153:
+    case 154:
+    case 155:
+    case 156:
+    case 157:
+    case 158:
+    case 159:
+      aspectW = 4;
+      aspectH = 3;
+      return true;
+    case 26:
+    case 27:
+    case 28:
+    case 107:
+    case 108:
+    case 122:
+    case 123:
+    case 124:
+    case 125:
+    case 136:
+    case 137:
+      aspectW = 8;
+      aspectH = 7;
+      return true;
+    case 109:
+    case 110:
+    case 118:
+    case 119:
+    case 120:
+    case 121:
+    case 132:
+    case 133:
+    case 134:
+    case 135:
+      aspectW = 9;
+      aspectH = 16;
+      return true;
+    case 35:
+    case 36:
+    case 142:
+    case 143:
+    case 144:
+    case 145:
+    case 146:
+    case 147:
+    case 148:
+    case 149:
+    case 150:
+    case 151:
+      aspectW = 21;
+      aspectH = 9;
+      return true;
+    case 37:
+    case 138:
+    case 139:
+    case 140:
+    case 141:
+      aspectW = 1;
+      aspectH = 1;
+      return true;
+  }
+  return false;
+}
+
+uint8_t estimateVideoVisiblePercent(int hypersmooth, int lens, int horizon, int maxLens) {
+  uint8_t percent = 100;
+  switch (hypersmooth) {
+    case 1:
+    case 100:
+      percent = 96;
+      break;
+    case 2:
+      percent = 93;
+      break;
+    case 3:
+      percent = 88;
+      break;
+    case 4:
+      percent = 90;
+      break;
+  }
+
+  if (lens == 8 || lens == 10 || horizon == 2) {
+    percent = min<uint8_t>(percent, 90);
+  }
+  if (lens == 7 || lens == 11 || maxLens > 0) {
+    percent = min<uint8_t>(percent, 92);
+  }
+  return constrain(percent, 82, 100);
+}
+
+SnapshotVideoFraming currentSnapshotVideoFraming() {
+  SnapshotVideoFraming framing;
+  const uint16_t aspectIds[] = {232, 108, 193};
+  int aspectSettingId = -1;
+  int aspectOption = firstStoredSettingValue(aspectIds, sizeof(aspectIds) / sizeof(aspectIds[0]),
+                                             &aspectSettingId);
+  if (aspectOption >= 0 &&
+      aspectFromSettingOption(aspectSettingId, aspectOption, framing.aspectW, framing.aspectH)) {
+    framing.valid = true;
+    framing.aspectSettingId = aspectSettingId;
+    framing.aspectOption = aspectOption;
+  }
+
+  framing.resolutionOption = getStoredSettingValue(2);
+  if (!framing.valid &&
+      aspectFromResolutionOption(framing.resolutionOption, framing.aspectW, framing.aspectH)) {
+    framing.valid = true;
+  }
+  if (!framing.valid) {
+    framing.valid = true;
+    framing.aspectW = 16;
+    framing.aspectH = 9;
+  }
+
+  framing.lensOption = getStoredSettingValue(121);
+  framing.hypersmoothOption = getStoredSettingValue(135);
+  framing.horizonOption = getStoredSettingValue(150);
+  const uint16_t maxLensIds[] = {162, 189, 190};
+  framing.maxLensOption = firstStoredSettingValue(maxLensIds, sizeof(maxLensIds) / sizeof(maxLensIds[0]));
+  framing.visiblePercent = estimateVideoVisiblePercent(
+      framing.hypersmoothOption, framing.lensOption, framing.horizonOption, framing.maxLensOption);
+  return framing;
+}
+
+void logSnapshotVideoFraming(const SnapshotVideoFraming &framing) {
+  Serial.printf("Snapshot video framing: aspect=%u:%u visible=%u%% aspectSetting=%d option=%d "
+                "resolution=%d lens=%d hypersmooth=%d horizon=%d maxLens=%d\n",
+                framing.aspectW, framing.aspectH, framing.visiblePercent,
+                framing.aspectSettingId, framing.aspectOption, framing.resolutionOption,
+                framing.lensOption, framing.hypersmoothOption, framing.horizonOption,
+                framing.maxLensOption);
+}
+
+int32_t readPresetInt(JsonObjectConst object, const char *camelKey, const char *snakeKey,
+                      int32_t fallback = -1) {
+  if (object[camelKey].is<int32_t>()) {
+    return object[camelKey].as<int32_t>();
+  }
+  if (object[snakeKey].is<int32_t>()) {
+    return object[snakeKey].as<int32_t>();
+  }
+  return fallback;
+}
+
+JsonArrayConst readPresetArray(JsonObjectConst object, const char *camelKey, const char *snakeKey) {
+  JsonArrayConst value = object[camelKey].as<JsonArrayConst>();
+  if (!value.isNull()) {
+    return value;
+  }
+  return object[snakeKey].as<JsonArrayConst>();
+}
+
+bool storePresetSettings(JsonArrayConst settings, const char *context) {
+  if (settings.isNull()) {
+    return false;
+  }
+  uint16_t count = 0;
+  for (JsonObjectConst setting : settings) {
+    int32_t id = readPresetInt(setting, "id", "id");
+    int32_t value = readPresetInt(setting, "value", "value");
+    if (id <= 0 || value < 0) {
+      continue;
+    }
+    storeSettingValue(static_cast<uint16_t>(id), static_cast<int>(value));
+    ++count;
+  }
+  if (count == 0) {
+    return false;
+  }
+  refreshCaptureOverlayFromState();
+  Serial.printf("Stored %u settings from %s\n", count, context);
+  return true;
+}
+
+bool syncActiveVideoPresetSettings() {
   String body;
-  int status = httpGetGoProBody("/gopro/camera/presets/get?include-hidden=1", body);
+  const char *paths[] = {
+      "/gopro/camera/presets/get?include-hidden=1",
+      "/gopro/camera/presets/get?include-hidden=0",
+      "/gopro/camera/presets/get",
+  };
+  int status = -1;
+  const char *usedPath = nullptr;
+  for (const char *path : paths) {
+    status = httpGetGoProBody(path, body);
+    if (status == 200) {
+      usedPath = path;
+      break;
+    }
+  }
   if (status != 200) {
     setAction("Preset sync failed");
     return false;
   }
+  Serial.printf("Preset sync response from %s\n", usedPath == nullptr ? "(unknown)" : usedPath);
   JsonDocument doc;
   if (deserializeJson(doc, body)) {
     setAction("Preset JSON parse failed");
     return false;
   }
+
+  JsonArrayConst groups = readPresetArray(doc.as<JsonObjectConst>(), "presetGroupArray",
+                                          "preset_group_array");
+  if (groups.isNull()) {
+    setAction("Preset JSON has no groups");
+    return false;
+  }
+
+  for (JsonObjectConst group : groups) {
+    int32_t groupId = readPresetInt(group, "id", "id");
+    if (groupId != kGoProVideoPresetGroup) {
+      continue;
+    }
+
+    int32_t activePresetId = readPresetInt(group, "activePresetId", "active_preset_id");
+    JsonArrayConst presets = readPresetArray(group, "presetArray", "preset_array");
+    for (JsonObjectConst preset : presets) {
+      int32_t presetId = readPresetInt(preset, "id", "id");
+      if (presetId != activePresetId) {
+        continue;
+      }
+      JsonArrayConst settings = readPresetArray(preset, "settingArray", "setting_array");
+      if (storePresetSettings(settings, "active video preset")) {
+        setAction("Video preset settings synced");
+        return true;
+      }
+    }
+
+    Serial.printf("Active video preset settings not found: activePresetId=%ld\n",
+                  static_cast<long>(activePresetId));
+    break;
+  }
+
   setAction("Presets synced");
-  return true;
+  return false;
+}
+
+bool syncCameraPresets() {
+  return syncActiveVideoPresetSettings();
 }
 
 const char *knownOptionName(uint16_t settingId, int option) {
@@ -3100,21 +3414,39 @@ const char *knownOptionName(uint16_t settingId, int option) {
         case 1: return "16:9";
         case 3: return "8:7";
         case 4: return "9:16";
-        case 5: return "1:1";
-        case 6: return "21:9";
+        case 5: return "21:9";
+        case 6: return "1:1";
       }
       break;
     case 2:
       switch (option) {
         case 1: return "4K";
         case 4: return "2.7K";
-        case 6: return "1080";
-        case 7: return "720";
-        case 9: return "5.3K";
+        case 6: return "2.7K 4:3";
+        case 7: return "1440";
+        case 9: return "1080";
+        case 12: return "720";
+        case 18: return "4K 4:3";
+        case 21: return "5.6K";
         case 24: return "5K";
-        case 25: return "4K 4:3";
+        case 25: return "5K 4:3";
         case 26: return "5.3K 8:7";
-        case 27: return "4K 8:7";
+        case 27: return "5.3K 4:3";
+        case 28: return "4K 8:7";
+        case 31: return "8K";
+        case 35: return "5.3K 21:9";
+        case 36: return "4K 21:9";
+        case 37: return "4K 1:1";
+        case 38: return "900";
+        case 39: return "4K SPH";
+        case 100: return "5.3K";
+        case 107: return "5.3K 8:7";
+        case 108: return "4K 8:7";
+        case 109: return "4K 9:16";
+        case 110: return "1080 9:16";
+        case 111: return "2.7K 4:3";
+        case 112: return "4K 4:3";
+        case 113: return "5.3K 4:3";
       }
       break;
     case 3:
@@ -3136,16 +3468,40 @@ const char *knownOptionName(uint16_t settingId, int option) {
     case 122:
     case 123:
       switch (option) {
+        case 0: return "Wide";
+        case 2: return "Narrow";
+        case 3: return "Superview";
+        case 4: return "Linear";
+        case 7: return "Max SuperView";
+        case 8: return "Linear+HL";
+        case 9: return "HyperView";
+        case 10: return "Linear+Lock";
+        case 11: return "Max HyperView";
+        case 12: return "Ultra SuperView";
+        case 13: return "Ultra Wide";
+        case 14: return "Ultra Linear";
         case 19: return "Wide";
         case 30: return "Linear";
         case 31: return "Superview";
         case 32: return "Linear+HL";
-        case 100: return "HyperView";
+        case 41: return "Ultra Wide";
+        case 44: return "Ultra Linear";
+        case 100: return "Max SuperView";
         case 101: return "Wide";
         case 102: return "Linear";
+        case 104: return "Ultra HyperView";
       }
       break;
     case 135:
+      switch (option) {
+        case 0: return "Off";
+        case 1: return "Low";
+        case 2: return "High";
+        case 3: return "Boost";
+        case 4: return "Auto Boost";
+        case 100: return "Standard";
+      }
+      break;
     case 167:
     case 168:
     case 173:
@@ -3296,7 +3652,7 @@ void addFallbackOptions(uint16_t settingId) {
     case 121:
     case 122:
     case 123: {
-      const int values[] = {19, 30, 31, 32, 100, 101, 102};
+      const int values[] = {0, 2, 3, 4, 8, 9, 10, 12, 13, 14, 19, 30, 31, 32, 100, 101, 102, 104};
       for (int value : values) addSettingOption(value);
       break;
     }
@@ -3480,6 +3836,11 @@ void runSnapshotAction() {
     }
   }
   fetchSnapshotPreview();
+  consumeActionButtonPress();
+  clearDuplicatePmuActionIrq("snapshot complete");
+  if (!displayOn) {
+    setDisplayOn(true);
+  }
   endGoproAction();
 }
 
@@ -3706,6 +4067,56 @@ int chooseJpegContainDecodeScale(int width, int height, int targetW, int targetH
   return 0;
 }
 
+void computeVideoFramedSourceRect(int imageW, int imageH, int &outX, int &outY, int &outW,
+                                  int &outH) {
+  outX = 0;
+  outY = 0;
+  outW = max(1, imageW);
+  outH = max(1, imageH);
+  if (imageW <= 0 || imageH <= 0 || !snapshotVideoFraming.valid ||
+      snapshotVideoFraming.aspectW == 0 || snapshotVideoFraming.aspectH == 0) {
+    return;
+  }
+
+  int cropW = imageW;
+  int cropH = imageH;
+  int64_t sourceScaled = static_cast<int64_t>(cropW) * snapshotVideoFraming.aspectH;
+  int64_t targetScaled = static_cast<int64_t>(cropH) * snapshotVideoFraming.aspectW;
+  if (sourceScaled > targetScaled) {
+    cropW = max(1, static_cast<int>((static_cast<int64_t>(cropH) *
+                                      snapshotVideoFraming.aspectW) /
+                                     snapshotVideoFraming.aspectH));
+  } else if (sourceScaled < targetScaled) {
+    cropH = max(1, static_cast<int>((static_cast<int64_t>(cropW) *
+                                      snapshotVideoFraming.aspectH) /
+                                     snapshotVideoFraming.aspectW));
+  }
+
+  uint8_t visiblePercent = constrain(snapshotVideoFraming.visiblePercent, 82, 100);
+  cropW = max(1, (cropW * visiblePercent) / 100);
+  cropH = max(1, (cropH * visiblePercent) / 100);
+  outW = min(cropW, imageW);
+  outH = min(cropH, imageH);
+  outX = max(0, (imageW - outW) / 2);
+  outY = max(0, (imageH - outH) / 2);
+}
+
+void computeScaledJpegCrop(int sourceX, int sourceY, int sourceW, int sourceH, int scale) {
+  int div = jpegScaleDivisor(scale);
+  int cropX0 = sourceX / div;
+  int cropY0 = sourceY / div;
+  int cropX1 = (sourceX + sourceW + div - 1) / div;
+  int cropY1 = (sourceY + sourceH + div - 1) / div;
+  cropX0 = constrain(cropX0, 0, jpegDecodeW - 1);
+  cropY0 = constrain(cropY0, 0, jpegDecodeH - 1);
+  cropX1 = constrain(cropX1, cropX0 + 1, jpegDecodeW);
+  cropY1 = constrain(cropY1, cropY0 + 1, jpegDecodeH);
+  jpegCropX = cropX0;
+  jpegCropY = cropY0;
+  jpegCropW = cropX1 - cropX0;
+  jpegCropH = cropY1 - cropY0;
+}
+
 int drawJpegBlock(JPEGDRAW *draw) {
   if (!isCaptureTileActive()) {
     return 0;
@@ -3726,10 +4137,18 @@ int drawJpegBlock(JPEGDRAW *draw) {
   int blockSrcY0 = draw->y;
   int blockSrcX1 = blockSrcX0 + blockW;
   int blockSrcY1 = blockSrcY0 + blockH;
-  int destX0 = (blockSrcX0 * jpegDrawW + jpegDecodeW - 1) / jpegDecodeW;
-  int destX1 = (blockSrcX1 * jpegDrawW + jpegDecodeW - 1) / jpegDecodeW;
-  int destY0 = (blockSrcY0 * jpegDrawH + jpegDecodeH - 1) / jpegDecodeH;
-  int destY1 = (blockSrcY1 * jpegDrawH + jpegDecodeH - 1) / jpegDecodeH;
+  int clipX0 = max(blockSrcX0, jpegCropX);
+  int clipY0 = max(blockSrcY0, jpegCropY);
+  int clipX1 = min(blockSrcX1, jpegCropX + jpegCropW);
+  int clipY1 = min(blockSrcY1, jpegCropY + jpegCropH);
+  if (clipX1 <= clipX0 || clipY1 <= clipY0) {
+    return 1;
+  }
+
+  int destX0 = ((clipX0 - jpegCropX) * jpegDrawW) / jpegCropW;
+  int destX1 = ((clipX1 - jpegCropX) * jpegDrawW + jpegCropW - 1) / jpegCropW;
+  int destY0 = ((clipY0 - jpegCropY) * jpegDrawH) / jpegCropH;
+  int destY1 = ((clipY1 - jpegCropY) * jpegDrawH + jpegCropH - 1) / jpegCropH;
   destX0 = max(0, min(destX0, jpegDrawW));
   destX1 = max(0, min(destX1, jpegDrawW));
   destY0 = max(0, min(destY0, jpegDrawH));
@@ -3744,7 +4163,7 @@ int drawJpegBlock(JPEGDRAW *draw) {
     if ((destY & 0x0f) == 0) {
       yield();
     }
-    int srcY = (destY * jpegDecodeH) / jpegDrawH - blockSrcY0;
+    int srcY = jpegCropY + (destY * jpegCropH) / jpegDrawH - blockSrcY0;
     if (srcY < 0 || srcY >= blockH) {
       continue;
     }
@@ -3754,7 +4173,7 @@ int drawJpegBlock(JPEGDRAW *draw) {
     }
     for (int i = 0; i < lineLen; ++i) {
       int destX = destX0 + i;
-      int srcX = (destX * jpegDecodeW) / jpegDrawW - blockSrcX0;
+      int srcX = jpegCropX + (destX * jpegCropW) / jpegDrawW - blockSrcX0;
       if (srcX < 0) {
         srcX = 0;
       } else if (srcX >= blockW) {
@@ -3793,14 +4212,28 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
                 static_cast<unsigned>(length), jpeg.getWidth(), jpeg.getHeight(),
                 jpeg.getJPEGType(), jpeg.getBpp(), jpeg.getSubSample());
 
-  computeJpegContainRect(jpeg.getWidth(), jpeg.getHeight(), frameX, frameY, frameW, frameH,
+  int sourceCropX = 0;
+  int sourceCropY = 0;
+  int sourceCropW = jpeg.getWidth();
+  int sourceCropH = jpeg.getHeight();
+  computeVideoFramedSourceRect(jpeg.getWidth(), jpeg.getHeight(), sourceCropX, sourceCropY,
+                               sourceCropW, sourceCropH);
+
+  computeJpegContainRect(sourceCropW, sourceCropH, frameX, frameY, frameW, frameH,
                          jpegDrawX, jpegDrawY, jpegDrawW, jpegDrawH);
-  int scale = chooseJpegContainDecodeScale(jpeg.getWidth(), jpeg.getHeight(), jpegDrawW, jpegDrawH);
+  int scale = chooseJpegContainDecodeScale(sourceCropW, sourceCropH, jpegDrawW, jpegDrawH);
   jpegDecodeW = jpegScaledDim(jpeg.getWidth(), scale);
   jpegDecodeH = jpegScaledDim(jpeg.getHeight(), scale);
-  Serial.printf("JPEG contain: screen=%dx%d frame=%dx%d image=%dx%d scale=%d decoded=%dx%d out=%dx%d origin=%d,%d\n",
+  computeScaledJpegCrop(sourceCropX, sourceCropY, sourceCropW, sourceCropH, scale);
+  Serial.printf("JPEG video-frame contain: screen=%dx%d frame=%dx%d image=%dx%d "
+                "sourceCrop=%d,%d %dx%d scale=%d decoded=%dx%d decodedCrop=%d,%d %dx%d "
+                "out=%dx%d origin=%d,%d video=%u:%u visible=%u%%\n",
                 LCD_WIDTH, LCD_HEIGHT, frameW, frameH, jpeg.getWidth(), jpeg.getHeight(),
-                scale, jpegDecodeW, jpegDecodeH, jpegDrawW, jpegDrawH, jpegDrawX, jpegDrawY);
+                sourceCropX, sourceCropY, sourceCropW, sourceCropH, scale,
+                jpegDecodeW, jpegDecodeH, jpegCropX, jpegCropY, jpegCropW, jpegCropH,
+                jpegDrawW, jpegDrawH, jpegDrawX, jpegDrawY,
+                snapshotVideoFraming.aspectW, snapshotVideoFraming.aspectH,
+                snapshotVideoFraming.visiblePercent);
 
   gfx->fillRect(frameX, frameY, frameW, frameH, 0x0000);
   jpeg.setPixelType(RGB565_LITTLE_ENDIAN);
@@ -3848,6 +4281,43 @@ bool downloadAndDrawPreviewJpeg(const String &path, uint8_t *buffer, size_t capa
   return ok;
 }
 
+bool syncVideoFramingForSnapshot() {
+  setAction("Syncing video framing");
+  lv_timer_handler();
+  bool videoPresetOk = httpGetGoPro("/gopro/camera/presets/set_group?id=1000");
+  if (videoPresetOk) {
+    captureMode = "Video";
+    applyCaptureLabels();
+    delay(250);
+  } else {
+    Serial.println("Video preset select failed before snapshot; using current cached framing");
+  }
+
+  if (!syncCameraState()) {
+    Serial.println("Camera state sync failed before snapshot; using cached/default framing");
+  }
+  if (!syncActiveVideoPresetSettings()) {
+    Serial.println("Video preset setting sync failed before snapshot; using cached/default framing");
+  }
+  snapshotVideoFraming = currentSnapshotVideoFraming();
+  logSnapshotVideoFraming(snapshotVideoFraming);
+  return videoPresetOk;
+}
+
+bool restoreVideoPresetAfterSnapshot() {
+  bool ok = httpGetGoPro("/gopro/camera/presets/set_group?id=1000");
+  if (ok) {
+    captureMode = "Video";
+    applyCaptureLabels();
+    snapshotPreviewPrepared = false;
+    delay(150);
+    syncCameraState();
+  } else {
+    Serial.println("Video preset restore failed after snapshot");
+  }
+  return ok;
+}
+
 bool fetchSnapshotPreview() {
   if (snapshotPreviewBusy) {
     return false;
@@ -3873,21 +4343,20 @@ bool fetchSnapshotPreview() {
   setAction("Preparing snapshot");
   lv_timer_handler();
 
-  if (!snapshotPreviewPrepared) {
-    httpGetGoProStatus("/gopro/webcam/stop");
-    httpGetGoProStatus("/gopro/camera/stream/stop");
-    if (!httpGetGoPro("/gopro/camera/presets/set_group?id=1001")) {
-      if (previewLabel && !previewHasImage) {
-        lv_label_set_text(previewLabel, "Photo preset failed");
-      }
-      snapshotPreviewBusy = false;
-      return false;
+  httpGetGoProStatus("/gopro/webcam/stop");
+  httpGetGoProStatus("/gopro/camera/stream/stop");
+  syncVideoFramingForSnapshot();
+  if (!httpGetGoPro("/gopro/camera/presets/set_group?id=1001")) {
+    if (previewLabel && !previewHasImage) {
+      lv_label_set_text(previewLabel, "Photo preset failed");
     }
-    captureMode = "Photo";
-    applyCaptureLabels();
-    snapshotPreviewPrepared = true;
-    delay(250);
+    snapshotPreviewBusy = false;
+    return false;
   }
+  captureMode = "Photo";
+  applyCaptureLabels();
+  snapshotPreviewPrepared = true;
+  delay(250);
 
   String beforePath;
   fetchLatestJpegPath(beforePath);
@@ -3901,6 +4370,7 @@ bool fetchSnapshotPreview() {
     if (previewLabel && !previewHasImage) {
       lv_label_set_text(previewLabel, "Snapshot failed");
     }
+    restoreVideoPresetAfterSnapshot();
     setAction("Snapshot failed");
     snapshotPreviewBusy = false;
     return false;
@@ -3923,6 +4393,7 @@ bool fetchSnapshotPreview() {
     if (previewLabel && !previewHasImage) {
       lv_label_set_text(previewLabel, "Snapshot media not found");
     }
+    restoreVideoPresetAfterSnapshot();
     setAction("Snapshot media not found");
     snapshotPreviewBusy = false;
     return false;
@@ -3937,6 +4408,7 @@ bool fetchSnapshotPreview() {
   }
   if (jpegBuffer == nullptr) {
     deleteGoProMedia(newPath);
+    restoreVideoPresetAfterSnapshot();
     if (previewLabel && !previewHasImage) {
       lv_label_set_text(previewLabel, "JPEG buffer allocation failed");
     }
@@ -3975,6 +4447,7 @@ bool fetchSnapshotPreview() {
 
   bool deleted = deleteGoProMedia(newPath);
   lastSnapshotMediaPath = newPath;
+  bool videoRestored = restoreVideoPresetAfterSnapshot();
   snapshotPreviewBusy = false;
 
   if (drawn) {
@@ -3983,7 +4456,13 @@ bool fetchSnapshotPreview() {
       lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
     }
     lv_label_set_text(statusLabel, "Snapshot preview");
-    setAction(deleted ? "Preview JPEG deleted" : "Preview JPEG delete failed");
+    if (!deleted) {
+      setAction("Preview JPEG delete failed");
+    } else if (!videoRestored) {
+      setAction("Preview shown; video restore failed");
+    } else {
+      setAction("Video-framed preview ready");
+    }
     return true;
   }
 
@@ -5023,6 +5502,11 @@ void printSerialStatus() {
   Serial.printf("  capture='%s' setting='%s' actionClicks=%u due=%u\n",
                 captureMode.c_str(), captureSetting.c_str(), actionButtonShortClickCount,
                 actionButtonShortClickDueMs);
+  Serial.printf("  snapshotFrame valid=%u aspect=%u:%u visible=%u%% lens=%d hs=%d crop=%d,%d %dx%d\n",
+                snapshotVideoFraming.valid ? 1 : 0, snapshotVideoFraming.aspectW,
+                snapshotVideoFraming.aspectH, snapshotVideoFraming.visiblePercent,
+                snapshotVideoFraming.lensOption, snapshotVideoFraming.hypersmoothOption,
+                jpegCropX, jpegCropY, jpegCropW, jpegCropH);
 }
 
 void startSerialPointer(int x1, int y1, int x2, int y2, uint32_t durationMs) {

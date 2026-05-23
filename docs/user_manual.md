@@ -181,9 +181,11 @@ The preview area is a manual JPEG snapshot path, not full real-time video decode
 
 Current behavior:
 
-- Double-click the lower side button while not recording to take one GoPro photo, download its JPEG preview, display it fullscreen, and delete the captured JPEG from the camera.
+- Double-click the lower side button while not recording to sync the current Video settings, take one temporary GoPro photo, download its JPEG preview, crop it to the current Video aspect/framing with a HyperSmooth crop estimate, display it fullscreen, restore Video mode, and delete the captured JPEG from the camera.
 - Swipe up or single-click the lower side button while the snapshot is fullscreen to return to the normal capture page.
 - While recording, snapshots are disabled.
+
+The crop is based on the camera state returned by Open GoPro plus the active Video preset's `settingArray`, including video aspect/framing, resolution fallback, digital lens, HyperSmooth, horizon leveling, and Max Lens settings when the camera reports them. Dynamic stabilization can still change the live recording crop slightly while the camera is moving, because Open GoPro does not publish an exact per-frame stabilization rectangle.
 
 Common preview messages:
 

@@ -18,7 +18,7 @@ The current hardware path is the ESP32-S3 remote with the integrated 1.8-inch AM
 - Connects over BLE and reads the camera Wi-Fi AP SSID/password from Open GoPro characteristics.
 - Sends the BLE Wi-Fi enable command `03:17:01:01`.
 - Joins the camera AP for HTTP camera control.
-- On the AMOLED UI target, the lower/action side button double-click takes one snapshot, downloads/displays the larger JPEG screennail preview fullscreen, and deletes the captured JPEG from the camera.
+- On the AMOLED UI target, the lower/action side button double-click syncs the current Video preset settings, takes one temporary photo snapshot, downloads/displays the larger JPEG screennail preview fullscreen through the current video framing crop, restores Video mode, and deletes the captured JPEG from the camera.
 - The top-right side button starts video recording; while recording, a long press stops recording and the preview area shows a local elapsed-time `RECORDING` overlay without polling the camera.
 - After reconnect, `/gopro/camera/state` restores the remote's recording overlay from the camera Encoding flag and Video Encoding Duration.
 - Connects to the GoPro camera Wi-Fi AP using credentials read over BLE.
@@ -145,7 +145,7 @@ The simulator receives:
 
 The active UI target is the ESP32-S3 Touch AMOLED 1.8 board. The firmware uses the board's QSPI AMOLED display, FT3168 touch controller, AXP2101 PMU, and side buttons through the board support libraries referenced by `platformio.ini`.
 
-The preview is intentionally JPEG snapshot based. The remote does not decode the GoPro H.264 live stream on the S3; the lower/action button captures one still image, displays it, and deletes the captured JPEG from the GoPro.
+The preview is intentionally JPEG snapshot based. The remote does not decode the GoPro H.264 live stream on the S3; the lower/action button captures one still image, displays it through the active Video preset's aspect/framing plus an estimated HyperSmooth crop, restores Video mode, and deletes the captured JPEG from the GoPro. GoPro does not expose a precise dynamic stabilization crop rectangle through the public Open GoPro HTTP state, so the remote uses the active preset settings to approximate the frame that recording will use.
 
 ## Radio Firmware Physical Controls
 
