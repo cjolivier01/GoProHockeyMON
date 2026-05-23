@@ -158,6 +158,7 @@ void resetBleClientForPairing();
 void runForgetCameraAction();
 void handlePmuActionButton();
 void clearSnapshotPreviewState(const char *message = nullptr);
+void clearPreviewJpegCache();
 void handleSerialCommands();
 
 std::unique_ptr<Arduino_IIC> touch(new Arduino_FT3x68(
@@ -269,6 +270,13 @@ size_t settingOptionCount = 0;
 size_t settingOptionOffset = 0;
 int jpegDrawX = kPreviewX;
 int jpegDrawY = kPreviewY;
+int jpegDrawW = kPreviewW;
+int jpegDrawH = kPreviewH;
+int jpegDecodeW = 1;
+int jpegDecodeH = 1;
+uint8_t *previewJpegCache = nullptr;
+size_t previewJpegCacheLen = 0;
+bool redrawingCachedPreview = false;
 bool bootLast = HIGH;
 bool bootStable = HIGH;
 uint32_t bootLastChangeMs = 0;
@@ -876,6 +884,7 @@ void clearSnapshotPreviewState(const char *message) {
   snapshotPreviewBusy = false;
   snapshotPreviewPrepared = false;
   lastSnapshotMediaPath = "";
+  clearPreviewJpegCache();
   if (previewFullscreen) {
     setPreviewFullscreen(false);
   }
@@ -901,6 +910,39 @@ int previewFrameW() {
 int previewFrameH() {
   return previewFullscreen ? LCD_HEIGHT - kTopBarH : kPreviewH;
 }
+
+void clearPreviewJpegCache() {
+  if (previewJpegCache) {
+    heap_caps_free(previewJpegCache);
+    previewJpegCache = nullptr;
+  }
+  previewJpegCacheLen = 0;
+}
+
+bool cachePreviewJpeg(const uint8_t *buffer, size_t length) {
+  if (!buffer || length == 0) {
+    return false;
+  }
+  size_t compareLen = length < 32 ? length : 32;
+  if (previewJpegCacheLen == length && previewJpegCache &&
+      memcmp(previewJpegCache, buffer, compareLen) == 0) {
+    return true;
+  }
+  clearPreviewJpegCache();
+  previewJpegCache = static_cast<uint8_t *>(heap_caps_malloc(length, MALLOC_CAP_SPIRAM));
+  if (previewJpegCache == nullptr) {
+    previewJpegCache = static_cast<uint8_t *>(heap_caps_malloc(length, MALLOC_CAP_8BIT));
+  }
+  if (previewJpegCache == nullptr) {
+    Serial.printf("JPEG cache allocation failed: %u bytes\n", static_cast<unsigned>(length));
+    return false;
+  }
+  memcpy(previewJpegCache, buffer, length);
+  previewJpegCacheLen = length;
+  return true;
+}
+
+bool redrawCachedPreviewJpeg();
 
 void drawFullscreenSwipeHandle() {
   if (!previewFullscreen) {
@@ -958,6 +1000,11 @@ void setPreviewFullscreen(bool fullscreen) {
     lv_obj_move_foreground(recordingOverlay);
   }
   lv_obj_move_foreground(fullscreenHint);
+
+  if (previewHasImage && previewJpegCache && previewJpegCacheLen > 0 && !redrawingCachedPreview) {
+    lv_timer_handler();
+    redrawCachedPreviewJpeg();
+  }
 }
 
 String formatElapsed(uint32_t elapsedMs) {
@@ -3176,14 +3223,36 @@ int jpegScaledDim(int dim, int scale) {
   return max(1, dim / jpegScaleDivisor(scale));
 }
 
-bool jpegScaleCovers(int width, int height, int scale, int frameW, int frameH) {
-  return jpegScaledDim(width, scale) >= frameW && jpegScaledDim(height, scale) >= frameH;
+void computeJpegContainRect(int imageW, int imageH, int frameX, int frameY, int frameW, int frameH,
+                            int &outX, int &outY, int &outW, int &outH) {
+  if (imageW <= 0 || imageH <= 0 || frameW <= 0 || frameH <= 0) {
+    outX = frameX;
+    outY = frameY;
+    outW = max(1, frameW);
+    outH = max(1, frameH);
+    return;
+  }
+
+  int64_t widthLimitedH = (static_cast<int64_t>(frameW) * imageH + imageW / 2) / imageW;
+  if (widthLimitedH <= frameH) {
+    outW = frameW;
+    outH = max(1, static_cast<int>(widthLimitedH));
+  } else {
+    int64_t heightLimitedW = (static_cast<int64_t>(frameH) * imageW + imageH / 2) / imageH;
+    outW = max(1, static_cast<int>(heightLimitedW));
+    outH = frameH;
+  }
+
+  outW = min(outW, frameW);
+  outH = min(outH, frameH);
+  outX = frameX + (frameW - outW) / 2;
+  outY = frameY + (frameH - outH) / 2;
 }
 
-int chooseJpegCoverScale(int width, int height, int frameW, int frameH) {
+int chooseJpegContainDecodeScale(int width, int height, int targetW, int targetH) {
   const int scales[] = {JPEG_SCALE_EIGHTH, JPEG_SCALE_QUARTER, JPEG_SCALE_HALF, 0};
   for (int scale : scales) {
-    if (jpegScaleCovers(width, height, scale, frameW, frameH)) {
+    if (jpegScaledDim(width, scale) >= targetW && jpegScaledDim(height, scale) >= targetH) {
       return scale;
     }
   }
@@ -3197,40 +3266,53 @@ int drawJpegBlock(JPEGDRAW *draw) {
   if (!draw || !draw->pPixels) {
     return 1;
   }
-  int frameX = previewFrameX();
-  int frameY = previewFrameY();
-  int frameW = previewFrameW();
-  int frameH = previewFrameH();
-  int dstX = jpegDrawX + draw->x;
-  int dstY = jpegDrawY + draw->y;
+
   int srcStride = draw->iWidth;
-  int srcW = draw->iWidthUsed > 0 ? draw->iWidthUsed : draw->iWidth;
-  int srcH = draw->iHeight;
-  if (srcStride <= 0 || srcW <= 0 || srcH <= 0 ||
-      dstX >= frameX + frameW || dstY >= frameY + frameH ||
-      dstX + srcW <= frameX || dstY + srcH <= frameY) {
+  int blockW = draw->iWidthUsed > 0 ? draw->iWidthUsed : draw->iWidth;
+  int blockH = draw->iHeight;
+  if (srcStride <= 0 || blockW <= 0 || blockH <= 0 ||
+      jpegDecodeW <= 0 || jpegDecodeH <= 0 || jpegDrawW <= 0 || jpegDrawH <= 0) {
     return 1;
   }
 
-  int clipLeft = max(0, frameX - dstX);
-  int clipTop = max(0, frameY - dstY);
-  int clipRight = max(0, (dstX + srcW) - (frameX + frameW));
-  int clipBottom = max(0, (dstY + srcH) - (frameY + frameH));
-  int drawW = srcW - clipLeft - clipRight;
-  int drawH = srcH - clipTop - clipBottom;
-  if (drawW <= 0 || drawH <= 0) {
+  int blockSrcX0 = draw->x;
+  int blockSrcY0 = draw->y;
+  int blockSrcX1 = blockSrcX0 + blockW;
+  int blockSrcY1 = blockSrcY0 + blockH;
+  int destX0 = (blockSrcX0 * jpegDrawW + jpegDecodeW - 1) / jpegDecodeW;
+  int destX1 = (blockSrcX1 * jpegDrawW + jpegDecodeW - 1) / jpegDecodeW;
+  int destY0 = (blockSrcY0 * jpegDrawH + jpegDecodeH - 1) / jpegDecodeH;
+  int destY1 = (blockSrcY1 * jpegDrawH + jpegDecodeH - 1) / jpegDecodeH;
+  destX0 = max(0, min(destX0, jpegDrawW));
+  destX1 = max(0, min(destX1, jpegDrawW));
+  destY0 = max(0, min(destY0, jpegDrawH));
+  destY1 = max(0, min(destY1, jpegDrawH));
+  if (destX1 <= destX0 || destY1 <= destY0) {
     return 1;
   }
 
-  int outX = dstX + clipLeft;
-  int outY = dstY + clipTop;
-  uint16_t *pixels = draw->pPixels + clipTop * srcStride + clipLeft;
-  if (drawW == srcStride && drawH == srcH && clipLeft == 0 && clipTop == 0) {
-    gfx->draw16bitRGBBitmap(outX, outY, pixels, drawW, drawH);
-  } else {
-    for (int row = 0; row < drawH; ++row) {
-      gfx->draw16bitRGBBitmap(outX, outY + row, pixels + row * srcStride, drawW, 1);
+  uint16_t line[LCD_WIDTH];
+  int rowW = min(jpegDrawW, LCD_WIDTH);
+  for (int destY = destY0; destY < destY1; ++destY) {
+    int srcY = (destY * jpegDecodeH) / jpegDrawH - blockSrcY0;
+    if (srcY < 0 || srcY >= blockH) {
+      continue;
     }
+    int lineLen = destX1 - destX0;
+    if (lineLen > rowW) {
+      lineLen = rowW;
+    }
+    for (int i = 0; i < lineLen; ++i) {
+      int destX = destX0 + i;
+      int srcX = (destX * jpegDecodeW) / jpegDrawW - blockSrcX0;
+      if (srcX < 0) {
+        srcX = 0;
+      } else if (srcX >= blockW) {
+        srcX = blockW - 1;
+      }
+      line[i] = draw->pPixels[srcY * srcStride + srcX];
+    }
+    gfx->draw16bitRGBBitmap(jpegDrawX + destX0, jpegDrawY + destY, line, lineLen, 1);
   }
   return 1;
 }
@@ -3261,13 +3343,14 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
                 static_cast<unsigned>(length), jpeg.getWidth(), jpeg.getHeight(),
                 jpeg.getJPEGType(), jpeg.getBpp(), jpeg.getSubSample());
 
-  int scale = chooseJpegCoverScale(jpeg.getWidth(), jpeg.getHeight(), frameW, frameH);
-  int outW = jpegScaledDim(jpeg.getWidth(), scale);
-  int outH = jpegScaledDim(jpeg.getHeight(), scale);
-  jpegDrawX = frameX + (frameW - outW) / 2;
-  jpegDrawY = frameY + (frameH - outH) / 2;
-  Serial.printf("JPEG cover: frame=%dx%d scale=%d out=%dx%d origin=%d,%d\n",
-                frameW, frameH, scale, outW, outH, jpegDrawX, jpegDrawY);
+  computeJpegContainRect(jpeg.getWidth(), jpeg.getHeight(), frameX, frameY, frameW, frameH,
+                         jpegDrawX, jpegDrawY, jpegDrawW, jpegDrawH);
+  int scale = chooseJpegContainDecodeScale(jpeg.getWidth(), jpeg.getHeight(), jpegDrawW, jpegDrawH);
+  jpegDecodeW = jpegScaledDim(jpeg.getWidth(), scale);
+  jpegDecodeH = jpegScaledDim(jpeg.getHeight(), scale);
+  Serial.printf("JPEG contain: screen=%dx%d frame=%dx%d image=%dx%d scale=%d decoded=%dx%d out=%dx%d origin=%d,%d\n",
+                LCD_WIDTH, LCD_HEIGHT, frameW, frameH, jpeg.getWidth(), jpeg.getHeight(),
+                scale, jpegDecodeW, jpegDecodeH, jpegDrawW, jpegDrawH, jpegDrawX, jpegDrawY);
 
   gfx->fillRect(frameX, frameY, frameW, frameH, 0x0000);
   jpeg.setPixelType(RGB565_LITTLE_ENDIAN);
@@ -3281,6 +3364,16 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
   return ok;
 }
 
+bool redrawCachedPreviewJpeg() {
+  if (!previewJpegCache || previewJpegCacheLen == 0 || redrawingCachedPreview) {
+    return false;
+  }
+  redrawingCachedPreview = true;
+  bool ok = drawJpegPreview(previewJpegCache, previewJpegCacheLen);
+  redrawingCachedPreview = false;
+  return ok;
+}
+
 bool downloadAndDrawPreviewJpeg(const String &path, uint8_t *buffer, size_t capacity,
                                 size_t &jpegLength) {
   jpegLength = 0;
@@ -3291,12 +3384,19 @@ bool downloadAndDrawPreviewJpeg(const String &path, uint8_t *buffer, size_t capa
     Serial.printf("JPEG response too small: %u bytes\n", static_cast<unsigned>(jpegLength));
     return false;
   }
+  bool wasRedrawing = redrawingCachedPreview;
+  redrawingCachedPreview = true;
   setPreviewFullscreen(true);
+  redrawingCachedPreview = wasRedrawing;
   if (previewLabel) {
     lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
   }
   lv_timer_handler();
-  return drawJpegPreview(buffer, jpegLength);
+  bool ok = drawJpegPreview(buffer, jpegLength);
+  if (ok) {
+    cachePreviewJpeg(buffer, jpegLength);
+  }
+  return ok;
 }
 
 bool fetchSnapshotPreview() {
