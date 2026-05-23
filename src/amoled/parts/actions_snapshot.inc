@@ -788,6 +788,7 @@ bool fetchSnapshotPreview() {
         setAction("JPEG decode failed");
         return false;
       }
+      schedulePreviewRedraw(120, 1);
     }
     return true;
   }

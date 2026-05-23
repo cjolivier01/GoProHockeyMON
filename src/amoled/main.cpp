@@ -176,6 +176,7 @@ void clearPreviewJpegCache();
 void releaseH264PreviewResources(const char *reason = nullptr);
 void handleSerialCommands();
 void clearDuplicatePmuActionIrq(const char *source);
+void servicePreviewRedraw();
 
 std::unique_ptr<Arduino_IIC> touch(new Arduino_FT3x68(
     i2cBus, FT3168_DEVICE_ADDRESS, DRIVEBUS_DEFAULT_VALUE, TP_INT,
@@ -325,6 +326,9 @@ uint8_t *previewJpegCache = nullptr;
 size_t previewJpegCacheLen = 0;
 SnapshotVideoFraming snapshotVideoFraming;
 bool redrawingCachedPreview = false;
+bool previewRedrawPending = false;
+uint8_t previewRedrawPassesRemaining = 0;
+uint32_t previewRedrawDueMs = 0;
 bool bootLast = HIGH;
 bool bootStable = HIGH;
 uint32_t bootLastChangeMs = 0;
@@ -492,5 +496,6 @@ void loop() {
   updateBatteryStatus();
   updateWifiStatus();
   updateRecordingOverlay();
+  servicePreviewRedraw();
   delay(5);
 }
