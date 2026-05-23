@@ -16,6 +16,7 @@ The current hardware path is the ESP32-S3 AMOLED remote:
 ## What It Does
 
 - Scans for BLE devices advertising GoPro/Open GoPro service names, including `GoPro`, `MISSION`, and `GP`.
+- Saves the paired camera BLE address, advertised BLE name, and GoPro AP SSID in NVS. Reconnect prefers the exact saved BLE address, but can use the saved BLE name as a fallback if a newer GoPro advertises with a changed address.
 - Connects over BLE and reads the camera Wi-Fi AP SSID/password from Open GoPro characteristics.
 - Sends the BLE Wi-Fi enable command `03:17:01:01`.
 - Joins the camera AP for HTTP camera control.
@@ -36,7 +37,7 @@ This applies to the `esp32s3_amoled_ui` firmware. The top status banner stays vi
 | Display sleeping | Start recording when idle; long press stops if already recording | Single click wakes the display |
 | Maintenance screen | Same as current recording state | Single click returns to the normal preview screen; long press enters low-power shutdown |
 
-Swipe right from the normal preview screen to open the maintenance screen, including while the remote is trying to connect over BLE or Wi-Fi. The maintenance screen follows the finger while swiping and snaps open/closed at release. Swipe left or single-click the lower/action side button from maintenance to return. Tap the on-screen `Pair New` button to pair a different GoPro; it is disabled while recording. The saved camera is only replaced after the new pairing succeeds. `Forget Camera` lives on the maintenance screen and requires confirmation; confirming it cancels any current BLE/Wi-Fi connection attempt, clears the saved BLE address and local bond information, and disables boot auto-connect until Pair New succeeds again.
+Swipe right from the normal preview screen to open the maintenance screen, including while the remote is trying to connect over BLE or Wi-Fi. The maintenance screen follows the finger while swiping and snaps open/closed at release. Swipe left or single-click the lower/action side button from maintenance to return. Tap the on-screen `Pair New` button to pair a different GoPro; it is disabled while recording. If a saved-camera scan fails, the same home button changes to `Scan Again` so you can retry without forgetting or replacing the saved camera. The saved camera is only replaced after the new pairing succeeds. `Forget Camera` lives on the maintenance screen and requires confirmation; confirming it cancels any current BLE/Wi-Fi connection attempt, clears the saved BLE address and local bond information, and disables boot auto-connect until Pair New succeeds again.
 
 ## AMOLED Serial UI Test Commands
 
@@ -48,7 +49,7 @@ The `esp32s3_amoled_ui` target accepts USB serial commands at `115200` for repea
 - `swipe X1 Y1 X2 Y2 [duration_ms]` - inject a pixel-level swipe through the LVGL input driver.
 - `lower [single|double]` - simulate the lower/action side button. `lower double` runs the snapshot path.
 - `top [short|long]` - simulate the top-right side button. `top long` stops recording when already recording.
-- `pair`, `connect`, `snapshot`, `record`, and `cancel` - run the same firmware actions used by the UI/buttons.
+- `pair`, `connect`, `rescan`, `snapshot`, `record`, and `cancel` - run the same firmware actions used by the UI/buttons. `rescan` is an alias for retrying the saved-camera connection.
 - `page home|maintenance`, `fullscreen on|off`, `forget show|confirm|cancel`, and `display on|off` - force specific UI states for testing.
 
 `lower shutdown` intentionally exercises the low-power shutdown path. `lower long` is ignored over serial so an accidental command does not power the device down.

@@ -222,6 +222,7 @@ lv_obj_t *settingOptionButtons[kVisibleSettingOptions] = {};
 lv_obj_t *settingOptionLabels[kVisibleSettingOptions] = {};
 lv_obj_t *settingPagerLabel = nullptr;
 lv_obj_t *captureTileObj = nullptr;
+lv_obj_t *pairButtonLabel = nullptr;
 uint32_t lastPreviewUpdate = 0;
 uint32_t lastPmuPollMs = 0;
 uint32_t lastBatteryUpdate = 0;
@@ -251,6 +252,8 @@ uint32_t h264FramesDecoded = 0;
 uint32_t h264DecodeFailures = 0;
 String lastBleName;
 String boundBleAddress;
+String boundBleName;
+String boundGoProSsid;
 String goProSsid;
 String goProPassword;
 String lastSnapshotMediaPath;
@@ -303,6 +306,7 @@ bool pairingCancelRequested = false;
 bool connectionCancelRequested = false;
 bool pairingLastCancelled = false;
 bool deferBleBindingSave = false;
+bool connectRetryAvailable = false;
 bool rawSwipeHandled = false;
 bool navSwipeActive = false;
 bool navSwipeStartedVisible = false;
@@ -313,6 +317,10 @@ uint32_t lastHomeTouchMs = 0;
 bool expanderActionPinLast = !kExpanderActionPressedLevel;
 bool goproActionBusy = false;
 String serialCommandLine;
+uint16_t bleScanCandidateCount = 0;
+uint16_t bleScanSkippedCount = 0;
+uint16_t bleScanAddressMatchCount = 0;
+uint16_t bleScanNameMatchCount = 0;
 bool serialPointerActive = false;
 lv_point_t serialPointerStart = {0, 0};
 lv_point_t serialPointerEnd = {0, 0};
@@ -404,6 +412,14 @@ void consumeActionButtonPress() {
   actionButtonLongHandled = true;
 }
 
+void setConnectRetryAvailable(bool available) {
+  connectRetryAvailable = available && !boundBleAddress.isEmpty();
+  if (pairButtonLabel) {
+    lv_label_set_text(pairButtonLabel, connectRetryAvailable ? "Scan Again" : "Pair New");
+    lv_obj_center(pairButtonLabel);
+  }
+}
+
 bool exitFullscreenPreview(const char *source) {
   if (!displayOn || !previewFullscreen) {
     return false;
@@ -429,6 +445,7 @@ void queuePairNewAction(const char *source) {
   pendingHomeAction = PendingHomeAction::Pair;
   pendingHomeActionDueMs = millis() + 50;
   lastHomeTouchMs = millis();
+  setConnectRetryAvailable(false);
   showPairingPopup("Pairing New Camera\n\nStarting scan...\nPress lower button to cancel.");
   if (statusLabel) {
     lv_label_set_text(statusLabel, "Pair New");
@@ -1326,10 +1343,20 @@ bool nameMatchesFilter(const String &name) {
 void loadCameraBinding() {
   preferences.begin("gopro", false);
   boundBleAddress = preferences.getString("ble_addr", "");
+  boundBleName = preferences.getString("ble_name", "");
+  boundGoProSsid = preferences.getString("wifi_ssid", "");
   if (!boundBleAddress.isEmpty()) {
     boundBleAddress.toLowerCase();
     Serial.print(F("Bound GoPro BLE address: "));
     Serial.println(boundBleAddress);
+    if (!boundBleName.isEmpty()) {
+      Serial.print(F("Bound GoPro BLE name: "));
+      Serial.println(boundBleName);
+    }
+    if (!boundGoProSsid.isEmpty()) {
+      Serial.print(F("Bound GoPro AP SSID: "));
+      Serial.println(boundGoProSsid);
+    }
   } else {
     Serial.println(F("No saved GoPro BLE binding"));
   }
@@ -1341,11 +1368,38 @@ void saveCameraBinding(BLEAdvertisedDevice &device) {
   if (address.isEmpty()) {
     return;
   }
+  String name = device.haveName() ? String(device.getName().c_str()) : "";
+  bool changed = address != boundBleAddress ||
+                 (!name.isEmpty() && name != boundBleName) ||
+                 (!goProSsid.isEmpty() && goProSsid != boundGoProSsid);
   boundBleAddress = address;
+  if (!name.isEmpty()) {
+    boundBleName = name;
+  }
+  if (!goProSsid.isEmpty()) {
+    boundGoProSsid = goProSsid;
+  }
   preferences.putString("ble_addr", boundBleAddress);
-  clearSnapshotPreviewState("Double-click lower for snapshot");
-  Serial.print(F("Saved GoPro BLE binding: "));
+  preferences.putString("ble_name", boundBleName);
+  preferences.putString("wifi_ssid", boundGoProSsid);
+  if (changed) {
+    clearSnapshotPreviewState("Double-click lower for snapshot");
+  }
+  setConnectRetryAvailable(false);
+  Serial.print(F("Saved GoPro BLE binding: addr="));
   Serial.println(boundBleAddress);
+  Serial.print(F("Saved GoPro BLE name: "));
+  if (boundBleName.isEmpty()) {
+    Serial.println(F("(unknown)"));
+  } else {
+    Serial.println(boundBleName);
+  }
+  Serial.print(F("Saved GoPro AP SSID: "));
+  if (boundGoProSsid.isEmpty()) {
+    Serial.println(F("(unknown)"));
+  } else {
+    Serial.println(boundGoProSsid);
+  }
 }
 
 int clearBleBondStore() {
@@ -1386,9 +1440,12 @@ void forgetCameraBinding(bool preserveCancel = false) {
   }
   disconnectCurrentCameraForPairing();
   boundBleAddress = "";
+  boundBleName = "";
+  boundGoProSsid = "";
   goProSsid = "";
   goProPassword = "";
   lastBleName = "";
+  setConnectRetryAvailable(false);
   clearSnapshotPreviewState("Pair New to connect camera");
   bool cleared = preferences.clear();
   int removed = clearBleBondStore();
@@ -1749,9 +1806,26 @@ class ScanCallbacks : public BLEAdvertisedDeviceCallbacks {
     if (!hasControlService && !nameMatchesFilter(name)) {
       return;
     }
-    if (!boundBleAddress.isEmpty() && !allowAnyCameraScan && address != boundBleAddress) {
+    bleScanCandidateCount++;
+    bool addressMatches = !boundBleAddress.isEmpty() && address == boundBleAddress;
+    bool nameMatchesSaved =
+        !boundBleName.isEmpty() && !name.isEmpty() && name == boundBleName && hasControlService;
+    if (addressMatches) {
+      bleScanAddressMatchCount++;
+    }
+    if (nameMatchesSaved) {
+      bleScanNameMatchCount++;
+    }
+
+    if (!allowAnyCameraScan && !addressMatches && !nameMatchesSaved) {
+      bleScanSkippedCount++;
       Serial.print(F("Skipping unbound GoPro BLE addr="));
-      Serial.println(address);
+      Serial.print(address);
+      if (!name.isEmpty()) {
+        Serial.print(F(" name="));
+        Serial.print(name);
+      }
+      Serial.println();
       return;
     }
 
@@ -1760,7 +1834,11 @@ class ScanCallbacks : public BLEAdvertisedDeviceCallbacks {
     Serial.print(F(" rssi="));
     Serial.print(device.getRSSI());
     Serial.print(F(" addr="));
-    Serial.println(device.getAddress().toString().c_str());
+    Serial.print(device.getAddress().toString().c_str());
+    if (!addressMatches && nameMatchesSaved) {
+      Serial.print(F(" saved-name-match"));
+    }
+    Serial.println();
 
     if (bestBleDevice == nullptr || device.getRSSI() > bestBleDevice->getRSSI()) {
       delete bestBleDevice;
@@ -1780,6 +1858,10 @@ bool scanForCamera() {
   initBleStack();
   delete bestBleDevice;
   bestBleDevice = nullptr;
+  bleScanCandidateCount = 0;
+  bleScanSkippedCount = 0;
+  bleScanAddressMatchCount = 0;
+  bleScanNameMatchCount = 0;
 
   lv_label_set_text(statusLabel, "Scanning BLE");
   setAction(boundBleAddress.isEmpty() || allowAnyCameraScan
@@ -1809,9 +1891,15 @@ bool scanForCamera() {
 
   if (bestBleDevice == nullptr) {
     lv_label_set_text(cameraLabel, "Camera: BLE not found");
-    setAction(boundBleAddress.isEmpty() || allowAnyCameraScan
-                  ? "No GoPro BLE device found"
-                  : "Bound GoPro BLE not found");
+    Serial.printf("BLE scan finished: candidates=%u skipped=%u addr_matches=%u name_matches=%u saved_addr='%s' saved_name='%s'\n",
+                  bleScanCandidateCount, bleScanSkippedCount, bleScanAddressMatchCount,
+                  bleScanNameMatchCount, boundBleAddress.c_str(), boundBleName.c_str());
+    if (boundBleAddress.isEmpty() || allowAnyCameraScan) {
+      setAction("No GoPro BLE device found");
+    } else {
+      setConnectRetryAvailable(true);
+      setAction("Bound GoPro BLE not found; tap Scan Again");
+    }
     return false;
   }
 
@@ -1857,7 +1945,12 @@ bool connectBle() {
     delete bleClient;
     bleClient = nullptr;
     lv_label_set_text(cameraLabel, "Camera: BLE connect failed");
-    setAction("BLE connect failed");
+    if (!boundBleAddress.isEmpty() && !allowAnyCameraScan) {
+      setConnectRetryAvailable(true);
+      setAction("BLE connect failed; tap Scan Again");
+    } else {
+      setAction("BLE connect failed");
+    }
     return false;
   }
   if (operationCancelled()) {
@@ -1931,7 +2024,7 @@ bool readGoProWifiCredentials() {
     setAction("GoPro WiFi credentials empty");
     return false;
   }
-  if (!deferBleBindingSave && boundBleAddress.isEmpty() && bestBleDevice != nullptr) {
+  if (!deferBleBindingSave && bestBleDevice != nullptr) {
     saveCameraBinding(*bestBleDevice);
   }
 
@@ -2053,6 +2146,8 @@ bool pairGoPro() {
   bool previousAllowAny = allowAnyCameraScan;
   bool previousDeferSave = deferBleBindingSave;
   String previousBoundBleAddress = boundBleAddress;
+  String previousBoundBleName = boundBleName;
+  String previousBoundGoProSsid = boundGoProSsid;
   String previousSsid = goProSsid;
   String previousPassword = goProPassword;
   allowAnyCameraScan = true;
@@ -2103,8 +2198,11 @@ bool pairGoPro() {
   if (!ok) {
     if (!connectionCancelRequested) {
       boundBleAddress = previousBoundBleAddress;
+      boundBleName = previousBoundBleName;
+      boundGoProSsid = previousBoundGoProSsid;
       goProSsid = previousSsid;
       goProPassword = previousPassword;
+      setConnectRetryAvailable(!boundBleAddress.isEmpty());
     }
     resetBleClientForPairing();
     if (operationCancelled()) {
@@ -2245,6 +2343,7 @@ bool connectGoProWifiFromBle() {
   }
   if (isLikelyGoProWifiConnected()) {
     markExistingGoProWifiConnected();
+    setConnectRetryAvailable(false);
     setAction("Using existing GoPro WiFi");
     return true;
   }
@@ -2304,6 +2403,7 @@ bool connectGoProWifiFromBle() {
   text += WiFi.localIP().toString();
   lv_label_set_text(wifiLabel, text.c_str());
   lv_label_set_text(statusLabel, "GoPro WiFi connected");
+  setConnectRetryAvailable(false);
   setAction("Connected to GoPro WiFi");
   syncCameraState();
   lastPreviewUpdate = 0;
@@ -2942,10 +3042,14 @@ void runConnectAction() {
   if (!beginGoproAction("connect")) {
     return;
   }
+  setConnectRetryAvailable(false);
   setAction("Connect pressed");
   lv_timer_handler();
   delay(100);
-  connectGoProWifiFromBle();
+  bool ok = connectGoProWifiFromBle();
+  if (!ok && !boundBleAddress.isEmpty() && !allowAnyCameraScan && !operationCancelled()) {
+    setConnectRetryAvailable(true);
+  }
   endGoproAction();
 }
 
@@ -3531,7 +3635,11 @@ bool fetchSnapshotPreview() {
   return false;
 }
 
-void onPair(lv_event_t *) {
+void onPair(lv_event_t *event) {
+  if (event && lv_event_get_target(event) == pairButton && connectRetryAvailable) {
+    runConnectAction();
+    return;
+  }
   queuePairNewAction("button");
 }
 
@@ -3888,6 +3996,7 @@ void createUi() {
   pairButton = makeTouchButton(captureTile, "Pair New", kPreviewX, kHomeButtonY, kPreviewW,
                                kHomeButtonH,
                                lv_color_hex(0x2c7be5));
+  pairButtonLabel = lv_obj_get_child(pairButton, 0);
   lv_obj_add_event_cb(pairButton, onPair, LV_EVENT_CLICKED, nullptr);
   lv_obj_add_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
 
@@ -4492,7 +4601,7 @@ void printSerialHelp() {
   Serial.println("  swipe X1 Y1 X2 Y2 [duration_ms]");
   Serial.println("  lower [single|double|shutdown]");
   Serial.println("  top [short|long]");
-  Serial.println("  pair | cancel | connect | snapshot | record");
+  Serial.println("  pair | cancel | connect | rescan | snapshot | record");
   Serial.println("  page home|maintenance");
   Serial.println("  fullscreen on|off");
   Serial.println("  forget show|confirm|cancel");
@@ -4509,11 +4618,12 @@ void printSerialStatus() {
   Serial.printf("  pairingInProgress=%u pairingCancel=%u pendingHome=%u busy=%u\n",
                 pairingInProgress ? 1 : 0, pairingCancelRequested ? 1 : 0,
                 static_cast<unsigned>(pendingHomeAction), goproActionBusy ? 1 : 0);
-  Serial.printf("  bleConnected=%u bound='%s' name='%s'\n",
-                bleConnected ? 1 : 0, boundBleAddress.c_str(), lastBleName.c_str());
-  Serial.printf("  wifiStatus=%u ssid='%s' ip=%s goproSsid='%s' likelyGoPro=%u\n",
+  Serial.printf("  bleConnected=%u bound='%s' boundName='%s' lastName='%s' retry=%u\n",
+                bleConnected ? 1 : 0, boundBleAddress.c_str(), boundBleName.c_str(),
+                lastBleName.c_str(), connectRetryAvailable ? 1 : 0);
+  Serial.printf("  wifiStatus=%u ssid='%s' ip=%s goproSsid='%s' boundAp='%s' likelyGoPro=%u\n",
                 static_cast<unsigned>(WiFi.status()), ssid.c_str(), ip.c_str(),
-                goProSsid.c_str(), isLikelyGoProWifiConnected() ? 1 : 0);
+                goProSsid.c_str(), boundGoProSsid.c_str(), isLikelyGoProWifiConnected() ? 1 : 0);
   Serial.printf("  capture='%s' setting='%s' actionClicks=%u due=%u\n",
                 captureMode.c_str(), captureSetting.c_str(), actionButtonShortClickCount,
                 actionButtonShortClickDueMs);
@@ -4658,7 +4768,7 @@ void handleSerialCommand(String line) {
     }
     return;
   }
-  if (cmd == "connect") {
+  if (cmd == "connect" || cmd == "rescan") {
     if (!serialActionBlocked(cmd)) {
       runConnectAction();
     }

@@ -44,7 +44,7 @@ The AMOLED firmware has a USB serial UI test harness at `115200`:
 - `swipe X1 Y1 X2 Y2 [duration_ms]`: inject a swipe through LVGL.
 - `lower single` / `lower double`: simulate the lower/action side button.
 - `top short` / `top long`: simulate the top-right side button.
-- `pair`, `connect`, `snapshot`, `record`, `cancel`: run the same app actions used by the UI/buttons.
+- `pair`, `connect`, `rescan`, `snapshot`, `record`, `cancel`: run the same app actions used by the UI/buttons. `rescan` retries the saved-camera BLE/Wi-Fi connection.
 - `page home|maintenance`, `fullscreen on|off`, `forget show|confirm|cancel`, `display on|off`: force states for debugging.
 
 Use `help` in the serial monitor for the complete command list.
@@ -67,7 +67,7 @@ Top-right indicators:
 
 ## Touch Controls
 
-- `Pair New`: tap to pair a different GoPro while that GoPro is in pairing mode. This button is disabled while recording.
+- `Pair New`: tap to pair a different GoPro while that GoPro is in pairing mode. This button is disabled while recording. If a saved-camera BLE scan fails, this button changes to `Scan Again`; tap it to retry the saved camera without replacing the saved pairing.
 
 Reference pages compiled into the UI:
 
@@ -132,6 +132,8 @@ Use the on-screen `Pair New` button for pairing.
 ![Pairing screen](images/ui/02-pairing.svg)
 
 During BLE scanning, the remote searches for nearby devices matching GoPro/Open GoPro service names, including `GoPro`, `MISSION`, and `GP`.
+
+After a successful pairing or reconnect, the remote saves the camera BLE address, advertised BLE name, and GoPro AP SSID in NVS. Reconnect prefers the saved address, but can use the saved BLE name as a fallback if the camera advertises with a changed BLE address.
 
 ![BLE scan screen](images/ui/03-ble-scan.svg)
 
@@ -237,7 +239,7 @@ On USB power, the board may not appear fully off because USB continues to supply
 
 `Camera: BLE not found`
 
-The GoPro is not advertising nearby, is already connected to another controller, or is not in the expected pairing/advertising state. Wake the GoPro and put it back into pairing mode if needed.
+The GoPro is not advertising nearby, is already connected to another controller, or is not in the expected pairing/advertising state. Wake the GoPro and tap `Scan Again` if it appears on the capture screen. If the camera was forgotten or replaced, put it back into pairing mode and tap `Pair New`.
 
 `GoPro WiFi credentials unreadable`
 
@@ -245,7 +247,7 @@ BLE connected, but the Wi-Fi service or characteristics were not readable. Re-pa
 
 `GoPro WiFi connect failed`
 
-The remote read credentials but could not join the camera AP. The camera AP can take a moment to become visible after the BLE enable command. Reboot the remote to retry the automatic connection flow.
+The remote read credentials but could not join the camera AP. The camera AP can take a moment to become visible after the BLE enable command. Tap `Scan Again` or send `rescan` over serial to retry the automatic connection flow.
 
 `Double-click lower for snapshot`
 
