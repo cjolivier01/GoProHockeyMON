@@ -410,6 +410,8 @@ void printSerialStatus() {
                 goProWifiBssidValid ? formatBssid(goProWifiBssid).c_str() : "(none)",
                 isLikelyGoProWifiConnected() ? 1 : 0);
   Serial.printf("  wifiSuspendedForRecording=%u\n", goProWifiSuspendedForRecording ? 1 : 0);
+  Serial.printf("  goproBattery=%d plugged=%u\n", goProBatteryPercent,
+                goProBatteryChargingOrPlugged ? 1 : 0);
   Serial.printf("  capture='%s' setting='%s' actionClicks=%u due=%u\n",
                 captureMode.c_str(), captureSetting.c_str(), actionButtonShortClickCount,
                 actionButtonShortClickDueMs);

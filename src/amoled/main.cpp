@@ -117,7 +117,9 @@ constexpr int kNavSwipeFlickPx = 42;
 constexpr uint32_t kNavPageAnimMs = 180;
 constexpr int kFullscreenSwipePx = 45;
 constexpr uint8_t kSnapshotAspectCropStrengthPercent = 100;
-constexpr uint8_t kSnapshotPreviewVisiblePercent = 92;
+
+// GoPro 5k Wide with Hypersmooth on: 89
+constexpr uint8_t kSnapshotPreviewVisiblePercent = 89;
 
 const BLEUUID kControlService("0000fea6-0000-1000-8000-00805f9b34fb");
 const BLEUUID kWifiService("b5f90001-aa8d-11e3-9046-0002a5d5c51b");
@@ -235,6 +237,7 @@ lv_obj_t *actionLabel = nullptr;
 lv_obj_t *batteryLabel = nullptr;
 lv_obj_t *wifiIndicator = nullptr;
 lv_obj_t *bleIndicator = nullptr;
+lv_obj_t *goproBatteryLabel = nullptr;
 lv_obj_t *tileView = nullptr;
 lv_obj_t *captureModeLabel = nullptr;
 lv_obj_t *captureSettingLabel = nullptr;
@@ -270,6 +273,8 @@ bool h264DecoderReady = false;
 bool h264StreamUnsupported = false;
 bool h264UnsupportedNotified = false;
 bool goProWifiSuspendedForRecording = false;
+int goProBatteryPercent = -1;
+bool goProBatteryChargingOrPlugged = false;
 bool snapshotPreviewPrepared = false;
 bool snapshotPreviewBusy = false;
 bool previewHasImage = false;

@@ -117,10 +117,43 @@ bool readStatusInt(JsonObjectConst status, const char *idKey, const char *sdkKey
          jsonVariantToInt(status[nameKey], out);
 }
 
+void applyGoProBatteryStatus(JsonObjectConst status) {
+  if (status.isNull()) {
+    return;
+  }
+
+  int32_t percent = 0;
+  int32_t bars = 0;
+  int32_t usbConnected = 0;
+  bool percentKnown = readStatusInt(status, "70", "StatusId.INTERNAL_BATTERY_PERCENTAGE",
+                                    "internal_battery_percentage", percent);
+  bool barsKnown = readStatusInt(status, "2", "StatusId.INTERNAL_BATTERY_BARS",
+                                 "internal_battery_bars", bars);
+  bool usbKnown = readStatusInt(status, "115", "StatusId.USB_CONNECTED",
+                                "usb_connected", usbConnected);
+
+  if (percentKnown) {
+    goProBatteryPercent = constrain(static_cast<int>(percent), 0, 100);
+  }
+  if (barsKnown || usbKnown) {
+    goProBatteryChargingOrPlugged =
+        (barsKnown && bars == 4) || (usbKnown && usbConnected != 0);
+  }
+  if (percentKnown || barsKnown || usbKnown) {
+    updateGoProBatteryIndicator();
+    Serial.printf("GoPro battery synced: percent=%d plugged=%u bars=%ld usb=%ld\n",
+                  goProBatteryPercent, goProBatteryChargingOrPlugged ? 1 : 0,
+                  barsKnown ? static_cast<long>(bars) : -1L,
+                  usbKnown ? static_cast<long>(usbConnected) : -1L);
+  }
+}
+
 void applyCameraStatusState(JsonObjectConst status) {
   if (status.isNull()) {
     return;
   }
+
+  applyGoProBatteryStatus(status);
 
   int32_t encoding = 0;
   int32_t duration = 0;

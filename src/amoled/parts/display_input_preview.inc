@@ -607,6 +607,34 @@ void setObjHidden(lv_obj_t *obj, bool hidden) {
   }
 }
 
+void updateGoProBatteryIndicator() {
+  if (!goproBatteryLabel) {
+    return;
+  }
+
+  char text[16];
+  if (goProBatteryPercent < 0) {
+    snprintf(text, sizeof(text), "%s--%%",
+             goProBatteryChargingOrPlugged ? LV_SYMBOL_CHARGE : "");
+    lv_obj_set_style_text_color(goproBatteryLabel, lv_color_hex(0x5a6472), 0);
+  } else {
+    int percent = constrain(goProBatteryPercent, 0, 100);
+    snprintf(text, sizeof(text), "%s%d%%",
+             goProBatteryChargingOrPlugged ? LV_SYMBOL_CHARGE : "",
+             percent);
+    if (goProBatteryChargingOrPlugged) {
+      lv_obj_set_style_text_color(goproBatteryLabel, lv_color_hex(0x47d16c), 0);
+    } else if (percent <= 15) {
+      lv_obj_set_style_text_color(goproBatteryLabel, lv_color_hex(0xf03e3e), 0);
+    } else if (percent <= 35) {
+      lv_obj_set_style_text_color(goproBatteryLabel, lv_color_hex(0xf0b429), 0);
+    } else {
+      lv_obj_set_style_text_color(goproBatteryLabel, lv_color_hex(0xc3ccd8), 0);
+    }
+  }
+  lv_label_set_text(goproBatteryLabel, text);
+}
+
 void setPairingPopupMessage(const char *message) {
   if (!pairingPopupMessage) {
     return;

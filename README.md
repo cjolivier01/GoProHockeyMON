@@ -21,6 +21,7 @@ The current hardware path is the ESP32-S3 remote with the integrated 1.8-inch AM
 - On the AMOLED UI target, the lower/action side button double-click syncs the current Video preset settings, takes one temporary photo snapshot, downloads/displays the larger JPEG screennail preview fullscreen through the current video framing crop, restores Video mode, and deletes the captured JPEG from the camera.
 - The top-right side button starts video recording over the currently active camera link: Wi-Fi if the remote is already joined to the GoPro AP, otherwise BLE. After recording starts, the remote disconnects its Wi-Fi STA and asks the GoPro over BLE to turn off the camera AP. While recording, a long press stops recording over BLE and the preview area shows a local elapsed-time `RECORDING` overlay without polling the camera.
 - After reconnect, `/gopro/camera/state` restores the remote's recording overlay from the camera Encoding flag and Video Encoding Duration.
+- The top banner shows the last synced GoPro battery percentage to the left of the Bluetooth icon; a lightning bolt is shown when the camera reports charging or USB plugged in.
 - Re-enables and reconnects to the GoPro camera Wi-Fi AP from saved BLE credentials only when a later HTTP workflow, such as snapshot preview, needs it.
 
 ## AMOLED UI Button Behavior

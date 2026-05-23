@@ -81,6 +81,14 @@ void createUi() {
   lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
   lv_obj_align(bleIndicator, LV_ALIGN_TOP_RIGHT, -148, 7);
 
+  goproBatteryLabel = lv_label_create(screen);
+  lv_obj_set_width(goproBatteryLabel, 64);
+  lv_label_set_long_mode(goproBatteryLabel, LV_LABEL_LONG_CLIP);
+  lv_obj_set_style_text_align(goproBatteryLabel, LV_TEXT_ALIGN_RIGHT, 0);
+  lv_obj_set_style_text_font(goproBatteryLabel, fontForSize(16), 0);
+  lv_obj_align(goproBatteryLabel, LV_ALIGN_TOP_RIGHT, -176, 8);
+  updateGoProBatteryIndicator();
+
   tileView = lv_tileview_create(screen);
   lv_obj_set_size(tileView, LCD_WIDTH, LCD_HEIGHT - kTopBarH);
   lv_obj_align(tileView, LV_ALIGN_BOTTOM_MID, 0, 0);

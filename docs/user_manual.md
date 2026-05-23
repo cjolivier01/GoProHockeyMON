@@ -62,6 +62,7 @@ The capture screen is the home screen. It shows the JPEG preview area, current m
 Top-right indicators:
 
 - Battery icon: read from the AXP2101 PMU.
+- GoPro battery percentage: shown to the left of the Bluetooth icon after camera state sync. A lightning bolt means the camera reports charging or USB plugged in.
 - Wi-Fi icon: gray while disconnected/connecting, green when connected to the GoPro AP.
 - Bluetooth icon: blue while BLE is connected.
 
