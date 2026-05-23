@@ -1,6 +1,6 @@
 # GoPro Remote User Manual
 
-This manual covers the current single-device ESP32-S3 AMOLED remote firmware.
+This manual covers the current single-device ESP32-S3 1.8-inch AMOLED remote firmware.
 
 The remote uses Bluetooth Low Energy first. After pairing, it reads the GoPro camera Wi-Fi SSID and password over BLE, enables the camera Wi-Fi AP, then connects the ESP32-S3 to that GoPro AP for HTTP camera control and manual JPEG snapshots.
 
@@ -31,31 +31,45 @@ Normal boot output ends with:
 
 ```text
 GoPro AMOLED UI boot
-AXP2101 PWR button enabled
+AXP2101 PMU initialized; lower/action key IRQs enabled
 AMOLED UI ready
 ```
 
+## Serial UI Testing
+
+The AMOLED firmware has a USB serial UI test harness at `115200`:
+
+- `status`: print the current display, recording, BLE, Wi-Fi, pairing, and saved-camera state.
+- `touch X Y [hold_ms]`: inject a touch at a screen pixel through LVGL.
+- `swipe X1 Y1 X2 Y2 [duration_ms]`: inject a swipe through LVGL.
+- `lower single` / `lower double`: simulate the lower/action side button.
+- `top short` / `top long`: simulate the top-right side button.
+- `pair`, `connect`, `rescan`, `snapshot`, `record`, `cancel`: run the same app actions used by the UI/buttons. `rescan` retries the saved-camera BLE/Wi-Fi connection.
+- `page home|maintenance`, `fullscreen on|off`, `forget show|confirm|cancel`, `display on|off`: force states for debugging.
+
+Use `help` in the serial monitor for the complete command list.
+
 ## Screen Reference
 
-The default screen is the capture/preview screen, matching the basic GoPro rear-screen flow. Horizontal page swipe is disabled on the AMOLED build because it was unreliable on this panel. The battery and Wi-Fi cluster stays visible at the top.
+The default screen is the capture/preview screen, matching the basic GoPro rear-screen flow. Swipe right from the preview screen to open Maintenance, and swipe left or single-click the lower side button from Maintenance to return. The maintenance panel follows the finger while swiping and snaps open or closed at release. The battery and Wi-Fi cluster stays visible at the top.
 
 ### Capture Screen
 
-The capture screen is the home screen. It shows the JPEG preview area, current mode, format overlay, camera connection state, Wi-Fi state, and a full-width `Pair New` button. Camera Wi-Fi connection runs automatically after boot.
+The capture screen is the home screen. It shows the JPEG preview area, current mode, format overlay, camera connection state, Wi-Fi state, and a full-width connection strip. Camera Wi-Fi connection runs automatically after boot.
 
 ![Home idle screen](images/ui/01-home-idle.svg)
 
 Top-right indicators:
 
-- Battery bar and percent: read from the AXP2101 PMU.
-- `USB`: shown if USB power is present but no battery percentage is available.
-- `WIFI --`: Wi-Fi disconnected.
-- `WIFI ..`: Wi-Fi connecting.
-- `WIFI ON`: connected to the GoPro AP.
+- Battery icon: read from the AXP2101 PMU.
+- Wi-Fi icon: gray while disconnected/connecting, green when connected to the GoPro AP.
+- Bluetooth icon: blue while BLE is connected.
 
 ## Touch Controls
 
-- `Pair New`: long-press to pair a different GoPro while that GoPro is in pairing mode. A short tap only shows the hold instruction.
+- `Camera Connected`: shown when the remote is already on the GoPro Wi-Fi AP. It is passive; use the preview and record controls instead of pairing again.
+- `Scan Again`: shown after a saved-camera reconnect fails. Tap it to retry the saved camera without replacing the saved pairing.
+- `Pair New`: shown when no camera is connected or saved. Tap it while the GoPro is in pairing mode. It is disabled while recording.
 
 Reference pages compiled into the UI:
 
@@ -99,18 +113,19 @@ The setting sheet appears over the current page after tapping a setting. It show
 
 The board has two side buttons:
 
-- Top-right side button short press: start/stop recording.
-- Lower side button short press or PWR double-click: take one JPEG snapshot, download/display it fullscreen, then delete it from the GoPro.
+- Top-right side button short press: start recording.
+- Top-right side button long press while recording: stop recording.
+- Lower side button single click: blank/wake the display, exit fullscreen preview, or return from Maintenance to the capture screen.
+- Lower side button double click: take one JPEG snapshot, download/display it fullscreen, then delete it from the GoPro.
+- Lower side button long press: enter low-power shutdown through the AXP2101 PMU.
 - Lower side button during `Pair New`: cancel the active pairing attempt without replacing the saved camera binding.
-- PWR single-click: turn AMOLED display off/on.
-- PWR long press: enter low-power shutdown through the AXP2101 PMU.
 
 Use the on-screen `Pair New` button for pairing.
 
 ## Pairing A GoPro
 
 1. On the GoPro, open the Bluetooth pairing screen.
-2. On the remote, long-press `Pair New` on the capture screen.
+2. On the remote, tap `Pair New` when it is shown, or use `Forget Camera` on Maintenance first if the home screen already shows `Camera Connected`.
 3. The remote scans for GoPro BLE devices and sends the Open GoPro pairing finish command.
 4. The previous saved camera binding is kept until the new pairing command succeeds.
 5. Press the lower side button during pairing to cancel without changing the saved camera.
@@ -119,6 +134,8 @@ Use the on-screen `Pair New` button for pairing.
 ![Pairing screen](images/ui/02-pairing.svg)
 
 During BLE scanning, the remote searches for nearby devices matching GoPro/Open GoPro service names, including `GoPro`, `MISSION`, and `GP`.
+
+After a successful pairing or reconnect, the remote saves the camera BLE address, advertised BLE name, and GoPro AP SSID in NVS. Reconnect prefers the saved address, but can use the saved BLE name as a fallback if the camera advertises with a changed BLE address.
 
 ![BLE scan screen](images/ui/03-ble-scan.svg)
 
@@ -164,13 +181,13 @@ The preview area is a manual JPEG snapshot path, not full real-time video decode
 
 Current behavior:
 
-- Press the lower side button or double-click PWR while not recording to take one GoPro photo, download its JPEG thumbnail, display it fullscreen, and delete the captured JPEG from the camera.
-- Swipe up while the snapshot is fullscreen to return to the normal capture page.
+- Double-click the lower side button while not recording to take one GoPro photo, download its JPEG preview, display it fullscreen, and delete the captured JPEG from the camera.
+- Swipe up or single-click the lower side button while the snapshot is fullscreen to return to the normal capture page.
 - While recording, snapshots are disabled.
 
 Common preview messages:
 
-- `Press lower button for snapshot`
+- `Double-click lower for snapshot`
 - `No GoPro JPEG media found`
 - `JPEG fetch failed`
 - `JPEG decode failed`
@@ -186,17 +203,19 @@ When recording starts:
 - The preview area shows a red `RECORDING` overlay and locally timed elapsed duration.
 - The remote does not poll the camera for the timer while recording.
 
-Short-press the top-right side button again to stop recording. The remote sends `/gopro/camera/shutter/stop`.
+When the remote reconnects after being powered off while the GoPro kept recording, it reads `/gopro/camera/state` and restores the red `RECORDING` overlay from the camera's Encoding status and Video Encoding Duration.
+
+Long-press the top-right side button to stop recording. The remote sends `/gopro/camera/shutter/stop`.
 
 ![Recording screen](images/ui/07-recording.svg)
 
 ## Display Sleep And Power Off
 
-Single-click PWR to blank the display. This saves display power but does not fully shut down the ESP32-S3. Double-click PWR takes one snapshot when the camera is not recording.
+Single-click the lower side button to blank or wake the display. This saves display power but does not fully shut down the ESP32-S3. Double-click the lower side button takes one snapshot when the camera is not recording.
 
 ![Display sleeping screen](images/ui/08-display-sleeping.svg)
 
-Long-press PWR to enter low-power shutdown:
+Long-press the lower side button to enter low-power shutdown:
 
 - Recording state is cleared locally.
 - Wi-Fi is disconnected and turned off.
@@ -213,18 +232,18 @@ On USB power, the board may not appear fully off because USB continues to supply
 1. Power on the ESP32-S3 remote.
 2. Confirm the main screen appears.
 3. Put the GoPro into pairing mode if this is the first connection.
-4. Long-press `Pair New`.
+4. Tap `Pair New`.
 5. Wait for the automatic camera Wi-Fi connection.
-6. Press the lower side button or double-click PWR for a snapshot preview.
-7. Press the top-right side button to start/stop recording.
-8. Single-click PWR to blank the screen between uses.
-9. Long-press PWR for low-power shutdown.
+6. Double-click the lower side button for a snapshot preview.
+7. Press the top-right side button to start recording; long-press it to stop recording.
+8. Single-click the lower side button to blank the screen between uses.
+9. Long-press the lower side button for low-power shutdown.
 
 ## Troubleshooting
 
 `Camera: BLE not found`
 
-The GoPro is not advertising nearby, is already connected to another controller, or is not in the expected pairing/advertising state. Wake the GoPro and put it back into pairing mode if needed.
+The GoPro is not advertising nearby, is already connected to another controller, or is not in the expected pairing/advertising state. Wake the GoPro and tap `Scan Again` if it appears on the capture screen. If the camera was forgotten or replaced, put it back into pairing mode and tap `Pair New`.
 
 `GoPro WiFi credentials unreadable`
 
@@ -232,9 +251,9 @@ BLE connected, but the Wi-Fi service or characteristics were not readable. Re-pa
 
 `GoPro WiFi connect failed`
 
-The remote read credentials but could not join the camera AP. The camera AP can take a moment to become visible after the BLE enable command. Reboot the remote to retry the automatic connection flow.
+The remote read credentials but could not join the camera AP. The camera AP can take a moment to become visible after the BLE enable command. Tap `Scan Again` or send `rescan` over serial to retry the automatic connection flow.
 
-`Press lower button for snapshot`
+`Double-click lower for snapshot`
 
 The remote has not joined the GoPro AP yet. Wait for automatic connection or reboot the remote to retry.
 
@@ -246,11 +265,9 @@ The current codebase has been built for:
 - `esp32s3_radio`
 - `esp32s3_amoled_ui`
 - `ui_esp32dev_sim`
-- `esp32p4_ui` optional P4 worker shell
-- `dfrobot_p4_decode_probe`
 
 Run the same build matrix:
 
 ```sh
-pio run -e esp32dev -e esp32s3_radio -e esp32s3_amoled_ui -e ui_esp32dev_sim -e esp32p4_ui -e dfrobot_p4_decode_probe
+pio run -e esp32dev -e esp32s3_radio -e esp32s3_amoled_ui -e ui_esp32dev_sim
 ```

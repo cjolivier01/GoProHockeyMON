@@ -18,5 +18,5 @@
   <text x="20" y="326" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">WiFi: idle</text>
   <rect x="20" y="354" width="328" height="48" rx="8" fill="#7c4dff"/>
   <text x="154" y="383" fill="#fff" font-family="Arial, sans-serif" font-size="14" font-weight="700">Pair New</text>
-  <text x="44" y="424" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Auto-connect | hold Pair New to change camera</text>
+  <text x="44" y="424" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Auto-connect | tap Pair New to change camera</text>
 </svg>

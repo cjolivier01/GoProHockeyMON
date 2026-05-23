@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="368" height="448" viewBox="0 0 368 448">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#79c8ff"/>
+      <stop offset="1" stop-color="#d8f3ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="368" height="448" fill="#090b10"/>
+  <text x="18" y="24" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="18" font-weight="700">GoPro</text>
+  <text x="20" y="47" fill="#96a2b4" font-family="Arial, sans-serif" font-size="13">Preview</text>
+  <g fill="none" stroke="#47d16c" stroke-width="2" stroke-linecap="round">
+    <path d="M269 25q8-7 16 0"/>
+    <path d="M273 30q4-4 8 0"/>
+  </g>
+  <text x="292" y="31" fill="#2c7be5" font-family="Arial, sans-serif" font-size="13" font-weight="700">BT</text>
+  <rect x="319" y="20" width="34" height="14" rx="3" fill="none" stroke="#c3ccd8" stroke-width="2"/>
+  <rect x="353" y="24" width="3" height="6" rx="1" fill="#c3ccd8"/>
+  <rect x="323" y="24" width="22" height="6" rx="2" fill="#47d16c"/>
+
+  <rect x="20" y="76" width="328" height="150" rx="8" fill="#101827" stroke="#2b3a52"/>
+  <clipPath id="previewClip">
+    <rect x="21" y="77" width="326" height="148" rx="8"/>
+  </clipPath>
+  <g clip-path="url(#previewClip)">
+    <rect x="21" y="77" width="326" height="148" fill="url(#sky)"/>
+    <circle cx="292" cy="108" r="20" fill="#ffd166"/>
+    <path d="M21 178c45-36 88-31 135-4 41 23 72 18 110-9 33-23 57-21 81-2v62H21z" fill="#58a96b"/>
+    <path d="M21 199c62-17 118-13 166 3 58 20 108 13 160-9v32H21z" fill="#2f7d4d"/>
+    <path d="M105 164c18-18 49-19 69-4 12 9 27 10 42 2" fill="none" stroke="#7b5b3a" stroke-width="11" stroke-linecap="round"/>
+    <ellipse cx="152" cy="169" rx="43" ry="18" fill="#8b623d"/>
+    <path d="M190 157l21-7 8 10-21 9z" fill="#8b623d"/>
+    <circle cx="217" cy="149" r="5" fill="#2c2118"/>
+    <path d="M126 181l-8 29M147 183l-4 30M172 183l7 29M194 178l17 25" stroke="#4c3323" stroke-width="6" stroke-linecap="round"/>
+    <path d="M135 151l27-16 32 9" fill="none" stroke="#3f2c22" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="166" cy="127" r="9" fill="#f2c199"/>
+    <path d="M158 138l13 29 13-26" fill="none" stroke="#d71920" stroke-width="8" stroke-linecap="round"/>
+    <path d="M155 121c7-9 18-4 21 2-7-1-14 1-21-2z" fill="#4c3323"/>
+    <path d="M172 166l18 16M163 164l-22 12" stroke="#1f2937" stroke-width="4" stroke-linecap="round"/>
+    <path d="M21 219h326" stroke="#c3ccd8" stroke-opacity=".25"/>
+  </g>
+
+  <text x="22" y="253" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="18">Video</text>
+  <text x="22" y="277" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">16:9 | 5K | 30 | W</text>
+  <text x="20" y="304" fill="#c3ccd8" font-family="Arial, sans-serif" font-size="14">Camera AP: LEFTCAM</text>
+  <rect x="20" y="327" width="328" height="56" rx="8" fill="#2c7be5"/>
+  <text x="148" y="362" fill="#fff" font-family="Arial, sans-serif" font-size="15" font-weight="700">Pair New</text>
+  <text x="43" y="420" fill="#96a2b4" font-family="Arial, sans-serif" font-size="14">Auto-connect | lower double-click snapshots</text>
+</svg>
