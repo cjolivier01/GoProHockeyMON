@@ -1,12 +1,10 @@
 # ESP32-S3 Open GoPro Remote
 
-PlatformIO firmware for a GoPro remote that uses the current Open GoPro BLE and Wi-Fi control flow.
-
-## Screenshots
-
 | Preview | Recording | Maintenance |
 | --- | --- | --- |
 | ![Preview screen with snapshot image](docs/images/ui/00-readme-preview.svg) | ![Recording screen](docs/images/ui/00-readme-recording.svg) | ![Maintenance screen](docs/images/ui/00-readme-maintenance.svg) |
+
+PlatformIO firmware for a GoPro remote that uses the current Open GoPro BLE and Wi-Fi control flow.
 
 The current hardware path is the ESP32-S3 AMOLED remote:
 
@@ -22,6 +20,7 @@ The current hardware path is the ESP32-S3 AMOLED remote:
 - Joins the camera AP for HTTP camera control.
 - On the AMOLED UI target, the lower/action side button double-click takes one snapshot, downloads/displays the larger JPEG screennail preview fullscreen, and deletes the captured JPEG from the camera.
 - The top-right side button starts video recording; while recording, a long press stops recording and the preview area shows a local elapsed-time `RECORDING` overlay without polling the camera.
+- After reconnect, `/gopro/camera/state` restores the remote's recording overlay from the camera Encoding flag and Video Encoding Duration.
 - Connects to the GoPro camera Wi-Fi AP using credentials read over BLE.
 
 ## AMOLED UI Button Behavior
@@ -37,7 +36,7 @@ This applies to the `esp32s3_amoled_ui` firmware. The top status banner stays vi
 | Display sleeping | Start recording when idle; long press stops if already recording | Single click wakes the display |
 | Maintenance screen | Same as current recording state | Single click returns to the normal preview screen; long press enters low-power shutdown |
 
-Swipe right from the normal preview screen to open the maintenance screen, including while the remote is trying to connect over BLE or Wi-Fi. The maintenance screen follows the finger while swiping and snaps open/closed at release. Swipe left or single-click the lower/action side button from maintenance to return. Tap the on-screen `Pair New` button to pair a different GoPro; it is disabled while recording. If a saved-camera scan fails, the same home button changes to `Scan Again` so you can retry without forgetting or replacing the saved camera. The saved camera is only replaced after the new pairing succeeds. `Forget Camera` lives on the maintenance screen and requires confirmation; confirming it cancels any current BLE/Wi-Fi connection attempt, clears the saved BLE address and local bond information, and disables boot auto-connect until Pair New succeeds again.
+Swipe right from the normal preview screen to open the maintenance screen, including while the remote is trying to connect over BLE or Wi-Fi. The maintenance screen follows the finger while swiping and snaps open/closed at release. Swipe left or single-click the lower/action side button from maintenance to return. When the GoPro Wi-Fi connection is active, the home screen shows a passive `Camera Connected` strip instead of a pairing action. If a saved-camera scan fails, the same home strip changes to `Scan Again` so you can retry without forgetting or replacing the saved camera. Use maintenance for camera replacement and recovery: `Forget Camera` requires confirmation, cancels any current BLE/Wi-Fi connection attempt, clears the saved BLE address and local bond information, and disables boot auto-connect until Pair New succeeds again.
 
 ## AMOLED Serial UI Test Commands
 
@@ -61,7 +60,21 @@ The `esp32s3_amoled_ui` target accepts USB serial commands at `115200` for repea
 - `esp32s3_amoled_ui`: primary touch UI firmware for the ESP32-S3 AMOLED board.
 - `ui_esp32dev_sim`: UI-host simulator build. It uses serial text as the display/touch stand-in and talks to the radio firmware over `Serial2`.
 
-Build everything:
+The top-level `Makefile` wraps the normal PlatformIO commands:
+
+```sh
+make build           # build esp32s3_amoled_ui
+make upload          # auto-detect and flash the ESP32-S3 serial port
+make monitor         # auto-detect and open serial monitor
+make upload-monitor  # flash, then monitor
+make status          # send firmware serial status command
+make snapshot        # run snapshot path over serial
+make lower-double    # simulate lower side-button double click
+```
+
+`make ports` lists visible serial devices and prints the preferred ESP32 port. Override auto-detection with `PORT=/dev/ttyACM0` if needed, and override the selected PlatformIO environment with `ENV=...`.
+
+Build everything directly through PlatformIO:
 
 ```sh
 pio run
@@ -74,6 +87,8 @@ pio run -e esp32s3_radio
 pio run -e esp32s3_amoled_ui
 pio run -e ui_esp32dev_sim
 ```
+
+Legacy ESP32-P4 wiring diagrams were removed from the docs because the current product path is the single-board ESP32-S3 AMOLED remote.
 
 ## S3 AMOLED Architecture
 

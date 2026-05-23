@@ -55,7 +55,7 @@ The default screen is the capture/preview screen, matching the basic GoPro rear-
 
 ### Capture Screen
 
-The capture screen is the home screen. It shows the JPEG preview area, current mode, format overlay, camera connection state, Wi-Fi state, and a full-width `Pair New` button. Camera Wi-Fi connection runs automatically after boot.
+The capture screen is the home screen. It shows the JPEG preview area, current mode, format overlay, camera connection state, Wi-Fi state, and a full-width connection strip. Camera Wi-Fi connection runs automatically after boot.
 
 ![Home idle screen](images/ui/01-home-idle.svg)
 
@@ -67,7 +67,9 @@ Top-right indicators:
 
 ## Touch Controls
 
-- `Pair New`: tap to pair a different GoPro while that GoPro is in pairing mode. This button is disabled while recording. If a saved-camera BLE scan fails, this button changes to `Scan Again`; tap it to retry the saved camera without replacing the saved pairing.
+- `Camera Connected`: shown when the remote is already on the GoPro Wi-Fi AP. It is passive; use the preview and record controls instead of pairing again.
+- `Scan Again`: shown after a saved-camera reconnect fails. Tap it to retry the saved camera without replacing the saved pairing.
+- `Pair New`: shown when no camera is connected or saved. Tap it while the GoPro is in pairing mode. It is disabled while recording.
 
 Reference pages compiled into the UI:
 
@@ -123,7 +125,7 @@ Use the on-screen `Pair New` button for pairing.
 ## Pairing A GoPro
 
 1. On the GoPro, open the Bluetooth pairing screen.
-2. On the remote, tap `Pair New` on the capture screen.
+2. On the remote, tap `Pair New` when it is shown, or use `Forget Camera` on Maintenance first if the home screen already shows `Camera Connected`.
 3. The remote scans for GoPro BLE devices and sends the Open GoPro pairing finish command.
 4. The previous saved camera binding is kept until the new pairing command succeeds.
 5. Press the lower side button during pairing to cancel without changing the saved camera.
@@ -201,6 +203,8 @@ When recording starts:
 - The preview area shows a red `RECORDING` overlay and locally timed elapsed duration.
 - The remote does not poll the camera for the timer while recording.
 
+When the remote reconnects after being powered off while the GoPro kept recording, it reads `/gopro/camera/state` and restores the red `RECORDING` overlay from the camera's Encoding status and Video Encoding Duration.
+
 Long-press the top-right side button to stop recording. The remote sends `/gopro/camera/shutter/stop`.
 
 ![Recording screen](images/ui/07-recording.svg)
@@ -261,11 +265,9 @@ The current codebase has been built for:
 - `esp32s3_radio`
 - `esp32s3_amoled_ui`
 - `ui_esp32dev_sim`
-- `esp32p4_ui` optional P4 worker shell
-- `dfrobot_p4_decode_probe`
 
 Run the same build matrix:
 
 ```sh
-pio run -e esp32dev -e esp32s3_radio -e esp32s3_amoled_ui -e ui_esp32dev_sim -e esp32p4_ui -e dfrobot_p4_decode_probe
+pio run -e esp32dev -e esp32s3_radio -e esp32s3_amoled_ui -e ui_esp32dev_sim
 ```
