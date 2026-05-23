@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <ctype.h>
 #include <strings.h>
 #include <BLEDevice.h>
 #include <BLEScan.h>
@@ -2943,17 +2944,32 @@ bool jsonVariantToInt(JsonVariantConst value, int32_t &out) {
   }
   const char *text = value.as<const char *>();
   if (text != nullptr) {
-    if (strcasecmp(text, "true") == 0) {
+    const char *trimmed = text;
+    while (isspace(static_cast<unsigned char>(*trimmed))) {
+      ++trimmed;
+    }
+    const char *trimmedEnd = trimmed + strlen(trimmed);
+    while (trimmedEnd > trimmed &&
+           isspace(static_cast<unsigned char>(*(trimmedEnd - 1)))) {
+      --trimmedEnd;
+    }
+    size_t trimmedLen = trimmedEnd - trimmed;
+    if (trimmedLen == 4 && strncasecmp(trimmed, "true", trimmedLen) == 0) {
       out = 1;
       return true;
     }
-    if (strcasecmp(text, "false") == 0) {
+    if (trimmedLen == 5 && strncasecmp(trimmed, "false", trimmedLen) == 0) {
       out = 0;
       return true;
     }
     char *end = nullptr;
-    long parsed = strtol(text, &end, 10);
-    if (end != text) {
+    long parsed = strtol(trimmed, &end, 10);
+    if (end != trimmed) {
+      while (end < trimmedEnd && isspace(static_cast<unsigned char>(*end))) {
+        ++end;
+      }
+    }
+    if (end != trimmed && end == trimmedEnd) {
       out = static_cast<int32_t>(parsed);
       return true;
     }

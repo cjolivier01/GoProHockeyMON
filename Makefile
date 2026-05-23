@@ -8,7 +8,7 @@ PIO_SHEBANG := $(shell if [ -n "$(PIO_BIN)" ]; then sed -n '1s/^#!//p' "$(PIO_BI
 PIO_PYTHON ?= $(if $(PIO_SHEBANG),$(PIO_SHEBANG),python3)
 ENV ?= esp32s3_amoled_ui
 ACTIVE_ENVS ?= esp32dev esp32s3_radio esp32s3_amoled_ui ui_esp32dev_sim
-DETECTED_PORT := $(shell "$(PIO_PYTHON)" "$(TOPDIR)/tools/find_esp32_port.py" 2>/dev/null)
+DETECTED_PORT := $(shell $(PIO_PYTHON) "$(TOPDIR)/tools/find_esp32_port.py" 2>/dev/null)
 PORT ?= $(DETECTED_PORT)
 BAUD ?= 115200
 PIO_ARGS ?=
@@ -45,7 +45,7 @@ upload-monitor: upload monitor
 ports:
 	$(PIO) device list
 	@printf '\nPreferred ESP32 port: '
-	@"$(PIO_PYTHON)" "$(TOPDIR)/tools/find_esp32_port.py" || printf '(none detected)\n'
+	@$(PIO_PYTHON) "$(TOPDIR)/tools/find_esp32_port.py" || printf '(none detected)\n'
 
 clean:
 	$(PIO) run -e $(ENV) -t clean
@@ -76,7 +76,7 @@ ble-dump:
 
 serial:
 	@test -n "$(CMD)" || { printf 'Set CMD, for example: make serial CMD=status\n' >&2; exit 2; }
-	@$(call with_port,exec "$(PIO_PYTHON)" "$(TOPDIR)/tools/serial_cmd.py" --port "$$port" --baud $(BAUD) --timeout "$(SERIAL_TIMEOUT)" --quiet-after "$(SERIAL_QUIET_AFTER)" --pre-drain "$(SERIAL_PRE_DRAIN)" "$(CMD)")
+	@$(call with_port,exec $(PIO_PYTHON) "$(TOPDIR)/tools/serial_cmd.py" --port "$$port" --baud $(BAUD) --timeout "$(SERIAL_TIMEOUT)" --quiet-after "$(SERIAL_QUIET_AFTER)" --pre-drain "$(SERIAL_PRE_DRAIN)" "$(CMD)")
 
 status:
 	@$(MAKE) serial CMD=status
@@ -147,7 +147,7 @@ print_targets:
 		'PORT            Serial/upload port; auto-detected when unset.' \
 		'BAUD            Monitor/serial baud rate (default: 115200).' \
 		'PIO             PlatformIO executable (default: pio).' \
-		'PIO_PYTHON      Python with pyserial; inferred from the pio executable when unset.' \
+		'PIO_PYTHON      Python command with pyserial; inferred from the pio executable when unset.' \
 		'PIO_ARGS        Extra arguments passed to pio run/check commands.' \
 		'MONITOR_ARGS    Extra pio device monitor arguments (default: --echo).' \
 		'SERIAL_TIMEOUT  Seconds to read after one-shot serial commands.' \

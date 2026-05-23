@@ -31,7 +31,7 @@ Normal boot output ends with:
 
 ```text
 GoPro AMOLED UI boot
-AXP2101 PMU initialized
+AXP2101 PMU initialized; lower/action key IRQs enabled
 AMOLED UI ready
 ```
 
