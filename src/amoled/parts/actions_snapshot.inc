@@ -40,9 +40,7 @@ void runConnectAction() {
   }
   setHomeCameraConnected(false);
   setConnectRetryAvailable(false);
-  setAction("Connect pressed");
   lv_timer_handler();
-  delay(100);
   bool ok = connectGoProWifiFromBle();
   if (!ok && !boundBleAddress.isEmpty() && !allowAnyCameraScan && !operationCancelled()) {
     setConnectRetryAvailable(true);
@@ -419,23 +417,22 @@ bool ensurePreviewCanvasBuffer(int width, int height) {
   size_t requiredBytes = static_cast<size_t>(width) * static_cast<size_t>(height) *
                          sizeof(lv_color_t);
   if (!previewCanvasBuffer || previewCanvasBufferBytes < requiredBytes) {
-    if (previewCanvasBuffer) {
-      heap_caps_free(previewCanvasBuffer);
-      previewCanvasBuffer = nullptr;
-      previewCanvasBufferBytes = 0;
-    }
-    previewCanvasBuffer = static_cast<lv_color_t *>(
+    lv_color_t *newBuffer = static_cast<lv_color_t *>(
         heap_caps_malloc(requiredBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    if (!previewCanvasBuffer) {
-      previewCanvasBuffer =
-          static_cast<lv_color_t *>(heap_caps_malloc(requiredBytes, MALLOC_CAP_8BIT));
+    if (!newBuffer) {
+      newBuffer = static_cast<lv_color_t *>(heap_caps_malloc(requiredBytes, MALLOC_CAP_8BIT));
     }
-    if (!previewCanvasBuffer) {
+    if (!newBuffer) {
       Serial.printf("Preview canvas allocation failed: %dx%d %u bytes\n", width, height,
                     static_cast<unsigned>(requiredBytes));
       return false;
     }
+    lv_color_t *oldBuffer = previewCanvasBuffer;
+    previewCanvasBuffer = newBuffer;
     previewCanvasBufferBytes = requiredBytes;
+    if (oldBuffer) {
+      heap_caps_free(oldBuffer);
+    }
     Serial.printf("Preview canvas allocated: %dx%d %u bytes\n", width, height,
                   static_cast<unsigned>(requiredBytes));
   }

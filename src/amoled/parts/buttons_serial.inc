@@ -297,11 +297,6 @@ void handleExpanderDiagnostics() {
   if (pin != expanderActionPinLast) {
     expanderActionPinLast = pin;
     Serial.printf("Action pin p%u=%u\n", kExpanderActionButtonPin, pin);
-    if (actionLabel) {
-      char label[40];
-      snprintf(label, sizeof(label), "Action p%u=%u", kExpanderActionButtonPin, pin);
-      lv_label_set_text(actionLabel, label);
-    }
   }
 }
 
