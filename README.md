@@ -1,4 +1,4 @@
-# ESP32-S3 Open GoPro Remote
+# ESP32-S3 1.8-inch AMOLED Open GoPro Remote
 
 | Preview | Recording | Maintenance |
 | --- | --- | --- |
@@ -6,9 +6,9 @@
 
 PlatformIO firmware for a GoPro remote that uses the current Open GoPro BLE and Wi-Fi control flow.
 
-The current hardware path is the ESP32-S3 AMOLED remote:
+The current hardware path is the ESP32-S3 remote with the integrated 1.8-inch AMOLED screen:
 
-- `esp32s3_amoled_ui`: ESP32-S3 display/touch remote UI with BLE pairing, GoPro Wi-Fi connection, physical-button controls, battery/status indicators, and JPEG snapshot preview.
+- `esp32s3_amoled_ui`: ESP32-S3 1.8-inch AMOLED display/touch remote UI with BLE pairing, GoPro Wi-Fi connection, physical-button controls, battery/status indicators, and JPEG snapshot preview.
 - `esp32dev`, `esp32s3_radio`, and `ui_esp32dev_sim`: legacy radio/simulator targets kept for diagnostics and protocol experiments.
 
 ## What It Does
@@ -57,7 +57,7 @@ The `esp32s3_amoled_ui` target accepts USB serial commands at `115200` for repea
 
 - `esp32dev`: radio firmware for the currently attached ESP32 dev board.
 - `esp32s3_radio`: radio firmware for an ESP32-S3 dev board.
-- `esp32s3_amoled_ui`: primary touch UI firmware for the ESP32-S3 AMOLED board.
+- `esp32s3_amoled_ui`: primary touch UI firmware for the ESP32-S3 1.8-inch AMOLED board.
 - `ui_esp32dev_sim`: UI-host simulator build. It uses serial text as the display/touch stand-in and talks to the radio firmware over `Serial2`.
 
 The top-level `Makefile` wraps the normal PlatformIO commands:
@@ -82,15 +82,15 @@ pio run -e esp32s3_amoled_ui
 pio run -e ui_esp32dev_sim
 ```
 
-## S3 AMOLED Architecture
+## S3 1.8-inch AMOLED Architecture
 
-The S3 board owns the LCD, touch, buttons, battery UI, GoPro menu, BLE pairing, GoPro Wi-Fi, HTTP camera control, and JPEG snapshot preview display.
+The S3 1.8-inch AMOLED board owns the LCD, touch, buttons, battery UI, GoPro menu, BLE pairing, GoPro Wi-Fi, HTTP camera control, and JPEG snapshot preview display.
 
 ```text
 GoPro <-- BLE/Wi-Fi --> ESP32-S3 UI/radio/display
 ```
 
-The S3 AMOLED target owns:
+The S3 1.8-inch AMOLED target owns:
 
 - LCD output
 - Touch input
@@ -143,7 +143,7 @@ The simulator receives:
 
 ## AMOLED LCD / Touch Hardware
 
-The active UI target is the ESP32-S3 Touch AMOLED board. The firmware uses the board's QSPI AMOLED display, FT3168 touch controller, AXP2101 PMU, and side buttons through the board support libraries referenced by `platformio.ini`.
+The active UI target is the ESP32-S3 Touch AMOLED 1.8 board. The firmware uses the board's QSPI AMOLED display, FT3168 touch controller, AXP2101 PMU, and side buttons through the board support libraries referenced by `platformio.ini`.
 
 The preview is intentionally JPEG snapshot based. The remote does not decode the GoPro H.264 live stream on the S3; the lower/action button captures one still image, displays it, and deletes the captured JPEG from the GoPro.
 

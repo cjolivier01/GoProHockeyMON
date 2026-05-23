@@ -1,6 +1,6 @@
 # GoPro Remote User Manual
 
-This manual covers the current single-device ESP32-S3 AMOLED remote firmware.
+This manual covers the current single-device ESP32-S3 1.8-inch AMOLED remote firmware.
 
 The remote uses Bluetooth Low Energy first. After pairing, it reads the GoPro camera Wi-Fi SSID and password over BLE, enables the camera Wi-Fi AP, then connects the ESP32-S3 to that GoPro AP for HTTP camera control and manual JPEG snapshots.
 
