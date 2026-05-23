@@ -16,12 +16,12 @@ The current hardware path is the ESP32-S3 remote with the integrated 1.8-inch AM
 - Scans for BLE devices advertising GoPro/Open GoPro service names, including `GoPro`, `MISSION`, and `GP`.
 - Saves the paired camera BLE address, advertised BLE name, and GoPro AP SSID in NVS. Reconnect prefers the exact saved BLE address, but can use the saved BLE name as a fallback if a newer GoPro advertises with a changed address.
 - Connects over BLE and reads the camera Wi-Fi AP SSID/password from Open GoPro characteristics.
-- Sends the BLE Wi-Fi enable command `03:17:01:01`.
-- Joins the camera AP for HTTP camera control.
+- Sends the BLE Wi-Fi enable command `03:17:01:01` only when HTTP/JPEG transfer is needed.
+- Joins the camera AP for HTTP camera control and snapshot transfer.
 - On the AMOLED UI target, the lower/action side button double-click syncs the current Video preset settings, takes one temporary photo snapshot, downloads/displays the larger JPEG screennail preview fullscreen through the current video framing crop, restores Video mode, and deletes the captured JPEG from the camera.
-- The top-right side button starts video recording; while recording, a long press stops recording and the preview area shows a local elapsed-time `RECORDING` overlay without polling the camera.
+- The top-right side button starts video recording over the currently active camera link: Wi-Fi if the remote is already joined to the GoPro AP, otherwise BLE. After recording starts, the remote disconnects its Wi-Fi STA and asks the GoPro over BLE to turn off the camera AP. While recording, a long press stops recording over BLE and the preview area shows a local elapsed-time `RECORDING` overlay without polling the camera.
 - After reconnect, `/gopro/camera/state` restores the remote's recording overlay from the camera Encoding flag and Video Encoding Duration.
-- Connects to the GoPro camera Wi-Fi AP using credentials read over BLE.
+- Re-enables and reconnects to the GoPro camera Wi-Fi AP from saved BLE credentials only when a later HTTP workflow, such as snapshot preview, needs it.
 
 ## AMOLED UI Button Behavior
 
@@ -31,12 +31,12 @@ This applies to the `esp32s3_amoled_ui` firmware. The top status banner stays vi
 | --- | --- | --- |
 | Normal preview screen | Start video recording | Single click blanks the display; double click takes one snapshot, downloads its JPEG preview, deletes the JPEG from the GoPro, then shows the preview fullscreen; long press enters low-power shutdown |
 | Fullscreen snapshot preview | Start recording and return to the normal preview layout | Single click returns to the normal preview layout; the next single click blanks the display |
-| Recording | Long press stops recording; short press only shows a hold-to-stop reminder | Single click blanks/wakes the display; double click is ignored because snapshots and Pair New are disabled while recording; long press enters low-power shutdown |
+| Recording | Long press stops recording over BLE; short press only shows a hold-to-stop reminder | Single click blanks/wakes the display; double click is ignored because snapshots and Pair New are disabled while recording; long press enters low-power shutdown |
 | Pair New popup / pairing scan | No recording action | Cancel Pair New and reconnect the previously saved camera |
 | Display sleeping | Start recording when idle; long press stops if already recording | Single click wakes the display |
 | Maintenance screen | Same as current recording state | Single click returns to the normal preview screen; long press enters low-power shutdown |
 
-Swipe right from the normal preview screen to open the maintenance screen, including while the remote is trying to connect over BLE or Wi-Fi. The maintenance screen follows the finger while swiping and snaps open/closed at release. Swipe left or single-click the lower/action side button from maintenance to return. When the GoPro Wi-Fi connection is active, the home screen shows a passive `Camera Connected` strip instead of a pairing action. If a saved-camera scan fails, the same home strip changes to `Scan Again` so you can retry without forgetting or replacing the saved camera. Use maintenance for camera replacement and recovery: `Forget Camera` requires confirmation, cancels any current BLE/Wi-Fi connection attempt, clears the saved BLE address and local bond information, and disables boot auto-connect until Pair New succeeds again.
+Swipe down from the normal preview screen to expand the preview area fullscreen, and swipe up or single-click the lower/action side button to return. Swipe right from the normal preview screen to open the maintenance screen, including while the remote is trying to connect over BLE or Wi-Fi. The maintenance screen follows the finger while swiping and snaps open/closed at release. Swipe left or single-click the lower/action side button from maintenance to return. When the GoPro connection is active, the home screen shows a passive `Camera Connected` strip instead of a pairing action. The lower/action side button delays single-click actions until the double-click window expires, so a snapshot double-click cannot also blank the display. During recording, Wi-Fi is intentionally off to reduce battery drain; the snapshot path turns the GoPro AP back on over BLE only when it needs to transfer a JPEG. If a saved-camera scan fails, the same home strip changes to `Scan Again` so you can retry without forgetting or replacing the saved camera. Use maintenance for camera replacement and recovery: `Forget Camera` requires confirmation, cancels any current BLE/Wi-Fi connection attempt, clears the saved BLE address and local bond information, and disables boot auto-connect until Pair New succeeds again.
 
 ## AMOLED Serial UI Test Commands
 
@@ -145,7 +145,7 @@ The simulator receives:
 
 The active UI target is the ESP32-S3 Touch AMOLED 1.8 board. The firmware uses the board's QSPI AMOLED display, FT3168 touch controller, AXP2101 PMU, and side buttons through the board support libraries referenced by `platformio.ini`.
 
-The preview is intentionally JPEG snapshot based. The remote does not decode the GoPro H.264 live stream on the S3; the lower/action button captures one still image, displays it through the active Video preset's aspect/framing plus an estimated HyperSmooth crop, restores Video mode, and deletes the captured JPEG from the GoPro. GoPro does not expose a precise dynamic stabilization crop rectangle through the public Open GoPro HTTP state, so the remote uses the active preset settings to approximate the frame that recording will use.
+The preview is intentionally JPEG snapshot based. The remote does not decode the GoPro H.264 live stream on the S3; the lower/action button captures one still image, displays it through the active Video preset's aspect/framing plus an estimated HyperSmooth crop, restores Video mode, and deletes the captured JPEG from the GoPro. GoPro does not expose a precise dynamic stabilization crop rectangle through the public Open GoPro HTTP state, so the remote uses the active preset settings to approximate the frame that recording will use. Recording start uses the current connection: HTTP over GoPro Wi-Fi if already connected, otherwise BLE shutter. After recording starts, the remote turns off its Wi-Fi connection and disables the GoPro AP over BLE until a later snapshot or HTTP sync requires it again.
 
 ## Radio Firmware Physical Controls
 
