@@ -2,7 +2,7 @@
 
 This manual covers the current single-device ESP32-S3 1.8-inch AMOLED remote firmware.
 
-The remote uses Bluetooth Low Energy first. After pairing, it reads the GoPro camera Wi-Fi SSID and password over BLE, enables the camera Wi-Fi AP, then connects the ESP32-S3 to that GoPro AP for HTTP camera control and manual JPEG snapshots.
+The remote uses Bluetooth Low Energy for pairing, saved-camera reconnect, Wi-Fi credential reads, GoPro AP control, and recording control when Wi-Fi is not already connected. It enables and joins the GoPro Wi-Fi AP only when HTTP/JPEG transfer is needed.
 
 The screenshots below are generated UI reference images based on the current LVGL screen layout and app states. They are not photos from the physical AMOLED panel.
 
@@ -39,7 +39,7 @@ AMOLED UI ready
 
 The AMOLED firmware has a USB serial UI test harness at `115200`:
 
-- `status`: print the current display, recording, BLE, Wi-Fi, pairing, and saved-camera state.
+- `status`: print the current display, recording, BLE, Wi-Fi, pairing, saved-camera state, and whether Wi-Fi is suspended for recording.
 - `touch X Y [hold_ms]`: inject a touch at a screen pixel through LVGL.
 - `swipe X1 Y1 X2 Y2 [duration_ms]`: inject a swipe through LVGL.
 - `lower single` / `lower double`: simulate the lower/action side button.
@@ -51,7 +51,7 @@ Use `help` in the serial monitor for the complete command list.
 
 ## Screen Reference
 
-The default screen is the capture/preview screen, matching the basic GoPro rear-screen flow. Swipe right from the preview screen to open Maintenance, and swipe left or single-click the lower side button from Maintenance to return. The maintenance panel follows the finger while swiping and snaps open or closed at release. The battery and Wi-Fi cluster stays visible at the top.
+The default screen is the capture/preview screen, matching the basic GoPro rear-screen flow. Swipe down from the preview screen to expand the preview fullscreen, then swipe up or single-click the lower side button to return. Swipe right from the preview screen to open Maintenance, and swipe left or single-click the lower side button from Maintenance to return. The maintenance panel follows the finger while swiping and snaps open or closed at release. The battery and Wi-Fi cluster stays visible at the top.
 
 ### Capture Screen
 
@@ -62,6 +62,7 @@ The capture screen is the home screen. It shows the JPEG preview area, current m
 Top-right indicators:
 
 - Battery icon: read from the AXP2101 PMU.
+- GoPro battery percentage: shown to the left of the Bluetooth icon after camera state sync. A lightning bolt means the camera reports charging or USB plugged in.
 - Wi-Fi icon: gray while disconnected/connecting, green when connected to the GoPro AP.
 - Bluetooth icon: blue while BLE is connected.
 
@@ -117,6 +118,7 @@ The board has two side buttons:
 - Top-right side button long press while recording: stop recording.
 - Lower side button single click: blank/wake the display, exit fullscreen preview, or return from Maintenance to the capture screen.
 - Lower side button double click: take one JPEG snapshot, download/display it fullscreen, then delete it from the GoPro.
+- Single-click display blanking is delayed until the double-click window expires, so a snapshot double-click should not also blank the display.
 - Lower side button long press: enter low-power shutdown through the AXP2101 PMU.
 - Lower side button during `Pair New`: cancel the active pairing attempt without replacing the saved camera binding.
 
@@ -145,17 +147,18 @@ After the BLE connection succeeds, the remote reads the GoPro AP SSID and passwo
 
 ## Connecting To GoPro Wi-Fi
 
-The remote does the full Wi-Fi setup automatically:
+The remote does Wi-Fi setup automatically when an HTTP/JPEG workflow needs it:
 
 1. Connects to the GoPro over BLE.
 2. Reads the GoPro AP SSID and password from BLE.
 3. Enables the GoPro Wi-Fi AP over BLE.
 4. Connects ESP32-S3 Wi-Fi to the GoPro AP.
 5. Uses `http://10.5.5.9:8080` for GoPro HTTP commands and JPEG preview.
+6. When recording starts, disconnects ESP32-S3 Wi-Fi and asks the GoPro over BLE to disable its AP.
 
 ![Wi-Fi joining screen](images/ui/05-wifi-joining.svg)
 
-When connected, the top-right Wi-Fi indicator turns green and the `WiFi:` line shows the ESP32 address on the GoPro AP.
+When connected, the top-right Wi-Fi indicator turns green and the `WiFi:` line shows the ESP32 address on the GoPro AP. While recording, the Wi-Fi icon is gray because Wi-Fi is intentionally off.
 
 ![Wi-Fi connected preview screen](images/ui/06-wifi-preview.svg)
 
@@ -181,9 +184,12 @@ The preview area is a manual JPEG snapshot path, not full real-time video decode
 
 Current behavior:
 
-- Double-click the lower side button while not recording to take one GoPro photo, download its JPEG preview, display it fullscreen, and delete the captured JPEG from the camera.
+- Double-click the lower side button while not recording to sync the current Video settings, take one temporary GoPro photo, download its JPEG preview, crop it to the current Video aspect/framing with a HyperSmooth crop estimate, display it fullscreen, restore Video mode, and delete the captured JPEG from the camera.
+- Swipe down from the normal capture page to expand the current preview fullscreen.
 - Swipe up or single-click the lower side button while the snapshot is fullscreen to return to the normal capture page.
 - While recording, snapshots are disabled.
+
+The crop is based on the camera state returned by Open GoPro plus the active Video preset's `settingArray`, including video aspect/framing, resolution fallback, digital lens, HyperSmooth, horizon leveling, and Max Lens settings when the camera reports them. Dynamic stabilization can still change the live recording crop slightly while the camera is moving, because Open GoPro does not publish an exact per-frame stabilization rectangle.
 
 Common preview messages:
 
@@ -198,14 +204,16 @@ Short-press the top-right side button.
 
 When recording starts:
 
-- The remote sends `/gopro/camera/shutter/start`.
+- If the remote is already joined to the GoPro AP, it sends `/gopro/camera/shutter/start` immediately over Wi-Fi/HTTP.
+- If Wi-Fi is not connected but BLE is available, it sends the Open GoPro BLE shutter command.
+- After recording starts, the remote disconnects ESP32-S3 Wi-Fi and sends the BLE AP-control command to turn off the GoPro Wi-Fi AP.
 - Status changes to `Recording`.
 - The preview area shows a red `RECORDING` overlay and locally timed elapsed duration.
 - The remote does not poll the camera for the timer while recording.
 
 When the remote reconnects after being powered off while the GoPro kept recording, it reads `/gopro/camera/state` and restores the red `RECORDING` overlay from the camera's Encoding status and Video Encoding Duration.
 
-Long-press the top-right side button to stop recording. The remote sends `/gopro/camera/shutter/stop`.
+Long-press the top-right side button to stop recording. The remote sends the BLE shutter stop command. It does not reconnect Wi-Fi just to stop recording.
 
 ![Recording screen](images/ui/07-recording.svg)
 
