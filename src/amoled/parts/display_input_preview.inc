@@ -767,6 +767,9 @@ void clearPreviewJpegCache() {
     previewJpegCache = nullptr;
   }
   previewJpegCacheLen = 0;
+  if (previewImageCanvas) {
+    lv_obj_add_flag(previewImageCanvas, LV_OBJ_FLAG_HIDDEN);
+  }
 }
 
 void adoptPreviewJpegCache(uint8_t *buffer, size_t length) {
@@ -804,49 +807,6 @@ bool shrinkAndAdoptPreviewJpegCache(uint8_t *&buffer, size_t length) {
 }
 
 bool redrawCachedPreviewJpeg();
-
-void schedulePreviewRedraw(uint32_t delayMs = 80, uint8_t passes = 1) {
-  if (!previewHasImage || !previewFullscreen || !previewJpegCache || previewJpegCacheLen == 0 ||
-      redrawingCachedPreview) {
-    return;
-  }
-  previewRedrawPending = true;
-  previewRedrawDueMs = millis() + delayMs;
-  previewRedrawPassesRemaining = max<uint8_t>(previewRedrawPassesRemaining, passes);
-}
-
-void servicePreviewRedraw() {
-  if (!previewRedrawPending) {
-    return;
-  }
-  if (!previewHasImage || !previewFullscreen || !previewJpegCache || previewJpegCacheLen == 0) {
-    previewRedrawPending = false;
-    previewRedrawPassesRemaining = 0;
-    return;
-  }
-  if (static_cast<int32_t>(millis() - previewRedrawDueMs) < 0) {
-    return;
-  }
-  bool ok = redrawCachedPreviewJpeg();
-  if (!ok || previewRedrawPassesRemaining <= 1) {
-    previewRedrawPending = false;
-    previewRedrawPassesRemaining = 0;
-    return;
-  }
-  previewRedrawPassesRemaining--;
-  previewRedrawDueMs = millis() + 120;
-}
-
-void drawFullscreenSwipeHandle() {
-  if (!previewFullscreen) {
-    return;
-  }
-  constexpr int handleW = 112;
-  constexpr int handleH = 5;
-  int x = (LCD_WIDTH - handleW) / 2;
-  int y = LCD_HEIGHT - 12;
-  gfx->fillRoundRect(x, y, handleW, handleH, 2, 0xffff);
-}
 
 void setPreviewFullscreen(bool fullscreen) {
   previewFullscreen = fullscreen;
@@ -896,7 +856,7 @@ void setPreviewFullscreen(bool fullscreen) {
 
   if (previewHasImage && previewJpegCache && previewJpegCacheLen > 0 && !redrawingCachedPreview) {
     lv_timer_handler();
-    schedulePreviewRedraw(80, 2);
+    redrawCachedPreviewJpeg();
   }
 }
 

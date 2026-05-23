@@ -411,6 +411,45 @@ void computeScaledJpegCrop(int sourceX, int sourceY, int sourceW, int sourceH, i
   jpegCropH = cropY1 - cropY0;
 }
 
+bool ensurePreviewCanvasBuffer(int width, int height) {
+  if (!previewImageCanvas || width <= 0 || height <= 0) {
+    return false;
+  }
+
+  size_t requiredBytes = static_cast<size_t>(width) * static_cast<size_t>(height) *
+                         sizeof(lv_color_t);
+  if (!previewCanvasBuffer || previewCanvasBufferBytes < requiredBytes) {
+    if (previewCanvasBuffer) {
+      heap_caps_free(previewCanvasBuffer);
+      previewCanvasBuffer = nullptr;
+      previewCanvasBufferBytes = 0;
+    }
+    previewCanvasBuffer = static_cast<lv_color_t *>(
+        heap_caps_malloc(requiredBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (!previewCanvasBuffer) {
+      previewCanvasBuffer =
+          static_cast<lv_color_t *>(heap_caps_malloc(requiredBytes, MALLOC_CAP_8BIT));
+    }
+    if (!previewCanvasBuffer) {
+      Serial.printf("Preview canvas allocation failed: %dx%d %u bytes\n", width, height,
+                    static_cast<unsigned>(requiredBytes));
+      return false;
+    }
+    previewCanvasBufferBytes = requiredBytes;
+    Serial.printf("Preview canvas allocated: %dx%d %u bytes\n", width, height,
+                  static_cast<unsigned>(requiredBytes));
+  }
+
+  previewCanvasW = width;
+  previewCanvasH = height;
+  lv_canvas_set_buffer(previewImageCanvas, previewCanvasBuffer, width, height,
+                       LV_IMG_CF_TRUE_COLOR);
+  lv_obj_set_pos(previewImageCanvas, 0, 0);
+  lv_obj_clear_flag(previewImageCanvas, LV_OBJ_FLAG_HIDDEN);
+  lv_canvas_fill_bg(previewImageCanvas, lv_color_black(), LV_OPA_COVER);
+  return true;
+}
+
 int drawJpegBlock(JPEGDRAW *draw) {
   if (!isCaptureTileActive()) {
     return 0;
@@ -423,7 +462,8 @@ int drawJpegBlock(JPEGDRAW *draw) {
   int blockW = draw->iWidthUsed > 0 ? draw->iWidthUsed : draw->iWidth;
   int blockH = draw->iHeight;
   if (srcStride <= 0 || blockW <= 0 || blockH <= 0 ||
-      jpegDecodeW <= 0 || jpegDecodeH <= 0 || jpegDrawW <= 0 || jpegDrawH <= 0) {
+      jpegDecodeW <= 0 || jpegDecodeH <= 0 || jpegDrawW <= 0 || jpegDrawH <= 0 ||
+      !previewCanvasBuffer || previewCanvasW <= 0 || previewCanvasH <= 0) {
     return 1;
   }
 
@@ -451,31 +491,34 @@ int drawJpegBlock(JPEGDRAW *draw) {
     return 1;
   }
 
-  uint16_t line[LCD_WIDTH];
-  int rowW = min(jpegDrawW, LCD_WIDTH);
   for (int destY = destY0; destY < destY1; ++destY) {
     if ((destY & 0x0f) == 0) {
       yield();
+    }
+    int canvasY = jpegDrawY + destY;
+    if (canvasY < 0 || canvasY >= previewCanvasH) {
+      continue;
     }
     int srcY = jpegCropY + (destY * jpegCropH) / jpegDrawH - blockSrcY0;
     if (srcY < 0 || srcY >= blockH) {
       continue;
     }
     int lineLen = destX1 - destX0;
-    if (lineLen > rowW) {
-      lineLen = rowW;
-    }
     for (int i = 0; i < lineLen; ++i) {
       int destX = destX0 + i;
+      int canvasX = jpegDrawX + destX;
+      if (canvasX < 0 || canvasX >= previewCanvasW) {
+        continue;
+      }
       int srcX = jpegCropX + (destX * jpegCropW) / jpegDrawW - blockSrcX0;
       if (srcX < 0) {
         srcX = 0;
       } else if (srcX >= blockW) {
         srcX = blockW - 1;
       }
-      line[i] = draw->pPixels[srcY * srcStride + srcX];
+      previewCanvasBuffer[canvasY * previewCanvasW + canvasX].full =
+          draw->pPixels[srcY * srcStride + srcX];
     }
-    gfx->draw16bitRGBBitmap(jpegDrawX + destX0, jpegDrawY + destY, line, lineLen, 1);
   }
   return 1;
 }
@@ -498,8 +541,8 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
     return false;
   }
 
-  int frameX = previewFrameX();
-  int frameY = previewFrameY();
+  int frameX = 0;
+  int frameY = 0;
   int frameW = previewFrameW();
   int frameH = previewFrameH();
   Serial.printf("JPEG opened: len=%u size=%dx%d type=%d bpp=%d subsample=%d\n",
@@ -515,6 +558,10 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
 
   computeJpegContainRect(sourceCropW, sourceCropH, frameX, frameY, frameW, frameH,
                          jpegDrawX, jpegDrawY, jpegDrawW, jpegDrawH);
+  if (!ensurePreviewCanvasBuffer(frameW, frameH)) {
+    jpeg.close();
+    return false;
+  }
   int scale = chooseJpegContainDecodeScale(sourceCropW, sourceCropH, jpegDrawW, jpegDrawH);
   jpegDecodeW = jpegScaledDim(jpeg.getWidth(), scale);
   jpegDecodeH = jpegScaledDim(jpeg.getHeight(), scale);
@@ -530,14 +577,20 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
                 snapshotVideoFraming.visiblePercent,
                 static_cast<unsigned>(kSnapshotPreviewVisiblePercent));
 
-  gfx->fillRect(frameX, frameY, frameW, frameH, 0x0000);
   jpeg.setPixelType(RGB565_LITTLE_ENDIAN);
   logMemory("Before JPEG decode");
   bool ok = jpeg.decode(0, 0, scale) != 0;
   if (!ok) {
     Serial.printf("JPEG decode failed: scale=%d error=%d\n", scale, jpeg.getLastError());
   } else {
-    drawFullscreenSwipeHandle();
+    lv_obj_move_background(previewImageCanvas);
+    if (recordingOverlay) {
+      lv_obj_move_foreground(recordingOverlay);
+    }
+    if (fullscreenHint) {
+      lv_obj_move_foreground(fullscreenHint);
+    }
+    lv_obj_invalidate(previewImageCanvas);
   }
   jpeg.close();
   logMemory("After JPEG decode");
@@ -788,7 +841,6 @@ bool fetchSnapshotPreview() {
         setAction("JPEG decode failed");
         return false;
       }
-      schedulePreviewRedraw(120, 1);
     }
     return true;
   }
