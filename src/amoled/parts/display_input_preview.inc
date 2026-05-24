@@ -32,7 +32,44 @@ bool modalUiActive() {
          (forgetConfirmPopup && !lv_obj_has_flag(forgetConfirmPopup, LV_OBJ_FLAG_HIDDEN));
 }
 
-int clampMaintenanceX(int x) {
+lv_obj_t *sidePageObj(SidePage page) {
+  switch (page) {
+    case SidePage::Maintenance:
+      return maintenancePage;
+    case SidePage::ButtonGuide:
+      return buttonGuidePage;
+    case SidePage::None:
+      return nullptr;
+  }
+  return nullptr;
+}
+
+const char *sidePageName(SidePage page) {
+  switch (page) {
+    case SidePage::Maintenance:
+      return "maintenance";
+    case SidePage::ButtonGuide:
+      return "button guide";
+    case SidePage::None:
+      return "home";
+  }
+  return "home";
+}
+
+int sidePageClosedX(SidePage page) {
+  return page == SidePage::ButtonGuide ? LCD_WIDTH : -LCD_WIDTH;
+}
+
+int clampSidePageX(SidePage page, int x) {
+  if (page == SidePage::ButtonGuide) {
+    if (x < 0) {
+      return 0;
+    }
+    if (x > LCD_WIDTH) {
+      return LCD_WIDTH;
+    }
+    return x;
+  }
   if (x < -LCD_WIDTH) {
     return -LCD_WIDTH;
   }
@@ -42,38 +79,108 @@ int clampMaintenanceX(int x) {
   return x;
 }
 
-void setMaintenancePageX(int x) {
-  if (!maintenancePage) {
+void setSidePageX(SidePage page, int x) {
+  lv_obj_t *obj = sidePageObj(page);
+  if (!obj) {
     return;
   }
-  lv_obj_clear_flag(maintenancePage, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_set_pos(maintenancePage, clampMaintenanceX(x), kTopBarH);
+  lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_set_pos(obj, clampSidePageX(page, x), kTopBarH);
 }
 
-void maintenancePageAnimExec(void *obj, int32_t value) {
+void sidePageAnimExec(void *obj, int32_t value) {
   lv_obj_set_x(static_cast<lv_obj_t *>(obj), value);
 }
 
-void animateMaintenancePageTo(int targetX) {
-  if (!maintenancePage) {
+void animateSidePageTo(SidePage page, int targetX) {
+  lv_obj_t *obj = sidePageObj(page);
+  if (!obj) {
     return;
   }
-  lv_obj_clear_flag(maintenancePage, LV_OBJ_FLAG_HIDDEN);
-  lv_anim_del(maintenancePage, maintenancePageAnimExec);
+  lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+  lv_anim_del(obj, sidePageAnimExec);
   lv_anim_t anim;
   lv_anim_init(&anim);
-  lv_anim_set_var(&anim, maintenancePage);
-  lv_anim_set_values(&anim, lv_obj_get_x(maintenancePage), clampMaintenanceX(targetX));
+  lv_anim_set_var(&anim, obj);
+  lv_anim_set_values(&anim, lv_obj_get_x(obj), clampSidePageX(page, targetX));
   lv_anim_set_time(&anim, kNavPageAnimMs);
   lv_anim_set_path_cb(&anim, lv_anim_path_ease_out);
-  lv_anim_set_exec_cb(&anim, maintenancePageAnimExec);
+  lv_anim_set_exec_cb(&anim, sidePageAnimExec);
   lv_anim_start(&anim);
 }
 
+bool sidePageVisibleFlag(SidePage page) {
+  switch (page) {
+    case SidePage::Maintenance:
+      return maintenancePageVisible;
+    case SidePage::ButtonGuide:
+      return buttonGuidePageVisible;
+    case SidePage::None:
+      return false;
+  }
+  return false;
+}
+
+void setSidePageVisibleFlag(SidePage page, bool visible) {
+  switch (page) {
+    case SidePage::Maintenance:
+      maintenancePageVisible = visible;
+      break;
+    case SidePage::ButtonGuide:
+      buttonGuidePageVisible = visible;
+      break;
+    case SidePage::None:
+      break;
+  }
+}
+
+bool sidePageClosingSwipe(SidePage page, int dx) {
+  return (page == SidePage::Maintenance && dx < 0) ||
+         (page == SidePage::ButtonGuide && dx > 0);
+}
+
+bool sidePageOpeningSwipe(SidePage page, int dx) {
+  return (page == SidePage::Maintenance && dx > 0) ||
+         (page == SidePage::ButtonGuide && dx < 0);
+}
+
+SidePage activeSidePage() {
+  if (maintenancePageVisible) {
+    return SidePage::Maintenance;
+  }
+  if (buttonGuidePageVisible) {
+    return SidePage::ButtonGuide;
+  }
+  return SidePage::None;
+}
+
+bool isSidePageShowing(SidePage page) {
+  lv_obj_t *obj = sidePageObj(page);
+  if (!obj) {
+    return false;
+  }
+  if (sidePageVisibleFlag(page) || (navSwipeActive && navSwipePage == page)) {
+    return true;
+  }
+  if (lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN)) {
+    return false;
+  }
+  int x = lv_obj_get_x(obj);
+  return page == SidePage::ButtonGuide ? x < LCD_WIDTH : x > -LCD_WIDTH;
+}
+
+bool isAnySidePageShowing() {
+  return navSwipeActive ||
+         isSidePageShowing(SidePage::Maintenance) ||
+         isSidePageShowing(SidePage::ButtonGuide);
+}
+
 bool isMaintenancePageShowing() {
-  return maintenancePageVisible || navSwipeActive ||
-         (maintenancePage && !lv_obj_has_flag(maintenancePage, LV_OBJ_FLAG_HIDDEN) &&
-          lv_obj_get_x(maintenancePage) > -LCD_WIDTH);
+  return isSidePageShowing(SidePage::Maintenance);
+}
+
+bool isButtonGuidePageShowing() {
+  return isSidePageShowing(SidePage::ButtonGuide);
 }
 
 void consumeActionButtonPress() {
@@ -165,7 +272,7 @@ bool exitFullscreenPreview(const char *source) {
 }
 
 bool enterFullscreenPreview(const char *source) {
-  if (!displayOn || previewFullscreen || maintenancePageVisible || navSwipeActive ||
+  if (!displayOn || previewFullscreen || isAnySidePageShowing() ||
       modalUiActive() || pairingUiActive()) {
     return false;
   }
@@ -229,7 +336,7 @@ bool handleRawPreviewSwipeMove(const lv_point_t &start, const lv_point_t &end, u
     return false;
   }
 
-  if (!maintenancePageVisible && !navSwipeActive) {
+  if (!isAnySidePageShowing()) {
     bool verticalEnough = dy >= kFullscreenSwipePx && dy * 10 >= abs(dx) * 12;
     if (verticalEnough) {
       Serial.printf("Raw swipe down enters fullscreen: %d,%d -> %d,%d\n",
@@ -242,25 +349,37 @@ bool handleRawPreviewSwipeMove(const lv_point_t &start, const lv_point_t &end, u
     if (abs(dx) < kNavSwipeStartPx || abs(dx) * 10 < abs(dy) * 12) {
       return false;
     }
-    if (!maintenancePageVisible && dx > 0) {
+    SidePage visiblePage = activeSidePage();
+    if (visiblePage == SidePage::None && dx > 0) {
       navSwipeActive = true;
       navSwipeStartedVisible = false;
+      navSwipePage = SidePage::Maintenance;
       hidePairingPopup();
-      setMaintenancePageX(-LCD_WIDTH);
-      lv_obj_move_foreground(maintenancePage);
-    } else if (maintenancePageVisible && dx < 0) {
+      setSidePageX(navSwipePage, sidePageClosedX(navSwipePage));
+      lv_obj_move_foreground(sidePageObj(navSwipePage));
+    } else if (visiblePage == SidePage::None && dx < 0) {
+      navSwipeActive = true;
+      navSwipeStartedVisible = false;
+      navSwipePage = SidePage::ButtonGuide;
+      hidePairingPopup();
+      setSidePageX(navSwipePage, sidePageClosedX(navSwipePage));
+      lv_obj_move_foreground(sidePageObj(navSwipePage));
+    } else if (visiblePage != SidePage::None && sidePageClosingSwipe(visiblePage, dx)) {
       navSwipeActive = true;
       navSwipeStartedVisible = true;
-      lv_obj_move_foreground(maintenancePage);
+      navSwipePage = visiblePage;
+      lv_obj_move_foreground(sidePageObj(navSwipePage));
     } else {
       return false;
     }
   }
 
   if (navSwipeStartedVisible) {
-    setMaintenancePageX(dx < 0 ? dx : 0);
+    setSidePageX(navSwipePage, sidePageClosingSwipe(navSwipePage, dx) ? dx : 0);
+  } else if (navSwipePage == SidePage::Maintenance) {
+    setSidePageX(navSwipePage, -LCD_WIDTH + (dx > 0 ? dx : 0));
   } else {
-    setMaintenancePageX(-LCD_WIDTH + (dx > 0 ? dx : 0));
+    setSidePageX(navSwipePage, LCD_WIDTH + (dx < 0 ? dx : 0));
   }
   (void)durationMs;
   return true;
@@ -278,19 +397,31 @@ bool finishRawPreviewSwipe(const lv_point_t &start, const lv_point_t &end, uint3
   bool horizontalEnough = abs(dx) * 10 >= abs(dy) * 12;
   bool flick = durationMs <= kNavSwipeFlickMs && abs(dx) >= kNavSwipeFlickPx;
   bool commit = horizontalEnough && (abs(dx) >= kNavSwipeCommitPx || flick);
-  bool open = navSwipeStartedVisible ? !(commit && dx < 0) : (commit && dx > 0);
+  SidePage page = navSwipePage;
+  bool open = navSwipeStartedVisible
+                  ? !(commit && sidePageClosingSwipe(page, dx))
+                  : (commit && sidePageOpeningSwipe(page, dx));
   navSwipeActive = false;
+  navSwipePage = SidePage::None;
 
-  if (open && !maintenancePageVisible) {
-    Serial.printf("Raw swipe right opens maintenance: %d,%d -> %d,%d\n",
-                  start.x, start.y, end.x, end.y);
-    setMaintenancePageVisible(true);
-  } else if (!open && maintenancePageVisible) {
-    Serial.printf("Raw swipe left returns home: %d,%d -> %d,%d\n",
-                  start.x, start.y, end.x, end.y);
-    setMaintenancePageVisible(false);
+  if (open && !sidePageVisibleFlag(page)) {
+    Serial.printf("Raw swipe opens %s: %d,%d -> %d,%d\n",
+                  sidePageName(page), start.x, start.y, end.x, end.y);
+    if (page == SidePage::Maintenance) {
+      setMaintenancePageVisible(true);
+    } else if (page == SidePage::ButtonGuide) {
+      setButtonGuidePageVisible(true);
+    }
+  } else if (!open && sidePageVisibleFlag(page)) {
+    Serial.printf("Raw swipe returns home from %s: %d,%d -> %d,%d\n",
+                  sidePageName(page), start.x, start.y, end.x, end.y);
+    if (page == SidePage::Maintenance) {
+      setMaintenancePageVisible(false);
+    } else if (page == SidePage::ButtonGuide) {
+      setButtonGuidePageVisible(false);
+    }
   } else {
-    animateMaintenancePageTo(open ? 0 : -LCD_WIDTH);
+    animateSidePageTo(page, open ? 0 : sidePageClosedX(page));
     lv_timer_handler();
   }
   return true;
@@ -316,12 +447,16 @@ void onPageGesture(lv_event_t *) {
     }
     return;
   }
-  if (dir == LV_DIR_BOTTOM && !maintenancePageVisible) {
+  if (dir == LV_DIR_BOTTOM && !isAnySidePageShowing()) {
     enterFullscreenPreview("LVGL swipe down");
-  } else if (dir == LV_DIR_RIGHT && !maintenancePageVisible) {
+  } else if (dir == LV_DIR_RIGHT && buttonGuidePageVisible) {
+    setButtonGuidePageVisible(false);
+  } else if (dir == LV_DIR_RIGHT && !isAnySidePageShowing()) {
     setMaintenancePageVisible(true);
   } else if (dir == LV_DIR_LEFT && maintenancePageVisible) {
     setMaintenancePageVisible(false);
+  } else if (dir == LV_DIR_LEFT && !isAnySidePageShowing()) {
+    setButtonGuidePageVisible(true);
   }
 }
 
@@ -379,6 +514,7 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
         touchActive = true;
         rawSwipeHandled = false;
         navSwipeActive = false;
+        navSwipePage = SidePage::None;
       }
       lastTouchPoint = point;
       lastTouchMs = now;
@@ -401,6 +537,7 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
       touchStartMs = serialPointerStartMs;
       rawSwipeHandled = false;
       navSwipeActive = false;
+      navSwipePage = SidePage::None;
       touchActive = true;
     }
     if (touchActive) {
@@ -442,6 +579,7 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
         touchActive = true;
         rawSwipeHandled = false;
         navSwipeActive = false;
+        navSwipePage = SidePage::None;
       }
       lastTouchPoint.x = rawX;
       lastTouchPoint.y = rawY;
@@ -693,24 +831,68 @@ void hidePairingPopup() {
   }
 }
 
-void setMaintenancePageVisible(bool visible) {
-  maintenancePageVisible = visible;
-  if (!maintenancePage) {
+void closeSidePages() {
+  maintenancePageVisible = false;
+  buttonGuidePageVisible = false;
+  navSwipeActive = false;
+  navSwipeStartedVisible = false;
+  navSwipePage = SidePage::None;
+  hideForgetConfirm();
+  animateSidePageTo(SidePage::Maintenance, sidePageClosedX(SidePage::Maintenance));
+  animateSidePageTo(SidePage::ButtonGuide, sidePageClosedX(SidePage::ButtonGuide));
+  setAction("Preview");
+  lv_timer_handler();
+}
+
+void setSidePageVisible(SidePage page, bool visible) {
+  if (page == SidePage::None) {
+    if (!visible) {
+      closeSidePages();
+    }
     return;
   }
+
   navSwipeActive = false;
+  navSwipeStartedVisible = false;
+  navSwipePage = SidePage::None;
+
   if (visible) {
-    lv_obj_clear_flag(maintenancePage, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(maintenancePage);
-    animateMaintenancePageTo(0);
+    SidePage other = page == SidePage::Maintenance
+                         ? SidePage::ButtonGuide
+                         : SidePage::Maintenance;
+    setSidePageVisibleFlag(other, false);
+    animateSidePageTo(other, sidePageClosedX(other));
+    setSidePageVisibleFlag(page, true);
+    lv_obj_t *obj = sidePageObj(page);
+    if (obj) {
+      lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_move_foreground(obj);
+    }
+    if (page != SidePage::Maintenance) {
+      hideForgetConfirm();
+    }
+    animateSidePageTo(page, 0);
     hidePairingPopup();
-    setAction("Maintenance");
+    setAction(page == SidePage::Maintenance ? "Maintenance" : "Button guide");
   } else {
-    hideForgetConfirm();
-    animateMaintenancePageTo(-LCD_WIDTH);
-    setAction("Preview");
+    if (page == SidePage::Maintenance) {
+      hideForgetConfirm();
+    }
+    setSidePageVisibleFlag(page, false);
+    animateSidePageTo(page, sidePageClosedX(page));
+    if (activeSidePage() == SidePage::None) {
+      setAction("Preview");
+    }
   }
   lv_timer_handler();
+}
+
+void setMaintenancePageVisible(bool visible) {
+  setSidePageVisible(SidePage::Maintenance, visible);
+}
+
+void setButtonGuidePageVisible(bool visible) {
+  setSidePageVisible(SidePage::ButtonGuide, visible);
 }
 
 void showForgetConfirm() {
@@ -816,12 +998,19 @@ void setPreviewFullscreen(bool fullscreen) {
 
   if (fullscreen) {
     hideForgetConfirm();
-    if (maintenancePage) {
-      lv_anim_del(maintenancePage, maintenancePageAnimExec);
-      setMaintenancePageX(-LCD_WIDTH);
-      maintenancePageVisible = false;
-      navSwipeActive = false;
+    SidePage pages[] = {SidePage::Maintenance, SidePage::ButtonGuide};
+    for (SidePage page : pages) {
+      lv_obj_t *obj = sidePageObj(page);
+      if (obj) {
+        lv_anim_del(obj, sidePageAnimExec);
+        setSidePageX(page, sidePageClosedX(page));
+      }
     }
+    maintenancePageVisible = false;
+    buttonGuidePageVisible = false;
+    navSwipeActive = false;
+    navSwipeStartedVisible = false;
+    navSwipePage = SidePage::None;
     lv_obj_set_pos(previewBox, 0, 0);
     lv_obj_set_size(previewBox, LCD_WIDTH, LCD_HEIGHT - kTopBarH);
     lv_obj_set_style_radius(previewBox, 0, 0);

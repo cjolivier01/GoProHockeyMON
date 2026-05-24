@@ -166,6 +166,7 @@ void hidePairingPopup();
 void showForgetConfirm();
 void hideForgetConfirm();
 void setMaintenancePageVisible(bool visible);
+void setButtonGuidePageVisible(bool visible);
 void disconnectCurrentCameraForPairing();
 void requestPairingCancel();
 void resetBleClientForPairing();
@@ -223,6 +224,12 @@ enum class PendingHomeAction : uint8_t {
   Pair,
 };
 
+enum class SidePage : uint8_t {
+  None,
+  Maintenance,
+  ButtonGuide,
+};
+
 lv_obj_t *statusLabel = nullptr;
 lv_obj_t *wifiLabel = nullptr;
 lv_obj_t *cameraLabel = nullptr;
@@ -249,6 +256,7 @@ lv_obj_t *pairingPopupTitle = nullptr;
 lv_obj_t *pairingPopupMessage = nullptr;
 lv_obj_t *forgetConfirmPopup = nullptr;
 lv_obj_t *maintenancePage = nullptr;
+lv_obj_t *buttonGuidePage = nullptr;
 lv_obj_t *settingSheet = nullptr;
 lv_obj_t *settingSheetTitle = nullptr;
 lv_obj_t *settingOptionButtons[kVisibleSettingOptions] = {};
@@ -278,6 +286,7 @@ bool snapshotPreviewPrepared = false;
 bool snapshotPreviewBusy = false;
 bool previewHasImage = false;
 bool maintenancePageVisible = false;
+bool buttonGuidePageVisible = false;
 uint32_t recordingStartedMs = 0;
 uint32_t recordingElapsedBaseMs = 0;
 uint32_t recordingElapsedBaseAtMs = 0;
@@ -362,6 +371,7 @@ bool selectedBleFallback = false;
 bool rawSwipeHandled = false;
 bool navSwipeActive = false;
 bool navSwipeStartedVisible = false;
+SidePage navSwipePage = SidePage::None;
 uint32_t pairingPopupHideDueMs = 0;
 PendingHomeAction pendingHomeAction = PendingHomeAction::None;
 uint32_t pendingHomeActionDueMs = 0;

@@ -296,6 +296,48 @@ void createUi() {
                  "Removes saved BLE address and local bonds only after confirmation.",
                  20, 204, 14, lv_color_hex(0x96a2b4));
 
+  buttonGuidePage = lv_obj_create(screen);
+  lv_obj_set_size(buttonGuidePage, LCD_WIDTH, LCD_HEIGHT - kTopBarH);
+  lv_obj_set_pos(buttonGuidePage, LCD_WIDTH, kTopBarH);
+  lv_obj_set_style_radius(buttonGuidePage, 0, 0);
+  lv_obj_set_style_bg_color(buttonGuidePage, lv_color_hex(0x090b10), 0);
+  lv_obj_set_style_border_width(buttonGuidePage, 0, 0);
+  lv_obj_set_style_pad_all(buttonGuidePage, 0, 0);
+  lv_obj_clear_flag(buttonGuidePage, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_add_event_cb(buttonGuidePage, onPageGesture, LV_EVENT_GESTURE, nullptr);
+
+  makePanelLabel(buttonGuidePage, "Button Guide", 20, 18, 18);
+  lv_obj_t *topButtonHeading = makePanelLabel(buttonGuidePage, "Top-right side button",
+                                             20, 50, 16, lv_color_hex(0xc3ccd8));
+  lv_obj_set_width(topButtonHeading, kPreviewW);
+  lv_obj_t *topButtonText = lv_label_create(buttonGuidePage);
+  lv_obj_set_width(topButtonText, kPreviewW);
+  lv_label_set_long_mode(topButtonText, LV_LABEL_LONG_WRAP);
+  lv_label_set_text(topButtonText,
+                    "Short press: start recording\n"
+                    "Long press while recording: stop recording\n"
+                    "Short press while recording: hold-to-stop reminder");
+  lv_obj_set_style_text_font(topButtonText, fontForSize(16), 0);
+  lv_obj_set_style_text_color(topButtonText, lv_color_hex(0xf4f7fb), 0);
+  lv_obj_set_style_text_line_space(topButtonText, 5, 0);
+  lv_obj_set_pos(topButtonText, 20, 78);
+
+  lv_obj_t *lowerButtonHeading = makePanelLabel(buttonGuidePage, "Bottom-right side button",
+                                               20, 286, 16, lv_color_hex(0xc3ccd8));
+  lv_obj_set_width(lowerButtonHeading, kPreviewW);
+  lv_obj_t *lowerButtonText = lv_label_create(buttonGuidePage);
+  lv_obj_set_width(lowerButtonText, kPreviewW);
+  lv_label_set_long_mode(lowerButtonText, LV_LABEL_LONG_WRAP);
+  lv_label_set_text(lowerButtonText,
+                    "Single click: display on/off or return home\n"
+                    "Double click: snapshot preview when idle\n"
+                    "Long press: turn off remote\n"
+                    "During Pair New: cancel pairing");
+  lv_obj_set_style_text_font(lowerButtonText, fontForSize(16), 0);
+  lv_obj_set_style_text_color(lowerButtonText, lv_color_hex(0xf4f7fb), 0);
+  lv_obj_set_style_text_line_space(lowerButtonText, 5, 0);
+  lv_obj_set_pos(lowerButtonText, 20, 314);
+
   settingSheet = lv_obj_create(screen);
   lv_obj_set_size(settingSheet, 332, 352);
   lv_obj_align(settingSheet, LV_ALIGN_CENTER, 0, 18);

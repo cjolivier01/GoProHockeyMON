@@ -45,13 +45,13 @@ The AMOLED firmware has a USB serial UI test harness at `115200`:
 - `lower single` / `lower double`: simulate the lower/action side button.
 - `top short` / `top long`: simulate the top-right side button.
 - `pair`, `connect`, `rescan`, `snapshot`, `record`, `cancel`: run the same app actions used by the UI/buttons. `rescan` retries the saved-camera BLE/Wi-Fi connection.
-- `page home|maintenance`, `fullscreen on|off`, `forget show|confirm|cancel`, `display on|off`: force states for debugging.
+- `page home|maintenance|buttons`, `fullscreen on|off`, `forget show|confirm|cancel`, `display on|off`: force states for debugging.
 
 Use `help` in the serial monitor for the complete command list.
 
 ## Screen Reference
 
-The default screen is the capture/preview screen, matching the basic GoPro rear-screen flow. Swipe down from the preview screen to expand the preview fullscreen, then swipe up or single-click the lower side button to return. Swipe right from the preview screen to open Maintenance, and swipe left or single-click the lower side button from Maintenance to return. The maintenance panel follows the finger while swiping and snaps open or closed at release. The battery and Wi-Fi cluster stays visible at the top.
+The default screen is the capture/preview screen, matching the basic GoPro rear-screen flow. Swipe down from the preview screen to expand the preview fullscreen, then swipe up or single-click the lower side button to return. Swipe right from the preview screen to open Maintenance, and swipe left from the preview screen to open Button Guide. The side panels follow the finger while swiping and snap open or closed at release. Swipe back toward the preview or single-click the lower side button from either side panel to return. The battery and Wi-Fi cluster stays visible at the top.
 
 ### Capture Screen
 
@@ -116,7 +116,7 @@ The board has two side buttons:
 
 - Top-right side button short press: start recording.
 - Top-right side button long press while recording: stop recording.
-- Lower side button single click: blank/wake the display, exit fullscreen preview, or return from Maintenance to the capture screen.
+- Lower side button single click: blank/wake the display, exit fullscreen preview, or return from a side panel to the capture screen.
 - Lower side button double click: take one JPEG snapshot, download/display it fullscreen, then delete it from the GoPro.
 - Single-click display blanking is delayed until the double-click window expires, so a snapshot double-click should not also blank the display.
 - Lower side button long press: enter low-power shutdown through the AXP2101 PMU.

@@ -101,10 +101,10 @@ void handleLowerActionShortClick(const char *source) {
     clearPendingLowerClick();
     return;
   }
-  if (isMaintenancePageShowing()) {
+  if (isMaintenancePageShowing() || isButtonGuidePageShowing()) {
     clearPendingLowerClick();
     Serial.printf("%s single click: return to preview\n", source);
-    setMaintenancePageVisible(false);
+    closeSidePages();
     return;
   }
 
@@ -378,7 +378,7 @@ void printSerialHelp() {
   Serial.println("  lower [single|double|shutdown]");
   Serial.println("  top [short|long]");
   Serial.println("  pair | cancel | connect | rescan | snapshot | record");
-  Serial.println("  page home|maintenance");
+  Serial.println("  page home|maintenance|buttons");
   Serial.println("  fullscreen on|off");
   Serial.println("  forget show|confirm|cancel");
   Serial.println("  display on|off");
@@ -388,9 +388,10 @@ void printSerialStatus() {
   String ssid = WiFi.SSID();
   String ip = WiFi.localIP().toString();
   Serial.println("SERIAL STATUS");
-  Serial.printf("  displayOn=%u recording=%u fullscreen=%u maintenance=%u previewImage=%u\n",
+  Serial.printf("  displayOn=%u recording=%u fullscreen=%u maintenance=%u buttons=%u previewImage=%u\n",
                 displayOn ? 1 : 0, recording ? 1 : 0, previewFullscreen ? 1 : 0,
-                maintenancePageVisible ? 1 : 0, previewHasImage ? 1 : 0);
+                maintenancePageVisible ? 1 : 0, buttonGuidePageVisible ? 1 : 0,
+                previewHasImage ? 1 : 0);
   Serial.printf("  pairingInProgress=%u pairingCancel=%u pendingHome=%u busy=%u\n",
                 pairingInProgress ? 1 : 0, pairingCancelRequested ? 1 : 0,
                 static_cast<unsigned>(pendingHomeAction), goproActionBusy ? 1 : 0);
@@ -579,15 +580,17 @@ void handleSerialCommand(String line) {
   }
   if (cmd == "page") {
     if (count < 2) {
-      Serial.println("usage: page home|maintenance");
+      Serial.println("usage: page home|maintenance|buttons");
       return;
     }
     if (tokens[1] == "home") {
-      setMaintenancePageVisible(false);
+      closeSidePages();
     } else if (tokens[1] == "maintenance") {
       setMaintenancePageVisible(true);
+    } else if (tokens[1] == "buttons" || tokens[1] == "button" || tokens[1] == "guide") {
+      setButtonGuidePageVisible(true);
     } else {
-      Serial.println("usage: page home|maintenance");
+      Serial.println("usage: page home|maintenance|buttons");
     }
     return;
   }
