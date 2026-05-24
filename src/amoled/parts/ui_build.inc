@@ -322,14 +322,14 @@ void createUi() {
   lv_obj_set_style_text_line_space(topButtonText, 5, 0);
   lv_obj_set_pos(topButtonText, 20, 78);
 
-  lv_obj_t *lowerButtonHeading = makePanelLabel(buttonGuidePage, "Bottom-right side button",
+  lv_obj_t *lowerButtonHeading = makePanelLabel(buttonGuidePage, "Bottom-right / lower button",
                                                20, 286, 16, lv_color_hex(0xc3ccd8));
   lv_obj_set_width(lowerButtonHeading, kPreviewW);
   lv_obj_t *lowerButtonText = lv_label_create(buttonGuidePage);
   lv_obj_set_width(lowerButtonText, kPreviewW);
   lv_label_set_long_mode(lowerButtonText, LV_LABEL_LONG_WRAP);
   lv_label_set_text(lowerButtonText,
-                    "Single click: display on/off or return home\n"
+                    "Single click: display on/off, exit fullscreen, or return home\n"
                     "Double click: snapshot preview when idle\n"
                     "Long press: turn off remote\n"
                     "During Pair New: cancel pairing");
