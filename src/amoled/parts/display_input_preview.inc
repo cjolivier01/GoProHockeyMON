@@ -205,8 +205,8 @@ void suppressLowerButtonDuplicates(uint32_t durationMs, const char *source) {
 }
 
 void refreshConnectionButtons() {
-  bool showWakeButton = cameraWakeAvailable && !homeCameraConnected && !recording &&
-                        !previewFullscreen;
+  bool showWakeButton = wakeButton && cameraWakeAvailable && !homeCameraConnected &&
+                        !recording && !previewFullscreen;
   if (wakeButton) {
     if (showWakeButton) {
       lv_obj_clear_flag(wakeButton, LV_OBJ_FLAG_HIDDEN);
@@ -470,6 +470,9 @@ bool finishRawPreviewSwipeIfNeeded(const lv_point_t &start, const lv_point_t &en
 }
 
 void onPageGesture(lv_event_t *) {
+  if (modalUiActive()) {
+    return;
+  }
   lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
   if (previewFullscreen) {
     if (dir == LV_DIR_TOP) {

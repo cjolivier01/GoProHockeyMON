@@ -131,9 +131,6 @@ constexpr int kPreviewH = 150;
 constexpr int kTopRightButtonMarkerW = 6;
 constexpr int kTopRightButtonMarkerH = 39;
 constexpr int kTopRightButtonMarkerY = 39;
-constexpr int kBottomRightButtonMarkerW = 6;
-constexpr int kBottomRightButtonMarkerH = 39;
-constexpr int kBottomRightButtonMarkerY = 309;
 constexpr int kTopBarH = 32;
 constexpr uint8_t kSnapshotAspectCropStrengthPercent = 100;
 
@@ -287,7 +284,6 @@ lv_obj_t *captureTileObj = nullptr;
 lv_obj_t *pairButtonLabel = nullptr;
 lv_obj_t *wakeButtonLabel = nullptr;
 lv_obj_t *topRightButtonMarker = nullptr;
-lv_obj_t *bottomRightButtonMarker = nullptr;
 uint32_t lastPreviewUpdate = 0;
 uint32_t lastPmuPollMs = 0;
 uint32_t lastBatteryUpdate = 0;
