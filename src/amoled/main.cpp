@@ -108,6 +108,10 @@ constexpr int kPreviewX = 20;
 constexpr int kPreviewY = 76;
 constexpr int kPreviewW = 328;
 constexpr int kPreviewH = 150;
+// Y is relative to the main capture tile below the top status bar.
+constexpr int kTopRightButtonMarkerW = 6;
+constexpr int kTopRightButtonMarkerH = 38;
+constexpr int kTopRightButtonMarkerY = 38;
 constexpr int kTopBarH = 32;
 constexpr int kBootButtonPin = 0;
 constexpr int kNavSwipeStartPx = 18;

@@ -991,6 +991,7 @@ bool shrinkAndAdoptPreviewJpegCache(uint8_t *&buffer, size_t length) {
 bool redrawCachedPreviewJpeg();
 
 void setPreviewFullscreen(bool fullscreen) {
+  bool exitingFullscreen = previewFullscreen && !fullscreen;
   previewFullscreen = fullscreen;
   if (!previewBox || !fullscreenHint) {
     return;
@@ -1015,13 +1016,15 @@ void setPreviewFullscreen(bool fullscreen) {
     lv_obj_set_size(previewBox, LCD_WIDTH, LCD_HEIGHT - kTopBarH);
     lv_obj_set_style_radius(previewBox, 0, 0);
     lv_obj_set_style_border_width(previewBox, 0, 0);
-    lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, -4);
+    lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_clear_flag(fullscreenHint, LV_OBJ_FLAG_HIDDEN);
   } else {
     lv_obj_set_size(previewBox, kPreviewW, kPreviewH);
     lv_obj_set_pos(previewBox, kPreviewX, 6);
     lv_obj_set_style_radius(previewBox, 8, 0);
     lv_obj_set_style_border_width(previewBox, 1, 0);
-    lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, 4);
+    lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_clear_flag(fullscreenHint, LV_OBJ_FLAG_HIDDEN);
   }
   if (recordingOverlay) {
     lv_obj_center(recordingOverlay);
@@ -1042,6 +1045,10 @@ void setPreviewFullscreen(bool fullscreen) {
     lv_obj_move_foreground(recordingOverlay);
   }
   lv_obj_move_foreground(fullscreenHint);
+  if (exitingFullscreen) {
+    lv_obj_invalidate(lv_scr_act());
+    lv_timer_handler();
+  }
 
   if (previewHasImage && previewJpegCache && previewJpegCacheLen > 0 && !redrawingCachedPreview) {
     lv_timer_handler();

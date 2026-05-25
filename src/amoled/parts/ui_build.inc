@@ -106,6 +106,16 @@ void createUi() {
   lv_obj_add_event_cb(captureTile, onPreviewGesture, LV_EVENT_GESTURE, nullptr);
   lv_obj_add_event_cb(captureTile, onPageGesture, LV_EVENT_GESTURE, nullptr);
 
+  lv_obj_t *topRightButtonMarker = lv_obj_create(captureTile);
+  lv_obj_set_size(topRightButtonMarker, kTopRightButtonMarkerW, kTopRightButtonMarkerH);
+  lv_obj_set_pos(topRightButtonMarker, LCD_WIDTH - kTopRightButtonMarkerW,
+                 kTopRightButtonMarkerY);
+  lv_obj_set_style_radius(topRightButtonMarker, 0, 0);
+  lv_obj_set_style_bg_color(topRightButtonMarker, lv_color_hex(0xd71920), 0);
+  lv_obj_set_style_bg_opa(topRightButtonMarker, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(topRightButtonMarker, 0, 0);
+  lv_obj_clear_flag(topRightButtonMarker, LV_OBJ_FLAG_SCROLLABLE);
+
   previewBox = lv_obj_create(captureTile);
   lv_obj_set_size(previewBox, kPreviewW, kPreviewH);
   lv_obj_set_pos(previewBox, kPreviewX, 6);
@@ -146,7 +156,7 @@ void createUi() {
 
   fullscreenHint = lv_obj_create(previewBox);
   lv_obj_set_size(fullscreenHint, 78, 3);
-  lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, 4);
+  lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, -8);
   lv_obj_set_style_radius(fullscreenHint, 2, 0);
   lv_obj_set_style_bg_color(fullscreenHint, lv_color_hex(0xf4f7fb), 0);
   lv_obj_set_style_bg_opa(fullscreenHint, LV_OPA_90, 0);
@@ -306,37 +316,49 @@ void createUi() {
   lv_obj_clear_flag(buttonGuidePage, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_add_event_cb(buttonGuidePage, onPageGesture, LV_EVENT_GESTURE, nullptr);
 
-  makePanelLabel(buttonGuidePage, "Button Guide", 20, 18, 18);
-  lv_obj_t *topButtonHeading = makePanelLabel(buttonGuidePage, "Top-right side button",
-                                             20, 50, 16, lv_color_hex(0xc3ccd8));
+  lv_obj_t *buttonGuideTitle = makePanelLabel(buttonGuidePage, "Button Guide", 0, 16, 22,
+                                             lv_color_hex(0x2c7be5));
+  lv_obj_set_width(buttonGuideTitle, LCD_WIDTH);
+  lv_obj_set_style_text_align(buttonGuideTitle, LV_TEXT_ALIGN_CENTER, 0);
+  lv_obj_t *buttonGuideTitleWeight = makePanelLabel(buttonGuidePage, "Button Guide", 1, 16, 22,
+                                                   lv_color_hex(0x2c7be5));
+  lv_obj_set_width(buttonGuideTitleWeight, LCD_WIDTH);
+  lv_obj_set_style_text_align(buttonGuideTitleWeight, LV_TEXT_ALIGN_CENTER, 0);
+
+  lv_obj_t *topButtonHeading = makePanelLabel(buttonGuidePage, "Top-right button",
+                                             20, 54, 16, lv_color_hex(0xc3ccd8));
   lv_obj_set_width(topButtonHeading, kPreviewW);
+  lv_obj_set_style_text_align(topButtonHeading, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_t *topButtonText = lv_label_create(buttonGuidePage);
   lv_obj_set_width(topButtonText, kPreviewW);
   lv_label_set_long_mode(topButtonText, LV_LABEL_LONG_WRAP);
   lv_label_set_text(topButtonText,
                     "Short press: start recording\n"
-                    "Long press while recording: stop recording\n"
-                    "Short press while recording: hold-to-stop reminder");
+                    "Long press recording: stop recording\n"
+                    "Short press recording: hold-to-stop reminder");
   lv_obj_set_style_text_font(topButtonText, fontForSize(16), 0);
   lv_obj_set_style_text_color(topButtonText, lv_color_hex(0xf4f7fb), 0);
+  lv_obj_set_style_text_align(topButtonText, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_set_style_text_line_space(topButtonText, 5, 0);
-  lv_obj_set_pos(topButtonText, 20, 78);
+  lv_obj_set_pos(topButtonText, 20, 82);
 
-  lv_obj_t *lowerButtonHeading = makePanelLabel(buttonGuidePage, "Bottom-right / lower button",
-                                               20, 286, 16, lv_color_hex(0xc3ccd8));
+  lv_obj_t *lowerButtonHeading = makePanelLabel(buttonGuidePage, "Bottom-right button",
+                                               20, 224, 16, lv_color_hex(0xc3ccd8));
   lv_obj_set_width(lowerButtonHeading, kPreviewW);
+  lv_obj_set_style_text_align(lowerButtonHeading, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_t *lowerButtonText = lv_label_create(buttonGuidePage);
   lv_obj_set_width(lowerButtonText, kPreviewW);
   lv_label_set_long_mode(lowerButtonText, LV_LABEL_LONG_WRAP);
   lv_label_set_text(lowerButtonText,
-                    "Single click: display on/off, exit fullscreen, or return home\n"
+                    "Single click: wake, blank, exit, or home\n"
                     "Double click: snapshot preview when idle\n"
                     "Long press: turn off remote\n"
-                    "During Pair New: cancel pairing");
+                    "Pair New: cancel pairing");
   lv_obj_set_style_text_font(lowerButtonText, fontForSize(16), 0);
   lv_obj_set_style_text_color(lowerButtonText, lv_color_hex(0xf4f7fb), 0);
+  lv_obj_set_style_text_align(lowerButtonText, LV_TEXT_ALIGN_RIGHT, 0);
   lv_obj_set_style_text_line_space(lowerButtonText, 5, 0);
-  lv_obj_set_pos(lowerButtonText, 20, 314);
+  lv_obj_set_pos(lowerButtonText, 20, 252);
 
   settingSheet = lv_obj_create(screen);
   lv_obj_set_size(settingSheet, 332, 352);
