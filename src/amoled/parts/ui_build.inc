@@ -167,6 +167,17 @@ void createUi() {
   lv_obj_set_style_border_width(topRightButtonMarker, 0, 0);
   disableScrollbars(topRightButtonMarker);
 
+  bottomRightButtonMarker = lv_obj_create(captureTile);
+  lv_obj_set_size(bottomRightButtonMarker, kBottomRightButtonMarkerW,
+                  kBottomRightButtonMarkerH);
+  lv_obj_set_pos(bottomRightButtonMarker, LCD_WIDTH - kBottomRightButtonMarkerW,
+                 kBottomRightButtonMarkerY);
+  lv_obj_set_style_radius(bottomRightButtonMarker, 0, 0);
+  lv_obj_set_style_bg_color(bottomRightButtonMarker, lv_color_hex(0x9333ea), 0);
+  lv_obj_set_style_bg_opa(bottomRightButtonMarker, LV_OPA_COVER, 0);
+  lv_obj_set_style_border_width(bottomRightButtonMarker, 0, 0);
+  disableScrollbars(bottomRightButtonMarker);
+
   previewBox = lv_obj_create(captureTile);
   lv_obj_set_size(previewBox, kPreviewW, kPreviewH);
   lv_obj_set_pos(previewBox, kPreviewX, 6);
@@ -255,6 +266,14 @@ void createUi() {
   pairButtonLabel = lv_obj_get_child(pairButton, 0);
   lv_obj_add_event_cb(pairButton, onPair, LV_EVENT_CLICKED, nullptr);
   lv_obj_add_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
+
+  wakeButton = makeTouchButton(captureTile, "ON", kPreviewX, kHomeButtonY,
+                               kHomeButtonH, kHomeButtonH, lv_color_hex(0x16a34a));
+  wakeButtonLabel = lv_obj_get_child(wakeButton, 0);
+  lv_obj_set_style_radius(wakeButton, kHomeButtonH / 2, 0);
+  lv_obj_add_event_cb(wakeButton, onWakeCamera, LV_EVENT_CLICKED, nullptr);
+  lv_obj_add_flag(wakeButton, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_add_state(wakeButton, LV_STATE_DISABLED);
 
   actionLabel = lv_label_create(captureTile);
   lv_label_set_text(actionLabel, "Auto-connect | tap Pair New to change camera");

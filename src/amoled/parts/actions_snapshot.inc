@@ -74,6 +74,31 @@ void runForgetCameraAction() {
   endGoproAction();
 }
 
+void runWakeCameraAction() {
+  if (recording) {
+    setAction("Stop recording before wake");
+    return;
+  }
+  if (!beginGoproAction("wake-camera")) {
+    return;
+  }
+  setHomeCameraConnected(false);
+  setConnectRetryAvailable(false);
+  cameraWakeInProgress = true;
+  bool ok = wakeGoProBle();
+  if (ok) {
+    setAction("Wake sent; connecting");
+    ok = delayWithConnectionUi(1500) && connectGoProWifiFromBle();
+  }
+  cameraWakeInProgress = false;
+  if (!ok && !boundBleAddress.isEmpty() && !operationCancelled()) {
+    setConnectRetryAvailable(true);
+    setCameraWakeAvailable(true);
+    setAction("Wake failed; tap ON again");
+  }
+  endGoproAction();
+}
+
 bool runRecordAction() {
   if (!beginGoproAction("record")) {
     return false;
@@ -861,12 +886,17 @@ void onPair(lv_event_t *event) {
     setAction("Camera already connected");
     return;
   }
-  if (event && lv_event_get_target(event) == pairButton && connectRetryAvailable) {
+  if (event && lv_event_get_target(event) == pairButton && connectRetryAvailable &&
+      !cameraWakeAvailable) {
     setAction("Scanning again");
     runConnectAction();
     return;
   }
   queuePairNewAction("button");
+}
+
+void onWakeCamera(lv_event_t *) {
+  runWakeCameraAction();
 }
 
 void onForgetCamera(lv_event_t *) {

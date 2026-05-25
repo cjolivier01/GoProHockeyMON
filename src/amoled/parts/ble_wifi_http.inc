@@ -708,7 +708,9 @@ bool scanForCamera() {
   scan->setActiveScan(true);
   scan->setInterval(100);
   scan->setWindow(99);
-  uint32_t scanSeconds = pairingInProgress ? kPairBleScanSeconds : kBleScanSeconds;
+  uint32_t scanSeconds = pairingInProgress ? kPairBleScanSeconds
+                                           : (cameraWakeInProgress ? kBleWakeScanSeconds
+                                                                   : kBleScanSeconds);
   for (uint32_t elapsed = 0; elapsed < scanSeconds; ++elapsed) {
     if (operationCancelled()) {
       scan->clearResults();
@@ -739,6 +741,7 @@ bool scanForCamera() {
   }
 
   if (bestBleDevice == nullptr) {
+    setCameraWakeAvailable(false);
     lv_label_set_text(cameraLabel, "Camera: BLE not found");
     Serial.printf("BLE scan finished: seen=%u candidates=%u skipped=%u addr_matches=%u name_matches=%u saved_addr='%s' saved_name='%s'\n",
                   bleScanSeenCount, bleScanCandidateCount, bleScanSkippedCount,
@@ -748,7 +751,7 @@ bool scanForCamera() {
       setAction("No GoPro BLE device found");
     } else {
       setConnectRetryAvailable(true);
-      setAction("Bound GoPro BLE not found; tap Scan Again");
+      setAction("GoPro not found; scan again");
     }
     return false;
   }
@@ -788,8 +791,12 @@ bool connectBle() {
   setAction("Connecting GoPro BLE");
   serviceConnectionUi();
   logMemory("Before BLE connect");
-  uint32_t connectTimeoutMs = pairingInProgress ? kPairBleConnectTimeoutMs : kBleConnectTimeoutMs;
+  uint32_t connectTimeoutMs = pairingInProgress ? kPairBleConnectTimeoutMs
+                                                : (cameraWakeInProgress
+                                                       ? kBleWakeConnectTimeoutMs
+                                                       : kBleConnectTimeoutMs);
   if (!bleClient->connectTimeout(bestBleDevice, connectTimeoutMs)) {
+    bool savedCameraFound = !selectedBleFallback && !allowAnyCameraScan && !boundBleAddress.isEmpty();
     bleConnected = false;
     if (bleIndicator) {
       lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
@@ -797,13 +804,18 @@ bool connectBle() {
     delete bleClient;
     bleClient = nullptr;
     clearBleScanDevices();
-    lv_label_set_text(cameraLabel, "Camera: BLE connect failed");
+    lv_label_set_text(cameraLabel,
+                      savedCameraFound ? "Camera: found, power may be off"
+                                       : "Camera: BLE connect failed");
     if (selectedBleFallback) {
+      setCameraWakeAvailable(false);
       setAction("No GoPro BLE advertisement found");
     } else if (!boundBleAddress.isEmpty() && !allowAnyCameraScan) {
       setConnectRetryAvailable(true);
-      setAction("BLE connect failed; tap Scan Again");
+      setCameraWakeAvailable(true);
+      setAction("GoPro found; tap ON to wake");
     } else {
+      setCameraWakeAvailable(false);
       setAction("BLE connect failed");
     }
     return false;
@@ -818,6 +830,8 @@ bool connectBle() {
   }
 
   bleConnected = true;
+  connectRetryAvailable = false;
+  setCameraWakeAvailable(false);
   if (bleIndicator) {
     lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x2c7be5), 0);
   }
@@ -910,10 +924,37 @@ bool sendBleCommand(const uint8_t *payload, size_t length) {
   return waitForBleResponse(2500);
 }
 
+bool sendBleCommandWriteOnly(const uint8_t *payload, size_t length) {
+  if (!connectBle()) {
+    return false;
+  }
+
+  BLERemoteService *control = bleClient->getService(kControlService);
+  if (control == nullptr) {
+    setAction("GoPro control BLE service missing");
+    return false;
+  }
+
+  BLERemoteCharacteristic *command = control->getCharacteristic(kCommand);
+  if (command == nullptr || !command->canWrite()) {
+    setAction("GoPro command characteristic missing");
+    return false;
+  }
+
+  command->writeValue(const_cast<uint8_t *>(payload), length, true);
+  return true;
+}
+
 bool setGoProShutterBle(bool enabled) {
   uint8_t payload[] = {0x03, 0x01, 0x01, static_cast<uint8_t>(enabled ? 0x01 : 0x00)};
   setAction(enabled ? "Starting recording over BLE" : "Stopping recording over BLE");
   return sendBleCommand(payload, sizeof(payload));
+}
+
+bool wakeGoProBle() {
+  uint8_t payload[] = {0x05, 0x1B, 0x01, 0x01, 0x01, 0x00};
+  setAction("Waking GoPro over BLE");
+  return sendBleCommandWriteOnly(payload, sizeof(payload));
 }
 
 bool setGoProWifiApBle(bool enabled) {

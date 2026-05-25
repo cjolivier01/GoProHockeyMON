@@ -115,6 +115,7 @@ void runLowerSingleClickAction(const char *source) {
     return;
   }
   if (exitFullscreenPreview(source == nullptr ? "Lower button" : source)) {
+    suppressLowerButtonDuplicates(kPreviewExitButtonSuppressMs, "preview exit");
     return;
   }
   Serial.printf("%s single click: display toggle\n",
@@ -145,6 +146,7 @@ void handleLowerActionShortClick(const char *source) {
   }
   if (exitFullscreenPreview(source)) {
     clearPendingLowerClick();
+    suppressLowerButtonDuplicates(kPreviewExitButtonSuppressMs, "preview exit");
     return;
   }
   if (isMaintenancePageShowing() || isButtonGuidePageShowing()) {

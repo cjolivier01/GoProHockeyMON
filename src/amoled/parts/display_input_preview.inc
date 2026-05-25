@@ -204,46 +204,76 @@ void suppressLowerButtonDuplicates(uint32_t durationMs, const char *source) {
                 source == nullptr ? "action" : source);
 }
 
+void refreshConnectionButtons() {
+  bool showWakeButton = cameraWakeAvailable && !homeCameraConnected && !recording &&
+                        !previewFullscreen;
+  if (wakeButton) {
+    if (showWakeButton) {
+      lv_obj_clear_flag(wakeButton, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_state(wakeButton, LV_STATE_DISABLED);
+      lv_obj_add_flag(wakeButton, LV_OBJ_FLAG_CLICKABLE);
+    } else {
+      lv_obj_add_flag(wakeButton, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_state(wakeButton, LV_STATE_DISABLED);
+      lv_obj_clear_flag(wakeButton, LV_OBJ_FLAG_CLICKABLE);
+    }
+  }
+  if (pairButton) {
+    if (showWakeButton) {
+      lv_obj_set_size(pairButton, kPreviewW - kHomeButtonH - 8, kHomeButtonH);
+      lv_obj_set_pos(pairButton, kPreviewX + kHomeButtonH + 8, kHomeButtonY);
+    } else {
+      lv_obj_set_size(pairButton, kPreviewW, kHomeButtonH);
+      lv_obj_set_pos(pairButton, kPreviewX, kHomeButtonY);
+    }
+    if (!recording) {
+      lv_obj_clear_state(pairButton, LV_STATE_DISABLED);
+    }
+    if (homeCameraConnected) {
+      lv_obj_clear_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_set_style_bg_color(pairButton, lv_color_hex(0x136f46), 0);
+    } else {
+      lv_obj_add_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
+      lv_obj_set_style_bg_color(pairButton, lv_color_hex(0x2c7be5), 0);
+    }
+  }
+  if (pairButtonLabel) {
+    const char *label = "Pair New";
+    if (homeCameraConnected) {
+      label = "Camera Connected";
+    } else if (connectRetryAvailable && !showWakeButton) {
+      label = "Scan Again";
+    }
+    lv_label_set_text(pairButtonLabel, label);
+    lv_obj_center(pairButtonLabel);
+  }
+}
+
+void setCameraWakeAvailable(bool available) {
+  cameraWakeAvailable = available && !boundBleAddress.isEmpty();
+  if (cameraWakeAvailable) {
+    homeCameraConnected = false;
+  }
+  refreshConnectionButtons();
+}
+
 void setConnectRetryAvailable(bool available) {
   connectRetryAvailable = available && !boundBleAddress.isEmpty();
   if (connectRetryAvailable) {
     homeCameraConnected = false;
+  } else {
+    cameraWakeAvailable = false;
   }
-  if (pairButton) {
-    if (!recording) {
-      lv_obj_clear_state(pairButton, LV_STATE_DISABLED);
-    }
-    lv_obj_add_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_bg_color(pairButton, lv_color_hex(0x2c7be5), 0);
-  }
-  if (pairButtonLabel) {
-    lv_label_set_text(pairButtonLabel, connectRetryAvailable ? "Scan Again" : "Pair New");
-    lv_obj_center(pairButtonLabel);
-  }
+  refreshConnectionButtons();
 }
 
 void setHomeCameraConnected(bool connected) {
   homeCameraConnected = connected;
   if (connected) {
     connectRetryAvailable = false;
+    cameraWakeAvailable = false;
   }
-  if (pairButton) {
-    if (connected) {
-      lv_obj_clear_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
-      lv_obj_set_style_bg_color(pairButton, lv_color_hex(0x136f46), 0);
-    } else {
-      if (!recording) {
-        lv_obj_clear_state(pairButton, LV_STATE_DISABLED);
-      }
-      lv_obj_add_flag(pairButton, LV_OBJ_FLAG_CLICKABLE);
-      lv_obj_set_style_bg_color(pairButton, lv_color_hex(0x2c7be5), 0);
-    }
-  }
-  if (pairButtonLabel) {
-    lv_label_set_text(pairButtonLabel,
-                      connected ? "Camera Connected" : (connectRetryAvailable ? "Scan Again" : "Pair New"));
-    lv_obj_center(pairButtonLabel);
-  }
+  refreshConnectionButtons();
 }
 
 void clearBleScanDevices() {
@@ -1037,9 +1067,11 @@ void setPreviewFullscreen(bool fullscreen) {
   setObjHidden(cameraLabel, fullscreen);
   setObjHidden(wifiLabel, fullscreen);
   setObjHidden(pairButton, fullscreen);
+  setObjHidden(wakeButton, fullscreen || !cameraWakeAvailable || homeCameraConnected || recording);
   setObjHidden(forgetButton, fullscreen);
   setObjHidden(actionLabel, fullscreen);
   setObjHidden(recordingOverlay, !recording);
+  refreshConnectionButtons();
   lv_obj_move_foreground(previewBox);
   if (recordingOverlay) {
     lv_obj_move_foreground(recordingOverlay);

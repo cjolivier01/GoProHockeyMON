@@ -65,10 +65,16 @@ extern "C" {
 #endif
 
 namespace {
+// Display refresh and rendering cadence.
 constexpr uint32_t kLvglTickMs = 2;
 constexpr uint8_t kDisplayBrightness = 210;
-constexpr uint32_t kPreviewRefreshMs = 1500;
-constexpr uint32_t kHttpTimeoutMs = 6500;
+constexpr uint32_t kDrawBufferLines = 16;
+constexpr uint32_t kBatteryRefreshMs = 5000;
+
+// Physical button and touch gesture timing.
+constexpr uint8_t kExpanderActionButtonPin = 5;
+constexpr bool kExpanderActionPressedLevel = LOW;
+constexpr int kBootButtonPin = 0;
 constexpr uint32_t kButtonDebounceMs = 35;
 constexpr uint32_t kActionButtonDebounceMs = 90;
 constexpr uint32_t kActionButtonMinPressMs = 120;
@@ -77,16 +83,29 @@ constexpr uint32_t kPmuPollMs = 150;
 constexpr uint32_t kPmuDuplicateSuppressMs = 500;
 constexpr uint32_t kActionButtonDoubleClickMs = 900;
 constexpr uint32_t kActionButtonLongPressMs = 1200;
-constexpr uint32_t kBatteryRefreshMs = 5000;
+constexpr uint32_t kPreviewExitButtonSuppressMs = kActionButtonDoubleClickMs;
+constexpr int kNavSwipeStartPx = 18;
+constexpr int kNavSwipeCommitPx = 64;
+constexpr uint32_t kNavSwipeFlickMs = 650;
+constexpr int kNavSwipeFlickPx = 42;
+constexpr uint32_t kNavPageAnimMs = 180;
+constexpr int kFullscreenSwipePx = 45;
+
+// BLE, WiFi, and GoPro network behavior.
+constexpr uint32_t kPreviewRefreshMs = 1500;
+constexpr uint32_t kHttpTimeoutMs = 6500;
 constexpr uint32_t kBleScanSeconds = 7;
+constexpr uint32_t kBleWakeScanSeconds = 18;
 constexpr uint32_t kPairBleScanSeconds = 18;
 constexpr uint32_t kBleConnectTimeoutMs = 10000;
+constexpr uint32_t kBleWakeConnectTimeoutMs = 20000;
 constexpr uint32_t kPairBleConnectTimeoutMs = 3000;
 constexpr uint32_t kWifiTimeoutMs = 25000;
 constexpr int kPairFallbackMinRssi = -50;
 constexpr int kPairScanLogMinRssi = -75;
-constexpr uint32_t kDrawBufferLines = 16;
 constexpr uint16_t kPreviewStreamPort = 8554;
+
+// Live preview, snapshot, and camera setting limits.
 constexpr uint32_t kLivePreviewStatsMs = 1000;
 constexpr size_t kTsPacketBytes = 188;
 constexpr uint16_t kGoProVideoPid = 0x1011;
@@ -98,8 +117,8 @@ constexpr size_t kMaxSettingOptions = 40;
 constexpr size_t kVisibleSettingOptions = 6;
 constexpr uint8_t kGoProWirelessBandSetting = 178;
 constexpr uint8_t kGoProWirelessBand24GHz = 0;
-constexpr uint8_t kExpanderActionButtonPin = 5;
-constexpr bool kExpanderActionPressedLevel = LOW;
+
+// Main-screen layout and hardware button markers.
 constexpr int kHomeButtonY = 295;
 constexpr int kHomeButtonH = 56;
 constexpr int kForgetButtonY = kHomeButtonY + kHomeButtonH + 6;
@@ -110,16 +129,12 @@ constexpr int kPreviewW = 328;
 constexpr int kPreviewH = 150;
 // Y is relative to the main capture tile below the top status bar.
 constexpr int kTopRightButtonMarkerW = 6;
-constexpr int kTopRightButtonMarkerH = 38;
-constexpr int kTopRightButtonMarkerY = 38;
+constexpr int kTopRightButtonMarkerH = 39;
+constexpr int kTopRightButtonMarkerY = 39;
+constexpr int kBottomRightButtonMarkerW = 6;
+constexpr int kBottomRightButtonMarkerH = 39;
+constexpr int kBottomRightButtonMarkerY = 309;
 constexpr int kTopBarH = 32;
-constexpr int kBootButtonPin = 0;
-constexpr int kNavSwipeStartPx = 18;
-constexpr int kNavSwipeCommitPx = 64;
-constexpr uint32_t kNavSwipeFlickMs = 650;
-constexpr int kNavSwipeFlickPx = 42;
-constexpr uint32_t kNavPageAnimMs = 180;
-constexpr int kFullscreenSwipePx = 45;
 constexpr uint8_t kSnapshotAspectCropStrengthPercent = 100;
 
 // GoPro 5k Wide with Hypersmooth on: 89
@@ -255,6 +270,7 @@ lv_obj_t *captureSettingLabel = nullptr;
 lv_obj_t *recordPill = nullptr;
 lv_obj_t *timeRemainingLabel = nullptr;
 lv_obj_t *pairButton = nullptr;
+lv_obj_t *wakeButton = nullptr;
 lv_obj_t *forgetButton = nullptr;
 lv_obj_t *pairingPopup = nullptr;
 lv_obj_t *pairingPopupTitle = nullptr;
@@ -269,7 +285,9 @@ lv_obj_t *settingOptionLabels[kVisibleSettingOptions] = {};
 lv_obj_t *settingPagerLabel = nullptr;
 lv_obj_t *captureTileObj = nullptr;
 lv_obj_t *pairButtonLabel = nullptr;
+lv_obj_t *wakeButtonLabel = nullptr;
 lv_obj_t *topRightButtonMarker = nullptr;
+lv_obj_t *bottomRightButtonMarker = nullptr;
 uint32_t lastPreviewUpdate = 0;
 uint32_t lastPmuPollMs = 0;
 uint32_t lastBatteryUpdate = 0;
@@ -374,6 +392,8 @@ bool pairingCancelRequested = false;
 bool connectionCancelRequested = false;
 bool pairingLastCancelled = false;
 bool connectRetryAvailable = false;
+bool cameraWakeAvailable = false;
+bool cameraWakeInProgress = false;
 bool homeCameraConnected = false;
 bool selectedBleFallback = false;
 bool rawSwipeHandled = false;
