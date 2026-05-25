@@ -74,15 +74,16 @@ void runForgetCameraAction() {
   endGoproAction();
 }
 
-void runRecordAction() {
+bool runRecordAction() {
   if (!beginGoproAction("record")) {
-    return;
+    return false;
   }
   setAction("REC pressed");
   lv_timer_handler();
   delay(100);
   toggleRecording();
   endGoproAction();
+  return true;
 }
 
 void runSnapshotAction() {
@@ -129,7 +130,6 @@ void toggleRecording() {
       lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
     }
     setAction("Starting recording");
-    blinkTopRightButtonMarker();
     snapshotPreviewPrepared = false;
     if (wifiReady && httpGetGoPro("/gopro/camera/presets/set_group?id=1000")) {
       captureMode = "Video";
@@ -160,6 +160,7 @@ void toggleRecording() {
   }
   applyRecordingUiState(nextRecording, 0, nextRecording);
   if (recording) {
+    blinkTopRightButtonMarker();
     suspendGoProWifiForRecording("recording started");
   } else {
     setAction("Recording stopped; WiFi idle");

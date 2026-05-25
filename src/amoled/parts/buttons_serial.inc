@@ -59,6 +59,10 @@ void handleBootButtonRelease(uint32_t durationMs, bool pressStartedRecording) {
       return;
     }
     Serial.println("Top button: long stop recording on release fallback");
+    if (goproActionBusy) {
+      setAction("GoPro action already running");
+      return;
+    }
     blinkTopRightButtonMarker();
     runRecordAction();
     return;
@@ -87,14 +91,16 @@ void handleBootButtonHold(uint32_t now) {
   if (!bootPressStartedRecording) {
     return;
   }
-  bootLongHandled = true;
   if (!recording) {
     Serial.println("Top button hold ignored; recording already stopped");
     return;
   }
+  if (goproActionBusy) {
+    return;
+  }
   Serial.println("Top button: long stop recording threshold reached");
   blinkTopRightButtonMarker();
-  runRecordAction();
+  bootLongHandled = runRecordAction();
 }
 
 void clearPendingLowerClick() {

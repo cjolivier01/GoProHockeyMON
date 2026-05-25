@@ -49,18 +49,45 @@ void disableScrollbars(lv_obj_t *obj) {
   lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
 }
 
+lv_timer_t *topRightButtonMarkerBlinkTimer = nullptr;
+uint8_t topRightButtonMarkerBlinkStep = 0;
+
+void onTopRightButtonMarkerBlink(lv_timer_t *timer) {
+  if (timer != topRightButtonMarkerBlinkTimer || !topRightButtonMarker) {
+    if (timer == topRightButtonMarkerBlinkTimer) {
+      topRightButtonMarkerBlinkTimer = nullptr;
+      topRightButtonMarkerBlinkStep = 0;
+    }
+    lv_timer_del(timer);
+    return;
+  }
+
+  ++topRightButtonMarkerBlinkStep;
+  if (topRightButtonMarkerBlinkStep >= 6) {
+    lv_obj_set_style_bg_opa(topRightButtonMarker, LV_OPA_COVER, 0);
+    topRightButtonMarkerBlinkTimer = nullptr;
+    topRightButtonMarkerBlinkStep = 0;
+    lv_timer_del(timer);
+    return;
+  }
+
+  lv_obj_set_style_bg_opa(topRightButtonMarker,
+                          (topRightButtonMarkerBlinkStep % 2) == 0 ? LV_OPA_30
+                                                                    : LV_OPA_COVER,
+                          0);
+}
+
 void blinkTopRightButtonMarker() {
   if (!topRightButtonMarker) {
     return;
   }
-  for (uint8_t i = 0; i < 3; ++i) {
-    lv_obj_set_style_bg_opa(topRightButtonMarker, LV_OPA_30, 0);
-    lv_timer_handler();
-    delay(85);
-    lv_obj_set_style_bg_opa(topRightButtonMarker, LV_OPA_COVER, 0);
-    lv_timer_handler();
-    delay(85);
+  if (topRightButtonMarkerBlinkTimer) {
+    lv_timer_del(topRightButtonMarkerBlinkTimer);
+    topRightButtonMarkerBlinkTimer = nullptr;
   }
+  topRightButtonMarkerBlinkStep = 0;
+  lv_obj_set_style_bg_opa(topRightButtonMarker, LV_OPA_30, 0);
+  topRightButtonMarkerBlinkTimer = lv_timer_create(onTopRightButtonMarkerBlink, 85, nullptr);
 }
 
 void createUi() {

@@ -153,7 +153,7 @@ std::shared_ptr<Arduino_IIC_DriveBus> i2cBus =
 void touchInterrupt();
 void toggleRecording();
 void runPairNewAction();
-void runRecordAction();
+bool runRecordAction();
 void runSnapshotAction();
 void initBleStack();
 bool syncCameraState();
