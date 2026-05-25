@@ -40,12 +40,27 @@ void initPowerKey() {
   Serial.println("AXP2101 PMU initialized; lower/action key IRQs enabled");
 }
 
-void handleBootButtonRelease(uint32_t durationMs) {
+void handleBootButtonRelease(uint32_t durationMs, bool pressStartedRecording) {
   if (durationMs < kActionButtonMinPressMs) {
     return;
   }
   if (pairingUiActive()) {
     Serial.println("Top button ignored during Pair New");
+    return;
+  }
+  if (pressStartedRecording) {
+    if (!recording) {
+      Serial.println("Top button release ignored; recording already stopped");
+      return;
+    }
+    if (durationMs < kBootLongPressMs) {
+      Serial.println("Top button: hold to stop recording");
+      setAction("Hold top button to stop recording");
+      return;
+    }
+    Serial.println("Top button: long stop recording on release fallback");
+    blinkTopRightButtonMarker();
+    runRecordAction();
     return;
   }
   if (recording && durationMs < kBootLongPressMs) {
@@ -54,6 +69,31 @@ void handleBootButtonRelease(uint32_t durationMs) {
     return;
   }
   Serial.println(recording ? "Top button: long stop recording" : "Top button: start recording");
+  runRecordAction();
+}
+
+void handleBootButtonHold(uint32_t now) {
+  if (bootPressedAtMs == 0 || bootLongHandled || bootStable != LOW) {
+    return;
+  }
+  if (now - bootPressedAtMs < kBootLongPressMs) {
+    return;
+  }
+  if (pairingUiActive()) {
+    Serial.println("Top button hold ignored during Pair New");
+    bootLongHandled = true;
+    return;
+  }
+  if (!bootPressStartedRecording) {
+    return;
+  }
+  bootLongHandled = true;
+  if (!recording) {
+    Serial.println("Top button hold ignored; recording already stopped");
+    return;
+  }
+  Serial.println("Top button: long stop recording threshold reached");
+  blinkTopRightButtonMarker();
   runRecordAction();
 }
 
@@ -193,19 +233,26 @@ void handleBootButton() {
   }
 
   if ((now - bootLastChangeMs) < kButtonDebounceMs || reading == bootStable) {
+    handleBootButtonHold(now);
     return;
   }
 
   bootStable = reading;
   if (bootStable == LOW) {
     bootPressedAtMs = now;
+    bootLongHandled = false;
+    bootPressStartedRecording = recording;
     if (!displayOn) {
       Serial.println("Top button press: display wake");
       setDisplayOn(true);
     }
   } else if (bootPressedAtMs != 0) {
-    handleBootButtonRelease(now - bootPressedAtMs);
+    if (!bootLongHandled) {
+      handleBootButtonRelease(now - bootPressedAtMs, bootPressStartedRecording);
+    }
     bootPressedAtMs = 0;
+    bootLongHandled = false;
+    bootPressStartedRecording = false;
   }
 }
 
@@ -534,9 +581,9 @@ void handleSerialCommand(String line) {
       setDisplayOn(true);
     }
     if (mode == "short" || mode == "single") {
-      handleBootButtonRelease(kActionButtonMinPressMs + 40);
+      handleBootButtonRelease(kActionButtonMinPressMs + 40, recording);
     } else if (mode == "long") {
-      handleBootButtonRelease(kBootLongPressMs + 100);
+      handleBootButtonRelease(kBootLongPressMs + 100, recording);
     } else {
       Serial.println("usage: top [short|long]");
     }

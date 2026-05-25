@@ -1205,14 +1205,28 @@ void drawI420Preview(const uint8_t *pic, uint32_t width, uint32_t height) {
   if (!pic || width == 0 || height == 0 || !previewBox) {
     return;
   }
-  uint32_t outW = previewFullscreen ? LCD_WIDTH : kPreviewW;
-  uint32_t outH = previewFullscreen ? (LCD_HEIGHT - kTopBarH) : kPreviewH;
-  uint32_t drawH = min<uint32_t>(outH, (outW * height) / width);
-  uint32_t drawY = previewFullscreen ? kTopBarH + ((outH - drawH) / 2) : (kTopBarH + 6);
+  uint32_t frameInset = previewFullscreen ? 0 : 1;
+  uint32_t frameX = previewFullscreen ? 0 : kPreviewX + frameInset;
+  uint32_t frameY = previewFullscreen ? kTopBarH : kTopBarH + 6 + frameInset;
+  uint32_t outW = (previewFullscreen ? LCD_WIDTH : kPreviewW) - (frameInset * 2);
+  uint32_t outH = (previewFullscreen ? (LCD_HEIGHT - kTopBarH) : kPreviewH) - (frameInset * 2);
+  uint32_t drawW = outW;
+  uint32_t drawH = (outW * height) / width;
+  if (drawH > outH) {
+    drawH = outH;
+    drawW = max<uint32_t>(1, (outH * width) / height);
+  }
+  drawW = min<uint32_t>(drawW, outW);
+  drawH = min<uint32_t>(drawH, outH);
+  uint32_t drawX = frameX;
+  uint32_t drawY = frameY;
+  drawX += (outW - drawW) / 2;
+  drawY += (outH - drawH) / 2;
+  gfx->fillRect(frameX, frameY, outW, outH, 0x0000);
 
-  uint16_t *line = static_cast<uint16_t *>(heap_caps_malloc(outW * sizeof(uint16_t), MALLOC_CAP_DMA));
+  uint16_t *line = static_cast<uint16_t *>(heap_caps_malloc(drawW * sizeof(uint16_t), MALLOC_CAP_DMA));
   if (!line) {
-    line = static_cast<uint16_t *>(heap_caps_malloc(outW * sizeof(uint16_t), MALLOC_CAP_INTERNAL));
+    line = static_cast<uint16_t *>(heap_caps_malloc(drawW * sizeof(uint16_t), MALLOC_CAP_INTERNAL));
   }
   if (!line) {
     return;
@@ -1223,8 +1237,8 @@ void drawI420Preview(const uint8_t *pic, uint32_t width, uint32_t height) {
   const uint8_t *vPlane = uPlane + (width * height) / 4;
   for (uint32_t y = 0; y < drawH; ++y) {
     uint32_t srcY = (y * height) / drawH;
-    for (uint32_t x = 0; x < outW; ++x) {
-      uint32_t srcX = (x * width) / outW;
+    for (uint32_t x = 0; x < drawW; ++x) {
+      uint32_t srcX = (x * width) / drawW;
       int yy = yPlane[srcY * width + srcX];
       int uu = uPlane[(srcY / 2) * (width / 2) + (srcX / 2)] - 128;
       int vv = vPlane[(srcY / 2) * (width / 2) + (srcX / 2)] - 128;
@@ -1233,7 +1247,7 @@ void drawI420Preview(const uint8_t *pic, uint32_t width, uint32_t height) {
       int b = constrain(yy + ((1814 * uu) >> 10), 0, 255);
       line[x] = ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
     }
-    gfx->draw16bitRGBBitmap(0, drawY + y, line, outW, 1);
+    gfx->draw16bitRGBBitmap(drawX, drawY + y, line, drawW, 1);
   }
   free(line);
 }

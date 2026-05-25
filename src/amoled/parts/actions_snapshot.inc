@@ -129,6 +129,7 @@ void toggleRecording() {
       lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
     }
     setAction("Starting recording");
+    blinkTopRightButtonMarker();
     snapshotPreviewPrepared = false;
     if (wifiReady && httpGetGoPro("/gopro/camera/presets/set_group?id=1000")) {
       captureMode = "Video";

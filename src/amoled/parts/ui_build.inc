@@ -39,11 +39,36 @@ const SettingDefinition kSystemSettings[] = {
     {"LED", 91},
 };
 
+void disableScrollbars(lv_obj_t *obj) {
+  if (!obj) {
+    return;
+  }
+  lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLL_ELASTIC);
+  lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+  lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
+}
+
+void blinkTopRightButtonMarker() {
+  if (!topRightButtonMarker) {
+    return;
+  }
+  for (uint8_t i = 0; i < 3; ++i) {
+    lv_obj_set_style_bg_opa(topRightButtonMarker, LV_OPA_30, 0);
+    lv_timer_handler();
+    delay(85);
+    lv_obj_set_style_bg_opa(topRightButtonMarker, LV_OPA_COVER, 0);
+    lv_timer_handler();
+    delay(85);
+  }
+}
+
 void createUi() {
   lv_obj_t *screen = lv_scr_act();
   lv_obj_set_style_bg_color(screen, lv_color_hex(0x090b10), 0);
   lv_obj_set_style_text_color(screen, lv_color_hex(0xf4f7fb), 0);
   lv_obj_set_style_text_font(screen, fontForSize(16), 0);
+  disableScrollbars(screen);
   lv_obj_add_event_cb(screen, onPageGesture, LV_EVENT_GESTURE, nullptr);
 
   lv_obj_t *topBar = lv_obj_create(screen);
@@ -53,7 +78,7 @@ void createUi() {
   lv_obj_set_style_bg_color(topBar, lv_color_hex(0x05070b), 0);
   lv_obj_set_style_border_width(topBar, 0, 0);
   lv_obj_set_style_pad_all(topBar, 0, 0);
-  lv_obj_clear_flag(topBar, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(topBar);
 
   lv_obj_t *title = lv_label_create(screen);
   lv_label_set_text(title, "GoPro");
@@ -95,18 +120,17 @@ void createUi() {
   lv_obj_set_style_bg_color(tileView, lv_color_hex(0x090b10), 0);
   lv_obj_set_style_border_width(tileView, 0, 0);
   lv_obj_set_style_pad_all(tileView, 0, 0);
-  lv_obj_clear_flag(tileView, LV_OBJ_FLAG_SCROLL_ELASTIC);
-  lv_obj_clear_flag(tileView, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scrollbar_mode(tileView, LV_SCROLLBAR_MODE_OFF);
+  disableScrollbars(tileView);
   lv_obj_add_event_cb(tileView, onPageGesture, LV_EVENT_GESTURE, nullptr);
 
   lv_obj_t *captureTile = lv_tileview_add_tile(tileView, 0, 0, LV_DIR_NONE);
   captureTileObj = captureTile;
   lv_obj_set_style_bg_color(captureTile, lv_color_hex(0x090b10), 0);
+  disableScrollbars(captureTile);
   lv_obj_add_event_cb(captureTile, onPreviewGesture, LV_EVENT_GESTURE, nullptr);
   lv_obj_add_event_cb(captureTile, onPageGesture, LV_EVENT_GESTURE, nullptr);
 
-  lv_obj_t *topRightButtonMarker = lv_obj_create(captureTile);
+  topRightButtonMarker = lv_obj_create(captureTile);
   lv_obj_set_size(topRightButtonMarker, kTopRightButtonMarkerW, kTopRightButtonMarkerH);
   lv_obj_set_pos(topRightButtonMarker, LCD_WIDTH - kTopRightButtonMarkerW,
                  kTopRightButtonMarkerY);
@@ -114,7 +138,7 @@ void createUi() {
   lv_obj_set_style_bg_color(topRightButtonMarker, lv_color_hex(0xd71920), 0);
   lv_obj_set_style_bg_opa(topRightButtonMarker, LV_OPA_COVER, 0);
   lv_obj_set_style_border_width(topRightButtonMarker, 0, 0);
-  lv_obj_clear_flag(topRightButtonMarker, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(topRightButtonMarker);
 
   previewBox = lv_obj_create(captureTile);
   lv_obj_set_size(previewBox, kPreviewW, kPreviewH);
@@ -123,13 +147,14 @@ void createUi() {
   lv_obj_set_style_bg_color(previewBox, lv_color_hex(0x101827), 0);
   lv_obj_set_style_border_color(previewBox, lv_color_hex(0x2b3a52), 0);
   lv_obj_set_style_border_width(previewBox, 1, 0);
-  lv_obj_clear_flag(previewBox, LV_OBJ_FLAG_SCROLLABLE);
+  lv_obj_set_style_pad_all(previewBox, 0, 0);
+  disableScrollbars(previewBox);
   lv_obj_add_event_cb(previewBox, onPreviewGesture, LV_EVENT_GESTURE, nullptr);
 
   previewImageCanvas = lv_canvas_create(previewBox);
   lv_obj_set_pos(previewImageCanvas, 0, 0);
   lv_obj_add_flag(previewImageCanvas, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(previewImageCanvas, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(previewImageCanvas);
 
   previewLabel = lv_label_create(previewBox);
   lv_label_set_text(previewLabel, "Preview standby");
@@ -145,7 +170,7 @@ void createUi() {
   lv_obj_set_style_bg_opa(recordingOverlay, LV_OPA_COVER, 0);
   lv_obj_set_style_border_width(recordingOverlay, 0, 0);
   lv_obj_set_style_pad_all(recordingOverlay, 0, 0);
-  lv_obj_clear_flag(recordingOverlay, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(recordingOverlay);
   recordingOverlayLabel = lv_label_create(recordingOverlay);
   lv_label_set_text(recordingOverlayLabel, "RECORDING\n00:00");
   lv_obj_set_style_text_align(recordingOverlayLabel, LV_TEXT_ALIGN_CENTER, 0);
@@ -161,7 +186,7 @@ void createUi() {
   lv_obj_set_style_bg_color(fullscreenHint, lv_color_hex(0xf4f7fb), 0);
   lv_obj_set_style_bg_opa(fullscreenHint, LV_OPA_90, 0);
   lv_obj_set_style_border_width(fullscreenHint, 0, 0);
-  lv_obj_clear_flag(fullscreenHint, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(fullscreenHint);
 
   recordPill = lv_obj_create(captureTile);
   lv_obj_set_size(recordPill, 76, 28);
@@ -211,10 +236,11 @@ void createUi() {
   lv_obj_set_style_text_color(actionLabel, lv_color_hex(0x96a2b4), 0);
   lv_obj_set_style_text_font(actionLabel, fontForSize(16), 0);
   lv_obj_set_style_text_align(actionLabel, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_align(actionLabel, LV_ALIGN_BOTTOM_MID, 0, -2);
+  lv_obj_align(actionLabel, LV_ALIGN_BOTTOM_MID, 0, -12);
 
   lv_obj_t *modeTile = lv_tileview_add_tile(tileView, 1, 0, LV_DIR_NONE);
   lv_obj_set_style_bg_color(modeTile, lv_color_hex(0x090b10), 0);
+  disableScrollbars(modeTile);
   makePanelLabel(modeTile, "Modes", 20, 18, 18);
   makePanelLabel(modeTile, "Mode controls stay on fixed pages", 20, 44, 14,
                  lv_color_hex(0x96a2b4));
@@ -229,6 +255,7 @@ void createUi() {
 
   lv_obj_t *captureSettingsTile = lv_tileview_add_tile(tileView, 2, 0, LV_DIR_NONE);
   lv_obj_set_style_bg_color(captureSettingsTile, lv_color_hex(0x090b10), 0);
+  disableScrollbars(captureSettingsTile);
   makePanelLabel(captureSettingsTile, "Capture Settings", 20, 18, 18);
   makePanelLabel(captureSettingsTile, "Resolution, frame rate, lens, and aspect", 20, 44, 14,
                  lv_color_hex(0x96a2b4));
@@ -249,6 +276,7 @@ void createUi() {
 
   lv_obj_t *protuneTile = lv_tileview_add_tile(tileView, 3, 0, LV_DIR_NONE);
   lv_obj_set_style_bg_color(protuneTile, lv_color_hex(0x090b10), 0);
+  disableScrollbars(protuneTile);
   makePanelLabel(protuneTile, "Pro Controls", 20, 18, 18);
   makePanelLabel(protuneTile, "Advanced settings exposed by Open GoPro", 20, 44, 14,
                  lv_color_hex(0x96a2b4));
@@ -263,6 +291,7 @@ void createUi() {
 
   lv_obj_t *dashboardTile = lv_tileview_add_tile(tileView, 4, 0, LV_DIR_NONE);
   lv_obj_set_style_bg_color(dashboardTile, lv_color_hex(0x090b10), 0);
+  disableScrollbars(dashboardTile);
   makePanelLabel(dashboardTile, "Dashboard", 20, 18, 18);
   makePanelLabel(dashboardTile, "Connection and remote power controls", 20, 44, 14,
                  lv_color_hex(0x96a2b4));
@@ -292,7 +321,7 @@ void createUi() {
   lv_obj_set_style_bg_color(maintenancePage, lv_color_hex(0x090b10), 0);
   lv_obj_set_style_border_width(maintenancePage, 0, 0);
   lv_obj_set_style_pad_all(maintenancePage, 0, 0);
-  lv_obj_clear_flag(maintenancePage, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(maintenancePage);
   lv_obj_add_event_cb(maintenancePage, onPageGesture, LV_EVENT_GESTURE, nullptr);
   makePanelLabel(maintenancePage, "Maintenance", 20, 22, 18);
   makePanelLabel(maintenancePage, "Swipe left to return", 20, 50, 14,
@@ -313,7 +342,7 @@ void createUi() {
   lv_obj_set_style_bg_color(buttonGuidePage, lv_color_hex(0x090b10), 0);
   lv_obj_set_style_border_width(buttonGuidePage, 0, 0);
   lv_obj_set_style_pad_all(buttonGuidePage, 0, 0);
-  lv_obj_clear_flag(buttonGuidePage, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(buttonGuidePage);
   lv_obj_add_event_cb(buttonGuidePage, onPageGesture, LV_EVENT_GESTURE, nullptr);
 
   lv_obj_t *buttonGuideTitle = makePanelLabel(buttonGuidePage, "Button Guide", 0, 16, 22,
@@ -326,16 +355,16 @@ void createUi() {
   lv_obj_set_style_text_align(buttonGuideTitleWeight, LV_TEXT_ALIGN_CENTER, 0);
 
   lv_obj_t *topButtonHeading = makePanelLabel(buttonGuidePage, "Top-right button",
-                                             20, 54, 16, lv_color_hex(0xc3ccd8));
+                                             20, 54, 16, lv_color_hex(0xffc857));
   lv_obj_set_width(topButtonHeading, kPreviewW);
   lv_obj_set_style_text_align(topButtonHeading, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_t *topButtonText = lv_label_create(buttonGuidePage);
   lv_obj_set_width(topButtonText, kPreviewW);
   lv_label_set_long_mode(topButtonText, LV_LABEL_LONG_WRAP);
   lv_label_set_text(topButtonText,
-                    "Short press: start recording\n"
-                    "Long press recording: stop recording\n"
-                    "Short press recording: hold-to-stop reminder");
+                    "- Short press: start recording\n"
+                    "- Long press recording: stop recording\n"
+                    "- Short press recording: hold-to-stop reminder");
   lv_obj_set_style_text_font(topButtonText, fontForSize(16), 0);
   lv_obj_set_style_text_color(topButtonText, lv_color_hex(0xf4f7fb), 0);
   lv_obj_set_style_text_align(topButtonText, LV_TEXT_ALIGN_RIGHT, 0);
@@ -343,17 +372,17 @@ void createUi() {
   lv_obj_set_pos(topButtonText, 20, 82);
 
   lv_obj_t *lowerButtonHeading = makePanelLabel(buttonGuidePage, "Bottom-right button",
-                                               20, 224, 16, lv_color_hex(0xc3ccd8));
+                                               20, 224, 16, lv_color_hex(0xffc857));
   lv_obj_set_width(lowerButtonHeading, kPreviewW);
   lv_obj_set_style_text_align(lowerButtonHeading, LV_TEXT_ALIGN_CENTER, 0);
   lv_obj_t *lowerButtonText = lv_label_create(buttonGuidePage);
   lv_obj_set_width(lowerButtonText, kPreviewW);
   lv_label_set_long_mode(lowerButtonText, LV_LABEL_LONG_WRAP);
   lv_label_set_text(lowerButtonText,
-                    "Single click: wake, blank, exit, or home\n"
-                    "Double click: snapshot preview when idle\n"
-                    "Long press: turn off remote\n"
-                    "Pair New: cancel pairing");
+                    "- Single click: wake, blank, exit, or home\n"
+                    "- Double click: snapshot preview when idle\n"
+                    "- Long press: turn off remote\n"
+                    "- Pair New: cancel pairing");
   lv_obj_set_style_text_font(lowerButtonText, fontForSize(16), 0);
   lv_obj_set_style_text_color(lowerButtonText, lv_color_hex(0xf4f7fb), 0);
   lv_obj_set_style_text_align(lowerButtonText, LV_TEXT_ALIGN_RIGHT, 0);
@@ -368,7 +397,7 @@ void createUi() {
   lv_obj_set_style_border_color(settingSheet, lv_color_hex(0x334155), 0);
   lv_obj_set_style_border_width(settingSheet, 1, 0);
   lv_obj_set_style_pad_all(settingSheet, 12, 0);
-  lv_obj_clear_flag(settingSheet, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(settingSheet);
 
   settingSheetTitle = makePanelLabel(settingSheet, "Setting", 12, 12, 18);
   for (size_t i = 0; i < kVisibleSettingOptions; ++i) {
@@ -397,7 +426,7 @@ void createUi() {
   lv_obj_set_style_border_color(pairingPopup, lv_color_hex(0x7c4dff), 0);
   lv_obj_set_style_border_width(pairingPopup, 2, 0);
   lv_obj_set_style_pad_all(pairingPopup, 16, 0);
-  lv_obj_clear_flag(pairingPopup, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(pairingPopup);
 
   pairingPopupTitle = lv_label_create(pairingPopup);
   lv_obj_set_width(pairingPopupTitle, 288);
@@ -426,7 +455,7 @@ void createUi() {
   lv_obj_set_style_border_color(forgetConfirmPopup, lv_color_hex(0xd71920), 0);
   lv_obj_set_style_border_width(forgetConfirmPopup, 2, 0);
   lv_obj_set_style_pad_all(forgetConfirmPopup, 16, 0);
-  lv_obj_clear_flag(forgetConfirmPopup, LV_OBJ_FLAG_SCROLLABLE);
+  disableScrollbars(forgetConfirmPopup);
 
   lv_obj_t *forgetTitle = lv_label_create(forgetConfirmPopup);
   lv_obj_set_width(forgetTitle, 288);
