@@ -34,6 +34,18 @@
         "monitor"
       ],
       "problemMatcher": []
+    },
+    {
+      "label": "Make: Generate compile_commands.json",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "compile_commands.json"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     }
   ]
 }

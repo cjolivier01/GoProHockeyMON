@@ -74,15 +74,46 @@ void runForgetCameraAction() {
   endGoproAction();
 }
 
-void runRecordAction() {
-  if (!beginGoproAction("record")) {
+void runWakeCameraAction() {
+  if (recording) {
+    setAction("Stop recording before wake");
     return;
+  }
+  if (!beginGoproAction("wake-camera")) {
+    return;
+  }
+  setHomeCameraConnected(false);
+  setConnectRetryAvailable(false);
+  cameraWakeInProgress = true;
+  bool ok = wakeGoProBle();
+  if (ok) {
+    setAction("Wake sent; connecting");
+    ok = delayWithConnectionUi(1500) && connectGoProWifiFromBle();
+  }
+  cameraWakeInProgress = false;
+  if (!ok && !boundBleAddress.isEmpty() && !operationCancelled()) {
+    bool retryWake = cameraWakeAvailable;
+    setConnectRetryAvailable(true);
+    if (retryWake) {
+      setCameraWakeAvailable(true);
+      setAction("Wake failed; tap ON again");
+    } else {
+      setAction("GoPro not found; scan again");
+    }
+  }
+  endGoproAction();
+}
+
+bool runRecordAction() {
+  if (!beginGoproAction("record")) {
+    return false;
   }
   setAction("REC pressed");
   lv_timer_handler();
   delay(100);
-  toggleRecording();
+  bool ok = toggleRecording();
   endGoproAction();
+  return ok;
 }
 
 void runSnapshotAction() {
@@ -113,7 +144,7 @@ void runSnapshotAction() {
   endGoproAction();
 }
 
-void toggleRecording() {
+bool toggleRecording() {
   if (!displayOn) {
     setDisplayOn(true);
   }
@@ -155,14 +186,16 @@ void toggleRecording() {
   if (!ok) {
     lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");
     setAction("Recording command failed");
-    return;
+    return false;
   }
   applyRecordingUiState(nextRecording, 0, nextRecording);
   if (recording) {
+    blinkTopRightButtonMarker();
     suspendGoProWifiForRecording("recording started");
   } else {
     setAction("Recording stopped; WiFi idle");
   }
+  return true;
 }
 
 bool beginLivePreviewUdp() {
@@ -865,6 +898,10 @@ void onPair(lv_event_t *event) {
     return;
   }
   queuePairNewAction("button");
+}
+
+void onWakeCamera(lv_event_t *) {
+  runWakeCameraAction();
 }
 
 void onForgetCamera(lv_event_t *) {

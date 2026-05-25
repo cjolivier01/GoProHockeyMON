@@ -40,12 +40,31 @@ void initPowerKey() {
   Serial.println("AXP2101 PMU initialized; lower/action key IRQs enabled");
 }
 
-void handleBootButtonRelease(uint32_t durationMs) {
+void handleBootButtonRelease(uint32_t durationMs, bool pressStartedRecording) {
   if (durationMs < kActionButtonMinPressMs) {
     return;
   }
   if (pairingUiActive()) {
     Serial.println("Top button ignored during Pair New");
+    return;
+  }
+  if (pressStartedRecording) {
+    if (!recording) {
+      Serial.println("Top button release ignored; recording already stopped");
+      return;
+    }
+    if (durationMs < kBootLongPressMs) {
+      Serial.println("Top button: hold to stop recording");
+      setAction("Hold top button to stop recording");
+      return;
+    }
+    Serial.println("Top button: long stop recording on release fallback");
+    if (goproActionBusy) {
+      setAction("GoPro action already running");
+      return;
+    }
+    blinkTopRightButtonMarker();
+    runRecordAction();
     return;
   }
   if (recording && durationMs < kBootLongPressMs) {
@@ -55,6 +74,33 @@ void handleBootButtonRelease(uint32_t durationMs) {
   }
   Serial.println(recording ? "Top button: long stop recording" : "Top button: start recording");
   runRecordAction();
+}
+
+void handleBootButtonHold(uint32_t now) {
+  if (bootPressedAtMs == 0 || bootLongHandled || bootStable != LOW) {
+    return;
+  }
+  if (now - bootPressedAtMs < kBootLongPressMs) {
+    return;
+  }
+  if (pairingUiActive()) {
+    Serial.println("Top button hold ignored during Pair New");
+    bootLongHandled = true;
+    return;
+  }
+  if (!bootPressStartedRecording) {
+    return;
+  }
+  if (!recording) {
+    Serial.println("Top button hold ignored; recording already stopped");
+    return;
+  }
+  if (goproActionBusy) {
+    return;
+  }
+  Serial.println("Top button: long stop recording threshold reached");
+  blinkTopRightButtonMarker();
+  bootLongHandled = runRecordAction();
 }
 
 void clearPendingLowerClick() {
@@ -69,6 +115,7 @@ void runLowerSingleClickAction(const char *source) {
     return;
   }
   if (exitFullscreenPreview(source == nullptr ? "Lower button" : source)) {
+    suppressLowerButtonDuplicates(kPreviewExitButtonSuppressMs, "preview exit");
     return;
   }
   Serial.printf("%s single click: display toggle\n",
@@ -99,12 +146,13 @@ void handleLowerActionShortClick(const char *source) {
   }
   if (exitFullscreenPreview(source)) {
     clearPendingLowerClick();
+    suppressLowerButtonDuplicates(kPreviewExitButtonSuppressMs, "preview exit");
     return;
   }
-  if (isMaintenancePageShowing()) {
+  if (isMaintenancePageShowing() || isButtonGuidePageShowing()) {
     clearPendingLowerClick();
     Serial.printf("%s single click: return to preview\n", source);
-    setMaintenancePageVisible(false);
+    closeSidePages();
     return;
   }
 
@@ -193,19 +241,26 @@ void handleBootButton() {
   }
 
   if ((now - bootLastChangeMs) < kButtonDebounceMs || reading == bootStable) {
+    handleBootButtonHold(now);
     return;
   }
 
   bootStable = reading;
   if (bootStable == LOW) {
     bootPressedAtMs = now;
+    bootLongHandled = false;
+    bootPressStartedRecording = recording;
     if (!displayOn) {
       Serial.println("Top button press: display wake");
       setDisplayOn(true);
     }
   } else if (bootPressedAtMs != 0) {
-    handleBootButtonRelease(now - bootPressedAtMs);
+    if (!bootLongHandled) {
+      handleBootButtonRelease(now - bootPressedAtMs, bootPressStartedRecording);
+    }
     bootPressedAtMs = 0;
+    bootLongHandled = false;
+    bootPressStartedRecording = false;
   }
 }
 
@@ -378,7 +433,7 @@ void printSerialHelp() {
   Serial.println("  lower [single|double|shutdown]");
   Serial.println("  top [short|long]");
   Serial.println("  pair | cancel | connect | rescan | snapshot | record");
-  Serial.println("  page home|maintenance");
+  Serial.println("  page home|maintenance|buttons");
   Serial.println("  fullscreen on|off");
   Serial.println("  forget show|confirm|cancel");
   Serial.println("  display on|off");
@@ -388,9 +443,10 @@ void printSerialStatus() {
   String ssid = WiFi.SSID();
   String ip = WiFi.localIP().toString();
   Serial.println("SERIAL STATUS");
-  Serial.printf("  displayOn=%u recording=%u fullscreen=%u maintenance=%u previewImage=%u\n",
+  Serial.printf("  displayOn=%u recording=%u fullscreen=%u maintenance=%u buttons=%u previewImage=%u\n",
                 displayOn ? 1 : 0, recording ? 1 : 0, previewFullscreen ? 1 : 0,
-                maintenancePageVisible ? 1 : 0, previewHasImage ? 1 : 0);
+                maintenancePageVisible ? 1 : 0, buttonGuidePageVisible ? 1 : 0,
+                previewHasImage ? 1 : 0);
   Serial.printf("  pairingInProgress=%u pairingCancel=%u pendingHome=%u busy=%u\n",
                 pairingInProgress ? 1 : 0, pairingCancelRequested ? 1 : 0,
                 static_cast<unsigned>(pendingHomeAction), goproActionBusy ? 1 : 0);
@@ -533,9 +589,9 @@ void handleSerialCommand(String line) {
       setDisplayOn(true);
     }
     if (mode == "short" || mode == "single") {
-      handleBootButtonRelease(kActionButtonMinPressMs + 40);
+      handleBootButtonRelease(kActionButtonMinPressMs + 40, recording);
     } else if (mode == "long") {
-      handleBootButtonRelease(kBootLongPressMs + 100);
+      handleBootButtonRelease(kBootLongPressMs + 100, recording);
     } else {
       Serial.println("usage: top [short|long]");
     }
@@ -579,15 +635,17 @@ void handleSerialCommand(String line) {
   }
   if (cmd == "page") {
     if (count < 2) {
-      Serial.println("usage: page home|maintenance");
+      Serial.println("usage: page home|maintenance|buttons");
       return;
     }
     if (tokens[1] == "home") {
-      setMaintenancePageVisible(false);
+      closeSidePages();
     } else if (tokens[1] == "maintenance") {
       setMaintenancePageVisible(true);
+    } else if (tokens[1] == "buttons" || tokens[1] == "button" || tokens[1] == "guide") {
+      setButtonGuidePageVisible(true);
     } else {
-      Serial.println("usage: page home|maintenance");
+      Serial.println("usage: page home|maintenance|buttons");
     }
     return;
   }

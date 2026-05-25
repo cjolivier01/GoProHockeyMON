@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 
 TOPDIR := $(shell pwd)
+COMPILE_COMMANDS := compile_commands.json
 
 PIO ?= pio
 PIO_BIN := $(shell command -v $(PIO) 2>/dev/null)
@@ -29,7 +30,7 @@ endef
 
 all: print_targets
 
-.PHONY: all print_targets bld build amoled upload monitor upload-monitor ports clean distclean erase check compiledb build-all radio sim ble-dump serial status connect rescan snapshot lower-double pair cancel
+.PHONY: all print_targets bld build amoled upload monitor upload-monitor ports clean distclean erase check compiledb build-all radio sim ble-dump serial status connect rescan snapshot lower-double pair cancel FORCE
 
 bld build amoled:
 	$(PIO) run -e $(ENV) $(PIO_ARGS)
@@ -59,8 +60,17 @@ erase:
 check:
 	$(PIO) check -e $(ENV) $(PIO_ARGS)
 
-compiledb:
+compiledb: $(COMPILE_COMMANDS)
+
+$(COMPILE_COMMANDS): FORCE
 	$(PIO) run -e $(ENV) -t compiledb $(PIO_ARGS)
+	@if [ ! -f "$(TOPDIR)/$(COMPILE_COMMANDS)" ]; then \
+		db="$$(find "$(TOPDIR)/.pio/build/$(ENV)" -name compile_commands.json -print -quit)"; \
+		if [ -n "$$db" ]; then \
+			cp "$$db" "$(TOPDIR)/$(COMPILE_COMMANDS)"; \
+		fi; \
+	fi
+	@test -f "$(TOPDIR)/$(COMPILE_COMMANDS)" || { printf 'Failed to generate %s in the project root.\n' "$(COMPILE_COMMANDS)" >&2; exit 1; }
 
 build-all:
 	$(PIO) run $(foreach env,$(ACTIVE_ENVS),-e $(env)) $(PIO_ARGS)
@@ -131,7 +141,8 @@ print_targets:
 		'distclean       Remove .pio/build/ENV for a fresh local rebuild.' \
 		'erase           Erase flash on the selected board.' \
 		'check           Run PlatformIO static checks for ENV.' \
-		'compiledb       Generate compile_commands.json for ENV.' \
+		'compile_commands.json  Generate root compile database for clangd.' \
+		'compiledb       Alias for compile_commands.json.' \
 		'' \
 		'Other Configured Environments' \
 		'-----------------------------' \
