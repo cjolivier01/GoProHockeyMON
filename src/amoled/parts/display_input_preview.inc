@@ -241,7 +241,7 @@ void refreshConnectionButtons() {
     const char *label = "Pair New";
     if (homeCameraConnected) {
       label = "Camera Connected";
-    } else if (connectRetryAvailable && !showWakeButton) {
+    } else if (connectRetryAvailable) {
       label = "Scan Again";
     }
     lv_label_set_text(pairButtonLabel, label);

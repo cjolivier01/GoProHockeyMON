@@ -166,7 +166,7 @@ std::shared_ptr<Arduino_IIC_DriveBus> i2cBus =
     std::make_shared<Arduino_HWIIC>(IIC_SDA, IIC_SCL, &Wire);
 
 void touchInterrupt();
-void toggleRecording();
+bool toggleRecording();
 void runPairNewAction();
 bool runRecordAction();
 void runSnapshotAction();

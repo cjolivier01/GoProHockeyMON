@@ -92,9 +92,14 @@ void runWakeCameraAction() {
   }
   cameraWakeInProgress = false;
   if (!ok && !boundBleAddress.isEmpty() && !operationCancelled()) {
+    bool retryWake = cameraWakeAvailable;
     setConnectRetryAvailable(true);
-    setCameraWakeAvailable(true);
-    setAction("Wake failed; tap ON again");
+    if (retryWake) {
+      setCameraWakeAvailable(true);
+      setAction("Wake failed; tap ON again");
+    } else {
+      setAction("GoPro not found; scan again");
+    }
   }
   endGoproAction();
 }
@@ -106,9 +111,9 @@ bool runRecordAction() {
   setAction("REC pressed");
   lv_timer_handler();
   delay(100);
-  toggleRecording();
+  bool ok = toggleRecording();
   endGoproAction();
-  return true;
+  return ok;
 }
 
 void runSnapshotAction() {
@@ -139,7 +144,7 @@ void runSnapshotAction() {
   endGoproAction();
 }
 
-void toggleRecording() {
+bool toggleRecording() {
   if (!displayOn) {
     setDisplayOn(true);
   }
@@ -181,7 +186,7 @@ void toggleRecording() {
   if (!ok) {
     lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");
     setAction("Recording command failed");
-    return;
+    return false;
   }
   applyRecordingUiState(nextRecording, 0, nextRecording);
   if (recording) {
@@ -190,6 +195,7 @@ void toggleRecording() {
   } else {
     setAction("Recording stopped; WiFi idle");
   }
+  return true;
 }
 
 bool beginLivePreviewUdp() {
@@ -886,8 +892,7 @@ void onPair(lv_event_t *event) {
     setAction("Camera already connected");
     return;
   }
-  if (event && lv_event_get_target(event) == pairButton && connectRetryAvailable &&
-      !cameraWakeAvailable) {
+  if (event && lv_event_get_target(event) == pairButton && connectRetryAvailable) {
     setAction("Scanning again");
     runConnectAction();
     return;
