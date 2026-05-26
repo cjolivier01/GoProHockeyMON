@@ -361,6 +361,16 @@ void handlePendingHomeAction() {
     return;
   }
   if (goproActionBusy) {
+    if (action == PendingHomeAction::Pair) {
+      markConnectionCancelRequested("Cancelling connection before Pair New");
+      pendingHomeActionDueMs = millis() + 50;
+      return;
+    }
+    if (action == PendingHomeAction::Forget) {
+      markConnectionCancelRequested("Cancelling and forgetting camera");
+      pendingHomeActionDueMs = millis() + 50;
+      return;
+    }
     pendingHomeAction = PendingHomeAction::None;
     return;
   }
@@ -369,7 +379,7 @@ void handlePendingHomeAction() {
   }
   pendingHomeAction = PendingHomeAction::None;
   pendingHomeActionDueMs = 0;
-  lv_timer_handler();
+  serviceLvgl();
   switch (action) {
     case PendingHomeAction::Connect:
       Serial.println("Raw touch fallback: Connect");
@@ -377,7 +387,21 @@ void handlePendingHomeAction() {
       break;
     case PendingHomeAction::Pair:
       Serial.println("Raw touch fallback: Pair");
+      setHomeCameraConnected(false);
+      setConnectRetryAvailable(false);
+      showPairingPopup("Pairing New Camera\n\nStarting scan...\nPress lower button to cancel.");
+      if (statusLabel) {
+        lv_label_set_text(statusLabel, "Pair New");
+      }
+      if (actionLabel) {
+        lv_label_set_text(actionLabel, "Opening Pair New");
+      }
+      serviceLvgl();
       runPairNewAction();
+      break;
+    case PendingHomeAction::Forget:
+      Serial.println("Pending action: Forget camera");
+      runForgetCameraAction();
       break;
     case PendingHomeAction::None:
       break;
@@ -429,10 +453,14 @@ void printSerialHelp() {
   Serial.println("  help");
   Serial.println("  status");
   Serial.println("  touch X Y [hold_ms]");
+  Serial.println("  finger X Y [hold_ms]");
+  Serial.println("  fingerdown X Y | fingermove X Y | fingerup [X Y]");
+  Serial.println("  touchtrace dump|clear|replay");
   Serial.println("  swipe X1 Y1 X2 Y2 [duration_ms]");
   Serial.println("  lower [single|double|shutdown]");
   Serial.println("  top [short|long]");
   Serial.println("  pair | cancel | connect | rescan | snapshot | record");
+  Serial.println("  binding fake|fake-pending|clear");
   Serial.println("  page home|maintenance|buttons");
   Serial.println("  fullscreen on|off");
   Serial.println("  forget show|confirm|cancel");
@@ -450,6 +478,14 @@ void printSerialStatus() {
   Serial.printf("  pairingInProgress=%u pairingCancel=%u pendingHome=%u busy=%u\n",
                 pairingInProgress ? 1 : 0, pairingCancelRequested ? 1 : 0,
                 static_cast<unsigned>(pendingHomeAction), goproActionBusy ? 1 : 0);
+  Serial.printf("  touchActive=%u lastTouch=%d,%d serialFinger=%u manualFinger=%u replay=%u trace=%u lvglActive=%u deferred=%u\n",
+                touchActive ? 1 : 0, lastTouchPoint.x, lastTouchPoint.y,
+                serialFingerActive ? 1 : 0,
+                serialFingerManualActive ? 1 : 0,
+                serialTouchReplayActive ? 1 : 0,
+                static_cast<unsigned>(touchTraceCount),
+                lvglTimerHandlerActive ? 1 : 0,
+                lvglTimerHandlerDeferred ? 1 : 0);
   Serial.printf("  bleConnected=%u bound='%s' boundName='%s' lastName='%s' retry=%u homeConnected=%u\n",
                 bleConnected ? 1 : 0, boundBleAddress.c_str(), boundBleName.c_str(),
                 lastBleName.c_str(), connectRetryAvailable ? 1 : 0,
@@ -493,10 +529,92 @@ void startSerialPointer(int x1, int y1, int x2, int y2, uint32_t durationMs) {
   serialPointerStartMs = millis();
   serialPointerDurationMs = durationMs;
   serialPointerActive = true;
+  serialFingerActive = false;
+  serialFingerManualActive = false;
+  serialTouchReplayActive = false;
   touchActive = false;
   rawSwipeHandled = false;
   Serial.printf("Serial pointer: %d,%d -> %d,%d over %u ms\n",
                 x1, y1, x2, y2, durationMs);
+}
+
+void startSerialFinger(int x, int y, uint32_t holdMs) {
+  if (x < 0 || x >= LCD_WIDTH || y < 0 || y >= LCD_HEIGHT) {
+    Serial.printf("Serial finger rejected: %d,%d outside %dx%d\n",
+                  x, y, LCD_WIDTH, LCD_HEIGHT);
+    return;
+  }
+  if (holdMs < 50) {
+    holdMs = 50;
+  } else if (holdMs > 2500) {
+    holdMs = 2500;
+  }
+  serialFingerPoint = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y)};
+  serialFingerStartMs = millis();
+  serialFingerHoldMs = holdMs;
+  serialFingerActive = true;
+  serialFingerPressLogged = false;
+  serialFingerReleaseSent = false;
+  serialPointerActive = false;
+  serialFingerManualActive = false;
+  serialTouchReplayActive = false;
+  touchActive = false;
+  rawSwipeHandled = false;
+  Serial.printf("Serial finger: %d,%d hold %u ms\n", x, y, holdMs);
+}
+
+bool validSerialPoint(int x, int y, const char *label) {
+  if (x >= 0 && x < LCD_WIDTH && y >= 0 && y < LCD_HEIGHT) {
+    return true;
+  }
+  Serial.printf("%s rejected: %d,%d outside %dx%d\n", label, x, y, LCD_WIDTH, LCD_HEIGHT);
+  return false;
+}
+
+void startSerialFingerDown(int x, int y) {
+  if (!validSerialPoint(x, y, "Serial fingerdown")) {
+    return;
+  }
+  serialFingerPoint = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y)};
+  serialFingerManualActive = true;
+  serialFingerManualPressed = true;
+  serialFingerManualLogged = false;
+  serialFingerReleaseSent = false;
+  serialFingerActive = false;
+  serialPointerActive = false;
+  serialTouchReplayActive = false;
+  touchActive = false;
+  rawSwipeHandled = false;
+  Serial.printf("Serial finger down: %d,%d\n", x, y);
+}
+
+void moveSerialFinger(int x, int y) {
+  if (!validSerialPoint(x, y, "Serial fingermove")) {
+    return;
+  }
+  if (!serialFingerManualActive || !serialFingerManualPressed) {
+    startSerialFingerDown(x, y);
+    return;
+  }
+  serialFingerPoint = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y)};
+  serialFingerManualLogged = false;
+  Serial.printf("Serial finger move: %d,%d\n", x, y);
+}
+
+void releaseSerialFinger(int x, int y, bool updatePoint) {
+  if (updatePoint) {
+    if (!validSerialPoint(x, y, "Serial fingerup")) {
+      return;
+    }
+    serialFingerPoint = {static_cast<lv_coord_t>(x), static_cast<lv_coord_t>(y)};
+  }
+  if (!serialFingerManualActive) {
+    serialFingerManualActive = true;
+  }
+  serialFingerManualPressed = false;
+  serialFingerReleaseSent = false;
+  serialFingerManualLogged = false;
+  Serial.printf("Serial finger up: %d,%d\n", serialFingerPoint.x, serialFingerPoint.y);
 }
 
 bool serialActionBlocked(const String &command) {
@@ -543,6 +661,71 @@ void handleSerialCommand(String line) {
       return;
     }
     startSerialPointer(x, y, x, y, static_cast<uint32_t>(hold));
+    return;
+  }
+  if (cmd == "finger") {
+    if (count < 3) {
+      Serial.println("usage: finger X Y [hold_ms]");
+      return;
+    }
+    int x = 0;
+    int y = 0;
+    int hold = 120;
+    if (!parseSerialInt(tokens[1], x) || !parseSerialInt(tokens[2], y) ||
+        (count >= 4 && !parseSerialInt(tokens[3], hold))) {
+      Serial.println("finger requires numeric coordinates");
+      return;
+    }
+    startSerialFinger(x, y, static_cast<uint32_t>(hold));
+    return;
+  }
+  if (cmd == "fingerdown" || cmd == "fingermove") {
+    if (count < 3) {
+      Serial.println(cmd == "fingerdown" ? "usage: fingerdown X Y" : "usage: fingermove X Y");
+      return;
+    }
+    int x = 0;
+    int y = 0;
+    if (!parseSerialInt(tokens[1], x) || !parseSerialInt(tokens[2], y)) {
+      Serial.println("finger command requires numeric coordinates");
+      return;
+    }
+    if (cmd == "fingerdown") {
+      startSerialFingerDown(x, y);
+    } else {
+      moveSerialFinger(x, y);
+    }
+    return;
+  }
+  if (cmd == "fingerup") {
+    int x = 0;
+    int y = 0;
+    bool updatePoint = false;
+    if (count >= 3) {
+      if (!parseSerialInt(tokens[1], x) || !parseSerialInt(tokens[2], y)) {
+        Serial.println("fingerup requires numeric coordinates");
+        return;
+      }
+      updatePoint = true;
+    }
+    releaseSerialFinger(x, y, updatePoint);
+    return;
+  }
+  if (cmd == "touchtrace") {
+    if (count < 2) {
+      Serial.println("usage: touchtrace dump|clear|replay");
+      return;
+    }
+    if (tokens[1] == "dump") {
+      printTouchTrace();
+    } else if (tokens[1] == "clear") {
+      resetTouchTrace();
+      Serial.println("Touch trace cleared");
+    } else if (tokens[1] == "replay") {
+      startTouchTraceReplay();
+    } else {
+      Serial.println("usage: touchtrace dump|clear|replay");
+    }
     return;
   }
   if (cmd == "swipe") {
@@ -610,9 +793,7 @@ void handleSerialCommand(String line) {
     return;
   }
   if (cmd == "pair") {
-    if (!serialActionBlocked(cmd)) {
-      queuePairNewAction("serial");
-    }
+    queuePairNewAction("serial");
     return;
   }
   if (cmd == "connect" || cmd == "rescan") {
@@ -630,6 +811,36 @@ void handleSerialCommand(String line) {
   if (cmd == "record") {
     if (!serialActionBlocked(cmd)) {
       runRecordAction();
+    }
+    return;
+  }
+  if (cmd == "binding") {
+    if (count < 2) {
+      Serial.println("usage: binding fake|fake-pending|clear");
+      return;
+    }
+    if (tokens[1] == "fake" || tokens[1] == "fake-pending") {
+      boundBleAddress = "00:11:22:33:44:55";
+      boundBleName = "Serial Test GoPro";
+      boundGoProSsid = "SERIAL_TEST_GOPRO";
+      goProSsid = boundGoProSsid;
+      goProPassword = "serial-test";
+      setHomeCameraConnected(false);
+      setConnectRetryAvailable(false);
+      if (cameraLabel) {
+        lv_label_set_text(cameraLabel, "Camera: Serial Test GoPro");
+      }
+      if (tokens[1] == "fake-pending") {
+        pendingHomeAction = PendingHomeAction::Connect;
+        pendingHomeActionDueMs = millis() + 1500;
+        setAction("Serial fake binding pending connect");
+      } else {
+        setAction("Serial fake binding ready");
+      }
+    } else if (tokens[1] == "clear") {
+      forgetCameraBinding();
+    } else {
+      Serial.println("usage: binding fake|fake-pending|clear");
     }
     return;
   }
