@@ -276,8 +276,16 @@ void requestConnectionCancel(const char *message) {
   setAction(message == nullptr ? "Connection cancelled" : message);
 }
 
+void markConnectionCancelRequested(const char *message) {
+  connectionCancelRequested = true;
+  if (pairingInProgress) {
+    pairingCancelRequested = true;
+  }
+  setAction(message == nullptr ? "Connection cancelling" : message);
+}
+
 void pollPairingCancelButton() {
-  if (!pairingInProgress || pairingCancelRequested) {
+  if (!pairingUiActive() || pairingCancelRequested) {
     return;
   }
 
@@ -308,7 +316,7 @@ void serviceConnectionUi() {
     lv_obj_move_foreground(pairingPopup);
   }
   handleSerialCommands();
-  lv_timer_handler();
+  serviceLvgl();
   pollPairingCancelButton();
   handlePmuActionButton();
 }
@@ -525,7 +533,7 @@ void enterLowPowerShutdown() {
   if (actionLabel) {
     lv_label_set_text(actionLabel, "Low-power shutdown");
   }
-  lv_timer_handler();
+  serviceLvgl();
   gfx->setBrightness(0);
   Serial.println("Entering low-power shutdown");
   delay(200);
@@ -697,10 +705,13 @@ bool scanForCamera() {
   bleScanSeenCount = 0;
 
   lv_label_set_text(statusLabel, "Scanning BLE");
+  if (pairingInProgress) {
+    showPairingPopup("Pairing New Camera\n\nScanning for GoPro BLE...\nPress lower button to cancel.");
+  }
   setAction(boundBleAddress.isEmpty() || allowAnyCameraScan
                 ? "Scanning for GoPro BLE"
                 : "Scanning for bound GoPro");
-  lv_timer_handler();
+  serviceLvgl();
 
   BLEScan *scan = BLEDevice::getScan();
   ScanCallbacks callbacks;
@@ -788,6 +799,9 @@ bool connectBle() {
   }
 
   lv_label_set_text(statusLabel, "Connecting BLE");
+  if (pairingInProgress) {
+    showPairingPopup("Pairing New Camera\n\nConnecting GoPro BLE...\nPress lower button to cancel.");
+  }
   setAction("Connecting GoPro BLE");
   serviceConnectionUi();
   logMemory("Before BLE connect");
@@ -850,7 +864,7 @@ bool connectBle() {
 
   lv_label_set_text(statusLabel, "BLE connected");
   setAction("BLE connected");
-  lv_timer_handler();
+  serviceLvgl();
   return true;
 }
 
@@ -862,6 +876,9 @@ bool readGoProWifiCredentials() {
     return false;
   }
 
+  if (pairingInProgress) {
+    showPairingPopup("Pairing New Camera\n\nReading camera WiFi credentials...\nPress lower button to cancel.");
+  }
   BLERemoteService *wifi = bleClient->getService(kWifiService);
   if (wifi == nullptr) {
     setAction(selectedBleFallback ? "Nearest BLE device is not a GoPro"
@@ -1024,6 +1041,9 @@ bool sendCameraManagementCommand(const uint8_t *payload, size_t length) {
     return false;
   }
 
+  if (pairingInProgress) {
+    showPairingPopup("Pairing New Camera\n\nSending pairing request...\nPress lower button to cancel.");
+  }
   BLERemoteService *management = bleClient->getService(kCameraManagementService);
   if (management == nullptr) {
     setAction("GoPro pairing service missing");
@@ -1081,7 +1101,7 @@ bool pairGoPro() {
   lv_label_set_text(cameraLabel, "Camera: use GoPro pairing mode");
   showPairingPopup("Pairing New Camera\n\nPut the GoPro in pairing mode.\nPress lower button to cancel.");
   setAction("Pairing with GoPro BLE");
-  lv_timer_handler();
+  serviceLvgl();
 
   bool ok = false;
   if (readGoProWifiCredentials() && !operationCancelled()) {
@@ -1161,7 +1181,7 @@ void suspendGoProWifiForRecording(const char *reason) {
   } else {
     setAction("Recording; local WiFi off");
   }
-  lv_timer_handler();
+  serviceLvgl();
 }
 
 bool enableGoProWifiAp() {
@@ -1186,6 +1206,62 @@ bool enableGoProWifiAp() {
   return ok;
 }
 
+bool rememberGoProApFromScanResults(int count) {
+  bool found = false;
+  Serial.printf("WiFi scan found %d networks\n", count);
+  for (int i = 0; i < count; ++i) {
+    Serial.printf("  ssid='%s' rssi=%d channel=%d bssid=%s auth=%d\n",
+                  WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i),
+                  WiFi.BSSIDstr(i).c_str(), static_cast<int>(WiFi.encryptionType(i)));
+    if (WiFi.SSID(i) == goProSsid) {
+      found = true;
+      goProWifiChannel = WiFi.channel(i);
+      uint8_t *bssid = WiFi.BSSID(i);
+      if (bssid != nullptr) {
+        memcpy(goProWifiBssid, bssid, sizeof(goProWifiBssid));
+        goProWifiBssidValid = true;
+      }
+    }
+  }
+  if (found) {
+    Serial.printf("Matched GoPro AP channel=%d bssid=%s\n",
+                  static_cast<int>(goProWifiChannel),
+                  goProWifiBssidValid ? formatBssid(goProWifiBssid).c_str() : "(none)");
+  }
+  return found;
+}
+
+bool scanGoProApVisibleOnce() {
+  WiFi.scanDelete();
+  int result = WiFi.scanNetworks(true, true);
+  const int kWifiScanRunning = -1;
+  const int kWifiScanFailed = -2;
+  uint32_t startedMs = millis();
+  while (result == kWifiScanRunning) {
+    serviceConnectionUi();
+    if (operationCancelled()) {
+      WiFi.scanDelete();
+      return false;
+    }
+    if (millis() - startedMs > 12000) {
+      WiFi.scanDelete();
+      setAction("WiFi scan timeout");
+      Serial.println("WiFi async scan timed out");
+      return false;
+    }
+    delay(25);
+    result = WiFi.scanComplete();
+  }
+  if (result == kWifiScanFailed) {
+    WiFi.scanDelete();
+    Serial.println("WiFi scan failed");
+    return false;
+  }
+  bool found = rememberGoProApFromScanResults(result);
+  WiFi.scanDelete();
+  return found;
+}
+
 bool waitForGoProApVisible() {
   if (goProSsid.isEmpty()) {
     return false;
@@ -1199,6 +1275,9 @@ bool waitForGoProApVisible() {
     return false;
   }
   lv_label_set_text(statusLabel, "Waiting for camera AP");
+  if (pairingPopup && !lv_obj_has_flag(pairingPopup, LV_OBJ_FLAG_HIDDEN)) {
+    showPairingPopup("Pairing Complete\n\nWaiting for camera WiFi...");
+  }
   setAction("Waiting for GoPro WiFi AP");
   Serial.printf("Waiting for GoPro AP ssid='%s' passwordLen=%u\n",
                 goProSsid.c_str(), static_cast<unsigned>(goProPassword.length()));
@@ -1207,32 +1286,7 @@ bool waitForGoProApVisible() {
     if (operationCancelled()) {
       return false;
     }
-    int count = WiFi.scanNetworks(false, true);
-    if (operationCancelled()) {
-      WiFi.scanDelete();
-      return false;
-    }
-    bool found = false;
-    Serial.printf("WiFi scan found %d networks\n", count);
-    for (int i = 0; i < count; ++i) {
-      Serial.printf("  ssid='%s' rssi=%d channel=%d bssid=%s auth=%d\n",
-                    WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i),
-                    WiFi.BSSIDstr(i).c_str(), static_cast<int>(WiFi.encryptionType(i)));
-      if (WiFi.SSID(i) == goProSsid) {
-        found = true;
-        goProWifiChannel = WiFi.channel(i);
-        uint8_t *bssid = WiFi.BSSID(i);
-        if (bssid != nullptr) {
-          memcpy(goProWifiBssid, bssid, sizeof(goProWifiBssid));
-          goProWifiBssidValid = true;
-        }
-      }
-    }
-    WiFi.scanDelete();
-    if (found) {
-      Serial.printf("Matched GoPro AP channel=%d bssid=%s\n",
-                    static_cast<int>(goProWifiChannel),
-                    goProWifiBssidValid ? formatBssid(goProWifiBssid).c_str() : "(none)");
+    if (scanGoProApVisibleOnce()) {
       return true;
     }
     if (!delayWithConnectionUi(1000)) {
@@ -1251,6 +1305,9 @@ bool tryJoinGoProWifi(uint32_t timeoutMs) {
     return false;
   }
   logMemory("Before WiFi begin");
+  if (pairingPopup && !lv_obj_has_flag(pairingPopup, LV_OBJ_FLAG_HIDDEN)) {
+    showPairingPopup("Pairing Complete\n\nJoining camera WiFi...");
+  }
   Serial.printf("Joining GoPro WiFi ssid='%s' passwordLen=%u channel=%d bssid=%s\n",
                 goProSsid.c_str(), static_cast<unsigned>(goProPassword.length()),
                 static_cast<int>(goProWifiChannel),

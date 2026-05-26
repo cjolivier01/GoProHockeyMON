@@ -176,6 +176,7 @@ void updatePreview(bool force = false);
 void updateRecordingOverlay(bool force = false);
 void setPreviewFullscreen(bool fullscreen);
 void blinkTopRightButtonMarker();
+void serviceLvgl();
 void setAction(const char *message);
 void setPairingPopupMessage(const char *message);
 void showPairingPopup(const char *message);
@@ -188,6 +189,7 @@ void disconnectCurrentCameraForPairing();
 void requestPairingCancel();
 void resetBleClientForPairing();
 void runForgetCameraAction();
+void markConnectionCancelRequested(const char *message);
 void handlePmuActionButton();
 void clearSnapshotPreviewState(const char *message = nullptr);
 void clearPreviewJpegCache();
@@ -239,6 +241,7 @@ enum class PendingHomeAction : uint8_t {
   None,
   Connect,
   Pair,
+  Forget,
 };
 
 enum class SidePage : uint8_t {
@@ -413,6 +416,21 @@ lv_point_t serialPointerStart = {0, 0};
 lv_point_t serialPointerEnd = {0, 0};
 uint32_t serialPointerStartMs = 0;
 uint32_t serialPointerDurationMs = 0;
+bool serialFingerActive = false;
+bool serialFingerPressLogged = false;
+bool serialFingerReleaseSent = false;
+lv_point_t serialFingerPoint = {0, 0};
+uint32_t serialFingerStartMs = 0;
+uint32_t serialFingerHoldMs = 0;
+bool serialFingerManualActive = false;
+bool serialFingerManualPressed = false;
+bool serialFingerManualLogged = false;
+bool serialTouchReplayActive = false;
+uint8_t serialTouchReplayIndex = 0;
+uint32_t serialTouchReplayStartMs = 0;
+bool serialTouchReplayReleaseSent = false;
+bool lvglTimerHandlerActive = false;
+bool lvglTimerHandlerDeferred = false;
 
 // Keep these implementation parts in order; they share the anonymous namespace state above.
 #include "parts/display_input_preview.inc"
@@ -519,7 +537,7 @@ void setup() {
 
 void loop() {
   handleSerialCommands();
-  lv_timer_handler();
+  serviceLvgl();
   handlePendingHomeAction();
   handleBootButton();
   handleExpanderActionButton();

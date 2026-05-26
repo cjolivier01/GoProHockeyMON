@@ -8,11 +8,10 @@ void setPairingMode() {
   if (ok) {
     delay(300);
     setAction("Pair complete; connecting WiFi");
-    connectGoProWifiFromBle();
-  } else if (pairingLastCancelled && !connectionCancelRequested) {
-    delay(300);
-    setAction("Pairing cancelled; reconnecting saved camera");
-    connectGoProWifiFromBle();
+    showPairingPopup("Pairing Complete\n\nConnecting camera WiFi...");
+    bool wifiOk = connectGoProWifiFromBle();
+    finishPairingPopup(wifiOk ? "Pairing Complete\n\nCamera connected."
+                              : "Pairing Complete\n\nWiFi connect failed.");
   }
 }
 
@@ -40,7 +39,7 @@ void runConnectAction() {
   }
   setHomeCameraConnected(false);
   setConnectRetryAvailable(false);
-  lv_timer_handler();
+  serviceLvgl();
   bool ok = connectGoProWifiFromBle();
   if (!ok && !boundBleAddress.isEmpty() && !allowAnyCameraScan && !operationCancelled()) {
     setConnectRetryAvailable(true);
@@ -53,7 +52,7 @@ void runPairNewAction() {
     return;
   }
   setAction("Pair New");
-  lv_timer_handler();
+  serviceLvgl();
   delay(100);
   setPairingMode();
   endGoproAction();
@@ -68,7 +67,7 @@ void runForgetCameraAction() {
     return;
   }
   setAction("Forgetting saved camera");
-  lv_timer_handler();
+  serviceLvgl();
   delay(100);
   forgetCameraBinding();
   endGoproAction();
@@ -109,7 +108,7 @@ bool runRecordAction() {
     return false;
   }
   setAction("REC pressed");
-  lv_timer_handler();
+  serviceLvgl();
   delay(100);
   bool ok = toggleRecording();
   endGoproAction();
@@ -671,13 +670,13 @@ bool downloadPreviewJpeg(const String &path, uint8_t *buffer, size_t capacity,
   }
   setObjHidden(actionLabel, true);
   setObjHidden(recordingOverlay, true);
-  lv_timer_handler();
+  serviceLvgl();
   return canOpenPreviewJpeg(buffer, jpegLength);
 }
 
 bool syncVideoFramingForSnapshot() {
   setAction("Syncing video framing");
-  lv_timer_handler();
+  serviceLvgl();
   bool videoPresetOk = httpGetGoPro("/gopro/camera/presets/set_group?id=1000");
   if (videoPresetOk) {
     captureMode = "Video";
@@ -735,7 +734,7 @@ bool fetchSnapshotPreview() {
     }
   }
   setAction("Preparing snapshot");
-  lv_timer_handler();
+  serviceLvgl();
 
   httpGetGoProStatus("/gopro/webcam/stop");
   httpGetGoProStatus("/gopro/camera/stream/stop");
@@ -759,7 +758,7 @@ bool fetchSnapshotPreview() {
     lv_label_set_text(previewLabel, "Capturing snapshot");
   }
   setAction("Capturing snapshot");
-  lv_timer_handler();
+  serviceLvgl();
 
   if (!httpGetGoPro("/gopro/camera/shutter/start")) {
     if (previewLabel && !previewHasImage) {
@@ -775,7 +774,7 @@ bool fetchSnapshotPreview() {
   uint32_t pollStart = millis();
   while (millis() - pollStart < 12000) {
     delay(250);
-    lv_timer_handler();
+    serviceLvgl();
     String latest;
     if (fetchLatestJpegPath(latest) && !latest.isEmpty() && latest != beforePath &&
         latest != lastSnapshotMediaPath) {
@@ -859,7 +858,7 @@ bool fetchSnapshotPreview() {
     } else {
       Serial.println("Video-framed preview ready");
     }
-    lv_timer_handler();
+    serviceLvgl();
     if (previewFullscreen && previewJpegCache && previewJpegCacheLen > 0) {
       drawn = redrawCachedPreviewJpeg();
       if (!drawn) {
@@ -909,6 +908,20 @@ void onForgetCamera(lv_event_t *) {
     setAction("Stop recording before forgetting");
     return;
   }
+  if (!hasSavedCameraBinding()) {
+    setAction("No saved camera to forget");
+    resetTouchInteractionState();
+    return;
+  }
+  if (pendingHomeAction != PendingHomeAction::None) {
+    Serial.printf("Forget Camera preempting pending home action %u\n",
+                  static_cast<unsigned>(pendingHomeAction));
+    pendingHomeAction = PendingHomeAction::None;
+    pendingHomeActionDueMs = 0;
+  }
+  if (goproActionBusy || pairingInProgress) {
+    markConnectionCancelRequested("Cancelling connection before forget");
+  }
   showForgetConfirm();
 }
 
@@ -923,12 +936,16 @@ void onForgetConfirm(lv_event_t *) {
     setAction("Stop recording before forgetting");
     return;
   }
-  if (goproActionBusy || pairingInProgress) {
-    requestConnectionCancel("Cancelling and forgetting camera");
-    forgetCameraBinding(true);
+  if (!hasSavedCameraBinding()) {
+    setAction("No saved camera to forget");
     return;
   }
-  runForgetCameraAction();
+  if (goproActionBusy || pairingInProgress) {
+    markConnectionCancelRequested("Cancelling and forgetting camera");
+  }
+  pendingHomeAction = PendingHomeAction::Forget;
+  pendingHomeActionDueMs = millis() + 50;
+  setAction("Forgetting saved camera");
 }
 
 void selectMode(const char *mode, const char *setting, const char *endpoint) {
@@ -1060,7 +1077,7 @@ void onSettingOpen(lv_event_t *event) {
   }
   lv_obj_clear_flag(settingSheet, LV_OBJ_FLAG_HIDDEN);
   lv_label_set_text(settingSheetTitle, "Loading options...");
-  lv_timer_handler();
+  serviceLvgl();
 
   if (!querySettingOptions(*setting)) {
     setAction("No options for setting");

@@ -10,4 +10,5 @@
 - The preview image is rendered through an LVGL canvas object inside the preview box. Avoid reverting this to direct `gfx->draw...` panel writes or timing-based redraw loops; those caused fullscreen/main-screen flicker and gray/black repaint bugs.
 - The lower/action side button is exposed through both the GPIO expander and PMU power-key IRQ. Keep duplicate suppression in mind when changing single/double/long-click behavior.
 - Avoid adding transient on-screen diagnostic text such as `Connect pressed` or `Action p...`; serial logs are acceptable for diagnostics, but the UI should stay user-facing.
+- For UI issues and hangs, prefer reproducing with serial-injected UI events before asking for repeated manual testing. Use the firmware's serial commands such as `touch X Y [hold_ms]`, `swipe X1 Y1 X2 Y2 [duration_ms]`, `page ...`, `status`, and targeted test hooks to drive the same LVGL/touch paths, then verify the board still answers serial `status` after the interaction.
 - Before new work after a merged PR, sync from `master` first so changes start from the merged state.

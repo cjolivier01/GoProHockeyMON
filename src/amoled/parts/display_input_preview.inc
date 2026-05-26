@@ -6,12 +6,111 @@ lv_point_t ignoredTouchPoint() {
   return {0, 0};
 }
 
+void serviceLvgl() {
+  if (lvglTimerHandlerActive) {
+    lvglTimerHandlerDeferred = true;
+    return;
+  }
+
+  for (uint8_t pass = 0; pass < 2; ++pass) {
+    lvglTimerHandlerActive = true;
+    lv_timer_handler();
+    lvglTimerHandlerActive = false;
+    if (!lvglTimerHandlerDeferred) {
+      break;
+    }
+    lvglTimerHandlerDeferred = false;
+  }
+}
+
 void consumeLvglPointer(lv_indev_data_t *data) {
   if (touchInput) {
     lv_indev_reset(touchInput, nullptr);
   }
   data->state = LV_INDEV_STATE_REL;
   data->point = ignoredTouchPoint();
+}
+
+struct TouchTraceSample {
+  uint16_t dtMs;
+  int16_t x;
+  int16_t y;
+  uint8_t fingers;
+};
+
+constexpr uint8_t kTouchTraceMax = 96;
+TouchTraceSample touchTrace[kTouchTraceMax];
+uint8_t touchTraceCount = 0;
+bool touchTraceOverflow = false;
+bool touchTraceGestureActive = false;
+uint32_t touchTraceStartMs = 0;
+
+void resetTouchTrace() {
+  touchTraceCount = 0;
+  touchTraceOverflow = false;
+  touchTraceGestureActive = false;
+  touchTraceStartMs = 0;
+}
+
+void recordTouchTraceSample(uint32_t now, int16_t rawX, int16_t rawY, uint8_t fingers,
+                            const char *source) {
+  bool realTouch = source && source[0] == 'T' && source[1] == 'o';
+  if (!realTouch) {
+    return;
+  }
+  if (fingers > 0 && !touchTraceGestureActive) {
+    resetTouchTrace();
+    touchTraceGestureActive = true;
+    touchTraceStartMs = now;
+  }
+  if (!touchTraceGestureActive && fingers == 0) {
+    return;
+  }
+  if (touchTraceCount < kTouchTraceMax) {
+    uint32_t dt = now - touchTraceStartMs;
+    if (dt > 0xffff) {
+      dt = 0xffff;
+    }
+    touchTrace[touchTraceCount++] = {
+        static_cast<uint16_t>(dt), rawX, rawY, fingers};
+  } else {
+    touchTraceOverflow = true;
+  }
+  if (fingers == 0) {
+    touchTraceGestureActive = false;
+  }
+}
+
+void printTouchTrace() {
+  Serial.printf("TOUCH TRACE count=%u overflow=%u active=%u\n",
+                static_cast<unsigned>(touchTraceCount),
+                touchTraceOverflow ? 1 : 0,
+                touchTraceGestureActive ? 1 : 0);
+  for (uint8_t i = 0; i < touchTraceCount; ++i) {
+    Serial.printf("  %u: dt=%u x=%d y=%d fingers=%u\n",
+                  static_cast<unsigned>(i),
+                  static_cast<unsigned>(touchTrace[i].dtMs),
+                  touchTrace[i].x, touchTrace[i].y,
+                  static_cast<unsigned>(touchTrace[i].fingers));
+  }
+}
+
+void startTouchTraceReplay() {
+  if (touchTraceCount == 0) {
+    Serial.println("No touch trace to replay");
+    return;
+  }
+  serialTouchReplayActive = true;
+  serialTouchReplayIndex = 0;
+  serialTouchReplayStartMs = millis();
+  serialTouchReplayReleaseSent = false;
+  serialPointerActive = false;
+  serialFingerActive = false;
+  serialFingerManualActive = false;
+  touchActive = false;
+  rawSwipeHandled = false;
+  Serial.printf("Touch trace replay: %u samples\n",
+                static_cast<unsigned>(touchTraceCount));
 }
 
 bool pointInPairButtonRaw(int16_t x, int16_t y) {
@@ -30,6 +129,26 @@ bool pairingUiActive() {
 bool modalUiActive() {
   return (settingSheet && !lv_obj_has_flag(settingSheet, LV_OBJ_FLAG_HIDDEN)) ||
          (forgetConfirmPopup && !lv_obj_has_flag(forgetConfirmPopup, LV_OBJ_FLAG_HIDDEN));
+}
+
+bool hasSavedCameraBinding() {
+  return !boundBleAddress.isEmpty() || !boundGoProSsid.isEmpty() ||
+         !goProSsid.isEmpty() || !goProPassword.isEmpty();
+}
+
+void resetTouchInteractionState() {
+  if (touchInput) {
+    lv_indev_reset(touchInput, nullptr);
+  }
+  touchActive = false;
+  serialPointerActive = false;
+  serialFingerActive = false;
+  serialFingerManualActive = false;
+  serialTouchReplayActive = false;
+  rawSwipeHandled = false;
+  navSwipeActive = false;
+  navSwipeStartedVisible = false;
+  navSwipePage = SidePage::None;
 }
 
 lv_obj_t *sidePageObj(SidePage page) {
@@ -297,7 +416,7 @@ bool exitFullscreenPreview(const char *source) {
     lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
   }
   setAction("Preview minimized");
-  lv_timer_handler();
+  serviceLvgl();
   return true;
 }
 
@@ -311,7 +430,7 @@ bool enterFullscreenPreview(const char *source) {
   if (previewLabel && previewHasImage) {
     lv_obj_add_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
   }
-  lv_timer_handler();
+  serviceLvgl();
   return true;
 }
 
@@ -320,21 +439,24 @@ void queuePairNewAction(const char *source) {
     setAction("Stop recording before pairing");
     return;
   }
-  if (goproActionBusy || pairingInProgress || pendingHomeAction == PendingHomeAction::Pair) {
+  if (pairingInProgress || pendingHomeAction == PendingHomeAction::Pair) {
     return;
+  }
+  if (pendingHomeAction != PendingHomeAction::None) {
+    Serial.printf("Pair New preempting pending home action %u\n",
+                  static_cast<unsigned>(pendingHomeAction));
+    pendingHomeAction = PendingHomeAction::None;
+    pendingHomeActionDueMs = 0;
+  }
+  if (goproActionBusy) {
+    connectionCancelRequested = true;
+    if (pairingInProgress) {
+      pairingCancelRequested = true;
+    }
   }
   pendingHomeAction = PendingHomeAction::Pair;
   pendingHomeActionDueMs = millis() + 50;
   lastHomeTouchMs = millis();
-  setHomeCameraConnected(false);
-  setConnectRetryAvailable(false);
-  showPairingPopup("Pairing New Camera\n\nStarting scan...\nPress lower button to cancel.");
-  if (statusLabel) {
-    lv_label_set_text(statusLabel, "Pair New");
-  }
-  if (actionLabel) {
-    lv_label_set_text(actionLabel, "Opening Pair New");
-  }
   Serial.print("Pair New queued");
   if (source && source[0]) {
     Serial.print(": ");
@@ -452,7 +574,7 @@ bool finishRawPreviewSwipe(const lv_point_t &start, const lv_point_t &end, uint3
     }
   } else {
     animateSidePageTo(page, open ? 0 : sidePageClosedX(page));
-    lv_timer_handler();
+    serviceLvgl();
   }
   return true;
 }
@@ -525,6 +647,61 @@ void flushDisplay(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colorP
   lv_disp_flush_ready(disp);
 }
 
+void handleTouchSample(lv_indev_data_t *data, uint32_t now, int16_t rawX, int16_t rawY,
+                       uint8_t fingers, bool logSample, const char *source) {
+  if (logSample) {
+    Serial.printf("%s raw x=%d y=%d fingers=%u\n", source, rawX, rawY, fingers);
+  }
+  recordTouchTraceSample(now, rawX, rawY, fingers, source);
+
+  if (fingers > 0) {
+    if (!touchActive) {
+      touchStartPoint.x = rawX;
+      touchStartPoint.y = rawY;
+      touchStartMs = now;
+      touchActive = true;
+      rawSwipeHandled = false;
+      navSwipeActive = false;
+      navSwipePage = SidePage::None;
+    }
+    lastTouchPoint.x = rawX;
+    lastTouchPoint.y = rawY;
+    lastTouchMs = now;
+    if (handleRawPreviewSwipe(touchStartPoint, lastTouchPoint, now - touchStartMs)) {
+      rawSwipeHandled = true;
+    }
+    if (rawSwipeHandled) {
+      consumeLvglPointer(data);
+    } else {
+      data->state = LV_INDEV_STATE_PR;
+      data->point = lastTouchPoint;
+    }
+  } else {
+    bool consumedByRawSwipe = rawSwipeHandled;
+    if (touchActive) {
+      rawSwipeHandled =
+          finishRawPreviewSwipeIfNeeded(touchStartPoint, lastTouchPoint, now - touchStartMs) ||
+          rawSwipeHandled;
+      consumedByRawSwipe = rawSwipeHandled;
+    }
+    touchActive = false;
+    rawSwipeHandled = false;
+    if (consumedByRawSwipe) {
+      consumeLvglPointer(data);
+    } else {
+      data->state = LV_INDEV_STATE_REL;
+      data->point = lastTouchPoint;
+    }
+    return;
+  }
+
+  if (statusLabel && now - lastHomeTouchMs > 300) {
+    char label[40];
+    snprintf(label, sizeof(label), "Touch %d,%d", rawX, rawY);
+    lv_label_set_text(statusLabel, label);
+  }
+}
+
 void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
   uint32_t now = millis();
   if (serialPointerActive) {
@@ -590,6 +767,75 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
     return;
   }
 
+  if (serialTouchReplayActive) {
+    uint32_t elapsed = now - serialTouchReplayStartMs;
+    if (serialTouchReplayIndex < touchTraceCount &&
+        elapsed >= touchTrace[serialTouchReplayIndex].dtMs) {
+      TouchTraceSample sample = touchTrace[serialTouchReplayIndex++];
+      handleTouchSample(data, now, sample.x, sample.y, sample.fingers, true,
+                        "Replay touch");
+      return;
+    }
+    if (serialTouchReplayIndex >= touchTraceCount) {
+      serialTouchReplayActive = false;
+      if (touchActive && !serialTouchReplayReleaseSent) {
+        serialTouchReplayReleaseSent = true;
+        handleTouchSample(data, now, lastTouchPoint.x, lastTouchPoint.y, 0, true,
+                          "Replay touch");
+        return;
+      }
+    } else if (touchActive) {
+      data->state = LV_INDEV_STATE_PR;
+      data->point = lastTouchPoint;
+      return;
+    }
+  }
+
+  if (serialFingerManualActive) {
+    if (serialFingerManualPressed) {
+      bool logSample = !serialFingerManualLogged;
+      serialFingerManualLogged = true;
+      handleTouchSample(data, now, serialFingerPoint.x, serialFingerPoint.y, 1, logSample,
+                        "Serial finger");
+      return;
+    }
+    if (!serialFingerReleaseSent) {
+      serialFingerReleaseSent = true;
+      handleTouchSample(data, now, serialFingerPoint.x, serialFingerPoint.y, 0, true,
+                        "Serial finger");
+      return;
+    }
+    serialFingerManualActive = false;
+  }
+
+  if (serialFingerActive) {
+    uint32_t elapsed = now - serialFingerStartMs;
+    bool pressed = elapsed <= serialFingerHoldMs;
+    if (pressed) {
+      bool logSample = !serialFingerPressLogged;
+      serialFingerPressLogged = true;
+      handleTouchSample(data, now, serialFingerPoint.x, serialFingerPoint.y, 1, logSample,
+                        "Serial finger");
+      return;
+    }
+    if (!serialFingerReleaseSent) {
+      serialFingerReleaseSent = true;
+      handleTouchSample(data, now, serialFingerPoint.x, serialFingerPoint.y, 0, true,
+                        "Serial finger");
+      return;
+    }
+    serialFingerActive = false;
+  }
+
+  if (pairingUiActive()) {
+    touch->IIC_Interrupt_Flag = false;
+    touchActive = false;
+    rawSwipeHandled = false;
+    data->state = LV_INDEV_STATE_REL;
+    data->point = lastTouchPoint;
+    return;
+  }
+
   bool pollTouch = touch->IIC_Interrupt_Flag || touchActive;
   if (pollTouch) {
     bool hadInterrupt = touch->IIC_Interrupt_Flag;
@@ -600,56 +846,7 @@ void readTouch(lv_indev_drv_t *, lv_indev_data_t *data) {
         Arduino_IIC_Touch::Value_Information::TOUCH_COORDINATE_Y);
     uint8_t fingers = touch->IIC_Read_Device_Value(
         Arduino_IIC_Touch::Value_Information::TOUCH_FINGER_NUMBER);
-    if (hadInterrupt) {
-      Serial.printf("Touch raw x=%d y=%d fingers=%u\n", rawX, rawY, fingers);
-    }
-
-    if (fingers > 0) {
-      if (!touchActive) {
-        touchStartPoint.x = rawX;
-        touchStartPoint.y = rawY;
-        touchStartMs = now;
-        touchActive = true;
-        rawSwipeHandled = false;
-        navSwipeActive = false;
-        navSwipePage = SidePage::None;
-      }
-      lastTouchPoint.x = rawX;
-      lastTouchPoint.y = rawY;
-      lastTouchMs = now;
-      if (handleRawPreviewSwipe(touchStartPoint, lastTouchPoint, now - touchStartMs)) {
-        rawSwipeHandled = true;
-      }
-      if (rawSwipeHandled) {
-        consumeLvglPointer(data);
-      } else {
-        data->state = LV_INDEV_STATE_PR;
-        data->point = lastTouchPoint;
-      }
-    } else {
-      bool consumedByRawSwipe = rawSwipeHandled;
-      if (touchActive) {
-        rawSwipeHandled =
-            finishRawPreviewSwipeIfNeeded(touchStartPoint, lastTouchPoint, now - touchStartMs) ||
-            rawSwipeHandled;
-        consumedByRawSwipe = rawSwipeHandled;
-      }
-      touchActive = false;
-      rawSwipeHandled = false;
-      if (consumedByRawSwipe) {
-        consumeLvglPointer(data);
-      } else {
-        data->state = LV_INDEV_STATE_REL;
-        data->point = lastTouchPoint;
-      }
-      return;
-    }
-
-    if (statusLabel && now - lastHomeTouchMs > 300) {
-      char label[40];
-      snprintf(label, sizeof(label), "Touch %d,%d", rawX, rawY);
-      lv_label_set_text(statusLabel, label);
-    }
+    handleTouchSample(data, now, rawX, rawY, fingers, hadInterrupt, "Touch");
   } else if (touchActive && now - lastTouchMs < 180) {
     data->state = LV_INDEV_STATE_PR;
     data->point = lastTouchPoint;
@@ -730,7 +927,7 @@ void setAction(const char *message) {
   }
   Serial.println(message);
   if (tileView) {
-    lv_timer_handler();
+    serviceLvgl();
   }
 }
 
@@ -843,7 +1040,6 @@ void showPairingPopup(const char *message) {
   if (pairingPopup) {
     lv_obj_clear_flag(pairingPopup, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(pairingPopup);
-    lv_timer_handler();
   }
 }
 
@@ -853,7 +1049,7 @@ void finishPairingPopup(const char *message) {
     lv_obj_clear_flag(pairingPopup, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(pairingPopup);
     pairingPopupHideDueMs = millis() + 1800;
-    lv_timer_handler();
+    serviceLvgl();
   }
 }
 
@@ -874,7 +1070,7 @@ void closeSidePages() {
   animateSidePageTo(SidePage::Maintenance, sidePageClosedX(SidePage::Maintenance));
   animateSidePageTo(SidePage::ButtonGuide, sidePageClosedX(SidePage::ButtonGuide));
   setAction("Preview");
-  lv_timer_handler();
+  serviceLvgl();
 }
 
 void setSidePageVisible(SidePage page, bool visible) {
@@ -917,7 +1113,7 @@ void setSidePageVisible(SidePage page, bool visible) {
       setAction("Preview");
     }
   }
-  lv_timer_handler();
+  serviceLvgl();
 }
 
 void setMaintenancePageVisible(bool visible) {
@@ -935,13 +1131,13 @@ void showForgetConfirm() {
   lv_obj_clear_flag(forgetConfirmPopup, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(forgetConfirmPopup);
   setAction("Confirm forget camera");
-  lv_timer_handler();
 }
 
 void hideForgetConfirm() {
   if (forgetConfirmPopup) {
     lv_obj_add_flag(forgetConfirmPopup, LV_OBJ_FLAG_HIDDEN);
   }
+  resetTouchInteractionState();
 }
 
 void clearSnapshotPreviewState(const char *message) {
@@ -1082,11 +1278,11 @@ void setPreviewFullscreen(bool fullscreen) {
   lv_obj_move_foreground(fullscreenHint);
   if (exitingFullscreen) {
     lv_obj_invalidate(lv_scr_act());
-    lv_timer_handler();
+    serviceLvgl();
   }
 
   if (previewHasImage && previewJpegCache && previewJpegCacheLen > 0 && !redrawingCachedPreview) {
-    lv_timer_handler();
+    serviceLvgl();
     redrawCachedPreviewJpeg();
   }
 }
