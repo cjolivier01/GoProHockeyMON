@@ -1,3 +1,15 @@
+#pragma once
+
+#include <Arduino.h>
+#include <ArduinoJson.h>
+#include <lvgl.h>
+
+#include <ctype.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+
 bool setGoProSetting(uint16_t settingId, uint16_t optionId, const char *label) {
   String path = "/gopro/camera/setting?setting=";
   path += settingId;

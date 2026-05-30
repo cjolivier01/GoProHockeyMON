@@ -1,3 +1,20 @@
+#pragma once
+
+#include <Arduino.h>
+#include <Arduino_GFX_Library.h>
+#include <JPEGDEC.h>
+#include <WiFi.h>
+#include <lvgl.h>
+
+#include "esp_heap_caps.h"
+#include "esp_timer.h"
+#include "h264bsd_decoder.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 bool pointInRect(int16_t x, int16_t y, int16_t rx, int16_t ry, int16_t rw, int16_t rh) {
   return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
 }

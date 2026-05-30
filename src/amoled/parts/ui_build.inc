@@ -1,3 +1,11 @@
+#pragma once
+
+#include <Arduino.h>
+#include <lvgl.h>
+
+#include <stdint.h>
+#include <stddef.h>
+
 const SettingDefinition kCaptureSettings[] = {
     {"Aspect Ratio", 108},
     {"Resolution", 2},
@@ -237,9 +245,12 @@ void createUi() {
 
   cameraLabel = lv_label_create(captureTile);
   lv_label_set_text(cameraLabel, "Camera: not paired");
+  lv_obj_set_width(cameraLabel, kPreviewW);
+  lv_label_set_long_mode(cameraLabel, LV_LABEL_LONG_DOT);
   lv_obj_set_style_text_color(cameraLabel, lv_color_hex(0xc3ccd8), 0);
   lv_obj_set_style_text_font(cameraLabel, fontForSize(16), 0);
   lv_obj_set_pos(cameraLabel, 20, 224);
+  updateCameraLabel();
 
   wifiLabel = lv_label_create(captureTile);
   lv_label_set_text(wifiLabel, "WiFi: idle");

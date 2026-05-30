@@ -1,3 +1,14 @@
+#pragma once
+
+#include <Arduino.h>
+#include <WiFi.h>
+#include <Wire.h>
+#include <lvgl.h>
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
 bool initPowerExpander() {
   if (!expander.begin(0x20, &Wire)) {
     Serial.println("XCA9554 expander not found");
@@ -490,6 +501,10 @@ void printSerialStatus() {
                 bleConnected ? 1 : 0, boundBleAddress.c_str(), boundBleName.c_str(),
                 lastBleName.c_str(), connectRetryAvailable ? 1 : 0,
                 homeCameraConnected ? 1 : 0);
+  Serial.printf("  cameraModel='%s' modelNumber='%s' fw='%s' serial='%s' apSsid='%s' apMac='%s'\n",
+                cameraModelName.c_str(), cameraModelNumber.c_str(),
+                cameraFirmwareVersion.c_str(), cameraSerialNumber.c_str(),
+                cameraApSsid.c_str(), cameraApMacAddress.c_str());
   Serial.printf("  wifiStatus=%u ssid='%s' ip=%s goproSsid='%s' passLen=%u boundAp='%s' channel=%d bssid=%s likelyGoPro=%u\n",
                 static_cast<unsigned>(WiFi.status()), ssid.c_str(), ip.c_str(),
                 goProSsid.c_str(), static_cast<unsigned>(goProPassword.length()),
@@ -825,11 +840,11 @@ void handleSerialCommand(String line) {
       boundGoProSsid = "SERIAL_TEST_GOPRO";
       goProSsid = boundGoProSsid;
       goProPassword = "serial-test";
+      setCameraHardwareInfo("9999", "Serial Test HERO", "S00.00.00", "SERIALTEST",
+                            boundGoProSsid, "001122334455");
       setHomeCameraConnected(false);
       setConnectRetryAvailable(false);
-      if (cameraLabel) {
-        lv_label_set_text(cameraLabel, "Camera: Serial Test GoPro");
-      }
+      updateCameraLabel();
       if (tokens[1] == "fake-pending") {
         pendingHomeAction = PendingHomeAction::Connect;
         pendingHomeActionDueMs = millis() + 1500;

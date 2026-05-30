@@ -1,3 +1,16 @@
+#pragma once
+
+#include <Arduino.h>
+#include <JPEGDEC.h>
+#include <WiFi.h>
+#include <lvgl.h>
+
+#include "esp_heap_caps.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
 void setPairingMode() {
   if (!displayOn) {
     setDisplayOn(true);
