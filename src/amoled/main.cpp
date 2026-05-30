@@ -448,12 +448,14 @@ bool lvglTimerHandlerActive = false;
 bool lvglTimerHandlerDeferred = false;
 
 // Keep these implementation parts in order; they share the anonymous namespace state above.
+#define GOPRO_AMOLED_MAIN_CONTEXT 1
 #include "parts/display_input_preview.inc"
 #include "parts/ble_wifi_http.inc"
 #include "parts/camera_state_settings.inc"
 #include "parts/actions_snapshot.inc"
 #include "parts/ui_build.inc"
 #include "parts/buttons_serial.inc"
+#undef GOPRO_AMOLED_MAIN_CONTEXT
 }  // namespace
 
 void setup() {

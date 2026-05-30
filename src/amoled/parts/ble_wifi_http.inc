@@ -16,6 +16,10 @@
 #include <string.h>
 #include <strings.h>
 
+#if !defined(GOPRO_AMOLED_MAIN_CONTEXT)
+#include "amoled_context_decls.h"
+#endif
+
 extern "C" {
 #if defined(CONFIG_BLUEDROID_ENABLED)
 #include "esp_gap_ble_api.h"

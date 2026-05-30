@@ -9,6 +9,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#if !defined(GOPRO_AMOLED_MAIN_CONTEXT)
+#include "amoled_context_decls.h"
+#endif
+
 bool initPowerExpander() {
   if (!expander.begin(0x20, &Wire)) {
     Serial.println("XCA9554 expander not found");

@@ -6,6 +6,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#if !defined(GOPRO_AMOLED_MAIN_CONTEXT)
+#include "amoled_context_decls.h"
+#endif
+
 const SettingDefinition kCaptureSettings[] = {
     {"Aspect Ratio", 108},
     {"Resolution", 2},

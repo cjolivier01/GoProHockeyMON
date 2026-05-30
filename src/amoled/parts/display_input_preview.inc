@@ -15,6 +15,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if !defined(GOPRO_AMOLED_MAIN_CONTEXT)
+#include "amoled_context_decls.h"
+#endif
+
 bool pointInRect(int16_t x, int16_t y, int16_t rx, int16_t ry, int16_t rw, int16_t rh) {
   return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
 }

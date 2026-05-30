@@ -10,6 +10,10 @@
 #include <string.h>
 #include <strings.h>
 
+#if !defined(GOPRO_AMOLED_MAIN_CONTEXT)
+#include "amoled_context_decls.h"
+#endif
+
 bool setGoProSetting(uint16_t settingId, uint16_t optionId, const char *label) {
   String path = "/gopro/camera/setting?setting=";
   path += settingId;

@@ -11,6 +11,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#if !defined(GOPRO_AMOLED_MAIN_CONTEXT)
+#include "amoled_context_decls.h"
+#endif
+
 void setPairingMode() {
   if (!displayOn) {
     setDisplayOn(true);
