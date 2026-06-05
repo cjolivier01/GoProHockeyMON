@@ -388,6 +388,143 @@ uint8_t estimateVideoVisiblePercent(int hypersmooth, int lens, int horizon, int 
   return constrain(percent, 82, 100);
 }
 
+constexpr size_t kSnapshotPreviewModeCount = 2;
+constexpr size_t kSnapshotPreviewAspectCount = 6;
+constexpr size_t kSnapshotPreviewResolutionCount = 3;
+
+struct SnapshotPreviewModeCrop {
+  char mode;
+  uint8_t visiblePercent;
+};
+
+struct SnapshotPreviewAspectCrop {
+  const char *aspectRatio;
+  SnapshotPreviewModeCrop modes[kSnapshotPreviewModeCount];
+};
+
+struct SnapshotPreviewResolutionCrop {
+  const char *resolution;
+  SnapshotPreviewAspectCrop aspectRatios[kSnapshotPreviewAspectCount];
+};
+
+struct SnapshotPreviewModelCrop {
+  const char *modelName;
+  SnapshotPreviewResolutionCrop resolutions[kSnapshotPreviewResolutionCount];
+};
+
+#define SNAPSHOT_PREVIEW_MODE_DEFAULTS \
+  {{'W', kSnapshotPreviewVisiblePercent}, {'L', kSnapshotPreviewVisiblePercent}}
+
+#define SNAPSHOT_PREVIEW_ASPECT_DEFAULTS                 \
+  {                                                      \
+      {"16:9", SNAPSHOT_PREVIEW_MODE_DEFAULTS},          \
+      {"4:3", SNAPSHOT_PREVIEW_MODE_DEFAULTS},           \
+      {"8:7", SNAPSHOT_PREVIEW_MODE_DEFAULTS},           \
+      {"9:16", SNAPSHOT_PREVIEW_MODE_DEFAULTS},          \
+      {"21:9", SNAPSHOT_PREVIEW_MODE_DEFAULTS},          \
+      {"1:1", SNAPSHOT_PREVIEW_MODE_DEFAULTS},           \
+  }
+
+#define SNAPSHOT_PREVIEW_RESOLUTION_DEFAULTS             \
+  {                                                      \
+      {"4k", SNAPSHOT_PREVIEW_ASPECT_DEFAULTS},          \
+      {"5k", SNAPSHOT_PREVIEW_ASPECT_DEFAULTS},          \
+      {"8k", SNAPSHOT_PREVIEW_ASPECT_DEFAULTS},          \
+  }
+
+const SnapshotPreviewModelCrop kSnapshotPreviewVisiblePercentTable[] = {
+    {"MISSION 1 PRO", SNAPSHOT_PREVIEW_RESOLUTION_DEFAULTS},
+    {"HERO11 Black", SNAPSHOT_PREVIEW_RESOLUTION_DEFAULTS},
+};
+
+#undef SNAPSHOT_PREVIEW_RESOLUTION_DEFAULTS
+#undef SNAPSHOT_PREVIEW_ASPECT_DEFAULTS
+#undef SNAPSHOT_PREVIEW_MODE_DEFAULTS
+
+const char *snapshotResolutionKey(int resolutionOption) {
+  switch (resolutionOption) {
+    case 1:
+    case 18:
+    case 28:
+    case 36:
+    case 37:
+    case 39:
+    case 108:
+    case 109:
+    case 112:
+      return "4k";
+    case 21:
+    case 24:
+    case 25:
+    case 26:
+    case 27:
+    case 35:
+    case 100:
+    case 107:
+    case 113:
+      return "5k";
+    case 31:
+      return "8k";
+  }
+  return "";
+}
+
+const char *snapshotAspectRatioKey(uint16_t aspectW, uint16_t aspectH) {
+  if (aspectW == 16 && aspectH == 9) return "16:9";
+  if (aspectW == 4 && aspectH == 3) return "4:3";
+  if (aspectW == 8 && aspectH == 7) return "8:7";
+  if (aspectW == 9 && aspectH == 16) return "9:16";
+  if (aspectW == 21 && aspectH == 9) return "21:9";
+  if (aspectW == 1 && aspectH == 1) return "1:1";
+  return "";
+}
+
+char snapshotModeKey(int lens, int horizon, int maxLens) {
+  switch (lens) {
+    case 4:
+    case 8:
+    case 10:
+    case 14:
+    case 30:
+    case 32:
+    case 44:
+    case 102:
+      return 'L';
+  }
+  return (horizon == 2 || maxLens > 0) ? 'L' : 'W';
+}
+
+uint8_t lookupSnapshotPreviewVisiblePercent(const SnapshotVideoFraming &framing) {
+  const char *resolution = snapshotResolutionKey(framing.resolutionOption);
+  const char *aspectRatio = snapshotAspectRatioKey(framing.aspectW, framing.aspectH);
+  char mode = snapshotModeKey(framing.lensOption, framing.horizonOption, framing.maxLensOption);
+  if (cameraModelName.isEmpty() || resolution[0] == '\0' || aspectRatio[0] == '\0') {
+    return kSnapshotPreviewVisiblePercent;
+  }
+
+  for (const SnapshotPreviewModelCrop &model : kSnapshotPreviewVisiblePercentTable) {
+    if (strcasecmp(cameraModelName.c_str(), model.modelName) != 0) {
+      continue;
+    }
+    for (const SnapshotPreviewResolutionCrop &resolutionEntry : model.resolutions) {
+      if (strcasecmp(resolution, resolutionEntry.resolution) != 0) {
+        continue;
+      }
+      for (const SnapshotPreviewAspectCrop &aspectEntry : resolutionEntry.aspectRatios) {
+        if (strcasecmp(aspectRatio, aspectEntry.aspectRatio) != 0) {
+          continue;
+        }
+        for (const SnapshotPreviewModeCrop &modeEntry : aspectEntry.modes) {
+          if (modeEntry.mode == mode) {
+            return modeEntry.visiblePercent;
+          }
+        }
+      }
+    }
+  }
+  return kSnapshotPreviewVisiblePercent;
+}
+
 SnapshotVideoFraming currentSnapshotVideoFraming() {
   SnapshotVideoFraming framing;
   const uint16_t aspectIds[] = {232, 108, 193};
@@ -419,14 +556,21 @@ SnapshotVideoFraming currentSnapshotVideoFraming() {
   framing.maxLensOption = firstStoredSettingValue(maxLensIds, sizeof(maxLensIds) / sizeof(maxLensIds[0]));
   framing.visiblePercent = estimateVideoVisiblePercent(
       framing.hypersmoothOption, framing.lensOption, framing.horizonOption, framing.maxLensOption);
+  framing.previewVisiblePercent = lookupSnapshotPreviewVisiblePercent(framing);
   return framing;
 }
 
 void logSnapshotVideoFraming(const SnapshotVideoFraming &framing) {
-  Serial.printf("Snapshot video framing: aspect=%u:%u cameraVisible=%u%% previewVisible=%u%% aspectSetting=%d option=%d "
-                "resolution=%d lens=%d hypersmooth=%d horizon=%d maxLens=%d\n",
+  const char *resolution = snapshotResolutionKey(framing.resolutionOption);
+  const char *aspectRatio = snapshotAspectRatioKey(framing.aspectW, framing.aspectH);
+  char mode = snapshotModeKey(framing.lensOption, framing.horizonOption, framing.maxLensOption);
+  Serial.printf("Snapshot video framing: model='%s' resolution=%s aspect=%s mode=%c aspectDims=%u:%u cameraVisible=%u%% previewVisible=%u%% aspectSetting=%d option=%d "
+                "resolutionOption=%d lens=%d hypersmooth=%d horizon=%d maxLens=%d\n",
+                cameraModelName.isEmpty() ? "(unknown)" : cameraModelName.c_str(),
+                resolution[0] == '\0' ? "(unknown)" : resolution,
+                aspectRatio[0] == '\0' ? "(unknown)" : aspectRatio, mode,
                 framing.aspectW, framing.aspectH, framing.visiblePercent,
-                static_cast<unsigned>(kSnapshotPreviewVisiblePercent),
+                framing.previewVisiblePercent,
                 framing.aspectSettingId, framing.aspectOption, framing.resolutionOption,
                 framing.lensOption, framing.hypersmoothOption, framing.horizonOption,
                 framing.maxLensOption);

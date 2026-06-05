@@ -433,7 +433,7 @@ void computeVideoFramedSourceRect(int imageW, int imageH, int &outX, int &outY, 
 
   uint8_t visiblePercent = min<uint8_t>(
       constrain(snapshotVideoFraming.visiblePercent, 55, 100),
-      constrain(kSnapshotPreviewVisiblePercent, 55, 100));
+      constrain(snapshotVideoFraming.previewVisiblePercent, 55, 100));
   cropW = max(1, (cropW * visiblePercent) / 100);
   cropH = max(1, (cropH * visiblePercent) / 100);
   outW = min(cropW, imageW);
@@ -621,7 +621,7 @@ bool drawJpegPreview(uint8_t *buffer, size_t length) {
                 jpegDrawW, jpegDrawH, jpegDrawX, jpegDrawY,
                 snapshotVideoFraming.aspectW, snapshotVideoFraming.aspectH,
                 snapshotVideoFraming.visiblePercent,
-                static_cast<unsigned>(kSnapshotPreviewVisiblePercent));
+                snapshotVideoFraming.previewVisiblePercent);
 
   jpeg.setPixelType(RGB565_LITTLE_ENDIAN);
   logMemory("Before JPEG decode");

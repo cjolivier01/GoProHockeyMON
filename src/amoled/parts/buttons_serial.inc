@@ -525,7 +525,7 @@ void printSerialStatus() {
                 snapshotVideoFraming.valid ? 1 : 0, snapshotVideoFraming.aspectW,
                 snapshotVideoFraming.aspectH,
                 static_cast<unsigned>(kSnapshotAspectCropStrengthPercent),
-                static_cast<unsigned>(kSnapshotPreviewVisiblePercent),
+                snapshotVideoFraming.previewVisiblePercent,
                 snapshotVideoFraming.visiblePercent,
                 snapshotVideoFraming.lensOption, snapshotVideoFraming.hypersmoothOption,
                 jpegCropX, jpegCropY, jpegCropW, jpegCropH);

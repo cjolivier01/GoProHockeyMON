@@ -232,6 +232,7 @@ struct SnapshotVideoFraming {
   uint16_t aspectW = 16;
   uint16_t aspectH = 9;
   uint8_t visiblePercent = 100;
+  uint8_t previewVisiblePercent = kSnapshotPreviewVisiblePercent;
   int aspectSettingId = -1;
   int aspectOption = -1;
   int resolutionOption = -1;
