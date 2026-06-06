@@ -20,7 +20,6 @@
 
 #include "esp_heap_caps.h"
 #include "esp_system.h"
-#include "esp_sleep.h"
 #include "esp_timer.h"
 extern "C" {
 #if defined(CONFIG_BLUEDROID_ENABLED)
