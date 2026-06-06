@@ -432,8 +432,8 @@ void computeVideoFramedSourceRect(int imageW, int imageH, int &outX, int &outY, 
   cropH = imageH - ((imageH - cropH) * kSnapshotAspectCropStrengthPercent) / 100;
 
   uint8_t visiblePercent = min<uint8_t>(
-      constrain(snapshotVideoFraming.visiblePercent, 55, 100),
-      constrain(snapshotVideoFraming.previewVisiblePercent, 55, 100));
+      constrain(snapshotVideoFraming.visiblePercent, 1, 100),
+      constrain(snapshotVideoFraming.previewVisiblePercent, 1, 100));
   cropW = max(1, (cropW * visiblePercent) / 100);
   cropH = max(1, (cropH * visiblePercent) / 100);
   outW = min(cropW, imageW);
