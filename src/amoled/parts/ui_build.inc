@@ -186,11 +186,14 @@ void createUi() {
   lv_obj_set_style_bg_color(previewBox, lv_color_hex(0x101827), 0);
   lv_obj_set_style_border_color(previewBox, lv_color_hex(0x2b3a52), 0);
   lv_obj_set_style_border_width(previewBox, 1, 0);
+  lv_obj_set_style_pad_all(previewBox, 0, 0);
   disableScrollbars(previewBox);
   lv_obj_add_event_cb(previewBox, onPreviewGesture, LV_EVENT_GESTURE, nullptr);
 
   previewImageCanvas = lv_canvas_create(previewBox);
   lv_obj_set_pos(previewImageCanvas, 0, 0);
+  lv_obj_set_style_border_width(previewImageCanvas, 0, 0);
+  lv_obj_set_style_pad_all(previewImageCanvas, 0, 0);
   lv_obj_add_flag(previewImageCanvas, LV_OBJ_FLAG_HIDDEN);
   disableScrollbars(previewImageCanvas);
 

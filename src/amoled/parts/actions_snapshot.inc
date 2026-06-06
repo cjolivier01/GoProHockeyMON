@@ -491,6 +491,8 @@ bool ensurePreviewCanvasBuffer(int width, int height) {
   lv_canvas_set_buffer(previewImageCanvas, previewCanvasBuffer, width, height,
                        LV_IMG_CF_TRUE_COLOR);
   lv_obj_set_pos(previewImageCanvas, 0, 0);
+  lv_obj_set_style_border_width(previewImageCanvas, 0, 0);
+  lv_obj_set_style_pad_all(previewImageCanvas, 0, 0);
   lv_obj_clear_flag(previewImageCanvas, LV_OBJ_FLAG_HIDDEN);
   lv_canvas_fill_bg(previewImageCanvas, lv_color_black(), LV_OPA_COVER);
   return true;

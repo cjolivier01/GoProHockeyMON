@@ -1266,6 +1266,7 @@ void setPreviewFullscreen(bool fullscreen) {
     lv_obj_set_size(previewBox, LCD_WIDTH, LCD_HEIGHT - kTopBarH);
     lv_obj_set_style_radius(previewBox, 0, 0);
     lv_obj_set_style_border_width(previewBox, 0, 0);
+    lv_obj_set_style_pad_all(previewBox, 0, 0);
     lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, -8);
     lv_obj_clear_flag(fullscreenHint, LV_OBJ_FLAG_HIDDEN);
   } else {
@@ -1273,6 +1274,7 @@ void setPreviewFullscreen(bool fullscreen) {
     lv_obj_set_pos(previewBox, kPreviewX, 6);
     lv_obj_set_style_radius(previewBox, 8, 0);
     lv_obj_set_style_border_width(previewBox, 1, 0);
+    lv_obj_set_style_pad_all(previewBox, 0, 0);
     lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, -8);
     lv_obj_clear_flag(fullscreenHint, LV_OBJ_FLAG_HIDDEN);
   }

@@ -483,7 +483,14 @@ struct SnapshotPreviewModelCrop {
       {"8k", SNAPSHOT_PREVIEW_ASPECT_DEFAULTS},                                \
   }
 
-#define SNAPSHOT_PREVIEW_MODE_MISSION_1_PRO {{'W', 79}, {'L', 79}}
+constexpr int kSnapshotPreviewVisiblePercentMission1ProDefault = 100;
+
+#define SNAPSHOT_PREVIEW_MODE_MISSION_1_PRO                                    \
+  {                                                                            \
+    {'W', kSnapshotPreviewVisiblePercentMission1ProDefault}, {                 \
+      'L', kSnapshotPreviewVisiblePercentMission1ProDefault                    \
+    }                                                                          \
+  }
 
 #define SNAPSHOT_PREVIEW_ASPECT_MISSION_1_PRO                                  \
   {                                                                            \
@@ -590,7 +597,8 @@ lookupSnapshotPreviewVisiblePercent(const SnapshotVideoFraming &framing) {
     if (strcasecmp(cameraModelName.c_str(), model.modelName) != 0) {
       continue;
     }
-    uint8_t modelFallback = model.resolutions[0].aspectRatios[0].modes[0].visiblePercent;
+    uint8_t modelFallback =
+        model.resolutions[0].aspectRatios[0].modes[0].visiblePercent;
     for (const SnapshotPreviewModeCrop &modeEntry :
          model.resolutions[0].aspectRatios[0].modes) {
       if (modeEntry.mode == mode) {
@@ -606,7 +614,8 @@ lookupSnapshotPreviewVisiblePercent(const SnapshotVideoFraming &framing) {
       if (strcasecmp(resolution, resolutionEntry.resolution) != 0) {
         continue;
       }
-      uint8_t resolutionFallback = resolutionEntry.aspectRatios[0].modes[0].visiblePercent;
+      uint8_t resolutionFallback =
+          resolutionEntry.aspectRatios[0].modes[0].visiblePercent;
       for (const SnapshotPreviewModeCrop &modeEntry :
            resolutionEntry.aspectRatios[0].modes) {
         if (modeEntry.mode == mode) {
