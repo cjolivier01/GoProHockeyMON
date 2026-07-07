@@ -46,6 +46,8 @@ extern const BLEUUID kCommand;
 extern const BLEUUID kCommandResponse;
 extern const BLEUUID kSettings;
 extern const BLEUUID kSettingsResponse;
+extern const BLEUUID kQuery;
+extern const BLEUUID kQueryResponse;
 extern const BLEUUID kCameraManagementCommand;
 extern const BLEUUID kCameraManagementResponse;
 
@@ -352,6 +354,8 @@ bool ensureGoProWifiReady(const char *reason);
 bool pairGoPro();
 bool wakeGoProBle();
 bool setGoProShutterBle(bool enabled);
+bool refreshRecordingStateBle();
+void suspendGoProWifiForRecording(const char *reason);
 bool setGoProSetting(uint16_t settingId, uint16_t optionId, const char *label);
 bool sendBleSetting(uint8_t settingId, uint8_t optionId, const char *label);
 void storeSettingValue(uint16_t id, int option);

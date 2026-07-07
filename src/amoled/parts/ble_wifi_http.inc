@@ -937,6 +937,15 @@ bool waitForBleResponse(uint32_t timeoutMs) {
   return true;
 }
 
+bool bleResponseStatusOk(const char *message) {
+  if (bleResponseStatus == 0x00) {
+    return true;
+  }
+  Serial.printf("BLE response non-success status=0x%02X\n", bleResponseStatus);
+  setAction(message == nullptr ? "BLE command failed" : message);
+  return false;
+}
+
 class ScanCallbacks : public BLEAdvertisedDeviceCallbacks {
  public:
   void onResult(BLEAdvertisedDevice device) override {
@@ -1182,6 +1191,10 @@ bool connectBle() {
     if (settingsResponse != nullptr && settingsResponse->canNotify()) {
       settingsResponse->registerForNotify(commandResponseNotify);
     }
+    BLERemoteCharacteristic *queryResponse = control->getCharacteristic(kQueryResponse);
+    if (queryResponse != nullptr && queryResponse->canNotify()) {
+      queryResponse->registerForNotify(commandResponseNotify);
+    }
   }
 
   lv_label_set_text(statusLabel, "BLE connected");
@@ -1259,7 +1272,100 @@ bool sendBleCommand(const uint8_t *payload, size_t length) {
 
   resetBleResponseCapture();
   command->writeValue(const_cast<uint8_t *>(payload), length, true);
-  return waitForBleResponse(2500);
+  return waitForBleResponse(2500) && bleResponseStatusOk("BLE command failed");
+}
+
+bool sendBleQuery(const uint8_t *payload, size_t length) {
+  if (!connectBle()) {
+    return false;
+  }
+
+  BLERemoteService *control = bleClient->getService(kControlService);
+  if (control == nullptr) {
+    setAction("GoPro control BLE service missing");
+    return false;
+  }
+
+  BLERemoteCharacteristic *response = control->getCharacteristic(kQueryResponse);
+  if (response != nullptr && response->canNotify()) {
+    response->registerForNotify(commandResponseNotify);
+  }
+
+  BLERemoteCharacteristic *query = control->getCharacteristic(kQuery);
+  if (query == nullptr || !query->canWrite()) {
+    setAction("GoPro query characteristic missing");
+    return false;
+  }
+
+  resetBleResponseCapture();
+  query->writeValue(const_cast<uint8_t *>(payload), length, true);
+  return waitForBleResponse(2500) && bleResponseStatusOk("BLE query failed");
+}
+
+bool parseBleRecordingStatePayload(const uint8_t *payload, size_t length) {
+  if (payload == nullptr || length < 2 || payload[0] != 0x13) {
+    Serial.println("BLE status response had unexpected query ID");
+    return false;
+  }
+  if (payload[1] != 0x00) {
+    Serial.printf("BLE status response failed status=0x%02X\n", payload[1]);
+    return false;
+  }
+
+  bool encodingKnown = false;
+  bool durationKnown = false;
+  int32_t encoding = 0;
+  uint32_t duration = 0;
+  size_t offset = 2;
+  while (offset + 2 <= length) {
+    uint8_t id = payload[offset++];
+    uint8_t valueLength = payload[offset++];
+    if (offset + valueLength > length) {
+      Serial.printf("BLE status TLV truncated id=%u len=%u payloadLen=%u\n",
+                    static_cast<unsigned>(id), static_cast<unsigned>(valueLength),
+                    static_cast<unsigned>(length));
+      return false;
+    }
+
+    if (id == 10 && valueLength >= 1) {
+      encoding = payload[offset] != 0 ? 1 : 0;
+      encodingKnown = true;
+    } else if (id == 13 && valueLength >= 1) {
+      duration = 0;
+      for (uint8_t i = 0; i < valueLength && i < 4; ++i) {
+        duration = (duration << 8) | payload[offset + i];
+      }
+      durationKnown = true;
+    }
+    offset += valueLength;
+  }
+
+  if (!encodingKnown && !durationKnown) {
+    Serial.println("BLE status response did not include recording state");
+    return false;
+  }
+
+  bool cameraRecording = encodingKnown ? encoding != 0 : duration > 0;
+  applyRecordingUiState(cameraRecording, duration, durationKnown);
+  Serial.printf("BLE recording state synced: recording=%u duration=%lu known=%u\n",
+                cameraRecording ? 1 : 0, static_cast<unsigned long>(duration),
+                durationKnown ? 1 : 0);
+  return true;
+}
+
+bool refreshRecordingStateBle() {
+  uint8_t payload[] = {
+      0x03,  // Open GoPro BLE packet length: query ID + two status IDs.
+      0x13,  // Get Status Values.
+      0x0A,  // StatusId.ENCODING.
+      0x0D,  // StatusId.VIDEO_ENCODING_DURATION.
+  };
+  setAction("Checking recording over BLE");
+  if (!sendBleQuery(payload, sizeof(payload))) {
+    Serial.println("BLE recording state query failed");
+    return false;
+  }
+  return parseBleRecordingStatePayload(bleResponsePayload, bleResponsePayloadLength);
 }
 
 bool refreshCameraHardwareInfoBle() {
@@ -1339,7 +1445,7 @@ bool sendBleSetting(uint8_t settingId, uint8_t optionId, const char *label) {
   uint8_t payload[] = {0x03, settingId, 0x01, optionId};
   resetBleResponseCapture();
   settings->writeValue(payload, sizeof(payload), true);
-  bool ok = waitForBleResponse(2500);
+  bool ok = waitForBleResponse(2500) && bleResponseStatusOk("BLE setting failed");
   setAction(ok ? label : "BLE setting response timeout");
   return ok;
 }
@@ -1530,7 +1636,27 @@ void suspendGoProWifiForRecording(const char *reason) {
   serviceLvgl();
 }
 
+bool ensureNotRecordingForWifi(const char *reason) {
+  if (!refreshRecordingStateBle()) {
+    if (recording) {
+      suspendGoProWifiForRecording(reason);
+    } else {
+      markGoProWifiDisconnectedForRecording();
+      setAction("Recording check failed");
+    }
+    return false;
+  }
+  if (recording) {
+    suspendGoProWifiForRecording(reason);
+    return false;
+  }
+  return true;
+}
+
 bool enableGoProWifiAp() {
+  if (!ensureNotRecordingForWifi("recording active")) {
+    return false;
+  }
   if (!forceGoProWifi24GHz()) {
     if (operationCancelled()) {
       return false;
@@ -1541,6 +1667,9 @@ bool enableGoProWifiAp() {
     }
   }
   if (operationCancelled()) {
+    return false;
+  }
+  if (!ensureNotRecordingForWifi("recording active")) {
     return false;
   }
   lv_label_set_text(statusLabel, "Enabling GoPro AP");
@@ -1722,6 +1851,9 @@ void markExistingGoProWifiConnected() {
 }
 
 bool connectGoProWifiWithCurrentCredentials(const char *reason) {
+  if (!ensureNotRecordingForWifi("recording active")) {
+    return false;
+  }
   if (goProSsid.isEmpty() || goProPassword.isEmpty()) {
     Serial.println("No GoPro WiFi credentials available for direct join");
     return false;
@@ -1762,7 +1894,7 @@ bool connectGoProWifiWithCurrentCredentials(const char *reason) {
   lastPreviewUpdate = 0;
   if (recording) {
     suspendGoProWifiForRecording("camera already recording");
-    return true;
+    return false;
   }
   if (previewLabel && !previewHasImage) {
     lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
@@ -1774,13 +1906,6 @@ bool connectGoProWifiWithCurrentCredentials(const char *reason) {
 bool connectGoProWifiFromBle() {
   if (operationCancelled()) {
     return false;
-  }
-  if (isLikelyGoProWifiConnected()) {
-    goProWifiSuspendedForRecording = false;
-    markExistingGoProWifiConnected();
-    refreshCameraHardwareInfoHttp();
-    setAction("Using existing GoPro WiFi");
-    return true;
   }
   if (boundBleAddress.isEmpty() && !allowAnyCameraScan) {
     if (cameraLabel) {
@@ -1794,6 +1919,21 @@ bool connectGoProWifiFromBle() {
     setAction("No saved camera; tap Pair New");
     Serial.println("GoPro WiFi connect blocked: no saved camera binding");
     return false;
+  }
+  if (!ensureNotRecordingForWifi("camera already recording")) {
+    return false;
+  }
+  if (isLikelyGoProWifiConnected()) {
+    goProWifiSuspendedForRecording = false;
+    markExistingGoProWifiConnected();
+    refreshCameraHardwareInfoHttp();
+    syncCameraState();
+    if (recording) {
+      suspendGoProWifiForRecording("camera already recording");
+      return false;
+    }
+    setAction("Using existing GoPro WiFi");
+    return true;
   }
   if (!readGoProWifiCredentials()) {
     return false;
@@ -1825,10 +1965,18 @@ bool connectGoProWifiFromBle() {
 }
 
 bool ensureGoProWifiReady(const char *reason) {
+  if (!ensureNotRecordingForWifi("recording active")) {
+    return false;
+  }
   if (isLikelyGoProWifiConnected()) {
     markExistingGoProWifiConnected();
     if (goProHttpReachable()) {
       refreshCameraHardwareInfoHttp();
+      syncCameraState();
+      if (recording) {
+        suspendGoProWifiForRecording("camera already recording");
+        return false;
+      }
       setAction(reason == nullptr ? "Using existing GoPro WiFi" : reason);
       return true;
     }
@@ -1845,7 +1993,18 @@ bool ensureGoProWifiReady(const char *reason) {
   return connectGoProWifiFromBle();
 }
 
+bool blockHttpWhileRecording() {
+  if (!recording) {
+    return false;
+  }
+  suspendGoProWifiForRecording("recording active");
+  return true;
+}
+
 bool httpGetGoPro(const String &path) {
+  if (blockHttpWhileRecording()) {
+    return false;
+  }
   if (WiFi.status() != WL_CONNECTED) {
     setAction("WiFi not connected");
     return false;
@@ -1865,6 +2024,9 @@ bool httpGetGoPro(const String &path) {
 }
 
 int httpGetGoProStatus(const String &path) {
+  if (blockHttpWhileRecording()) {
+    return -1;
+  }
   if (WiFi.status() != WL_CONNECTED) {
     setAction("WiFi not connected");
     return -1;
@@ -1885,6 +2047,9 @@ int httpGetGoProStatus(const String &path) {
 
 int httpGetGoProBody(const String &path, String &body) {
   body = "";
+  if (blockHttpWhileRecording()) {
+    return -1;
+  }
   if (WiFi.status() != WL_CONNECTED) {
     setAction("WiFi not connected");
     return -1;
@@ -1936,6 +2101,9 @@ String urlEncodePathParam(const String &value) {
 
 bool httpGetGoProBinary(const String &path, uint8_t *buffer, size_t capacity, size_t &length) {
   length = 0;
+  if (blockHttpWhileRecording()) {
+    return false;
+  }
   if (WiFi.status() != WL_CONNECTED) {
     setAction("WiFi not connected");
     return false;

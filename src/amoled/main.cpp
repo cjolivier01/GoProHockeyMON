@@ -75,6 +75,8 @@ const BLEUUID kCommand("b5f90072-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kCommandResponse("b5f90073-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kSettings("b5f90074-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kSettingsResponse("b5f90075-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kQuery("b5f90076-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kQueryResponse("b5f90077-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kCameraManagementCommand("b5f90091-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kCameraManagementResponse("b5f90092-aa8d-11e3-9046-0002a5d5c51b");
 

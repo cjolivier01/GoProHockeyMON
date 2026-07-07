@@ -58,7 +58,8 @@ void runConnectAction() {
   setConnectRetryAvailable(false);
   serviceLvgl();
   bool ok = connectGoProWifiFromBle();
-  if (!ok && !boundBleAddress.isEmpty() && !allowAnyCameraScan && !operationCancelled()) {
+  if (!ok && !recording && !boundBleAddress.isEmpty() && !allowAnyCameraScan &&
+      !operationCancelled()) {
     setConnectRetryAvailable(true);
   }
   endGoproAction();
@@ -91,23 +92,27 @@ void runForgetCameraAction() {
 }
 
 void runWakeCameraAction() {
-  if (recording) {
-    setAction("Stop recording before wake");
-    return;
-  }
   if (!beginGoproAction("wake-camera")) {
     return;
   }
   setHomeCameraConnected(false);
   setConnectRetryAvailable(false);
   cameraWakeInProgress = true;
+  bool recordingChecked = refreshRecordingStateBle();
+  if (recording) {
+    suspendGoProWifiForRecording(recordingChecked ? "camera already recording"
+                                                  : "recording active");
+    cameraWakeInProgress = false;
+    endGoproAction();
+    return;
+  }
   bool ok = wakeGoProBle();
   if (ok) {
     setAction("Wake sent; connecting");
     ok = delayWithConnectionUi(1500) && connectGoProWifiFromBle();
   }
   cameraWakeInProgress = false;
-  if (!ok && !boundBleAddress.isEmpty() && !operationCancelled()) {
+  if (!ok && !recording && !boundBleAddress.isEmpty() && !operationCancelled()) {
     bool retryWake = cameraWakeAvailable;
     setConnectRetryAvailable(true);
     if (retryWake) {
@@ -164,11 +169,18 @@ bool toggleRecording() {
   if (!displayOn) {
     setDisplayOn(true);
   }
+  bool wasRecording = recording;
+  if (!wasRecording && !refreshRecordingStateBle()) {
+    Serial.println("BLE recording preflight failed before start; avoiding WiFi start path");
+  }
+  if (!wasRecording && recording) {
+    suspendGoProWifiForRecording("camera already recording");
+    return true;
+  }
   bool nextRecording = !recording;
   lv_label_set_text(statusLabel, nextRecording ? "Starting recording" : "Stopping recording");
   bool ok = false;
   if (nextRecording) {
-    bool wifiReady = isLikelyGoProWifiConnected();
     if (previewFullscreen) {
       setPreviewFullscreen(false);
     }
@@ -177,27 +189,21 @@ bool toggleRecording() {
     }
     setAction("Starting recording");
     snapshotPreviewPrepared = false;
-    if (wifiReady && httpGetGoPro("/gopro/camera/presets/set_group?id=1000")) {
-      captureMode = "Video";
-      syncCameraState();
-    }
-
-    if (wifiReady) {
-      setAction("Starting recording over WiFi");
-      ok = httpGetGoPro("/gopro/camera/shutter/start");
-      if (!ok) {
-        Serial.println("HTTP shutter start failed; trying BLE fallback");
-        ok = setGoProShutterBle(true);
-      }
-    } else {
-      ok = setGoProShutterBle(true);
-    }
+    ok = setGoProShutterBle(true);
   } else {
     ok = setGoProShutterBle(false);
     if (!ok && isLikelyGoProWifiConnected()) {
       Serial.println("BLE shutter stop failed; trying HTTP fallback");
       ok = httpGetGoPro("/gopro/camera/shutter/stop");
     }
+  }
+  if (!ok && nextRecording) {
+    if (refreshRecordingStateBle() && recording) {
+      blinkTopRightButtonMarker();
+      suspendGoProWifiForRecording("recording started");
+      return true;
+    }
+    suspendGoProWifiForRecording("recording start unverified");
   }
   if (!ok) {
     lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");
@@ -974,7 +980,7 @@ void selectMode(const char *mode, const char *setting, const char *endpoint) {
   applyCaptureLabels();
   lv_label_set_text(statusLabel, captureMode.c_str());
   if (WiFi.status() == WL_CONNECTED && endpoint && endpoint[0]) {
-    if (httpGetGoPro(endpoint)) {
+    if (ensureGoProWifiReady("Checking recording before mode") && httpGetGoPro(endpoint)) {
       delay(250);
       syncCameraState();
     }
@@ -999,11 +1005,15 @@ void onDashboardConnect(lv_event_t *) {
 }
 
 void onSettingSync(lv_event_t *) {
-  syncCameraState();
+  if (ensureGoProWifiReady("Checking recording before sync")) {
+    syncCameraState();
+  }
 }
 
 void onPresetSync(lv_event_t *) {
-  syncCameraPresets();
+  if (ensureGoProWifiReady("Checking recording before presets")) {
+    syncCameraPresets();
+  }
 }
 
 void refreshSettingSheet() {
@@ -1079,7 +1089,8 @@ void onSettingOption(lv_event_t *event) {
   int option = settingOptions[optionIndex];
   String label = String(activeSetting->name) + " -> " +
                  activeOptionDisplayName(activeSetting->id, option);
-  if (setGoProSetting(activeSetting->id, option, label.c_str())) {
+  if (ensureGoProWifiReady("Checking recording before setting") &&
+      setGoProSetting(activeSetting->id, option, label.c_str())) {
     refreshSettingSheet();
   }
 }
@@ -1098,7 +1109,8 @@ void onSettingOpen(lv_event_t *event) {
   lv_label_set_text(settingSheetTitle, "Loading options...");
   serviceLvgl();
 
-  if (!querySettingOptions(*setting)) {
+  if (!ensureGoProWifiReady("Checking recording before options") ||
+      !querySettingOptions(*setting)) {
     setAction("No options for setting");
   }
   refreshSettingSheet();

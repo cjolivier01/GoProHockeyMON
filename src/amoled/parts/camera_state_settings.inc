@@ -192,6 +192,9 @@ void applyCameraStatusState(JsonObjectConst status) {
   }
   applyRecordingUiState(cameraRecording, static_cast<uint32_t>(duration),
                         durationKnown);
+  if (cameraRecording && WiFi.status() == WL_CONNECTED) {
+    suspendGoProWifiForRecording("camera state recording");
+  }
   Serial.printf(
       "Camera recording state synced: recording=%u duration=%ld known=%u\n",
       cameraRecording ? 1 : 0, static_cast<long>(duration),
