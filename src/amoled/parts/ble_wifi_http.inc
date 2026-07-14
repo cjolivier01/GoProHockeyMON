@@ -1,3 +1,34 @@
+#pragma once
+
+#include <Arduino.h>
+#include <ArduinoJson.h>
+#include <BLEDevice.h>
+#include <BLEScan.h>
+#include <HTTPClient.h>
+#include <Preferences.h>
+#include <WiFi.h>
+#include <lvgl.h>
+
+#include <ctype.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+
+#if !defined(GOPRO_AMOLED_MAIN_CONTEXT)
+#include "amoled_context_decls.h"
+#endif
+
+extern "C" {
+#if defined(CONFIG_BLUEDROID_ENABLED)
+#include "esp_gap_ble_api.h"
+#endif
+#if defined(CONFIG_NIMBLE_ENABLED)
+#include "host/ble_store.h"
+#endif
+}
+
 void configureBleSecurity() {
   if (bleSecurityCallbacks == nullptr) {
     bleSecurityCallbacks = new BLESecurityCallbacks();
@@ -85,12 +116,90 @@ bool nameMatchesFilter(const String &name) {
   return false;
 }
 
+String firstNonEmptyCameraName() {
+  if (!cameraModelName.isEmpty()) {
+    return cameraModelName;
+  }
+  if (!boundBleName.isEmpty()) {
+    return boundBleName;
+  }
+  if (!lastBleName.isEmpty()) {
+    return lastBleName;
+  }
+  if (!cameraModelNumber.isEmpty()) {
+    return cameraModelNumber;
+  }
+  if (!boundGoProSsid.isEmpty()) {
+    return boundGoProSsid;
+  }
+  if (!goProSsid.isEmpty()) {
+    return goProSsid;
+  }
+  if (!boundBleAddress.isEmpty()) {
+    return boundBleAddress;
+  }
+  return "not paired";
+}
+
+void updateCameraLabel() {
+  if (!cameraLabel) {
+    return;
+  }
+  String label = "Camera: ";
+  label += firstNonEmptyCameraName();
+  lv_label_set_text(cameraLabel, label.c_str());
+}
+
+void clearCameraHardwareInfo() {
+  cameraModelNumber = "";
+  cameraModelName = "";
+  cameraFirmwareVersion = "";
+  cameraSerialNumber = "";
+  cameraApSsid = "";
+  cameraApMacAddress = "";
+}
+
+void persistCameraHardwareInfo() {
+  preferences.putString("model_num", cameraModelNumber);
+  preferences.putString("model_name", cameraModelName);
+  preferences.putString("fw_ver", cameraFirmwareVersion);
+  preferences.putString("serial", cameraSerialNumber);
+  preferences.putString("ap_ssid", cameraApSsid);
+  preferences.putString("ap_mac", cameraApMacAddress);
+}
+
+void setCameraHardwareInfo(const String &modelNumber, const String &modelName,
+                           const String &firmwareVersion, const String &serialNumber,
+                           const String &apSsid, const String &apMacAddress) {
+  cameraModelNumber = trimCopy(modelNumber);
+  cameraModelName = trimCopy(modelName);
+  cameraFirmwareVersion = trimCopy(firmwareVersion);
+  cameraSerialNumber = trimCopy(serialNumber);
+  cameraApSsid = trimCopy(apSsid);
+  cameraApMacAddress = trimCopy(apMacAddress);
+  if (!cameraApSsid.isEmpty() && goProSsid.isEmpty()) {
+    goProSsid = cameraApSsid;
+  }
+  updateCameraLabel();
+  persistCameraHardwareInfo();
+  Serial.printf("Camera info: model='%s' number='%s' fw='%s' serial='%s' ap='%s' mac='%s'\n",
+                cameraModelName.c_str(), cameraModelNumber.c_str(),
+                cameraFirmwareVersion.c_str(), cameraSerialNumber.c_str(),
+                cameraApSsid.c_str(), cameraApMacAddress.c_str());
+}
+
 void loadCameraBinding() {
   preferences.begin("gopro", false);
   boundBleAddress = preferences.getString("ble_addr", "");
   boundBleName = preferences.getString("ble_name", "");
   boundGoProSsid = preferences.getString("wifi_ssid", "");
   goProPassword = preferences.getString("wifi_pass", "");
+  cameraModelNumber = preferences.getString("model_num", "");
+  cameraModelName = preferences.getString("model_name", "");
+  cameraFirmwareVersion = preferences.getString("fw_ver", "");
+  cameraSerialNumber = preferences.getString("serial", "");
+  cameraApSsid = preferences.getString("ap_ssid", "");
+  cameraApMacAddress = preferences.getString("ap_mac", "");
   if (!boundGoProSsid.isEmpty()) {
     goProSsid = boundGoProSsid;
   }
@@ -107,6 +216,20 @@ void loadCameraBinding() {
       Serial.println(boundGoProSsid);
       Serial.print(F("Bound GoPro AP password length: "));
       Serial.println(goProPassword.length());
+    }
+    if (!cameraModelName.isEmpty() || !cameraModelNumber.isEmpty()) {
+      Serial.print(F("Bound GoPro model: "));
+      if (cameraModelName.isEmpty()) {
+        Serial.print(F("(unknown)"));
+      } else {
+        Serial.print(cameraModelName);
+      }
+      Serial.print(F(" number="));
+      if (cameraModelNumber.isEmpty()) {
+        Serial.println(F("(unknown)"));
+      } else {
+        Serial.println(cameraModelNumber);
+      }
     }
   } else {
     Serial.println(F("No saved GoPro BLE binding"));
@@ -136,6 +259,7 @@ void saveCameraBindingValues(String address, const String &name) {
   if (!goProPassword.isEmpty()) {
     preferences.putString("wifi_pass", goProPassword);
   }
+  persistCameraHardwareInfo();
   if (changed) {
     clearSnapshotPreviewState("Double-click lower for snapshot");
   }
@@ -206,6 +330,7 @@ void forgetCameraBinding(bool preserveCancel = false) {
   boundGoProSsid = "";
   goProSsid = "";
   goProPassword = "";
+  clearCameraHardwareInfo();
   goProWifiSuspendedForRecording = false;
   lastBleName = "";
   setHomeCameraConnected(false);
@@ -406,6 +531,121 @@ String bytesToString(const std::string &bytes) {
   return value;
 }
 
+bool readLengthPrefixedString(const uint8_t *data, size_t length, size_t &offset,
+                              String &out) {
+  out = "";
+  if (data == nullptr || offset >= length) {
+    return false;
+  }
+  uint8_t fieldLength = data[offset++];
+  if (offset + fieldLength > length) {
+    return false;
+  }
+  out.reserve(fieldLength);
+  for (uint8_t i = 0; i < fieldLength; ++i) {
+    char c = static_cast<char>(data[offset + i]);
+    if (c != '\0') {
+      out += c;
+    }
+  }
+  offset += fieldLength;
+  return true;
+}
+
+bool parseBleHardwareInfoPayload(const uint8_t *payload, size_t length) {
+  if (payload == nullptr || length < 3 || payload[0] != 0x3C) {
+    Serial.println("BLE hardware info response had unexpected command ID");
+    return false;
+  }
+
+  size_t offset = 1;
+  if (length >= 2 && payload[1] == 0x00) {
+    offset = 2;
+  } else {
+    Serial.printf("BLE hardware info response status/format byte=0x%02X; trying payload parse\n",
+                  payload[1]);
+  }
+
+  String modelNumber;
+  String modelName;
+  String deprecated;
+  String firmwareVersion;
+  String serialNumber;
+  String apSsid;
+  String apMacAddress;
+  if (!readLengthPrefixedString(payload, length, offset, modelNumber) ||
+      !readLengthPrefixedString(payload, length, offset, modelName) ||
+      !readLengthPrefixedString(payload, length, offset, deprecated) ||
+      !readLengthPrefixedString(payload, length, offset, firmwareVersion) ||
+      !readLengthPrefixedString(payload, length, offset, serialNumber) ||
+      !readLengthPrefixedString(payload, length, offset, apSsid) ||
+      !readLengthPrefixedString(payload, length, offset, apMacAddress)) {
+    Serial.printf("BLE hardware info parse failed: len=%u offset=%u\n",
+                  static_cast<unsigned>(length), static_cast<unsigned>(offset));
+    return false;
+  }
+
+  setCameraHardwareInfo(modelNumber, modelName, firmwareVersion, serialNumber, apSsid,
+                        apMacAddress);
+  return !cameraModelName.isEmpty() || !cameraModelNumber.isEmpty();
+}
+
+String jsonValueToString(JsonVariantConst value) {
+  if (value.isNull()) {
+    return "";
+  }
+  if (value.is<const char *>()) {
+    return String(value.as<const char *>());
+  }
+  if (value.is<int32_t>()) {
+    return String(value.as<int32_t>());
+  }
+  if (value.is<uint32_t>()) {
+    return String(value.as<uint32_t>());
+  }
+  if (value.is<int64_t>()) {
+    char text[24];
+    snprintf(text, sizeof(text), "%lld", static_cast<long long>(value.as<int64_t>()));
+    return String(text);
+  }
+  if (value.is<uint64_t>()) {
+    char text[24];
+    snprintf(text, sizeof(text), "%llu",
+             static_cast<unsigned long long>(value.as<uint64_t>()));
+    return String(text);
+  }
+  return "";
+}
+
+bool parseHttpHardwareInfo(const String &body) {
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, body);
+  if (error) {
+    Serial.print(F("camera/info JSON parse failed: "));
+    Serial.println(error.c_str());
+    return false;
+  }
+
+  JsonObjectConst root = doc.as<JsonObjectConst>();
+  String modelNumber = jsonValueToString(root["model_number"]);
+  String modelName = jsonValueToString(root["model_name"]);
+  String firmwareVersion = jsonValueToString(root["firmware_version"]);
+  String serialNumber = jsonValueToString(root["serial_number"]);
+  String apSsid = jsonValueToString(root["ap_ssid"]);
+  String apMacAddress = jsonValueToString(root["ap_mac_addr"]);
+  if (apMacAddress.isEmpty()) {
+    apMacAddress = jsonValueToString(root["ap_mac_address"]);
+  }
+  if (modelName.isEmpty() && modelNumber.isEmpty()) {
+    Serial.println("camera/info JSON did not contain model_name or model_number");
+    return false;
+  }
+
+  setCameraHardwareInfo(modelNumber, modelName, firmwareVersion, serialNumber, apSsid,
+                        apMacAddress);
+  return true;
+}
+
 void applyCaptureLabels() {
   if (captureModeLabel) {
     lv_label_set_text(captureModeLabel, captureMode.c_str());
@@ -585,6 +825,30 @@ void prepareWifiSta(const char *reason) {
   WiFi.setSleep(false);
 }
 
+void resetBleResponseCapture() {
+  bleResponseSeen = false;
+  bleResponseStatus = 0xFF;
+  bleResponseOverflow = false;
+  bleResponseAccumulating = false;
+  bleResponsePayloadLength = 0;
+  bleResponsePayloadExpected = 0;
+}
+
+void appendBleResponsePayload(const uint8_t *data, size_t length) {
+  if (length == 0 || bleResponseOverflow) {
+    return;
+  }
+  size_t remainingCapacity = kBleResponsePayloadCapacity - bleResponsePayloadLength;
+  if (length > remainingCapacity) {
+    bleResponseOverflow = true;
+    length = remainingCapacity;
+  }
+  if (length > 0) {
+    memcpy(bleResponsePayload + bleResponsePayloadLength, data, length);
+    bleResponsePayloadLength += length;
+  }
+}
+
 void commandResponseNotify(BLERemoteCharacteristic *, uint8_t *data, size_t length, bool) {
   Serial.print(F("BLE command response:"));
   for (size_t i = 0; i < length; ++i) {
@@ -595,8 +859,62 @@ void commandResponseNotify(BLERemoteCharacteristic *, uint8_t *data, size_t leng
     Serial.print(data[i], HEX);
   }
   Serial.println();
-  bleResponseStatus = length > 0 ? data[0] : 0x00;
-  bleResponseSeen = true;
+
+  if (data == nullptr || length == 0) {
+    bleResponseStatus = 0x00;
+    bleResponseSeen = true;
+    return;
+  }
+
+  size_t offset = 0;
+  if ((data[0] & 0x80) != 0) {
+    if (!bleResponseAccumulating) {
+      Serial.println(F("BLE response continuation without start"));
+      return;
+    }
+    offset = 1;
+  } else {
+    uint8_t headerType = (data[0] & 0x60) >> 5;
+    if (headerType == 0) {
+      bleResponsePayloadExpected = data[0] & 0x1F;
+      offset = 1;
+    } else if (headerType == 1) {
+      if (length < 2) {
+        Serial.println(F("BLE response EXT_13 header truncated"));
+        return;
+      }
+      bleResponsePayloadExpected =
+          (static_cast<size_t>(data[0] & 0x1F) << 8) | static_cast<size_t>(data[1]);
+      offset = 2;
+    } else if (headerType == 2) {
+      if (length < 3) {
+        Serial.println(F("BLE response EXT_16 header truncated"));
+        return;
+      }
+      bleResponsePayloadExpected =
+          (static_cast<size_t>(data[0] & 0x1F) << 16) |
+          (static_cast<size_t>(data[1]) << 8) | static_cast<size_t>(data[2]);
+      offset = 3;
+    } else {
+      Serial.println(F("BLE response reserved header"));
+      return;
+    }
+    bleResponsePayloadLength = 0;
+    bleResponseOverflow = false;
+    bleResponseAccumulating = true;
+  }
+
+  appendBleResponsePayload(data + offset, length > offset ? length - offset : 0);
+  if (bleResponsePayloadLength >= bleResponsePayloadExpected || bleResponseOverflow) {
+    bleResponseStatus = bleResponsePayloadLength >= 2 ? bleResponsePayload[1] : 0x00;
+    bleResponseAccumulating = false;
+    bleResponseSeen = true;
+    if (bleResponseOverflow) {
+      Serial.printf("BLE response truncated at %u bytes (expected %u)\n",
+                    static_cast<unsigned>(bleResponsePayloadLength),
+                    static_cast<unsigned>(bleResponsePayloadExpected));
+    }
+  }
 }
 
 bool waitForBleResponse(uint32_t timeoutMs) {
@@ -612,7 +930,20 @@ bool waitForBleResponse(uint32_t timeoutMs) {
     setAction("BLE command response timeout");
     return false;
   }
+  if (bleResponseOverflow) {
+    setAction("BLE command response too large");
+    return false;
+  }
   return true;
+}
+
+bool bleResponseStatusOk(const char *message) {
+  if (bleResponseStatus == 0x00) {
+    return true;
+  }
+  Serial.printf("BLE response non-success status=0x%02X\n", bleResponseStatus);
+  setAction(message == nullptr ? "BLE command failed" : message);
+  return false;
 }
 
 class ScanCallbacks : public BLEAdvertisedDeviceCallbacks {
@@ -769,12 +1100,12 @@ bool scanForCamera() {
 
   delete fallbackBleDevice;
   fallbackBleDevice = nullptr;
-  lastBleName = bestBleDevice->haveName() ? String(bestBleDevice->getName().c_str()) : "";
-  String label = "Camera: ";
-  label += lastBleName.isEmpty() ? bestBleDevice->getAddress().toString().c_str() : lastBleName;
-  lv_label_set_text(cameraLabel, label.c_str());
+  lastBleName = bestBleDevice->haveName()
+                    ? String(bestBleDevice->getName().c_str())
+                    : String(bestBleDevice->getAddress().toString().c_str());
+  updateCameraLabel();
   Serial.print(F("Selected BLE device: "));
-  Serial.println(label);
+  Serial.println(firstNonEmptyCameraName());
   return true;
 }
 
@@ -860,6 +1191,10 @@ bool connectBle() {
     if (settingsResponse != nullptr && settingsResponse->canNotify()) {
       settingsResponse->registerForNotify(commandResponseNotify);
     }
+    BLERemoteCharacteristic *queryResponse = control->getCharacteristic(kQueryResponse);
+    if (queryResponse != nullptr && queryResponse->canNotify()) {
+      queryResponse->registerForNotify(commandResponseNotify);
+    }
   }
 
   lv_label_set_text(statusLabel, "BLE connected");
@@ -911,9 +1246,9 @@ bool readGoProWifiCredentials() {
     setAction("GoPro WiFi credentials empty");
     return false;
   }
-  String label = "Camera AP: ";
-  label += goProSsid;
-  lv_label_set_text(cameraLabel, label.c_str());
+  if (!refreshCameraHardwareInfoBle()) {
+    updateCameraLabel();
+  }
   setAction("Read GoPro WiFi over BLE");
   return true;
 }
@@ -935,10 +1270,115 @@ bool sendBleCommand(const uint8_t *payload, size_t length) {
     return false;
   }
 
-  bleResponseSeen = false;
-  bleResponseStatus = 0xFF;
+  resetBleResponseCapture();
   command->writeValue(const_cast<uint8_t *>(payload), length, true);
-  return waitForBleResponse(2500);
+  return waitForBleResponse(2500) && bleResponseStatusOk("BLE command failed");
+}
+
+bool sendBleQuery(const uint8_t *payload, size_t length) {
+  if (!connectBle()) {
+    return false;
+  }
+
+  BLERemoteService *control = bleClient->getService(kControlService);
+  if (control == nullptr) {
+    setAction("GoPro control BLE service missing");
+    return false;
+  }
+
+  BLERemoteCharacteristic *response = control->getCharacteristic(kQueryResponse);
+  if (response != nullptr && response->canNotify()) {
+    response->registerForNotify(commandResponseNotify);
+  }
+
+  BLERemoteCharacteristic *query = control->getCharacteristic(kQuery);
+  if (query == nullptr || !query->canWrite()) {
+    setAction("GoPro query characteristic missing");
+    return false;
+  }
+
+  resetBleResponseCapture();
+  query->writeValue(const_cast<uint8_t *>(payload), length, true);
+  return waitForBleResponse(2500) && bleResponseStatusOk("BLE query failed");
+}
+
+bool parseBleRecordingStatePayload(const uint8_t *payload, size_t length) {
+  if (payload == nullptr || length < 2 || payload[0] != 0x13) {
+    Serial.println("BLE status response had unexpected query ID");
+    return false;
+  }
+  if (payload[1] != 0x00) {
+    Serial.printf("BLE status response failed status=0x%02X\n", payload[1]);
+    return false;
+  }
+
+  bool encodingKnown = false;
+  bool durationKnown = false;
+  int32_t encoding = 0;
+  uint32_t duration = 0;
+  size_t offset = 2;
+  while (offset + 2 <= length) {
+    uint8_t id = payload[offset++];
+    uint8_t valueLength = payload[offset++];
+    if (offset + valueLength > length) {
+      Serial.printf("BLE status TLV truncated id=%u len=%u payloadLen=%u\n",
+                    static_cast<unsigned>(id), static_cast<unsigned>(valueLength),
+                    static_cast<unsigned>(length));
+      return false;
+    }
+
+    if (id == 10 && valueLength >= 1) {
+      encoding = payload[offset] != 0 ? 1 : 0;
+      encodingKnown = true;
+    } else if (id == 13 && valueLength >= 1) {
+      duration = 0;
+      for (uint8_t i = 0; i < valueLength && i < 4; ++i) {
+        duration = (duration << 8) | payload[offset + i];
+      }
+      durationKnown = true;
+    }
+    offset += valueLength;
+  }
+
+  if (!encodingKnown && !durationKnown) {
+    Serial.println("BLE status response did not include recording state");
+    return false;
+  }
+
+  bool cameraRecording = encodingKnown ? encoding != 0 : duration > 0;
+  applyRecordingUiState(cameraRecording, duration, durationKnown);
+  Serial.printf("BLE recording state synced: recording=%u duration=%lu known=%u\n",
+                cameraRecording ? 1 : 0, static_cast<unsigned long>(duration),
+                durationKnown ? 1 : 0);
+  return true;
+}
+
+bool refreshRecordingStateBle() {
+  uint8_t payload[] = {
+      0x03,  // Open GoPro BLE packet length: query ID + two status IDs.
+      0x13,  // Get Status Values.
+      0x0A,  // StatusId.ENCODING.
+      0x0D,  // StatusId.VIDEO_ENCODING_DURATION.
+  };
+  setAction("Checking recording over BLE");
+  if (!sendBleQuery(payload, sizeof(payload))) {
+    Serial.println("BLE recording state query failed");
+    return false;
+  }
+  return parseBleRecordingStatePayload(bleResponsePayload, bleResponsePayloadLength);
+}
+
+bool refreshCameraHardwareInfoBle() {
+  uint8_t payload[] = {0x01, 0x3C};
+  if (!sendBleCommand(payload, sizeof(payload))) {
+    Serial.println("BLE hardware info query failed");
+    return false;
+  }
+  if (bleResponsePayloadLength == 0) {
+    Serial.println("BLE hardware info query returned empty payload");
+    return false;
+  }
+  return parseBleHardwareInfoPayload(bleResponsePayload, bleResponsePayloadLength);
 }
 
 bool sendBleCommandWriteOnly(const uint8_t *payload, size_t length) {
@@ -1003,10 +1443,9 @@ bool sendBleSetting(uint8_t settingId, uint8_t optionId, const char *label) {
   }
 
   uint8_t payload[] = {0x03, settingId, 0x01, optionId};
-  bleResponseSeen = false;
-  bleResponseStatus = 0xFF;
+  resetBleResponseCapture();
   settings->writeValue(payload, sizeof(payload), true);
-  bool ok = waitForBleResponse(2500);
+  bool ok = waitForBleResponse(2500) && bleResponseStatusOk("BLE setting failed");
   setAction(ok ? label : "BLE setting response timeout");
   return ok;
 }
@@ -1061,8 +1500,7 @@ bool sendCameraManagementCommand(const uint8_t *payload, size_t length) {
     return false;
   }
 
-  bleResponseSeen = false;
-  bleResponseStatus = 0xFF;
+  resetBleResponseCapture();
   command->writeValue(const_cast<uint8_t *>(payload), length, true);
   return waitForBleResponse(4000);
 }
@@ -1074,6 +1512,12 @@ bool pairGoPro() {
   String previousBoundGoProSsid = boundGoProSsid;
   String previousSsid = goProSsid;
   String previousPassword = goProPassword;
+  String previousCameraModelNumber = cameraModelNumber;
+  String previousCameraModelName = cameraModelName;
+  String previousCameraFirmwareVersion = cameraFirmwareVersion;
+  String previousCameraSerialNumber = cameraSerialNumber;
+  String previousCameraApSsid = cameraApSsid;
+  String previousCameraApMacAddress = cameraApMacAddress;
   allowAnyCameraScan = true;
   pairingInProgress = true;
   pairingCancelRequested = false;
@@ -1126,6 +1570,14 @@ bool pairGoPro() {
       boundGoProSsid = previousBoundGoProSsid;
       goProSsid = previousSsid;
       goProPassword = previousPassword;
+      cameraModelNumber = previousCameraModelNumber;
+      cameraModelName = previousCameraModelName;
+      cameraFirmwareVersion = previousCameraFirmwareVersion;
+      cameraSerialNumber = previousCameraSerialNumber;
+      cameraApSsid = previousCameraApSsid;
+      cameraApMacAddress = previousCameraApMacAddress;
+      updateCameraLabel();
+      persistCameraHardwareInfo();
       setConnectRetryAvailable(!boundBleAddress.isEmpty());
     }
     resetBleClientForPairing();
@@ -1184,7 +1636,27 @@ void suspendGoProWifiForRecording(const char *reason) {
   serviceLvgl();
 }
 
+bool ensureNotRecordingForWifi(const char *reason) {
+  if (!refreshRecordingStateBle()) {
+    if (recording) {
+      suspendGoProWifiForRecording(reason);
+    } else {
+      markGoProWifiDisconnectedForRecording();
+      setAction("Recording check failed");
+    }
+    return false;
+  }
+  if (recording) {
+    suspendGoProWifiForRecording(reason);
+    return false;
+  }
+  return true;
+}
+
 bool enableGoProWifiAp() {
+  if (!ensureNotRecordingForWifi("recording active")) {
+    return false;
+  }
   if (!forceGoProWifi24GHz()) {
     if (operationCancelled()) {
       return false;
@@ -1195,6 +1667,9 @@ bool enableGoProWifiAp() {
     }
   }
   if (operationCancelled()) {
+    return false;
+  }
+  if (!ensureNotRecordingForWifi("recording active")) {
     return false;
   }
   lv_label_set_text(statusLabel, "Enabling GoPro AP");
@@ -1376,6 +1851,9 @@ void markExistingGoProWifiConnected() {
 }
 
 bool connectGoProWifiWithCurrentCredentials(const char *reason) {
+  if (!ensureNotRecordingForWifi("recording active")) {
+    return false;
+  }
   if (goProSsid.isEmpty() || goProPassword.isEmpty()) {
     Serial.println("No GoPro WiFi credentials available for direct join");
     return false;
@@ -1411,11 +1889,12 @@ bool connectGoProWifiWithCurrentCredentials(const char *reason) {
 
   markExistingGoProWifiConnected();
   setAction("Connected to GoPro WiFi");
+  refreshCameraHardwareInfoHttp();
   syncCameraState();
   lastPreviewUpdate = 0;
   if (recording) {
     suspendGoProWifiForRecording("camera already recording");
-    return true;
+    return false;
   }
   if (previewLabel && !previewHasImage) {
     lv_obj_clear_flag(previewLabel, LV_OBJ_FLAG_HIDDEN);
@@ -1427,12 +1906,6 @@ bool connectGoProWifiWithCurrentCredentials(const char *reason) {
 bool connectGoProWifiFromBle() {
   if (operationCancelled()) {
     return false;
-  }
-  if (isLikelyGoProWifiConnected()) {
-    goProWifiSuspendedForRecording = false;
-    markExistingGoProWifiConnected();
-    setAction("Using existing GoPro WiFi");
-    return true;
   }
   if (boundBleAddress.isEmpty() && !allowAnyCameraScan) {
     if (cameraLabel) {
@@ -1446,6 +1919,21 @@ bool connectGoProWifiFromBle() {
     setAction("No saved camera; tap Pair New");
     Serial.println("GoPro WiFi connect blocked: no saved camera binding");
     return false;
+  }
+  if (!ensureNotRecordingForWifi("camera already recording")) {
+    return false;
+  }
+  if (isLikelyGoProWifiConnected()) {
+    goProWifiSuspendedForRecording = false;
+    markExistingGoProWifiConnected();
+    refreshCameraHardwareInfoHttp();
+    syncCameraState();
+    if (recording) {
+      suspendGoProWifiForRecording("camera already recording");
+      return false;
+    }
+    setAction("Using existing GoPro WiFi");
+    return true;
   }
   if (!readGoProWifiCredentials()) {
     return false;
@@ -1477,9 +1965,18 @@ bool connectGoProWifiFromBle() {
 }
 
 bool ensureGoProWifiReady(const char *reason) {
+  if (!ensureNotRecordingForWifi("recording active")) {
+    return false;
+  }
   if (isLikelyGoProWifiConnected()) {
     markExistingGoProWifiConnected();
     if (goProHttpReachable()) {
+      refreshCameraHardwareInfoHttp();
+      syncCameraState();
+      if (recording) {
+        suspendGoProWifiForRecording("camera already recording");
+        return false;
+      }
       setAction(reason == nullptr ? "Using existing GoPro WiFi" : reason);
       return true;
     }
@@ -1496,7 +1993,18 @@ bool ensureGoProWifiReady(const char *reason) {
   return connectGoProWifiFromBle();
 }
 
+bool blockHttpWhileRecording() {
+  if (!recording) {
+    return false;
+  }
+  suspendGoProWifiForRecording("recording active");
+  return true;
+}
+
 bool httpGetGoPro(const String &path) {
+  if (blockHttpWhileRecording()) {
+    return false;
+  }
   if (WiFi.status() != WL_CONNECTED) {
     setAction("WiFi not connected");
     return false;
@@ -1516,6 +2024,9 @@ bool httpGetGoPro(const String &path) {
 }
 
 int httpGetGoProStatus(const String &path) {
+  if (blockHttpWhileRecording()) {
+    return -1;
+  }
   if (WiFi.status() != WL_CONNECTED) {
     setAction("WiFi not connected");
     return -1;
@@ -1536,6 +2047,9 @@ int httpGetGoProStatus(const String &path) {
 
 int httpGetGoProBody(const String &path, String &body) {
   body = "";
+  if (blockHttpWhileRecording()) {
+    return -1;
+  }
   if (WiFi.status() != WL_CONNECTED) {
     setAction("WiFi not connected");
     return -1;
@@ -1553,6 +2067,16 @@ int httpGetGoProBody(const String &path, String &body) {
   http.end();
   Serial.printf("GET %s -> %d, %u bytes\n", url.c_str(), status, body.length());
   return status;
+}
+
+bool refreshCameraHardwareInfoHttp() {
+  String body;
+  int status = httpGetGoProBody("/gopro/camera/info", body);
+  if (status < 200 || status >= 300) {
+    Serial.printf("camera/info HTTP refresh failed: %d\n", status);
+    return false;
+  }
+  return parseHttpHardwareInfo(body);
 }
 
 String urlEncodePathParam(const String &value) {
@@ -1577,6 +2101,9 @@ String urlEncodePathParam(const String &value) {
 
 bool httpGetGoProBinary(const String &path, uint8_t *buffer, size_t capacity, size_t &length) {
   length = 0;
+  if (blockHttpWhileRecording()) {
+    return false;
+  }
   if (WiFi.status() != WL_CONNECTED) {
     setAction("WiFi not connected");
     return false;

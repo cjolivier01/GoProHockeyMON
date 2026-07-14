@@ -20,7 +20,6 @@
 
 #include "esp_heap_caps.h"
 #include "esp_system.h"
-#include "esp_sleep.h"
 #include "esp_timer.h"
 extern "C" {
 #if defined(CONFIG_BLUEDROID_ENABLED)
@@ -64,79 +63,9 @@ extern "C" {
 #define GOPRO_AUTO_CONNECT_ON_BOOT 0
 #endif
 
+#include "parts/amoled_constants.h"
+
 namespace {
-// Display refresh and rendering cadence.
-constexpr uint32_t kLvglTickMs = 2;
-constexpr uint8_t kDisplayBrightness = 210;
-constexpr uint32_t kDrawBufferLines = 16;
-constexpr uint32_t kBatteryRefreshMs = 5000;
-
-// Physical button and touch gesture timing.
-constexpr uint8_t kExpanderActionButtonPin = 5;
-constexpr bool kExpanderActionPressedLevel = LOW;
-constexpr int kBootButtonPin = 0;
-constexpr uint32_t kButtonDebounceMs = 35;
-constexpr uint32_t kActionButtonDebounceMs = 90;
-constexpr uint32_t kActionButtonMinPressMs = 120;
-constexpr uint32_t kBootLongPressMs = 1200;
-constexpr uint32_t kPmuPollMs = 150;
-constexpr uint32_t kPmuDuplicateSuppressMs = 500;
-constexpr uint32_t kActionButtonDoubleClickMs = 900;
-constexpr uint32_t kActionButtonLongPressMs = 1200;
-constexpr uint32_t kPreviewExitButtonSuppressMs = kActionButtonDoubleClickMs;
-constexpr int kNavSwipeStartPx = 18;
-constexpr int kNavSwipeCommitPx = 64;
-constexpr uint32_t kNavSwipeFlickMs = 650;
-constexpr int kNavSwipeFlickPx = 42;
-constexpr uint32_t kNavPageAnimMs = 180;
-constexpr int kFullscreenSwipePx = 45;
-
-// BLE, WiFi, and GoPro network behavior.
-constexpr uint32_t kPreviewRefreshMs = 1500;
-constexpr uint32_t kHttpTimeoutMs = 6500;
-constexpr uint32_t kBleScanSeconds = 7;
-constexpr uint32_t kBleWakeScanSeconds = 18;
-constexpr uint32_t kPairBleScanSeconds = 18;
-constexpr uint32_t kBleConnectTimeoutMs = 10000;
-constexpr uint32_t kBleWakeConnectTimeoutMs = 20000;
-constexpr uint32_t kPairBleConnectTimeoutMs = 3000;
-constexpr uint32_t kWifiTimeoutMs = 25000;
-constexpr int kPairFallbackMinRssi = -50;
-constexpr int kPairScanLogMinRssi = -75;
-constexpr uint16_t kPreviewStreamPort = 8554;
-
-// Live preview, snapshot, and camera setting limits.
-constexpr uint32_t kLivePreviewStatsMs = 1000;
-constexpr size_t kTsPacketBytes = 188;
-constexpr uint16_t kGoProVideoPid = 0x1011;
-constexpr int32_t kGoProVideoPresetGroup = 1000;
-constexpr size_t kMaxH264AccessUnit = 512 * 1024;
-constexpr uint32_t kMinDecodeIntervalMs = 1000;
-constexpr size_t kMaxJpegBytes = 512 * 1024;
-constexpr size_t kMaxSettingOptions = 40;
-constexpr size_t kVisibleSettingOptions = 6;
-constexpr uint8_t kGoProWirelessBandSetting = 178;
-constexpr uint8_t kGoProWirelessBand24GHz = 0;
-
-// Main-screen layout and hardware button markers.
-constexpr int kHomeButtonY = 295;
-constexpr int kHomeButtonH = 56;
-constexpr int kForgetButtonY = kHomeButtonY + kHomeButtonH + 6;
-constexpr int kForgetButtonH = 36;
-constexpr int kPreviewX = 20;
-constexpr int kPreviewY = 76;
-constexpr int kPreviewW = 328;
-constexpr int kPreviewH = 150;
-// Y is relative to the main capture tile below the top status bar.
-constexpr int kTopRightButtonMarkerW = 6;
-constexpr int kTopRightButtonMarkerH = 39;
-constexpr int kTopRightButtonMarkerY = 39;
-constexpr int kTopBarH = 32;
-constexpr uint8_t kSnapshotAspectCropStrengthPercent = 100;
-
-// GoPro 5k Wide with Hypersmooth on: 89
-constexpr uint8_t kSnapshotPreviewVisiblePercent = 89;
-
 const BLEUUID kControlService("0000fea6-0000-1000-8000-00805f9b34fb");
 const BLEUUID kWifiService("b5f90001-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kCameraManagementService("b5f90090-aa8d-11e3-9046-0002a5d5c51b");
@@ -146,6 +75,8 @@ const BLEUUID kCommand("b5f90072-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kCommandResponse("b5f90073-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kSettings("b5f90074-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kSettingsResponse("b5f90075-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kQuery("b5f90076-aa8d-11e3-9046-0002a5d5c51b");
+const BLEUUID kQueryResponse("b5f90077-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kCameraManagementCommand("b5f90091-aa8d-11e3-9046-0002a5d5c51b");
 const BLEUUID kCameraManagementResponse("b5f90092-aa8d-11e3-9046-0002a5d5c51b");
 
@@ -171,6 +102,9 @@ void initBleStack();
 bool syncCameraState();
 bool fetchSnapshotPreview();
 int httpGetGoProStatus(const String &path);
+void updateCameraLabel();
+bool refreshCameraHardwareInfoBle();
+bool refreshCameraHardwareInfoHttp();
 void refreshCaptureOverlayFromState();
 void updatePreview(bool force = false);
 void updateRecordingOverlay(bool force = false);
@@ -228,6 +162,7 @@ struct SnapshotVideoFraming {
   uint16_t aspectW = 16;
   uint16_t aspectH = 9;
   uint8_t visiblePercent = 100;
+  uint8_t previewVisiblePercent = kSnapshotPreviewVisiblePercent;
   int aspectSettingId = -1;
   int aspectOption = -1;
   int resolutionOption = -1;
@@ -326,6 +261,12 @@ String boundBleName;
 String boundGoProSsid;
 String goProSsid;
 String goProPassword;
+String cameraModelNumber;
+String cameraModelName;
+String cameraFirmwareVersion;
+String cameraSerialNumber;
+String cameraApSsid;
+String cameraApMacAddress;
 String lastSnapshotMediaPath;
 String captureMode = "Video";
 String captureSetting = "Sync camera state";
@@ -385,6 +326,11 @@ uint32_t touchStartMs = 0;
 bool touchActive = false;
 volatile bool bleResponseSeen = false;
 volatile uint8_t bleResponseStatus = 0xFF;
+volatile bool bleResponseOverflow = false;
+volatile bool bleResponseAccumulating = false;
+uint8_t bleResponsePayload[kBleResponsePayloadCapacity] = {};
+size_t bleResponsePayloadLength = 0;
+size_t bleResponsePayloadExpected = 0;
 bool allowAnyCameraScan = false;
 bool pairingInProgress = false;
 bool pairingCancelRequested = false;
@@ -433,12 +379,14 @@ bool lvglTimerHandlerActive = false;
 bool lvglTimerHandlerDeferred = false;
 
 // Keep these implementation parts in order; they share the anonymous namespace state above.
+#define GOPRO_AMOLED_MAIN_CONTEXT 1
 #include "parts/display_input_preview.inc"
 #include "parts/ble_wifi_http.inc"
 #include "parts/camera_state_settings.inc"
 #include "parts/actions_snapshot.inc"
 #include "parts/ui_build.inc"
 #include "parts/buttons_serial.inc"
+#undef GOPRO_AMOLED_MAIN_CONTEXT
 }  // namespace
 
 void setup() {

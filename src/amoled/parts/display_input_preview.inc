@@ -1,3 +1,24 @@
+#pragma once
+
+#include <Arduino.h>
+#include <Arduino_GFX_Library.h>
+#include <JPEGDEC.h>
+#include <WiFi.h>
+#include <lvgl.h>
+
+#include "esp_heap_caps.h"
+#include "esp_timer.h"
+#include "h264bsd_decoder.h"
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#if !defined(GOPRO_AMOLED_MAIN_CONTEXT)
+#include "amoled_context_decls.h"
+#endif
+
 bool pointInRect(int16_t x, int16_t y, int16_t rx, int16_t ry, int16_t rw, int16_t rh) {
   return x >= rx && x < rx + rw && y >= ry && y < ry + rh;
 }
@@ -1245,6 +1266,7 @@ void setPreviewFullscreen(bool fullscreen) {
     lv_obj_set_size(previewBox, LCD_WIDTH, LCD_HEIGHT - kTopBarH);
     lv_obj_set_style_radius(previewBox, 0, 0);
     lv_obj_set_style_border_width(previewBox, 0, 0);
+    lv_obj_set_style_pad_all(previewBox, 0, 0);
     lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, -8);
     lv_obj_clear_flag(fullscreenHint, LV_OBJ_FLAG_HIDDEN);
   } else {
@@ -1252,6 +1274,7 @@ void setPreviewFullscreen(bool fullscreen) {
     lv_obj_set_pos(previewBox, kPreviewX, 6);
     lv_obj_set_style_radius(previewBox, 8, 0);
     lv_obj_set_style_border_width(previewBox, 1, 0);
+    lv_obj_set_style_pad_all(previewBox, 0, 0);
     lv_obj_align(fullscreenHint, LV_ALIGN_BOTTOM_MID, 0, -8);
     lv_obj_clear_flag(fullscreenHint, LV_OBJ_FLAG_HIDDEN);
   }

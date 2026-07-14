@@ -1,3 +1,15 @@
+#pragma once
+
+#include <Arduino.h>
+#include <lvgl.h>
+
+#include <stdint.h>
+#include <stddef.h>
+
+#if !defined(GOPRO_AMOLED_MAIN_CONTEXT)
+#include "amoled_context_decls.h"
+#endif
+
 const SettingDefinition kCaptureSettings[] = {
     {"Aspect Ratio", 108},
     {"Resolution", 2},
@@ -174,11 +186,14 @@ void createUi() {
   lv_obj_set_style_bg_color(previewBox, lv_color_hex(0x101827), 0);
   lv_obj_set_style_border_color(previewBox, lv_color_hex(0x2b3a52), 0);
   lv_obj_set_style_border_width(previewBox, 1, 0);
+  lv_obj_set_style_pad_all(previewBox, 0, 0);
   disableScrollbars(previewBox);
   lv_obj_add_event_cb(previewBox, onPreviewGesture, LV_EVENT_GESTURE, nullptr);
 
   previewImageCanvas = lv_canvas_create(previewBox);
   lv_obj_set_pos(previewImageCanvas, 0, 0);
+  lv_obj_set_style_border_width(previewImageCanvas, 0, 0);
+  lv_obj_set_style_pad_all(previewImageCanvas, 0, 0);
   lv_obj_add_flag(previewImageCanvas, LV_OBJ_FLAG_HIDDEN);
   disableScrollbars(previewImageCanvas);
 
@@ -237,9 +252,12 @@ void createUi() {
 
   cameraLabel = lv_label_create(captureTile);
   lv_label_set_text(cameraLabel, "Camera: not paired");
+  lv_obj_set_width(cameraLabel, kPreviewW);
+  lv_label_set_long_mode(cameraLabel, LV_LABEL_LONG_DOT);
   lv_obj_set_style_text_color(cameraLabel, lv_color_hex(0xc3ccd8), 0);
   lv_obj_set_style_text_font(cameraLabel, fontForSize(16), 0);
   lv_obj_set_pos(cameraLabel, 20, 224);
+  updateCameraLabel();
 
   wifiLabel = lv_label_create(captureTile);
   lv_label_set_text(wifiLabel, "WiFi: idle");
