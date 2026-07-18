@@ -106,7 +106,9 @@ CASE_FASTENER_POSITIONS_XZ = (
 )
 BACK_FASTENER_HOLE_DIAMETER = 4.0
 BACK_FASTENER_BOSS_DIAMETER = 8.0
-BACK_FASTENER_TUBE_GAP = 0.5
+# Axial gap between the rear tube end and the insert-boss socket boundary.
+# Its distance behind the open rim is INSERTION_DEPTH plus this value.
+BACK_FASTENER_TO_INSERT_SOCKET_GAP = 0.0
 INSERT_FASTENER_HOLE_DIAMETER = 3.3
 INSERT_FASTENER_BOSS_DIAMETER = 7.0
 FASTENER_BOSS_SOCKET_CLEARANCE = 0.25
@@ -132,10 +134,13 @@ CAMERA_STOPS_ENABLED = True
 CAMERA_STOP_CLEAR_FAN_BOSSES = True
 CAMERA_STOP_CLEAR_CASE_BOSSES = False
 CAMERA_STOP_FASTENER_CLEARANCE = 0.35
+# All six stops share this gap to the insert-boss socket boundary. Keep it
+# equal to BACK_FASTENER_TO_INSERT_SOCKET_GAP for flush end faces.
+CAMERA_STOP_TO_INSERT_SOCKET_GAP = 0.0
 # Each entry is:
-# (name, x_min, x_max, z_min, z_max, y_start_offset, y_end_gap, attachment)
-# Y values are measured backward from the insert's front plane. The X/Z
-# bounds are the original STL's camera-facing rectangular protrusions,
+# (name, x_min, x_max, z_min, z_max, y_start_offset, attachment)
+# The start offset is measured backward from the insert's front plane. The
+# X/Z bounds are the original STL's camera-facing rectangular protrusions,
 # localized around the rebuilt rear shell's center.
 CAMERA_STOP_SPECS = (
     (
@@ -145,7 +150,6 @@ CAMERA_STOP_SPECS = (
         22.89582,
         28.89912,
         13.42890,
-        1.18937,
         "top",
     ),
     (
@@ -155,7 +159,6 @@ CAMERA_STOP_SPECS = (
         22.89312,
         28.89002,
         13.40551,
-        1.18937,
         "top",
     ),
     (
@@ -165,7 +168,6 @@ CAMERA_STOP_SPECS = (
         -28.95938,
         -22.96408,
         13.45253,
-        1.18937,
         "bottom",
     ),
     (
@@ -175,7 +177,6 @@ CAMERA_STOP_SPECS = (
         10.89562,
         13.88582,
         10.45624,
-        1.18937,
         "left",
     ),
     (
@@ -185,7 +186,6 @@ CAMERA_STOP_SPECS = (
         -1.95428,
         1.03572,
         14.60302,
-        1.18937,
         "right",
     ),
     (
@@ -195,7 +195,6 @@ CAMERA_STOP_SPECS = (
         -28.95648,
         -12.79718,
         14.86046,
-        1.03259,
         "bottom",
     ),
 )
@@ -301,6 +300,14 @@ def back_fastener_hex_seat_y() -> float:
 
 def back_fastener_bore_start_y() -> float:
     return back_fastener_hex_seat_y() + BACK_FASTENER_HEX_TRANSITION_DEPTH
+
+
+def back_fastener_end_y() -> float:
+    return insert_start_y() - BACK_FASTENER_TO_INSERT_SOCKET_GAP
+
+
+def camera_stop_end_y() -> float:
+    return insert_start_y() - CAMERA_STOP_TO_INSERT_SOCKET_GAP
 
 
 def smoothstep(value: float) -> float:
@@ -429,8 +436,10 @@ def validate_config() -> None:
         )
     if SNAP_BUMP_Y_OFFSET + SNAP_BUMP_LENGTH_Y > INSERTION_DEPTH + 0.5:
         raise ValueError("The snap bump must remain within the insertion overlap")
-    if not 0.0 <= BACK_FASTENER_TUBE_GAP < INSERTION_DEPTH:
-        raise ValueError("BACK_FASTENER_TUBE_GAP must fit inside the insertion depth")
+    if BACK_FASTENER_TO_INSERT_SOCKET_GAP < 0.0:
+        raise ValueError("BACK_FASTENER_TO_INSERT_SOCKET_GAP cannot be negative")
+    if CAMERA_STOP_TO_INSERT_SOCKET_GAP < 0.0:
+        raise ValueError("CAMERA_STOP_TO_INSERT_SOCKET_GAP cannot be negative")
     if CAMERA_STOP_FASTENER_CLEARANCE < 0.0:
         raise ValueError("CAMERA_STOP_FASTENER_CLEARANCE cannot be negative")
     if BACK_FASTENER_HEX_WIDTH_X >= BACK_FASTENER_BOSS_DIAMETER:
@@ -439,7 +448,7 @@ def validate_config() -> None:
         raise ValueError("The fastener hex flats do not fit inside the rear boss")
     if not back_exterior_y() < back_fastener_hex_seat_y():
         raise ValueError("The fastener hex seat must be inside the rear shell")
-    if back_fastener_bore_start_y() >= insert_start_y() - BACK_FASTENER_TUBE_GAP:
+    if back_fastener_bore_start_y() >= back_fastener_end_y():
         raise ValueError("The fastener transition leaves no rear shaft tube")
     if 2.0 * BACK_FASTENER_RETENTION_TAB_PROTRUSION >= (
         BACK_FASTENER_HEX_HEIGHT_Z - BACK_FASTENER_HOLE_DIAMETER
@@ -447,13 +456,13 @@ def validate_config() -> None:
         raise ValueError("The fastener retaining tabs obstruct the shaft bore")
     valid_attachments = {"top", "bottom", "left", "right"}
     for spec in CAMERA_STOP_SPECS:
-        name, x0, x1, z0, z1, y_start_offset, y_end_gap, attachment = spec
+        name, x0, x1, z0, z1, y_start_offset, attachment = spec
         if x1 <= x0 or z1 <= z0:
             raise ValueError(f"Camera stop {name} has invalid X/Z bounds")
-        if not 0.0 <= y_end_gap < y_start_offset:
-            raise ValueError(f"Camera stop {name} has invalid Y offsets")
         if y_start_offset >= insert_start_y():
             raise ValueError(f"Camera stop {name} reaches through the rear face")
+        if camera_stop_end_y() <= insert_start_y() - y_start_offset:
+            raise ValueError(f"Camera stop {name} has no positive Y depth")
         if attachment not in valid_attachments:
             raise ValueError(f"Camera stop {name} has an invalid attachment side")
 
@@ -1245,9 +1254,9 @@ def add_camera_stops(back):
     if not CAMERA_STOPS_ENABLED:
         return back
     for spec in CAMERA_STOP_SPECS:
-        name, x0, x1, z0, z1, y_start_offset, y_end_gap, attachment = spec
+        name, x0, x1, z0, z1, y_start_offset, attachment = spec
         y0 = insert_start_y() - y_start_offset
-        y1 = insert_start_y() - y_end_gap
+        y1 = camera_stop_end_y()
 
         # Extend only away from the camera opening so the measured inward
         # stop face is unchanged while the stop remains joined to the shell.
@@ -1437,7 +1446,7 @@ def create_back_shell():
                 f"Rear_Fastener_Boss_{index}",
                 BACK_FASTENER_BOSS_DIAMETER / 2.0,
                 dome_surface_y_approx(x, z) - BOOLEAN_OVERLAP,
-                insert_start_y() - BACK_FASTENER_TUBE_GAP,
+                back_fastener_end_y(),
                 x=x,
                 z=z,
             )
