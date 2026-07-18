@@ -138,10 +138,10 @@ CAMERA_STOP_FASTENER_CLEARANCE = 0.35
 # equal to BACK_FASTENER_TO_INSERT_SOCKET_GAP for flush end faces.
 CAMERA_STOP_TO_INSERT_SOCKET_GAP = 0.0
 # Each entry is:
-# (name, x_min, x_max, z_min, z_max, y_start_offset, attachment)
-# The start offset is measured backward from the insert's front plane. The
-# X/Z bounds are the original STL's camera-facing rectangular protrusions,
-# localized around the rebuilt rear shell's center.
+# (name, x_min, x_max, z_min, z_max, attachment)
+# The X/Z bounds are the original STL's camera-facing rectangular
+# protrusions, localized around the rebuilt rear shell's center. Every stop
+# starts inside the rear wall so none can float above the interior surface.
 CAMERA_STOP_SPECS = (
     (
         "Top_Left",
@@ -149,7 +149,6 @@ CAMERA_STOP_SPECS = (
         -18.91444,
         22.89582,
         28.89912,
-        13.42890,
         "top",
     ),
     (
@@ -158,7 +157,6 @@ CAMERA_STOP_SPECS = (
         22.72356,
         22.89312,
         28.89002,
-        13.40551,
         "top",
     ),
     (
@@ -167,7 +165,6 @@ CAMERA_STOP_SPECS = (
         22.28786,
         -28.95938,
         -22.96408,
-        13.45253,
         "bottom",
     ),
     (
@@ -176,7 +173,6 @@ CAMERA_STOP_SPECS = (
         -37.66224,
         10.89562,
         13.88582,
-        10.45624,
         "left",
     ),
     (
@@ -185,7 +181,6 @@ CAMERA_STOP_SPECS = (
         42.34596,
         -1.95428,
         1.03572,
-        14.60302,
         "right",
     ),
     (
@@ -194,7 +189,6 @@ CAMERA_STOP_SPECS = (
         -20.76764,
         -28.95648,
         -12.79718,
-        14.86046,
         "bottom",
     ),
 )
@@ -214,8 +208,8 @@ INSERT_WALL_Z = 1.8
 # Large opening through the insert's bottom wall.
 BOTTOM_ACCESS_ENABLED = True
 BOTTOM_ACCESS_WIDTH = 50.0
-BOTTOM_ACCESS_DEPTH = 21.0
-BOTTOM_ACCESS_Y_OFFSET = 4.0
+BOTTOM_ACCESS_DEPTH = 20.0
+BOTTOM_ACCESS_Y_OFFSET = 3.5
 
 # The original has different openings on its two side walls.
 LEFT_ROUND_PORT_ENABLED = True
@@ -456,12 +450,10 @@ def validate_config() -> None:
         raise ValueError("The fastener retaining tabs obstruct the shaft bore")
     valid_attachments = {"top", "bottom", "left", "right"}
     for spec in CAMERA_STOP_SPECS:
-        name, x0, x1, z0, z1, y_start_offset, attachment = spec
+        name, x0, x1, z0, z1, attachment = spec
         if x1 <= x0 or z1 <= z0:
             raise ValueError(f"Camera stop {name} has invalid X/Z bounds")
-        if y_start_offset >= insert_start_y():
-            raise ValueError(f"Camera stop {name} reaches through the rear face")
-        if camera_stop_end_y() <= insert_start_y() - y_start_offset:
+        if camera_stop_end_y() <= fan_pad_inner_y() - BOOLEAN_OVERLAP:
             raise ValueError(f"Camera stop {name} has no positive Y depth")
         if attachment not in valid_attachments:
             raise ValueError(f"Camera stop {name} has an invalid attachment side")
@@ -957,7 +949,11 @@ def create_back_dome():
     return create_mesh_object("Rear_Exterior_Dome", vertices, faces)
 
 
-def create_back_dome_cavity(socket_radius: float):
+def create_back_dome_cavity(
+    socket_radius: float,
+    inner_surface_offset_y: float = 0.0,
+    name: str = "Rear_Domed_Socket_Cavity",
+):
     inner_loop = resample_closed_loop(
         rounded_rectangle_path_from_top(
             BACK_DOME_FAN_PAD_WIDTH,
@@ -997,7 +993,9 @@ def create_back_dome_cavity(socket_radius: float):
             ]
         )
         y_positions.append(
-            -BACK_DOME_DEPTH * (1.0 - height_t) + BACK_FACE_THICKNESS
+            -BACK_DOME_DEPTH * (1.0 - height_t)
+            + BACK_FACE_THICKNESS
+            + inner_surface_offset_y
         )
     section_loops.append(socket_loop)
     y_positions.append(BACK_DEPTH + BOOLEAN_OVERLAP)
@@ -1025,7 +1023,13 @@ def create_back_dome_cavity(socket_radius: float):
             )
 
     inner_center = len(vertices)
-    vertices.append((FAN_CENTER_X, fan_pad_inner_y(), FAN_CENTER_Z))
+    vertices.append(
+        (
+            FAN_CENTER_X,
+            fan_pad_inner_y() + inner_surface_offset_y,
+            FAN_CENTER_Z,
+        )
+    )
     front_center = len(vertices)
     vertices.append((0.0, BACK_DEPTH + BOOLEAN_OVERLAP, 0.0))
     last_section = len(section_loops) - 1
@@ -1039,7 +1043,7 @@ def create_back_dome_cavity(socket_radius: float):
                 vertex(last_section, index),
             ]
         )
-    return create_mesh_object("Rear_Domed_Socket_Cavity", vertices, faces)
+    return create_mesh_object(name, vertices, faces)
 
 
 def create_insert_tube():
@@ -1250,12 +1254,74 @@ def create_snap_pocket_cutters():
     return cutters
 
 
-def add_camera_stops(back):
+def create_insert_boss_socket_cutter(index: int, x: float, z: float):
+    socket_radius = (
+        INSERT_FASTENER_BOSS_DIAMETER / 2.0
+        + FASTENER_BOSS_SOCKET_CLEARANCE
+    )
+    if BACK_FASTENER_TO_INSERT_SOCKET_GAP > BOOLEAN_CLEANUP_DISTANCE:
+        return add_cylinder_y(
+            f"Insert_Boss_Socket_{index}",
+            socket_radius,
+            insert_start_y(),
+            BACK_DEPTH + BOOLEAN_OVERLAP,
+            x=x,
+            z=z,
+        )
+
+    # At zero gap the larger rear boss reaches the socket's start plane. Keep
+    # the same straight socket cylinder used for positive gaps, and union a
+    # short wider trimming section onto its start. The rear boss is extended
+    # into this section during construction and trimmed back to exact contact.
+    trim_radius = max(
+        socket_radius,
+        BACK_FASTENER_BOSS_DIAMETER / 2.0
+        + 10.0 * BOOLEAN_CLEANUP_DISTANCE,
+    )
+    socket = add_cylinder_y(
+        f"Insert_Boss_Socket_{index}",
+        socket_radius,
+        insert_start_y(),
+        BACK_DEPTH + BOOLEAN_OVERLAP,
+        x=x,
+        z=z,
+    )
+    trim = add_cylinder_y(
+        f"Insert_Boss_Socket_Lead_In_{index}",
+        trim_radius,
+        insert_start_y(),
+        insert_start_y() + 2.0 * BOOLEAN_OVERLAP,
+        x=x,
+        z=z,
+    )
+    boolean_union(socket, trim, "Insert_Boss_Socket_Lead_In_Union")
+    return socket
+
+
+def create_camera_stop_back_volume(socket_radius: float):
+    if BACK_DOME_ENABLED:
+        return create_back_dome_cavity(
+            socket_radius,
+            inner_surface_offset_y=-BOOLEAN_OVERLAP,
+            name="Camera_Stop_Back_Volume",
+        )
+    return rounded_rectangle_prism_y(
+        "Camera_Stop_Back_Volume",
+        socket_width(),
+        socket_height(),
+        socket_radius,
+        BACK_FACE_THICKNESS - BOOLEAN_OVERLAP,
+        BACK_DEPTH + BOOLEAN_OVERLAP,
+    )
+
+
+def create_camera_stops(back_volume):
     if not CAMERA_STOPS_ENABLED:
-        return back
+        return None
+    stops = []
     for spec in CAMERA_STOP_SPECS:
-        name, x0, x1, z0, z1, y_start_offset, attachment = spec
-        y0 = insert_start_y() - y_start_offset
+        name, x0, x1, z0, z1, attachment = spec
+        y0 = back_exterior_y() - BOOLEAN_OVERLAP
         y1 = camera_stop_end_y()
 
         # Extend only away from the camera opening so the measured inward
@@ -1269,18 +1335,26 @@ def add_camera_stops(back):
         elif attachment == "right":
             x1 = max(x1, socket_width() / 2.0 + BOOLEAN_OVERLAP)
 
-        stop = add_box(
-            f"Camera_Stop_{name}",
-            (x1 - x0, y1 - y0, z1 - z0),
-            ((x0 + x1) / 2.0, (y0 + y1) / 2.0, (z0 + z1) / 2.0),
+        stops.append(
+            add_box(
+                f"Camera_Stop_{name}",
+                (x1 - x0, y1 - y0, z1 - z0),
+                ((x0 + x1) / 2.0, (y0 + y1) / 2.0, (z0 + z1) / 2.0),
+            )
         )
-        boolean_union(back, stop, f"Camera_Stop_{name}_Union")
-    return back
+    stop_group = join_disconnected_tools("Camera_Stop_Group", stops)
+    apply_boolean(
+        stop_group,
+        back_volume,
+        "INTERSECT",
+        "Camera_Stop_Back_Clip",
+    )
+    return stop_group
 
 
-def clear_camera_stop_fastener_access(back):
-    if not CAMERA_STOPS_ENABLED:
-        return back
+def clear_camera_stop_fastener_access(camera_stops):
+    if camera_stops is None:
+        return None
     cutters = []
     y1 = insert_start_y() + BOOLEAN_OVERLAP
     if CAMERA_STOP_CLEAR_FAN_BOSSES and FAN_HOLE_BOSSES_ENABLED:
@@ -1312,8 +1386,12 @@ def clear_camera_stop_fastener_access(back):
                 )
             )
     if cutters:
-        boolean_difference(back, cutters, "Camera_Stop_Fastener_Access")
-    return back
+        boolean_difference(
+            camera_stops,
+            cutters,
+            "Camera_Stop_Fastener_Access",
+        )
+    return camera_stops
 
 
 def back_fastener_hex_loop():
@@ -1436,23 +1514,41 @@ def create_back_shell():
             BACK_FACE_THICKNESS,
             BACK_DEPTH + BOOLEAN_OVERLAP,
         )
+    camera_stop_back_volume = (
+        create_camera_stop_back_volume(socket_radius)
+        if CAMERA_STOPS_ENABLED
+        else None
+    )
     boolean_difference(back, [cavity], "Rear_Socket")
-    add_camera_stops(back)
-    clear_camera_stop_fastener_access(back)
+    camera_stops = create_camera_stops(camera_stop_back_volume)
+    clear_camera_stop_fastener_access(camera_stops)
+    if camera_stops is not None:
+        boolean_union(back, camera_stops, "Camera_Stops_Union")
 
     if CASE_FASTENERS_ENABLED:
+        back_fastener_bosses = []
+        boss_construction_end_y = back_fastener_end_y()
+        if BACK_FASTENER_TO_INSERT_SOCKET_GAP <= BOOLEAN_CLEANUP_DISTANCE:
+            boss_construction_end_y += BOOLEAN_OVERLAP
         for index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
-            boss = add_cylinder_y(
-                f"Rear_Fastener_Boss_{index}",
-                BACK_FASTENER_BOSS_DIAMETER / 2.0,
-                dome_surface_y_approx(x, z) - BOOLEAN_OVERLAP,
-                back_fastener_end_y(),
-                x=x,
-                z=z,
+            back_fastener_bosses.append(
+                add_cylinder_y(
+                    f"Rear_Fastener_Boss_{index}",
+                    BACK_FASTENER_BOSS_DIAMETER / 2.0,
+                    dome_surface_y_approx(x, z) - BOOLEAN_OVERLAP,
+                    boss_construction_end_y,
+                    x=x,
+                    z=z,
+                )
             )
-            boolean_union(back, boss, "Rear_Fastener_Boss_Union")
+        back_fastener_boss_group = join_disconnected_tools(
+            "Rear_Fastener_Boss_Group",
+            back_fastener_bosses,
+        )
+        boolean_union(back, back_fastener_boss_group, "Rear_Fastener_Bosses_Union")
 
     cuts = []
+    insert_boss_socket_cutters = []
     if FAN_OPENING_ENABLED:
         cuts.append(
             add_cylinder_y(
@@ -1493,20 +1589,18 @@ def create_back_shell():
     if CASE_FASTENERS_ENABLED:
         for index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
             cuts.extend(create_back_fastener_opening_cutters(index, x, z))
-            cuts.append(
-                add_cylinder_y(
-                    f"Insert_Boss_Socket_{index}",
-                    INSERT_FASTENER_BOSS_DIAMETER / 2.0
-                    + FASTENER_BOSS_SOCKET_CLEARANCE,
-                    insert_start_y() - BOOLEAN_OVERLAP,
-                    BACK_DEPTH + BOOLEAN_OVERLAP,
-                    x=x,
-                    z=z,
-                )
+            insert_boss_socket_cutters.append(
+                create_insert_boss_socket_cutter(index, x, z)
             )
     cuts.extend(create_snap_pocket_cutters())
     if cuts:
         boolean_difference(back, cuts, "Rear_Openings")
+    if insert_boss_socket_cutters:
+        boolean_difference(
+            back,
+            insert_boss_socket_cutters,
+            "Insert_Boss_Sockets",
+        )
 
     add_back_fastener_retention_tabs(back)
 

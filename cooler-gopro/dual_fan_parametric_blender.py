@@ -79,6 +79,15 @@ FAN_HOLE_COLLARS_ENABLED = True
 FAN_HOLE_COLLAR_DIAMETER = 6.0
 FAN_HOLE_COLLAR_HEIGHT = 0.5
 
+# Optional U-shaped fan-wire exit cut into one wall from the open back. The
+# offset is local to each fan and runs along the selected wall. On TOP/BOTTOM,
+# positive values move right, so the defaults put a slot at each bottom-right.
+FAN_WIRE_SLOT_ENABLED = True
+FAN_WIRE_SLOT_SIDE = "BOTTOM"  # "TOP", "BOTTOM", "LEFT", or "RIGHT"
+FAN_WIRE_SLOT_WIDTH = 5.0
+FAN_WIRE_SLOT_DEPTH = 9.0
+FAN_WIRE_SLOT_OFFSET = 16.0
+
 # Twisted support joining the stalk to the two fan cages.
 SUPPORT_ENABLED = True
 SUPPORT_THICKNESS = 4.5
@@ -126,6 +135,8 @@ def validate_config() -> None:
         "GRILL_THICKNESS": GRILL_THICKNESS,
         "AIRFLOW_DIAMETER": AIRFLOW_DIAMETER,
         "FAN_HOLE_DIAMETER": FAN_HOLE_DIAMETER,
+        "FAN_WIRE_SLOT_WIDTH": FAN_WIRE_SLOT_WIDTH,
+        "FAN_WIRE_SLOT_DEPTH": FAN_WIRE_SLOT_DEPTH,
         "SUPPORT_THICKNESS": SUPPORT_THICKNESS,
         "SUPPORT_HUB_WIDTH": SUPPORT_HUB_WIDTH,
         "SUPPORT_HUB_DEPTH_Y": SUPPORT_HUB_DEPTH_Y,
@@ -154,6 +165,22 @@ def validate_config() -> None:
         raise ValueError("AIRFLOW_DIAMETER must be smaller than FAN_FRAME_SIZE")
     if GRILL_CENTER_DISK_DIAMETER >= AIRFLOW_DIAMETER:
         raise ValueError("GRILL_CENTER_DISK_DIAMETER must fit inside the airflow opening")
+
+    if FAN_WIRE_SLOT_SIDE not in {"TOP", "BOTTOM", "LEFT", "RIGHT"}:
+        raise ValueError(
+            "FAN_WIRE_SLOT_SIDE must be TOP, BOTTOM, LEFT, or RIGHT"
+        )
+    if FAN_WIRE_SLOT_DEPTH >= FAN_FRAME_DEPTH - GRILL_THICKNESS:
+        raise ValueError(
+            "FAN_WIRE_SLOT_DEPTH must leave material between the slot and grille"
+        )
+    slot_half_width = FAN_WIRE_SLOT_WIDTH / 2.0
+    straight_wall_half_length = FAN_FRAME_SIZE / 2.0 - FAN_FRAME_CORNER_RADIUS
+    if abs(FAN_WIRE_SLOT_OFFSET) + slot_half_width > straight_wall_half_length:
+        raise ValueError(
+            "FAN_WIRE_SLOT_OFFSET and FAN_WIRE_SLOT_WIDTH must keep the slot "
+            "inside the straight portion of its wall"
+        )
 
     airflow_radius = AIRFLOW_DIAMETER / 2.0
     for radius in GRILL_RING_CENTER_RADII:
@@ -514,6 +541,46 @@ def fan_hole_centers(center_x: float):
     return [(center_x + sx * half, sy * half) for sx in (-1.0, 1.0) for sy in (-1.0, 1.0)]
 
 
+def cut_fan_wire_slot(cage, center_x: float, index: int) -> None:
+    if not FAN_WIRE_SLOT_ENABLED:
+        return
+
+    # Extend through the selected wall and beyond the open back so the result is
+    # a true U-shaped exit rather than an enclosed pocket.
+    cutter_depth = FAN_WIRE_SLOT_DEPTH + 2.0 * BOOLEAN_OVERLAP
+    cutter_z = FAN_FRAME_DEPTH - FAN_WIRE_SLOT_DEPTH / 2.0 + BOOLEAN_OVERLAP
+    if FAN_WIRE_SLOT_SIDE in {"TOP", "BOTTOM"}:
+        side_sign = 1.0 if FAN_WIRE_SLOT_SIDE == "TOP" else -1.0
+        cutter_dimensions = (
+            FAN_WIRE_SLOT_WIDTH,
+            FAN_FRAME_WALL + 2.0 * BOOLEAN_OVERLAP,
+            cutter_depth,
+        )
+        cutter_location = (
+            center_x + FAN_WIRE_SLOT_OFFSET,
+            side_sign * (FAN_FRAME_SIZE / 2.0 - FAN_FRAME_WALL / 2.0),
+            cutter_z,
+        )
+    else:
+        side_sign = 1.0 if FAN_WIRE_SLOT_SIDE == "RIGHT" else -1.0
+        cutter_dimensions = (
+            FAN_FRAME_WALL + 2.0 * BOOLEAN_OVERLAP,
+            FAN_WIRE_SLOT_WIDTH,
+            cutter_depth,
+        )
+        cutter_location = (
+            center_x + side_sign * (FAN_FRAME_SIZE / 2.0 - FAN_FRAME_WALL / 2.0),
+            FAN_WIRE_SLOT_OFFSET,
+            cutter_z,
+        )
+    cutter = add_box(
+        f"Fan_{index}_Wire_Slot",
+        cutter_dimensions,
+        cutter_location,
+    )
+    boolean_difference(cage, [cutter], f"Fan_{index}_Wire_Slot_Cut")
+
+
 def create_fan_cage(center_x: float, index: int):
     prefix = f"Fan_{index}"
 
@@ -636,6 +703,8 @@ def create_fan_cage(center_x: float, index: int):
                 )
             )
         boolean_difference(grill, countersinks, prefix + "_Countersinks")
+
+    cut_fan_wire_slot(grill, center_x, index)
 
     grill.name = prefix + "_Cage"
     grill.data.name = prefix + "_Cage_Mesh"

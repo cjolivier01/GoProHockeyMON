@@ -6,9 +6,9 @@ configurable dummy from primitives and can export it as a new STL.
 
 Reference coordinates use X=body width, Y=optical/front depth, and Z=height.
 The canonical enclosure orientation puts the lens-face center at the origin,
-with +X along the outward optical axis, +Y tangential, and +Z upward.  The
-canonical form is rolled 180 degrees around the optical axis because that is
-the useful orientation inside the current enclosure.
+with +X along the outward optical axis, +Y tangential, and +Z upward.  It uses
+the supplied STL's upright roll by default; callers can request the optional
+180-degree upside-down mounting orientation.
 """
 
 from __future__ import annotations
@@ -79,23 +79,91 @@ ROUNDED_RECTANGLE_SEGMENTS = 12
 BOOLEAN_SOLVER = "EXACT"
 BOOLEAN_CLEANUP_DISTANCE = 0.0001
 
-# Canonical keepout coordinates, relative to the lens-face center after a
-# 180-degree optical-axis roll.  These are consumed by the enclosure builder.
+# Canonical keepout coordinates relative to the lens-face center.  These are
+# consumed by the enclosure builder.  Upright is the supplied STL's actual
+# orientation; upside-down is retained as an optional mounting configuration.
 CANONICAL_RADIAL_MIN = REFERENCE_MIN_Y - LENS_FACE_Y                # -44.4
 CANONICAL_RADIAL_MAX = REFERENCE_MAX_Y - LENS_FACE_Y                # 0.0
-CANONICAL_TANGENTIAL_MIN = REFERENCE_MIN_X - LENS_CENTER_X          # -21.9
-CANONICAL_TANGENTIAL_MAX = REFERENCE_MAX_X - LENS_CENTER_X          # 59.1
-CANONICAL_VERTICAL_MIN = -(REFERENCE_MAX_Z - LENS_CENTER_Z)         # -23.5
-CANONICAL_VERTICAL_MAX = -(REFERENCE_MIN_Z - LENS_CENTER_Z)         # 30.5
+UPRIGHT_TANGENTIAL_MIN = -(REFERENCE_MAX_X - LENS_CENTER_X)         # -59.1
+UPRIGHT_TANGENTIAL_MAX = -(REFERENCE_MIN_X - LENS_CENTER_X)         # 21.9
+UPRIGHT_VERTICAL_MIN = REFERENCE_MIN_Z - LENS_CENTER_Z              # -30.5
+UPRIGHT_VERTICAL_MAX = REFERENCE_MAX_Z - LENS_CENTER_Z              # 23.5
+UPSIDE_DOWN_TANGENTIAL_MIN = REFERENCE_MIN_X - LENS_CENTER_X        # -21.9
+UPSIDE_DOWN_TANGENTIAL_MAX = REFERENCE_MAX_X - LENS_CENTER_X        # 59.1
+UPSIDE_DOWN_VERTICAL_MIN = -(REFERENCE_MAX_Z - LENS_CENTER_Z)       # -23.5
+UPSIDE_DOWN_VERTICAL_MAX = -(REFERENCE_MIN_Z - LENS_CENTER_Z)       # 30.5
 CANONICAL_ENVELOPE_CENTER_RADIAL = (
     CANONICAL_RADIAL_MIN + CANONICAL_RADIAL_MAX
 ) / 2.0
-CANONICAL_ENVELOPE_CENTER_TANGENTIAL = (
-    CANONICAL_TANGENTIAL_MIN + CANONICAL_TANGENTIAL_MAX
-) / 2.0
-CANONICAL_ENVELOPE_CENTER_VERTICAL = (
-    CANONICAL_VERTICAL_MIN + CANONICAL_VERTICAL_MAX
-) / 2.0
+
+
+def canonical_tangential_bounds(upside_down: bool = False):
+    if upside_down:
+        return UPSIDE_DOWN_TANGENTIAL_MIN, UPSIDE_DOWN_TANGENTIAL_MAX
+    return UPRIGHT_TANGENTIAL_MIN, UPRIGHT_TANGENTIAL_MAX
+
+
+def canonical_vertical_bounds(upside_down: bool = False):
+    if upside_down:
+        return UPSIDE_DOWN_VERTICAL_MIN, UPSIDE_DOWN_VERTICAL_MAX
+    return UPRIGHT_VERTICAL_MIN, UPRIGHT_VERTICAL_MAX
+
+
+def canonical_envelope_center_tangential(upside_down: bool = False) -> float:
+    low, high = canonical_tangential_bounds(upside_down)
+    return (low + high) / 2.0
+
+
+def canonical_envelope_center_vertical(upside_down: bool = False) -> float:
+    low, high = canonical_vertical_bounds(upside_down)
+    return (low + high) / 2.0
+
+
+def canonical_body_bounds(upside_down: bool = False):
+    radial = (REFERENCE_MIN_Y - LENS_FACE_Y, BODY_DEPTH - LENS_FACE_Y)
+    if upside_down:
+        tangential = (
+            -BODY_WIDTH / 2.0 - LENS_CENTER_X,
+            BODY_WIDTH / 2.0 - LENS_CENTER_X,
+        )
+        vertical = (
+            -(BODY_HEIGHT / 2.0 - LENS_CENTER_Z),
+            -(-BODY_HEIGHT / 2.0 - LENS_CENTER_Z),
+        )
+    else:
+        tangential = (
+            -(BODY_WIDTH / 2.0 - LENS_CENTER_X),
+            -(-BODY_WIDTH / 2.0 - LENS_CENTER_X),
+        )
+        vertical = (
+            -BODY_HEIGHT / 2.0 - LENS_CENTER_Z,
+            BODY_HEIGHT / 2.0 - LENS_CENTER_Z,
+        )
+    return radial, tangential, vertical
+
+
+def canonical_feature_bounds(center, size, upside_down: bool = False):
+    """Return radial/tangential/vertical bounds for a reference-space box."""
+    x0, x1 = center[0] - size[0] / 2.0, center[0] + size[0] / 2.0
+    y0, y1 = center[1] - size[1] / 2.0, center[1] + size[1] / 2.0
+    z0, z1 = center[2] - size[2] / 2.0, center[2] + size[2] / 2.0
+    radial = (y0 - LENS_FACE_Y, y1 - LENS_FACE_Y)
+    if upside_down:
+        tangential = (x0 - LENS_CENTER_X, x1 - LENS_CENTER_X)
+        vertical = (-(z1 - LENS_CENTER_Z), -(z0 - LENS_CENTER_Z))
+    else:
+        tangential = (-(x1 - LENS_CENTER_X), -(x0 - LENS_CENTER_X))
+        vertical = (z0 - LENS_CENTER_Z, z1 - LENS_CENTER_Z)
+    return radial, tangential, vertical
+
+
+def canonical_top_button_bounds(upside_down: bool = False):
+    """Canonical bounds of the top/shutter button."""
+    return canonical_feature_bounds(
+        TOP_BUTTON_CENTER,
+        TOP_BUTTON_SIZE,
+        upside_down=upside_down,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -275,17 +343,17 @@ def boolean_union(base, part, label: str):
     return base
 
 
-def canonicalize_about_lens(obj) -> None:
-    """Put lens face at origin and roll the reference camera upside down."""
+def canonicalize_about_lens(obj, upside_down: bool = False) -> None:
+    """Put the lens face at the origin in the selected mounting roll."""
     for vertex in obj.data.vertices:
         reference = vertex.co.copy()
-        vertex.co = Vector(
-            (
-                reference.y - LENS_FACE_Y,
-                reference.x - LENS_CENTER_X,
-                -(reference.z - LENS_CENTER_Z),
-            )
-        )
+        if upside_down:
+            tangent = reference.x - LENS_CENTER_X
+            vertical = -(reference.z - LENS_CENTER_Z)
+        else:
+            tangent = -(reference.x - LENS_CENTER_X)
+            vertical = reference.z - LENS_CENTER_Z
+        vertex.co = Vector((reference.y - LENS_FACE_Y, tangent, vertical))
     obj.data.update()
     recalc_normals(obj)
 
@@ -293,6 +361,7 @@ def canonicalize_about_lens(obj) -> None:
 def build_mission1_dummy(
     name: str = "GoPro_MISSION_1_Procedural_Dummy",
     canonical: bool = BUILD_CANONICAL_ENCLOSURE_ORIENTATION,
+    upside_down: bool = False,
 ):
     """Build and return one manifold approximation of the supplied dummy."""
     body = add_beveled_box(
@@ -323,7 +392,7 @@ def build_mission1_dummy(
     body.name = name
     body.data.name = name + "_Mesh"
     if canonical:
-        canonicalize_about_lens(body)
+        canonicalize_about_lens(body, upside_down=upside_down)
     return body
 
 
@@ -332,9 +401,14 @@ def place_canonical_dummy(
     lens_face_radius: float,
     lens_center_z: float,
     name: str = "GoPro_MISSION_1_Procedural_Dummy",
+    upside_down: bool = False,
 ):
     """Build a canonical dummy and place its lens on an enclosure eye axis."""
-    obj = build_mission1_dummy(name=name, canonical=True)
+    obj = build_mission1_dummy(
+        name=name,
+        canonical=True,
+        upside_down=upside_down,
+    )
     angle = math.radians(angle_deg)
     obj.location = (
         math.cos(angle) * lens_face_radius,
