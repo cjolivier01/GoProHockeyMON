@@ -42,9 +42,9 @@ OUTLET_INNER_DIAMETER = 63.4
 
 # Centerline dimensions.
 INLET_STRAIGHT_LENGTH = 6.0
-BEND_ANGLE_DEG = 45.0
+BEND_ANGLE_DEG = 35.0
 BEND_Z_SIGN = 1.0
-BEND_RADIUS = 32.0
+BEND_RADIUS = 45.0
 OUTLET_LENGTH = 2.0
 
 # "after_bend" or "through_bend".
