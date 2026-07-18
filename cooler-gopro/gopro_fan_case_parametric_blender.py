@@ -82,7 +82,7 @@ FAN_HOLE_BOSS_DIAMETER = 7.0
 FAN_HOLE_BOSS_HEIGHT = 3.0
 
 # Smooth rectangular vent and diagonal louvers to the fan's right.
-VENT_ENABLED = True
+VENT_ENABLED = False
 VENT_CENTER_X = 27.0
 VENT_CENTER_Z = 0.0
 VENT_WIDTH = 14.0
@@ -208,9 +208,9 @@ INSERT_WALL_Z = 1.8
 
 # Large opening through the insert's bottom wall.
 BOTTOM_ACCESS_ENABLED = True
-BOTTOM_ACCESS_WIDTH = 40.0
-BOTTOM_ACCESS_DEPTH = 13.0
-BOTTOM_ACCESS_Y_OFFSET = 11.0
+BOTTOM_ACCESS_WIDTH = 50.0
+BOTTOM_ACCESS_DEPTH = 21.0
+BOTTOM_ACCESS_Y_OFFSET = 4.0
 
 # The original has different openings on its two side walls.
 LEFT_ROUND_PORT_ENABLED = True
@@ -245,6 +245,15 @@ LOCATING_TAB_SPECS = (
     ("Left_Side", -43.27290, -39.13090, 5.87510, 8.87510, "left"),
     ("Right_Side", 39.13110, 43.27310, 1.49996, 4.49996, "right"),
 )
+
+# Lens-clearance lead-ins at the camera-entry end of the insert. Each value
+# is (taper_length_y, remaining_front_projection). A zero projection makes
+# the guide flush with the inner wall at the open end.
+LENS_CLEARANCE_GUIDE_TAPERS = {
+    "Top_Left": (6.0, 0.35),
+    "Left_Side": (6.0, 0.35),
+}
+LENS_CLEARANCE_CUTTER_MARGIN = 1.0
 
 # Side snap bumps and matching pockets in the rear shell.
 SNAP_ENABLED = True
@@ -362,6 +371,7 @@ def validate_config() -> None:
         "BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT": (
             BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT
         ),
+        "LENS_CLEARANCE_CUTTER_MARGIN": LENS_CLEARANCE_CUTTER_MARGIN,
     }
     for name, value in positive.items():
         if value <= 0.0:
@@ -447,6 +457,35 @@ def validate_config() -> None:
             raise ValueError(f"Locating rail {name} has invalid X/Z bounds")
         if attachment not in valid_attachments:
             raise ValueError(f"Locating rail {name} has an invalid attachment side")
+
+    rail_specs_by_name = {spec[0]: spec for spec in LOCATING_TAB_SPECS}
+    for name, (
+        taper_length,
+        front_projection,
+    ) in LENS_CLEARANCE_GUIDE_TAPERS.items():
+        if name not in rail_specs_by_name:
+            raise ValueError(f"Lens-clearance guide {name} is not a locating rail")
+        if not 0.0 < taper_length <= INSERT_DEPTH:
+            raise ValueError(f"Lens-clearance guide {name} has an invalid taper length")
+        if front_projection < 0.0:
+            raise ValueError(
+                f"Lens-clearance guide {name} cannot have negative projection"
+            )
+        _, x0, x1, z0, z1, attachment = rail_specs_by_name[name]
+        if attachment == "top":
+            full_projection = insert_inner_height() / 2.0 - z0
+        elif attachment == "right":
+            full_projection = insert_inner_width() / 2.0 - x0
+        elif attachment == "left":
+            full_projection = x1 + insert_inner_width() / 2.0
+        else:
+            raise ValueError(
+                f"Lens-clearance guide {name} must attach to the top or a side wall"
+            )
+        if front_projection >= full_projection:
+            raise ValueError(
+                f"Lens-clearance guide {name} front projection must be below its full projection"
+            )
 
     if not 0.0 <= RIGHT_USB_PORT_CORNER_RADIUS <= min(
         RIGHT_USB_PORT_WIDTH_Y, RIGHT_USB_PORT_HEIGHT_Z
@@ -715,8 +754,13 @@ def loft_through_loops_y(
 ):
     if len(loops) != len(y_positions) or len(loops) < 2:
         raise ValueError("A loft needs matching loops/Y positions and two sections")
-    count = max(len(loop) for loop in loops)
-    sampled_loops = [resample_closed_loop(loop, count) for loop in loops]
+    loop_sizes = {len(loop) for loop in loops}
+    if len(loop_sizes) == 1:
+        count = len(loops[0])
+        sampled_loops = [list(loop) for loop in loops]
+    else:
+        count = max(loop_sizes)
+        sampled_loops = [resample_closed_loop(loop, count) for loop in loops]
     vertices = []
     for y, loop in zip(y_positions, sampled_loops):
         vertices.extend((x + center_x, y, z + center_z) for x, z in loop)
@@ -1429,6 +1473,7 @@ def create_locating_tabs(insert):
     y1 = insert_start_y() + INSERT_DEPTH
     depth = y1 - y0
     center_y = (y0 + y1) / 2.0
+    taper_cutters = []
 
     for spec in LOCATING_TAB_SPECS:
         name, x0, x1, z0, z1, attachment = spec
@@ -1449,6 +1494,77 @@ def create_locating_tabs(insert):
             ((x0 + x1) / 2.0, center_y, (z0 + z1) / 2.0),
         )
         boolean_union(insert, tab, f"Locating_Rail_{name}_Union")
+
+        taper = LENS_CLEARANCE_GUIDE_TAPERS.get(name)
+        if taper is not None:
+            taper_length, front_projection = taper
+            cutter_margin = LENS_CLEARANCE_CUTTER_MARGIN
+            taper_start_y = y1 - taper_length
+            cutter_start_y = taper_start_y - BOOLEAN_OVERLAP
+            cutter_end_y = y1 + BOOLEAN_OVERLAP
+            if attachment == "top":
+                front_z0 = insert_inner_height() / 2.0 - front_projection
+                slope = (front_z0 - z0) / taper_length
+                start_top = z0 - slope * BOOLEAN_OVERLAP
+                end_top = front_z0 + slope * BOOLEAN_OVERLAP
+                cutter_bottom = min(start_top, z0) - cutter_margin
+                start_loop = [
+                    (x0 - cutter_margin, cutter_bottom),
+                    (x1 + cutter_margin, cutter_bottom),
+                    (x1 + cutter_margin, start_top),
+                    (x0 - cutter_margin, start_top),
+                ]
+                end_loop = [
+                    (x0 - cutter_margin, cutter_bottom),
+                    (x1 + cutter_margin, cutter_bottom),
+                    (x1 + cutter_margin, end_top),
+                    (x0 - cutter_margin, end_top),
+                ]
+            elif attachment == "right":
+                front_x0 = insert_inner_width() / 2.0 - front_projection
+                slope = (front_x0 - x0) / taper_length
+                start_right = x0 - slope * BOOLEAN_OVERLAP
+                end_right = front_x0 + slope * BOOLEAN_OVERLAP
+                cutter_left = min(start_right, x0) - cutter_margin
+                start_loop = [
+                    (cutter_left, z0 - cutter_margin),
+                    (start_right, z0 - cutter_margin),
+                    (start_right, z1 + cutter_margin),
+                    (cutter_left, z1 + cutter_margin),
+                ]
+                end_loop = [
+                    (cutter_left, z0 - cutter_margin),
+                    (end_right, z0 - cutter_margin),
+                    (end_right, z1 + cutter_margin),
+                    (cutter_left, z1 + cutter_margin),
+                ]
+            else:
+                front_x1 = -insert_inner_width() / 2.0 + front_projection
+                slope = (front_x1 - x1) / taper_length
+                start_left = x1 - slope * BOOLEAN_OVERLAP
+                end_left = front_x1 + slope * BOOLEAN_OVERLAP
+                cutter_right = max(start_left, x1) + cutter_margin
+                start_loop = [
+                    (start_left, z0 - cutter_margin),
+                    (cutter_right, z0 - cutter_margin),
+                    (cutter_right, z1 + cutter_margin),
+                    (start_left, z1 + cutter_margin),
+                ]
+                end_loop = [
+                    (end_left, z0 - cutter_margin),
+                    (cutter_right, z0 - cutter_margin),
+                    (cutter_right, z1 + cutter_margin),
+                    (end_left, z1 + cutter_margin),
+                ]
+            taper_cutters.append(
+                loft_through_loops_y(
+                    f"Locating_Rail_{name}_Lens_Clearance",
+                    (start_loop, end_loop),
+                    (cutter_start_y, cutter_end_y),
+                )
+            )
+    if taper_cutters:
+        boolean_difference(insert, taper_cutters, "Lens_Clearance_Guide_Tapers")
     return insert
 
 
@@ -1578,20 +1694,6 @@ def create_insert_frame():
 # Validation, layout, materials, and export
 
 
-def triangulate_mesh(obj) -> None:
-    bm = bmesh.new()
-    bm.from_mesh(obj.data)
-    bmesh.ops.triangulate(
-        bm,
-        faces=list(bm.faces),
-        quad_method="BEAUTY",
-        ngon_method="BEAUTY",
-    )
-    bm.to_mesh(obj.data)
-    bm.free()
-    obj.data.update()
-
-
 def non_manifold_edge_count(obj) -> int:
     bm = bmesh.new()
     bm.from_mesh(obj.data)
@@ -1620,7 +1722,6 @@ def connected_shell_count(obj) -> int:
 
 
 def validate_object(obj) -> None:
-    triangulate_mesh(obj)
     recalc_normals(obj)
     non_manifold = non_manifold_edge_count(obj)
     shells = connected_shell_count(obj)
