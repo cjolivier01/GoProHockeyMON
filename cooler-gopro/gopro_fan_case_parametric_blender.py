@@ -62,7 +62,7 @@ BACK_FACE_THICKNESS = 3.0
 # Optional smooth exterior dome. The central fan pad remains an exact flat
 # rectangle at the dome's outermost Y position; the surrounding surface
 # blends back into the rear shell perimeter.
-BACK_DOME_ENABLED = True
+BACK_DOME_ENABLED = False
 BACK_DOME_DEPTH = 10.0
 BACK_DOME_FAN_PAD_WIDTH = 45.0
 BACK_DOME_FAN_PAD_HEIGHT = 45.0
@@ -130,7 +130,7 @@ CAMERA_STOPS_ENABLED = True
 # Keep stop material outside both types of rear screw boss. The bosses are
 # added after this clearance is cut, leaving their complete outer cylinders.
 CAMERA_STOP_CLEAR_FAN_BOSSES = True
-CAMERA_STOP_CLEAR_CASE_BOSSES = True
+CAMERA_STOP_CLEAR_CASE_BOSSES = False
 CAMERA_STOP_FASTENER_CLEARANCE = 0.35
 # Each entry is:
 # (name, x_min, x_max, z_min, z_max, y_start_offset, y_end_gap, attachment)
@@ -717,6 +717,74 @@ def rounded_rectangle_prism_y(
         y1,
         offset=(center_x, center_z),
     )
+
+
+def annular_cylinder_y(
+    name: str,
+    outer_radius: float,
+    inner_radius: float,
+    y0: float,
+    y1: float,
+    x: float = 0.0,
+    z: float = 0.0,
+):
+    if not 0.0 < inner_radius < outer_radius:
+        raise ValueError("An annular cylinder needs positive inner and outer radii")
+    if y1 <= y0:
+        raise ValueError("An annular cylinder needs positive depth")
+
+    vertices = []
+    for radius, y in (
+        (outer_radius, y0),
+        (outer_radius, y1),
+        (inner_radius, y0),
+        (inner_radius, y1),
+    ):
+        vertices.extend(
+            (
+                x + radius * math.cos(2.0 * math.pi * index / CYLINDER_SEGMENTS),
+                y,
+                z + radius * math.sin(2.0 * math.pi * index / CYLINDER_SEGMENTS),
+            )
+            for index in range(CYLINDER_SEGMENTS)
+        )
+
+    outer_front = 0
+    outer_back = CYLINDER_SEGMENTS
+    inner_front = 2 * CYLINDER_SEGMENTS
+    inner_back = 3 * CYLINDER_SEGMENTS
+    faces = []
+    for index in range(CYLINDER_SEGMENTS):
+        next_index = (index + 1) % CYLINDER_SEGMENTS
+        faces.extend(
+            (
+                (
+                    outer_front + index,
+                    outer_back + index,
+                    outer_back + next_index,
+                    outer_front + next_index,
+                ),
+                (
+                    inner_front + index,
+                    inner_front + next_index,
+                    inner_back + next_index,
+                    inner_back + index,
+                ),
+                (
+                    outer_front + index,
+                    outer_front + next_index,
+                    inner_front + next_index,
+                    inner_front + index,
+                ),
+                (
+                    outer_back + index,
+                    inner_back + index,
+                    inner_back + next_index,
+                    outer_back + next_index,
+                ),
+            )
+        )
+    return create_mesh_object(name, vertices, faces)
 
 
 def rounded_rectangle_prism_x(
@@ -1363,18 +1431,6 @@ def create_back_shell():
     add_camera_stops(back)
     clear_camera_stop_fastener_access(back)
 
-    if FAN_HOLE_BOSSES_ENABLED:
-        for index, (x, z) in enumerate(fan_hole_positions(), start=1):
-            boss = add_cylinder_y(
-                f"Fan_Boss_{index}",
-                FAN_HOLE_BOSS_DIAMETER / 2.0,
-                fan_pad_inner_y() - BOOLEAN_OVERLAP,
-                fan_boss_end_y(),
-                x=x,
-                z=z,
-            )
-            boolean_union(back, boss, "Fan_Boss_Union")
-
     if CASE_FASTENERS_ENABLED:
         for index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
             boss = add_cylinder_y(
@@ -1462,6 +1518,37 @@ def create_back_shell():
                 rotation=(0.0, math.radians(VENT_SLAT_ANGLE_DEG), 0.0),
             )
             boolean_union(back, slat, "Vent_Slat_Union")
+
+    # Build short fan bosses with their bores already present. Reopening a
+    # 1 mm solid boss with a second boolean can leave non-manifold edge fans.
+    if FAN_HOLE_BOSSES_ENABLED:
+        fan_bosses = []
+        for index, (x, z) in enumerate(fan_hole_positions(), start=1):
+            if FAN_OPENING_ENABLED:
+                fan_bosses.append(
+                    annular_cylinder_y(
+                        f"Fan_Boss_{index}",
+                        FAN_HOLE_BOSS_DIAMETER / 2.0,
+                        FAN_HOLE_DIAMETER / 2.0,
+                        fan_pad_inner_y() - BOOLEAN_OVERLAP,
+                        fan_boss_end_y(),
+                        x=x,
+                        z=z,
+                    )
+                )
+            else:
+                fan_bosses.append(
+                    add_cylinder_y(
+                        f"Fan_Boss_{index}",
+                        FAN_HOLE_BOSS_DIAMETER / 2.0,
+                        fan_pad_inner_y() - BOOLEAN_OVERLAP,
+                        fan_boss_end_y(),
+                        x=x,
+                        z=z,
+                    )
+                )
+        fan_boss_group = join_disconnected_tools("Fan_Boss_Group", fan_bosses)
+        boolean_union(back, fan_boss_group, "Fan_Bosses_Union")
 
     back.name = "GoPro_Fan_Case_Back"
     back.data.name = "GoPro_Fan_Case_Back_Mesh"

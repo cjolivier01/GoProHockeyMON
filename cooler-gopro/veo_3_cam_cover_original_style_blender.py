@@ -3,7 +3,8 @@
 This rebuilds the *spirit* of ``veo_3_cam_cover.stl`` as a printable two-part
 enclosure with:
 
-* the same approximate 215 x 234 x 71 mm envelope,
+* the same approximate 215 x 234 x 71 mm baseline envelope, expanded at the
+  camera-side nose only when the configured camera angle requires it,
 * a broad rounded-triangular body with a closed bottom,
 * a flat removable lid retained by four socket-head screws,
 * M3 heat-set-insert posts automatically kept clear of both cameras,
@@ -28,11 +29,47 @@ triangulated source does not expose an exact optical axis.
 from __future__ import annotations
 
 import math
+import sys
 from pathlib import Path
 
 import bmesh
 import bpy
 from mathutils import Vector
+
+
+def import_mission1_module():
+    """Find the companion module when run externally or from a Blender text."""
+    script_path = Path(__file__).expanduser().resolve()
+    script_directory = script_path.parent
+    candidates = [Path.cwd().resolve(), script_directory]
+    # Blender text blocks commonly report a virtual path like
+    # ``project.blend/script.py``.  Its parent is the .blend file, while the
+    # companion module actually sits beside that file.
+    if script_directory.suffix.lower() == ".blend":
+        candidates.append(script_directory.parent)
+    if bpy.data.filepath:
+        candidates.append(Path(bpy.data.filepath).expanduser().resolve().parent)
+
+    searched = []
+    for directory in candidates:
+        module_path = directory / "gopro_mission1_dummy_blender.py"
+        if module_path in searched:
+            continue
+        searched.append(module_path)
+        if module_path.is_file():
+            directory_text = str(directory)
+            if directory_text not in sys.path:
+                sys.path.insert(0, directory_text)
+            import gopro_mission1_dummy_blender
+
+            return gopro_mission1_dummy_blender
+    raise ModuleNotFoundError(
+        "Could not locate gopro_mission1_dummy_blender.py. Searched: "
+        + ", ".join(str(path) for path in searched)
+    )
+
+
+mission1 = import_mission1_module()
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +84,12 @@ BASE_STL_NAME = "veo_3_cam_cover_original_style_base.stl"
 LID_STL_NAME = "veo_3_cam_cover_original_style_lid.stl"
 ASSEMBLY_STL_NAME = "veo_3_cam_cover_original_style.stl"
 NORMALIZE_SEPARATE_STLS = True
+
+# Visibility in Blender after the generator finishes.  These are applied only
+# after export and preview rendering, so hidden parts are still generated and
+# included in the requested output files.
+SHOW_MAIN_BODY_AFTER_BUILD = True
+SHOW_TOP_AFTER_BUILD = False
 
 RENDER_PREVIEW = False
 PREVIEW_PATH = "veo_3_cam_cover_original_style.png"
@@ -84,14 +127,17 @@ LID_LIP_DEPTH = 3.0
 LID_LIP_THICKNESS = 1.8
 LID_LIP_CLEARANCE = 0.30
 
-# Both camera openings sit on the -X half of the shell.  The default follows
-# the source mesh's dominant opening-surround directions.
+# Both camera openings sit on the -X half of the shell.  The half-angle is a
+# primary shape input: reducing it keeps the cameras closer together and the
+# camera-driven footprint automatically broadens/blunts the -X nose as needed.
 CAMERA_CENTERLINE_AZIMUTH_DEG = 180.0
-CAMERA_HALF_ANGLE_DEG = 45.0
+CAMERA_HALF_ANGLE_DEG = 30.0
 # Set a two-value tuple to override the symmetric centerline/half-angle logic.
 CAMERA_AZIMUTHS_DEG = None
 
-EYE_CENTER_Z = 26.0
+# The supplied dummy extends 23.5 mm below its lens center when mounted
+# upside-down.  This eye height leaves the configured 2 mm floor clearance.
+EYE_CENTER_Z = 28.7
 EYE_OPENING_WIDTH = 58.0
 EYE_OPENING_HEIGHT = 36.0
 EYE_OPENING_CORNER_RADIUS = 11.0
@@ -104,29 +150,45 @@ EYE_BEZEL_CORNER_RADIUS = 14.5
 EYE_FACE_INSET = 1.0
 EYE_BEZEL_DEPTH = 9.0
 
+
 # The eyelid is a tapered wedge whose lower/front edge overhangs the eye.
-VISORS_ENABLED = True
+VISORS_ENABLED = False
 VISOR_BACK_WIDTH = 92.0
 VISOR_FRONT_WIDTH = 60.0
 VISOR_BACK_INSET = 12.0
-VISOR_PROJECTION = 0.0
+# A small positive overlap keeps the beveled visor Boolean robust where its
+# front edge meets the camera-driven face plane.
+VISOR_PROJECTION = 0.25
 VISOR_BACK_BOTTOM_Z = 48.5
 VISOR_BACK_TOP_Z = 59.0
 VISOR_FRONT_BOTTOM_Z = 48.0
 VISOR_FRONT_TOP_Z = 54.0
 VISOR_EDGE_RADIUS = 1.5
 
-# Camera envelopes used both for placement validation and optional previews.
-# Width is tangential to the camera axis; depth is along the optical axis.
-CAMERA_BODY_WIDTH = 71.8
-CAMERA_BODY_DEPTH = 33.6
-CAMERA_BODY_HEIGHT = 50.8
-CAMERA_FRONT_CLEARANCE = 2.0
+# MISSION 1 measurements come from the supplied GoproDummy_noscreens.stl and
+# its procedural recreation in gopro_mission1_dummy_blender.py.  The full
+# 81 x 44.4 x 54 mm envelope includes its 16.6 mm lens projection, top button,
+# and side button.  Width is tangential to the optical axis; depth is radial.
+CAMERA_BODY_ONLY_WIDTH = mission1.BODY_WIDTH
+CAMERA_BODY_ONLY_DEPTH = mission1.BODY_DEPTH
+CAMERA_BODY_ONLY_HEIGHT = mission1.BODY_HEIGHT
+CAMERA_BODY_WIDTH = mission1.REFERENCE_ENVELOPE_WIDTH
+CAMERA_BODY_DEPTH = mission1.REFERENCE_ENVELOPE_DEPTH
+CAMERA_BODY_HEIGHT = mission1.REFERENCE_ENVELOPE_HEIGHT
+CAMERA_FRONT_CLEARANCE = 0.25
 CAMERA_FLOOR_CLEARANCE = 2.0
-CAMERA_TANGENTIAL_BODY_OFFSET = 18.0
-CAMERA_AUTO_INSET_ENABLED = True
-CAMERA_AUTO_INSET_MAX = 18.0
-CAMERA_AUTO_INSET_STEP = 1.0
+# Eye/lens offsets relative to the complete reference-envelope center after
+# the dummy's configured 180-degree roll.  These align the actual lens face,
+# rather than the rectangular envelope center, with each eye opening.
+CAMERA_LENS_OFFSET_Z = -mission1.CANONICAL_ENVELOPE_CENTER_VERTICAL
+CAMERA_ENVELOPE_TANGENTIAL_OFFSET = (
+    mission1.CANONICAL_ENVELOPE_CENTER_TANGENTIAL
+)
+CAMERA_BODY_MUTUAL_CLEARANCE = 1.0
+CAMERA_DRIVEN_NOSE_ENABLED = True
+CAMERA_NOSE_SHELL_CLEARANCE = 1.5
+CAMERA_NOSE_CONTACT_TOLERANCE = 0.01
+CAMERA_NOSE_MAX_EXPANSION = 80.0
 
 # Four lid fasteners.  "auto" searches around the configurable targets while
 # respecting the wall and both oriented camera keepout rectangles.  Set
@@ -140,7 +202,7 @@ FASTENER_POST_TARGETS_XY = (
     (-5.0, 95.0),
 )
 MANUAL_FASTENER_POST_POSITIONS_XY = FASTENER_POST_TARGETS_XY
-FASTENER_AUTO_SEARCH_RADIUS = 35.0
+FASTENER_AUTO_SEARCH_RADIUS = 90.0
 FASTENER_AUTO_GRID_STEP = 2.0
 FASTENER_POST_DIAMETER = 10.5
 FASTENER_POST_EDGE_CLEARANCE = 2.0
@@ -193,6 +255,9 @@ def validate_config() -> None:
         "EYE_BEZEL_HEIGHT": EYE_BEZEL_HEIGHT,
         "VISOR_BACK_WIDTH": VISOR_BACK_WIDTH,
         "VISOR_FRONT_WIDTH": VISOR_FRONT_WIDTH,
+        "CAMERA_BODY_ONLY_WIDTH": CAMERA_BODY_ONLY_WIDTH,
+        "CAMERA_BODY_ONLY_DEPTH": CAMERA_BODY_ONLY_DEPTH,
+        "CAMERA_BODY_ONLY_HEIGHT": CAMERA_BODY_ONLY_HEIGHT,
         "CAMERA_BODY_WIDTH": CAMERA_BODY_WIDTH,
         "CAMERA_BODY_DEPTH": CAMERA_BODY_DEPTH,
         "CAMERA_BODY_HEIGHT": CAMERA_BODY_HEIGHT,
@@ -234,11 +299,32 @@ def validate_config() -> None:
         raise ValueError("Exactly four fastener post targets are required")
     if len(MANUAL_FASTENER_POST_POSITIONS_XY) != 4:
         raise ValueError("Exactly four manual fastener positions are required")
-    if (
-        CAMERA_FLOOR_CLEARANCE + BOTTOM_THICKNESS + CAMERA_BODY_HEIGHT
-        >= BASE_HEIGHT
-    ):
+    camera_bottom = camera_body_center_z() - CAMERA_BODY_HEIGHT / 2.0
+    camera_top = camera_body_center_z() + CAMERA_BODY_HEIGHT / 2.0
+    if camera_bottom < BOTTOM_THICKNESS + CAMERA_FLOOR_CLEARANCE - 1e-6:
+        raise ValueError("Camera envelope intersects the closed bottom")
+    if camera_top >= BASE_HEIGHT:
         raise ValueError("Camera envelope is too tall for the closed base")
+    if (
+        CAMERA_FRONT_CLEARANCE < 0.0
+        or CAMERA_FLOOR_CLEARANCE < 0.0
+        or CAMERA_BODY_MUTUAL_CLEARANCE < 0.0
+    ):
+        raise ValueError("Camera clearances cannot be negative")
+    if CAMERA_NOSE_SHELL_CLEARANCE < 0.0:
+        raise ValueError("CAMERA_NOSE_SHELL_CLEARANCE cannot be negative")
+    if CAMERA_NOSE_CONTACT_TOLERANCE <= 0.0:
+        raise ValueError("CAMERA_NOSE_CONTACT_TOLERANCE must be positive")
+    if CAMERA_NOSE_MAX_EXPANSION < 0.0:
+        raise ValueError("CAMERA_NOSE_MAX_EXPANSION cannot be negative")
+    if (
+        CAMERA_BODY_WIDTH < CAMERA_BODY_ONLY_WIDTH
+        or CAMERA_BODY_DEPTH < CAMERA_BODY_ONLY_DEPTH
+        or CAMERA_BODY_HEIGHT < CAMERA_BODY_ONLY_HEIGHT
+    ):
+        raise ValueError("Camera fit envelope cannot be smaller than its bare body")
+    if CAMERA_AZIMUTHS_DEG is None and not 0.0 < CAMERA_HALF_ANGLE_DEG < 90.0:
+        raise ValueError("CAMERA_HALF_ANGLE_DEG must be between 0 and 90 degrees")
     if EYE_OPENING_WIDTH >= EYE_BEZEL_WIDTH or EYE_OPENING_HEIGHT >= EYE_BEZEL_HEIGHT:
         raise ValueError("Eye openings must fit inside the bezels")
     if EYE_CENTER_Z - EYE_BEZEL_HEIGHT / 2.0 < 0.0:
@@ -258,6 +344,24 @@ def camera_azimuths():
         CAMERA_CENTERLINE_AZIMUTH_DEG - CAMERA_HALF_ANGLE_DEG,
         CAMERA_CENTERLINE_AZIMUTH_DEG + CAMERA_HALF_ANGLE_DEG,
     )
+
+
+def camera_body_center_z() -> float:
+    return EYE_CENTER_Z - CAMERA_LENS_OFFSET_Z
+
+
+def minimum_body_scale_between(z0: float, z1: float) -> float:
+    if z0 > z1:
+        z0, z1 = z1, z0
+    samples = [z0, z1]
+    samples.extend(z for z, _ in BODY_SECTIONS if z0 <= z <= z1)
+    return min(body_scale_at_z(z) for z in samples)
+
+
+def camera_minimum_body_scale() -> float:
+    z0 = camera_body_center_z() - CAMERA_BODY_HEIGHT / 2.0
+    z1 = camera_body_center_z() + CAMERA_BODY_HEIGHT / 2.0
+    return minimum_body_scale_between(z0, z1)
 
 
 def clear_scene() -> None:
@@ -324,6 +428,188 @@ def superellipse_loop(width: float, depth: float):
     return [(x, y * y_scale) for x, y in raw_points]
 
 
+def scale_loop(loop, scale_x: float, scale_y: float = None):
+    scale_y = scale_x if scale_y is None else scale_y
+    return [(x * scale_x, y * scale_y) for x, y in loop]
+
+
+def inset_footprint_loop(loop, inset: float):
+    if inset < 0.0:
+        raise ValueError("Footprint inset cannot be negative")
+    if inset == 0.0:
+        return list(loop)
+
+    def clip_halfplane(polygon, normal, maximum_projection):
+        result = []
+        previous = polygon[-1]
+        previous_projection = previous[0] * normal[0] + previous[1] * normal[1]
+        previous_inside = previous_projection <= maximum_projection + 1e-9
+        for current in polygon:
+            current_projection = current[0] * normal[0] + current[1] * normal[1]
+            current_inside = current_projection <= maximum_projection + 1e-9
+            if current_inside != previous_inside:
+                denominator = current_projection - previous_projection
+                fraction = (maximum_projection - previous_projection) / denominator
+                result.append(
+                    (
+                        previous[0] + (current[0] - previous[0]) * fraction,
+                        previous[1] + (current[1] - previous[1]) * fraction,
+                    )
+                )
+            if current_inside:
+                result.append(current)
+            previous = current
+            previous_projection = current_projection
+            previous_inside = current_inside
+        return result
+
+    # Intersect all edge half-planes shifted inward by a constant distance.
+    # Unlike a per-corner miter, this automatically drops an acute corner when
+    # its two shifted edges would cross beyond the rest of the polygon.
+    extent = max(max(abs(x), abs(y)) for x, y in loop) + inset + 1.0
+    result = [(-extent, -extent), (extent, -extent), (extent, extent), (-extent, extent)]
+    for index, point in enumerate(loop):
+        following = loop[(index + 1) % len(loop)]
+        edge = (following[0] - point[0], following[1] - point[1])
+        length = math.hypot(*edge)
+        if length <= 1e-10:
+            raise ValueError("Footprint contains duplicate adjacent points")
+        inward = (-edge[1] / length, edge[0] / length)
+        shifted_projection = point[0] * inward[0] + point[1] * inward[1] + inset
+        result = clip_halfplane(
+            result,
+            (-inward[0], -inward[1]),
+            -shifted_projection,
+        )
+        if len(result) < 3:
+            raise ValueError("Footprint inset collapses the configured body")
+    result = convex_hull_2d(result)
+    return vertex_preserving_resample(result, len(loop))
+
+
+def convex_hull_2d(points):
+    unique = sorted(set((round(x, 9), round(y, 9)) for x, y in points))
+    if len(unique) < 3:
+        raise ValueError("Convex hull needs at least three unique points")
+
+    def cross(origin, a, b):
+        return (a[0] - origin[0]) * (b[1] - origin[1]) - (
+            a[1] - origin[1]
+        ) * (b[0] - origin[0])
+
+    lower = []
+    for point in unique:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], point) <= 0.0:
+            lower.pop()
+        lower.append(point)
+    upper = []
+    for point in reversed(unique):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], point) <= 0.0:
+            upper.pop()
+        upper.append(point)
+    return lower[:-1] + upper[:-1]
+
+
+def clip_convex_polygon_halfplane(loop, normal, maximum_projection: float):
+    """Clip a convex CCW loop to dot(point, normal) <= maximum_projection."""
+    result = []
+    previous = loop[-1]
+    previous_projection = previous[0] * normal[0] + previous[1] * normal[1]
+    previous_inside = previous_projection <= maximum_projection + 1e-9
+    for current in loop:
+        current_projection = current[0] * normal[0] + current[1] * normal[1]
+        current_inside = current_projection <= maximum_projection + 1e-9
+        if current_inside != previous_inside:
+            denominator = current_projection - previous_projection
+            if abs(denominator) <= 1e-12:
+                raise ValueError("Footprint half-plane clip encountered a parallel edge")
+            fraction = (maximum_projection - previous_projection) / denominator
+            result.append(
+                (
+                    previous[0] + (current[0] - previous[0]) * fraction,
+                    previous[1] + (current[1] - previous[1]) * fraction,
+                )
+            )
+        if current_inside:
+            result.append(current)
+        previous = current
+        previous_projection = current_projection
+        previous_inside = current_inside
+    if len(result) < 3:
+        raise ValueError("Camera face constraints removed the entire body footprint")
+    return result
+
+
+def resample_closed_loop(loop, count: int):
+    segment_lengths = []
+    perimeter = 0.0
+    for index, point in enumerate(loop):
+        next_point = loop[(index + 1) % len(loop)]
+        length = math.dist(point, next_point)
+        segment_lengths.append(length)
+        perimeter += length
+    result = []
+    segment_index = 0
+    segment_start = 0.0
+    for sample_index in range(count):
+        target = perimeter * sample_index / count
+        while (
+            segment_index < len(loop) - 1
+            and segment_start + segment_lengths[segment_index] < target
+        ):
+            segment_start += segment_lengths[segment_index]
+            segment_index += 1
+        point = loop[segment_index]
+        next_point = loop[(segment_index + 1) % len(loop)]
+        length = segment_lengths[segment_index]
+        fraction = 0.0 if length <= 1e-12 else (target - segment_start) / length
+        result.append(
+            (
+                point[0] + (next_point[0] - point[0]) * fraction,
+                point[1] + (next_point[1] - point[1]) * fraction,
+            )
+        )
+    return result
+
+
+def vertex_preserving_resample(loop, count: int):
+    """Add edge samples while retaining every original polygon vertex."""
+    if count < len(loop):
+        raise ValueError("Vertex-preserving resample count is smaller than the loop")
+    if count == len(loop):
+        return list(loop)
+    lengths = [
+        math.dist(loop[index], loop[(index + 1) % len(loop)])
+        for index in range(len(loop))
+    ]
+    perimeter = sum(lengths)
+    extras = count - len(loop)
+    exact_allocations = [extras * length / perimeter for length in lengths]
+    allocations = [int(value) for value in exact_allocations]
+    remainder = extras - sum(allocations)
+    ranking = sorted(
+        range(len(loop)),
+        key=lambda index: (exact_allocations[index] - allocations[index], lengths[index]),
+        reverse=True,
+    )
+    for index in ranking[:remainder]:
+        allocations[index] += 1
+
+    result = []
+    for index, point in enumerate(loop):
+        following = loop[(index + 1) % len(loop)]
+        result.append(point)
+        for step in range(1, allocations[index] + 1):
+            fraction = step / (allocations[index] + 1)
+            result.append(
+                (
+                    point[0] + (following[0] - point[0]) * fraction,
+                    point[1] + (following[1] - point[1]) * fraction,
+                )
+            )
+    return result
+
+
 def rounded_rectangle_loop(width: float, height: float, radius: float):
     radius = min(max(radius, 0.0), width / 2.0, height / 2.0)
     points = []
@@ -375,6 +661,72 @@ def loft_solid(name: str, sections):
     return create_mesh_object(name, vertices, faces)
 
 
+def hollow_loft_solid(name: str, outer_sections, inner_sections):
+    """Build a closed-bottom, open-top shell without a cavity Boolean."""
+    outer_count = len(outer_sections[0][1])
+    inner_count = len(inner_sections[0][1])
+    if (
+        len(outer_sections) < 2
+        or len(inner_sections) < 2
+        or outer_count != inner_count
+        or any(len(loop) != outer_count for _, loop in outer_sections)
+        or any(len(loop) != inner_count for _, loop in inner_sections)
+    ):
+        raise ValueError("Hollow loft requires equal-length outer and inner loops")
+    if abs(outer_sections[-1][0] - inner_sections[-1][0]) > 1e-9:
+        raise ValueError("Hollow loft outer and inner loops must share a top Z")
+
+    vertices = []
+    outer_offsets = []
+    for z, loop in outer_sections:
+        outer_offsets.append(len(vertices))
+        vertices.extend((x, y, z) for x, y in loop)
+    inner_offsets = []
+    for z, loop in inner_sections:
+        inner_offsets.append(len(vertices))
+        vertices.extend((x, y, z) for x, y in loop)
+
+    faces = []
+    for section in range(len(outer_sections) - 1):
+        low = outer_offsets[section]
+        high = outer_offsets[section + 1]
+        for index in range(outer_count):
+            next_index = (index + 1) % outer_count
+            faces.append(
+                [low + index, low + next_index, high + next_index, high + index]
+            )
+    for section in range(len(inner_sections) - 1):
+        low = inner_offsets[section]
+        high = inner_offsets[section + 1]
+        for index in range(inner_count):
+            next_index = (index + 1) % inner_count
+            faces.append(
+                [low + index, high + index, high + next_index, low + next_index]
+            )
+
+    bottom_center = len(vertices)
+    vertices.append((0.0, 0.0, outer_sections[0][0]))
+    floor_center = len(vertices)
+    vertices.append((0.0, 0.0, inner_sections[0][0]))
+    outer_bottom = outer_offsets[0]
+    inner_bottom = inner_offsets[0]
+    outer_top = outer_offsets[-1]
+    inner_top = inner_offsets[-1]
+    for index in range(outer_count):
+        next_index = (index + 1) % outer_count
+        faces.append([bottom_center, outer_bottom + next_index, outer_bottom + index])
+        faces.append([floor_center, inner_bottom + index, inner_bottom + next_index])
+        faces.append(
+            [
+                outer_top + index,
+                outer_top + next_index,
+                inner_top + next_index,
+                inner_top + index,
+            ]
+        )
+    return create_mesh_object(name, vertices, faces)
+
+
 def ring_prism(name: str, outer_loop, inner_loop, z0: float, z1: float):
     if len(outer_loop) != len(inner_loop):
         raise ValueError("Ring loops must have equal vertex counts")
@@ -399,6 +751,80 @@ def ring_prism(name: str, outer_loop, inner_loop, z0: float, z1: float):
         )
         faces.append(
             [outer1 + next_index, inner1 + next_index, inner1 + index, outer1 + index]
+        )
+    return create_mesh_object(name, vertices, faces)
+
+
+def lid_with_alignment_lip(name: str, outer_loop, lip_outer_loop, lip_inner_loop):
+    """Build the plate and downward locating ring as one manifold mesh."""
+    count = len(outer_loop)
+    if len(lip_outer_loop) != count or len(lip_inner_loop) != count:
+        raise ValueError("Lid and alignment-lip loops must have equal lengths")
+    lip_bottom_z = BASE_HEIGHT - LID_LIP_DEPTH
+    vertices = []
+
+    def add_loop(loop, z):
+        offset = len(vertices)
+        vertices.extend((x, y, z) for x, y in loop)
+        return offset
+
+    outer_bottom = add_loop(outer_loop, BASE_HEIGHT)
+    outer_top = add_loop(outer_loop, BODY_HEIGHT)
+    lip_outer_top = add_loop(lip_outer_loop, BASE_HEIGHT)
+    lip_outer_bottom = add_loop(lip_outer_loop, lip_bottom_z)
+    lip_inner_top = add_loop(lip_inner_loop, BASE_HEIGHT)
+    lip_inner_bottom = add_loop(lip_inner_loop, lip_bottom_z)
+    top_center = len(vertices)
+    vertices.append((0.0, 0.0, BODY_HEIGHT))
+    underside_center = len(vertices)
+    vertices.append((0.0, 0.0, BASE_HEIGHT))
+
+    faces = []
+    for index in range(count):
+        next_index = (index + 1) % count
+        faces.append(
+            [
+                outer_bottom + index,
+                outer_bottom + next_index,
+                outer_top + next_index,
+                outer_top + index,
+            ]
+        )
+        faces.append([top_center, outer_top + index, outer_top + next_index])
+        faces.append(
+            [
+                outer_bottom + index,
+                lip_outer_top + index,
+                lip_outer_top + next_index,
+                outer_bottom + next_index,
+            ]
+        )
+        faces.append(
+            [
+                lip_outer_bottom + index,
+                lip_outer_bottom + next_index,
+                lip_outer_top + next_index,
+                lip_outer_top + index,
+            ]
+        )
+        faces.append(
+            [
+                lip_inner_bottom + index,
+                lip_inner_top + index,
+                lip_inner_top + next_index,
+                lip_inner_bottom + next_index,
+            ]
+        )
+        faces.append(
+            [
+                lip_outer_bottom + index,
+                lip_inner_bottom + index,
+                lip_inner_bottom + next_index,
+                lip_outer_bottom + next_index,
+            ]
+        )
+        faces.append(
+            [underside_center, lip_inner_top + next_index, lip_inner_top + index]
         )
     return create_mesh_object(name, vertices, faces)
 
@@ -450,10 +876,21 @@ def body_scale_at_z(z: float) -> float:
     raise RuntimeError("Could not interpolate body scale")
 
 
-def radial_surface_distance(angle_deg: float) -> float:
-    loop = superellipse_loop(BODY_WIDTH, BODY_DEPTH)
+def radial_surface_distance(
+    angle_deg: float, tangent_offset: float = 0.0, footprint_loop=None
+) -> float:
+    loop = (
+        superellipse_loop(BODY_WIDTH, BODY_DEPTH)
+        if footprint_loop is None
+        else footprint_loop
+    )
     angle = math.radians(angle_deg)
     direction = (math.cos(angle), math.sin(angle))
+    tangent_axis = (-math.sin(angle), math.cos(angle))
+    line_offset = (
+        tangent_axis[0] * tangent_offset,
+        tangent_axis[1] * tangent_offset,
+    )
 
     def cross(a, b):
         return a[0] * b[1] - a[1] * b[0]
@@ -465,8 +902,9 @@ def radial_surface_distance(angle_deg: float) -> float:
         denominator = cross(direction, edge)
         if abs(denominator) < 1e-10:
             continue
-        radial = cross(point, edge) / denominator
-        fraction = cross(point, direction) / denominator
+        shifted_point = (point[0] - line_offset[0], point[1] - line_offset[1])
+        radial = cross(shifted_point, edge) / denominator
+        fraction = cross(shifted_point, direction) / denominator
         if radial >= 0.0 and -1e-8 <= fraction <= 1.0 + 1e-8:
             hits.append(radial)
     if not hits:
@@ -490,19 +928,31 @@ def rounded_rectangle_prism_axis(
     height: float,
     radius: float,
     center_z: float,
+    center_tangent: float = 0.0,
 ):
     loop = rounded_rectangle_loop(width, height, radius)
     count = len(loop)
     vertices = []
     for radial in (radial0, radial1):
         vertices.extend(
-            tuple(axis_point(angle_deg, radial, tangent, center_z + local_z))
+            tuple(
+                axis_point(
+                    angle_deg,
+                    radial,
+                    center_tangent + tangent,
+                    center_z + local_z,
+                )
+            )
             for tangent, local_z in loop
         )
     low_center = len(vertices)
-    vertices.append(tuple(axis_point(angle_deg, radial0, 0.0, center_z)))
+    vertices.append(
+        tuple(axis_point(angle_deg, radial0, center_tangent, center_z))
+    )
     high_center = len(vertices)
-    vertices.append(tuple(axis_point(angle_deg, radial1, 0.0, center_z)))
+    vertices.append(
+        tuple(axis_point(angle_deg, radial1, center_tangent, center_z))
+    )
     faces = []
     for index in range(count):
         next_index = (index + 1) % count
@@ -512,7 +962,12 @@ def rounded_rectangle_prism_axis(
     return create_mesh_object(name, vertices, faces)
 
 
-def visor_wedge(name: str, angle_deg: float, surface_radius: float):
+def visor_wedge(
+    name: str,
+    angle_deg: float,
+    surface_radius: float,
+    center_tangent: float = 0.0,
+):
     radial_back = surface_radius - VISOR_BACK_INSET
     radial_front = surface_radius + VISOR_PROJECTION
     back_half = VISOR_BACK_WIDTH / 2.0
@@ -527,7 +982,10 @@ def visor_wedge(name: str, angle_deg: float, surface_radius: float):
         (radial_front, front_half, VISOR_FRONT_TOP_Z),
         (radial_front, -front_half, VISOR_FRONT_TOP_Z),
     )
-    vertices = [tuple(axis_point(angle_deg, radial, tangent, z)) for radial, tangent, z in local_vertices]
+    vertices = [
+        tuple(axis_point(angle_deg, radial, center_tangent + tangent, z))
+        for radial, tangent, z in local_vertices
+    ]
     faces = (
         (0, 1, 2, 3),
         (4, 7, 6, 5),
@@ -600,9 +1058,9 @@ def camera_xy_corners(camera, clearance=0.0):
     ]
 
 
-def rectangles_overlap(camera_a, camera_b) -> bool:
-    corners_a = camera_xy_corners(camera_a)
-    corners_b = camera_xy_corners(camera_b)
+def rectangles_overlap(camera_a, camera_b, clearance=0.0) -> bool:
+    corners_a = camera_xy_corners(camera_a, clearance / 2.0)
+    corners_b = camera_xy_corners(camera_b, clearance / 2.0)
     axes = []
     for camera in (camera_a, camera_b):
         angle = math.radians(camera["angle"])
@@ -615,49 +1073,226 @@ def rectangles_overlap(camera_a, camera_b) -> bool:
     return True
 
 
-def resolve_camera_layout():
-    inner_loop = superellipse_loop(
-        BODY_WIDTH - 2.0 * BODY_WALL_THICKNESS,
-        BODY_DEPTH - 2.0 * BODY_WALL_THICKNESS,
-    )
+def cameras_at_radius(radius: float):
     cameras = []
     for index, angle in enumerate(camera_azimuths(), start=1):
-        surface = radial_surface_distance(angle)
-        radial = (
-            surface
-            - BODY_WALL_THICKNESS
-            - CAMERA_FRONT_CLEARANCE
-            - CAMERA_BODY_DEPTH / 2.0
+        center = axis_point(
+            angle,
+            radius,
+            CAMERA_ENVELOPE_TANGENTIAL_OFFSET,
+            0.0,
         )
-        outward_sign = 1.0 if math.sin(math.radians(angle)) >= 0.0 else -1.0
-        tangent = -outward_sign * CAMERA_TANGENTIAL_BODY_OFFSET
-        camera = {"index": index, "angle": angle, "radial": radial, "tangent": tangent}
-        inset = 0.0
-        while not all(point_in_polygon(corner, inner_loop) for corner in camera_xy_corners(camera)):
-            if not CAMERA_AUTO_INSET_ENABLED or inset >= CAMERA_AUTO_INSET_MAX:
-                raise ValueError(
-                    f"Camera {index} does not fit the inner footprint; increase body size "
-                    "or CAMERA_AUTO_INSET_MAX"
-                )
-            inset += CAMERA_AUTO_INSET_STEP
-            camera["radial"] -= CAMERA_AUTO_INSET_STEP
-        camera["auto_inset"] = inset
-        center = axis_point(angle, camera["radial"], tangent, 0.0)
-        camera["center_xy"] = (center.x, center.y)
-        cameras.append(camera)
+        cameras.append(
+            {
+                "index": index,
+                "angle": angle,
+                "radial": radius,
+                "tangent": CAMERA_ENVELOPE_TANGENTIAL_OFFSET,
+                "eye_tangent": 0.0,
+                "center_xy": (center.x, center.y),
+            }
+        )
+    return cameras
 
-    if rectangles_overlap(cameras[0], cameras[1]):
-        raise ValueError(
-            "The two configured camera body envelopes overlap. Increase camera angle, "
-            "increase CAMERA_TANGENTIAL_BODY_OFFSET, or reduce the envelope dimensions."
+
+def camera_requirements_fit_eye_halfplanes(cameras) -> bool:
+    requirement_points = camera_nose_requirement_points(cameras)
+    for point in requirement_points:
+        for camera in cameras:
+            angle = math.radians(camera["angle"])
+            projection = point[0] * math.cos(angle) + point[1] * math.sin(angle)
+            if projection > camera["required_surface"] + CAMERA_NOSE_CONTACT_TOLERANCE:
+                return False
+    return True
+
+
+def minimum_nonoverlap_camera_radius() -> float:
+    low = 0.0
+    high = max(BODY_WIDTH, BODY_DEPTH) + CAMERA_NOSE_MAX_EXPANSION
+    high_cameras = cameras_at_radius(high)
+    if (
+        rectangles_overlap(
+            high_cameras[0], high_cameras[1], CAMERA_BODY_MUTUAL_CLEARANCE
         )
+        or not camera_requirements_fit_eye_halfplanes(high_cameras)
+    ):
+        raise ValueError(
+            "Camera half-angle is too small for the configured MISSION 1 envelope "
+            "and eye faces within CAMERA_NOSE_MAX_EXPANSION"
+        )
+    for _ in range(64):
+        middle = (low + high) / 2.0
+        cameras = cameras_at_radius(middle)
+        if (
+            rectangles_overlap(
+                cameras[0], cameras[1], CAMERA_BODY_MUTUAL_CLEARANCE
+            )
+            or not camera_requirements_fit_eye_halfplanes(cameras)
+        ):
+            low = middle
+        else:
+            high = middle
+    return high
+
+
+def camera_nose_requirement_points(cameras):
+    points = []
+    shell_clearance = BODY_WALL_THICKNESS + CAMERA_NOSE_SHELL_CLEARANCE
+    minimum_scale = camera_minimum_body_scale()
     for camera in cameras:
+        points.extend(
+            (x / minimum_scale, y / minimum_scale)
+            for x, y in camera_xy_corners(camera, shell_clearance)
+        )
+        required_surface = (
+            camera["radial"]
+            + CAMERA_BODY_DEPTH / 2.0
+            + CAMERA_FRONT_CLEARANCE
+            + EYE_FACE_INSET
+            + EYE_BEZEL_DEPTH
+        )
+        camera["required_surface"] = required_surface
+        eye_half_width = EYE_BEZEL_WIDTH / 2.0 + CAMERA_NOSE_SHELL_CLEARANCE
+        points.append(
+            tuple(
+                axis_point(
+                    camera["angle"], required_surface, -eye_half_width, 0.0
+                )[:2]
+            )
+        )
+        points.append(
+            tuple(
+                axis_point(
+                    camera["angle"], required_surface, eye_half_width, 0.0
+                )[:2]
+            )
+        )
+    return points
+
+
+def build_camera_driven_footprint(cameras):
+    baseline = convex_hull_2d(superellipse_loop(BODY_WIDTH, BODY_DEPTH))
+    if not CAMERA_DRIVEN_NOSE_ENABLED:
+        return baseline
+    requirement_points = camera_nose_requirement_points(cameras)
+    # The camera faces are shape constraints, not merely additions to the
+    # original outline.  Clipping the baseline lets large half-angles pull the
+    # corresponding sides inward, while small half-angles still broaden the
+    # camera-side nose.  The rear of the rounded-triangular baseline survives.
+    trimmed_baseline = baseline
+    for camera in cameras:
+        angle = math.radians(camera["angle"])
+        trimmed_baseline = clip_convex_polygon_halfplane(
+            trimmed_baseline,
+            (math.cos(angle), math.sin(angle)),
+            camera["required_surface"],
+        )
+    for point in requirement_points:
+        for camera in cameras:
+            angle = math.radians(camera["angle"])
+            projection = point[0] * math.cos(angle) + point[1] * math.sin(angle)
+            if projection > camera["required_surface"] + CAMERA_NOSE_CONTACT_TOLERANCE:
+                raise ValueError(
+                    "No convex minimum-spacing shell fits the configured camera "
+                    "and eye envelopes. Reduce eye/bezel width or shell clearance, "
+                    "or increase CAMERA_BODY_MUTUAL_CLEARANCE."
+                )
+    # Keep the actual hull vertices.  Uniform perimeter resampling can bridge
+    # across a required corner and silently shave away configured clearance.
+    result = convex_hull_2d(trimmed_baseline + requirement_points)
+    result = vertex_preserving_resample(
+        result,
+        max(FOOTPRINT_POINTS, len(result)),
+    )
+    baseline_width = max(x for x, _ in baseline) - min(x for x, _ in baseline)
+    baseline_depth = max(y for _, y in baseline) - min(y for _, y in baseline)
+    result_width = max(x for x, _ in result) - min(x for x, _ in result)
+    result_depth = max(y for _, y in result) - min(y for _, y in result)
+    expansion = max(result_width - baseline_width, result_depth - baseline_depth)
+    if expansion > CAMERA_NOSE_MAX_EXPANSION:
+        raise ValueError(
+            f"Camera-driven nose needs {expansion:.2f} mm expansion, exceeding "
+            "CAMERA_NOSE_MAX_EXPANSION"
+        )
+    return result
+
+
+def resolve_camera_layout():
+    if CAMERA_DRIVEN_NOSE_ENABLED:
+        cameras = cameras_at_radius(minimum_nonoverlap_camera_radius())
+        footprint = build_camera_driven_footprint(cameras)
+        for camera in cameras:
+            surface = radial_surface_distance(camera["angle"], 0.0, footprint)
+            contact_error = abs(surface - camera["required_surface"])
+            if contact_error > CAMERA_NOSE_CONTACT_TOLERANCE:
+                raise ValueError(
+                    f"Camera {camera['index']} face misses its solved shell plane by "
+                    f"{contact_error:.4f} mm"
+                )
+            camera["surface"] = surface
+            camera["eye_inner_wall"] = surface - EYE_FACE_INSET - EYE_BEZEL_DEPTH
+    else:
+        footprint = convex_hull_2d(superellipse_loop(BODY_WIDTH, BODY_DEPTH))
+        cameras = []
+        for index, angle in enumerate(camera_azimuths(), start=1):
+            surface = radial_surface_distance(angle, 0.0, footprint)
+            eye_inner_wall = surface - EYE_FACE_INSET - EYE_BEZEL_DEPTH
+            radial = (
+                eye_inner_wall
+                - CAMERA_FRONT_CLEARANCE
+                - CAMERA_BODY_DEPTH / 2.0
+            )
+            center = axis_point(
+                angle,
+                radial,
+                CAMERA_ENVELOPE_TANGENTIAL_OFFSET,
+                0.0,
+            )
+            cameras.append(
+                {
+                    "index": index,
+                    "angle": angle,
+                    "radial": radial,
+                    "tangent": CAMERA_ENVELOPE_TANGENTIAL_OFFSET,
+                    "eye_tangent": 0.0,
+                    "surface": surface,
+                    "eye_inner_wall": eye_inner_wall,
+                    "center_xy": (center.x, center.y),
+                }
+            )
+
+    inner_loop = inset_footprint_loop(
+        scale_loop(footprint, camera_minimum_body_scale()),
+        BODY_WALL_THICKNESS,
+    )
+    if rectangles_overlap(cameras[0], cameras[1], CAMERA_BODY_MUTUAL_CLEARANCE):
+        raise ValueError("Camera-driven footprint still leaves overlapping camera bodies")
+    for camera in cameras:
+        if not all(
+            point_in_polygon(corner, inner_loop)
+            for corner in camera_xy_corners(camera)
+        ):
+            raise ValueError(
+                f"Camera {camera['index']} is not contained by the solved inner footprint"
+            )
         print(
             f"CAMERA_LAYOUT {camera['index']}: center_xy="
             f"({camera['center_xy'][0]:.2f}, {camera['center_xy'][1]:.2f}) "
-            f"angle={camera['angle']:.2f} auto_inset={camera['auto_inset']:.2f}"
+            f"angle={camera['angle']:.2f} "
+            f"envelope_tangent={camera['tangent']:.2f} lens_tangent=0.00 "
+            f"front_gap={CAMERA_FRONT_CLEARANCE:.2f}"
         )
-    return cameras
+    baseline = superellipse_loop(BODY_WIDTH, BODY_DEPTH)
+    solved_width = max(x for x, _ in footprint) - min(x for x, _ in footprint)
+    solved_depth = max(y for _, y in footprint) - min(y for _, y in footprint)
+    baseline_width = max(x for x, _ in baseline) - min(x for x, _ in baseline)
+    baseline_depth = max(y for _, y in baseline) - min(y for _, y in baseline)
+    print(
+        f"CAMERA_DRIVEN_FOOTPRINT dimensions=({solved_width:.2f}, {solved_depth:.2f}) "
+        f"expansion=({solved_width - baseline_width:.2f}, "
+        f"{solved_depth - baseline_depth:.2f})"
+    )
+    return cameras, footprint
 
 
 def post_is_valid(position, cameras, inner_loop, accepted_positions=()) -> bool:
@@ -694,10 +1329,13 @@ def post_is_valid(position, cameras, inner_loop, accepted_positions=()) -> bool:
     return True
 
 
-def resolve_fastener_post_positions(cameras):
-    inner_loop = superellipse_loop(
-        BODY_WIDTH - 2.0 * BODY_WALL_THICKNESS,
-        BODY_DEPTH - 2.0 * BODY_WALL_THICKNESS,
+def resolve_fastener_post_positions(cameras, footprint):
+    post_minimum_scale = minimum_body_scale_between(
+        BOTTOM_THICKNESS - BOOLEAN_OVERLAP,
+        BASE_HEIGHT - FASTENER_POST_TOP_CLEARANCE,
+    )
+    inner_loop = inset_footprint_loop(
+        scale_loop(footprint, post_minimum_scale), BODY_WALL_THICKNESS
     )
     if FASTENER_POST_PLACEMENT == "manual":
         positions = [tuple(position) for position in MANUAL_FASTENER_POST_POSITIONS_XY]
@@ -786,11 +1424,14 @@ def boolean_difference(base, tools, label="Cut"):
     return apply_boolean(base, join_tools(label + "_Tools", tools), "DIFFERENCE", label)
 
 
-def add_camera_openings_and_visors(base):
+def add_camera_openings_and_visors(base, cameras):
     # Add the raised camera surrounds first, then place each eyelid directly
     # over its corresponding opening.
-    for index, angle in enumerate(camera_azimuths(), start=1):
-        surface = radial_surface_distance(angle)
+    for camera in cameras:
+        index = camera["index"]
+        angle = camera["angle"]
+        surface = camera["surface"]
+        tangent = camera["eye_tangent"]
         bezel = rounded_rectangle_prism_axis(
             f"Eye_{index}_Raised_Surround",
             angle,
@@ -800,19 +1441,28 @@ def add_camera_openings_and_visors(base):
             EYE_BEZEL_HEIGHT,
             EYE_BEZEL_CORNER_RADIUS,
             EYE_CENTER_Z,
+            center_tangent=tangent,
         )
         boolean_union(base, bezel, f"Eye_{index}_Surround_Union")
         if VISORS_ENABLED:
             boolean_union(
                 base,
-                visor_wedge(f"Eye_{index}_Eyelid_Visor", angle, surface),
+                visor_wedge(
+                    f"Eye_{index}_Eyelid_Visor",
+                    angle,
+                    surface,
+                    center_tangent=tangent,
+                ),
                 f"Eye_{index}_Visor_Union",
             )
 
     # Keep the two cutters in separate Boolean stages because close camera
     # angles can make their tool volumes overlap inside the body.
-    for index, angle in enumerate(camera_azimuths(), start=1):
-        surface = radial_surface_distance(angle)
+    for camera in cameras:
+        index = camera["index"]
+        angle = camera["angle"]
+        surface = camera["surface"]
+        tangent = camera["eye_tangent"]
         boolean_difference(
             base,
             [
@@ -828,6 +1478,7 @@ def add_camera_openings_and_visors(base):
                     EYE_OPENING_HEIGHT,
                     EYE_OPENING_CORNER_RADIUS,
                     EYE_CENTER_Z,
+                    center_tangent=tangent,
                 )
             ],
             f"Camera_Opening_{index}",
@@ -879,66 +1530,59 @@ def add_fastener_posts(base, positions):
     return base
 
 
-def create_base(positions):
+def create_base(positions, cameras, footprint):
     outer_sections = tuple(
-        (z, superellipse_loop(BODY_WIDTH * scale, BODY_DEPTH * scale))
+        (z, scale_loop(footprint, scale))
         for z, scale in BODY_SECTIONS
     )
-    base = loft_solid("Veo_3_Closed_Bottom_Base", outer_sections)
-
     cavity_z_values = [BOTTOM_THICKNESS]
     cavity_z_values.extend(
         z for z, _ in BODY_SECTIONS[1:-1] if BOTTOM_THICKNESS < z < BASE_HEIGHT
     )
-    cavity_z_values.append(BASE_HEIGHT + BOOLEAN_OVERLAP)
-    cavity_sections = []
+    cavity_z_values.append(BASE_HEIGHT)
+    inner_sections = []
     for z in cavity_z_values:
-        scale = body_scale_at_z(min(max(z, 0.0), BASE_HEIGHT))
-        cavity_sections.append(
+        scale = body_scale_at_z(z)
+        inner_sections.append(
             (
                 z,
-                superellipse_loop(
-                    BODY_WIDTH * scale - 2.0 * BODY_WALL_THICKNESS,
-                    BODY_DEPTH * scale - 2.0 * BODY_WALL_THICKNESS,
+                inset_footprint_loop(
+                    scale_loop(footprint, scale), BODY_WALL_THICKNESS
                 ),
             )
         )
-    boolean_difference(
-        base,
-        [loft_solid("Closed_Base_Inner_Cavity", cavity_sections)],
-        "Closed_Base_Inner_Cavity",
+    base = hollow_loft_solid(
+        "Veo_3_Closed_Bottom_Base",
+        outer_sections,
+        tuple(inner_sections),
     )
-    add_camera_openings_and_visors(base)
+    add_camera_openings_and_visors(base, cameras)
     add_fastener_posts(base, positions)
     base.name = "Veo_3_Cam_Cover_Closed_Base"
     return base
 
 
-def create_lid(positions):
-    outer_loop = superellipse_loop(BODY_WIDTH, BODY_DEPTH)
-    lid = loft_solid(
-        "Veo_3_Flat_Removable_Lid",
-        ((BASE_HEIGHT, outer_loop), (BODY_HEIGHT, outer_loop)),
-    )
-
+def create_lid(positions, footprint):
+    outer_loop = list(footprint)
     if LID_LIP_ENABLED:
-        lip_outer_width = (
-            BODY_WIDTH - 2.0 * BODY_WALL_THICKNESS - 2.0 * LID_LIP_CLEARANCE
+        lip_outer_loop = inset_footprint_loop(
+            footprint, BODY_WALL_THICKNESS + LID_LIP_CLEARANCE
         )
-        lip_outer_depth = (
-            BODY_DEPTH - 2.0 * BODY_WALL_THICKNESS - 2.0 * LID_LIP_CLEARANCE
+        lip_inner_loop = inset_footprint_loop(
+            lip_outer_loop,
+            LID_LIP_THICKNESS,
         )
-        lip = ring_prism(
-            "Lid_Alignment_Lip",
-            superellipse_loop(lip_outer_width, lip_outer_depth),
-            superellipse_loop(
-                lip_outer_width - 2.0 * LID_LIP_THICKNESS,
-                lip_outer_depth - 2.0 * LID_LIP_THICKNESS,
-            ),
-            BASE_HEIGHT - LID_LIP_DEPTH,
-            BASE_HEIGHT + BOOLEAN_OVERLAP,
+        lid = lid_with_alignment_lip(
+            "Veo_3_Flat_Removable_Lid",
+            outer_loop,
+            lip_outer_loop,
+            lip_inner_loop,
         )
-        boolean_union(lid, lip, "Lid_Alignment_Lip_Union")
+    else:
+        lid = loft_solid(
+            "Veo_3_Flat_Removable_Lid",
+            ((BASE_HEIGHT, outer_loop), (BODY_HEIGHT, outer_loop)),
+        )
 
     if FASTENERS_ENABLED:
         clearance_cutters = [
@@ -987,17 +1631,13 @@ def create_camera_mockups(cameras):
     if not PREVIEW_SHOW_CAMERA_MOCKUPS:
         return []
     mockups = []
-    center_z = BOTTOM_THICKNESS + CAMERA_FLOOR_CLEARANCE + CAMERA_BODY_HEIGHT / 2.0
     for camera in cameras:
-        center = axis_point(
-            camera["angle"], camera["radial"], camera["tangent"], center_z
-        )
-        mockup = add_beveled_box(
+        lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
+        mockup = mission1.place_canonical_dummy(
+            camera["angle"],
+            lens_face_radius,
+            EYE_CENTER_Z,
             f"Camera_{camera['index']}_Keepout_Mockup",
-            (CAMERA_BODY_DEPTH, CAMERA_BODY_WIDTH, CAMERA_BODY_HEIGHT),
-            tuple(center),
-            rotation_z=math.radians(camera["angle"]),
-            bevel=3.0,
         )
         assign_material(mockup, "Camera_Keepout_Material", CAMERA_COLOR)
         mockups.append(mockup)
@@ -1129,15 +1769,26 @@ def render_preview(base, lid, camera_mockups) -> None:
     print(f"RENDERED {path}")
 
 
+def apply_final_visibility(base, lid) -> None:
+    base.hide_set(not SHOW_MAIN_BODY_AFTER_BUILD)
+    base.hide_render = not SHOW_MAIN_BODY_AFTER_BUILD
+    lid.hide_set(not SHOW_TOP_AFTER_BUILD)
+    lid.hide_render = not SHOW_TOP_AFTER_BUILD
+    print(
+        "FINAL_VISIBILITY "
+        f"main_body={SHOW_MAIN_BODY_AFTER_BUILD} top={SHOW_TOP_AFTER_BUILD}"
+    )
+
+
 def build_original_style_cover():
     validate_config()
     if CLEAR_SCENE:
         clear_scene()
     set_units()
-    cameras = resolve_camera_layout()
-    positions = resolve_fastener_post_positions(cameras)
-    base = create_base(positions)
-    lid = create_lid(positions)
+    cameras, footprint = resolve_camera_layout()
+    positions = resolve_fastener_post_positions(cameras, footprint)
+    base = create_base(positions, cameras, footprint)
+    lid = create_lid(positions, footprint)
     assign_material(base, "Veo_Base_Material", COVER_COLOR)
     assign_material(lid, "Veo_Lid_Material", LID_COLOR)
     triangulate_mesh(base)
@@ -1153,6 +1804,7 @@ def build_original_style_cover():
             export_stl(directory / ASSEMBLY_STL_NAME, [base, lid])
     camera_mockups = create_camera_mockups(cameras)
     render_preview(base, lid, camera_mockups)
+    apply_final_visibility(base, lid)
     return base, lid
 
 
