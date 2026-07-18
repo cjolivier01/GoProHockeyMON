@@ -121,16 +121,17 @@ BACK_FASTENER_HEX_HEIGHT_Z = 5.70
 BACK_FASTENER_HEX_SEAT_TO_INSERT = 6.2076
 BACK_FASTENER_HEX_TRANSITION_DEPTH = 0.358
 BACK_FASTENER_RETENTION_TABS_ENABLED = True
-BACK_FASTENER_RETENTION_TAB_WIDTH_X = 2.05
+BACK_FASTENER_RETENTION_TAB_WIDTH_X = 1.0
 BACK_FASTENER_RETENTION_TAB_DEPTH_Y = 2.0
-BACK_FASTENER_RETENTION_TAB_PROTRUSION = 0.40
+BACK_FASTENER_RETENTION_TAB_PROTRUSION = 0.30
 BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT = 6.642
 BACK_FASTENER_RETENTION_TAB_BEVEL = 0.12
 
 # Six rear-shell stops prevent the camera sliding past the insert frame.
 CAMERA_STOPS_ENABLED = True
-# Keep stop material outside both types of rear screw boss. The bosses are
-# added after this clearance is cut, leaving their complete outer cylinders.
+# Fan clearance can include an extra radial gap. With case-boss clearance
+# disabled, only a 0.001 mm solver allowance exposes the tube boundary without
+# recreating the earlier visible annular gap around it.
 CAMERA_STOP_CLEAR_FAN_BOSSES = True
 CAMERA_STOP_CLEAR_CASE_BOSSES = False
 CAMERA_STOP_FASTENER_CLEARANCE = 0.35
@@ -1359,7 +1360,7 @@ def clear_camera_stop_fastener_access(camera_stops):
     y1 = insert_start_y() + BOOLEAN_OVERLAP
     if CAMERA_STOP_CLEAR_FAN_BOSSES and FAN_HOLE_BOSSES_ENABLED:
         radius = FAN_HOLE_BOSS_DIAMETER / 2.0 + CAMERA_STOP_FASTENER_CLEARANCE
-        fan_y0 = fan_pad_inner_y() + BOOLEAN_OVERLAP
+        fan_y0 = back_exterior_y() - BOOLEAN_OVERLAP
         for index, (x, z) in enumerate(fan_hole_positions(), start=1):
             cutters.append(
                 add_cylinder_y(
@@ -1371,9 +1372,18 @@ def clear_camera_stop_fastener_access(camera_stops):
                     z=z,
                 )
             )
-    if CAMERA_STOP_CLEAR_CASE_BOSSES and CASE_FASTENERS_ENABLED:
-        radius = BACK_FASTENER_BOSS_DIAMETER / 2.0 + CAMERA_STOP_FASTENER_CLEARANCE
-        case_y0 = BACK_FACE_THICKNESS + BOOLEAN_OVERLAP
+    if CASE_FASTENERS_ENABLED:
+        if CAMERA_STOP_CLEAR_CASE_BOSSES:
+            radius = (
+                BACK_FASTENER_BOSS_DIAMETER / 2.0
+                + CAMERA_STOP_FASTENER_CLEARANCE
+            )
+        else:
+            radius = (
+                BACK_FASTENER_BOSS_DIAMETER / 2.0
+                + 10.0 * BOOLEAN_CLEANUP_DISTANCE
+            )
+        case_y0 = back_exterior_y() - BOOLEAN_OVERLAP
         for index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
             cutters.append(
                 add_cylinder_y(
@@ -1522,8 +1532,6 @@ def create_back_shell():
     boolean_difference(back, [cavity], "Rear_Socket")
     camera_stops = create_camera_stops(camera_stop_back_volume)
     clear_camera_stop_fastener_access(camera_stops)
-    if camera_stops is not None:
-        boolean_union(back, camera_stops, "Camera_Stops_Union")
 
     if CASE_FASTENERS_ENABLED:
         back_fastener_bosses = []
@@ -1621,6 +1629,9 @@ def create_back_shell():
                 rotation=(0.0, math.radians(VENT_SLAT_ANGLE_DEG), 0.0),
             )
             boolean_union(back, slat, "Vent_Slat_Union")
+
+    if camera_stops is not None:
+        boolean_union(back, camera_stops, "Camera_Stops_Union")
 
     # Build short fan bosses with their bores already present. Reopening a
     # 1 mm solid boss with a second boolean can leave non-manifold edge fans.
