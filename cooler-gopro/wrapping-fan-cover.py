@@ -1,11 +1,8 @@
 """Parametric wraparound PC-fan cover for Blender.
 
-Run from a terminal:
-
-    blender --background --python wrapping-fan-cover.py
-
+Run it from Blender's Scripting workspace.  It only creates the mesh in the
+current scene; it never exports an STL or saves/overwrites a Blend file.
 Edit only the CONFIG section for normal use.  Dimensions are millimetres.
-The command above writes ``wrapping-fan-cover.stl`` beside this script by default.
 The 40x40x20 mm default follows ``fan-cover-20mm.stl``: a petal-pattern
 front grille and four walls that sleeve over the fan.  The front face is put
 at Z=0 so the generated cover is already oriented for printing face-down.
@@ -18,7 +15,6 @@ Axes:
 from __future__ import annotations
 
 import math
-from pathlib import Path
 
 import bmesh
 import bpy
@@ -28,11 +24,6 @@ import bpy
 # CONFIG
 
 CLEAR_SCENE = True
-EXPORT_STL = True
-EXPORT_DIRECTORY = ""  # Empty means the directory containing this script.
-EXPORT_STL_NAME = "wrapping-fan-cover.stl"
-SAVE_BLEND = False
-SAVE_BLEND_NAME = "wrapping-fan-cover.blend"
 
 # Select a fan preset.  Noctua is the dimensional golden set where it offers
 # the matching frame size.  Non-Noctua generic entries are explicitly marked.
@@ -130,8 +121,8 @@ GRILLE_CENTER_DISK_DIAMETER_FRACTION = 0.525
 CABLE_NOTCH_ENABLED = True
 CABLE_NOTCH_SIDE = "TOP"  # "TOP", "BOTTOM", "LEFT", or "RIGHT"
 CABLE_NOTCH_WIDTH = 5.0
-CABLE_NOTCH_DEPTH = 5.0
-CABLE_NOTCH_OFFSET = 0.0
+CABLE_NOTCH_DEPTH = 9.0
+CABLE_NOTCH_OFFSET = 16.0
 
 # Optional shallow internal ribs for a friction/snap fit.  Leave disabled for
 # predictable fit; enable after measuring the actual fan's corner pads.
@@ -615,20 +606,7 @@ def build_wrapping_fan_cover():
             f"Generated mesh failed validation: {non_manifold} non-manifold edges, {shells} shells"
         )
 
-    output_directory = Path(EXPORT_DIRECTORY).expanduser() if EXPORT_DIRECTORY else Path(__file__).resolve().parent
-    output_directory.mkdir(parents=True, exist_ok=True)
     select_only(cover)
-    if EXPORT_STL:
-        path = (output_directory / EXPORT_STL_NAME).resolve()
-        if hasattr(bpy.ops.wm, "stl_export"):
-            bpy.ops.wm.stl_export(filepath=str(path), export_selected_objects=True)
-        else:
-            bpy.ops.export_mesh.stl(filepath=str(path), use_selection=True)
-        print(f"Wrote {path}")
-    if SAVE_BLEND:
-        path = (output_directory / SAVE_BLEND_NAME).resolve()
-        bpy.ops.wm.save_as_mainfile(filepath=str(path))
-        print(f"Wrote {path}")
     return cover
 
 

@@ -1,11 +1,8 @@
 """Parametric flat PC-fan cover for Blender.
 
-Run from a terminal:
-
-    blender --background --python flat-fan-cover.py
-
+Run it from Blender's Scripting workspace.  It only creates the mesh in the
+current scene; it never exports an STL or saves/overwrites a Blend file.
 Edit only the CONFIG section for normal use.  Dimensions are millimetres.
-The command above writes ``flat-fan-cover.stl`` beside this script by default.
 The 60 mm defaults reproduce the proportions of ``fan-cover.stl`` while
 using a proper 4.3 mm Noctua-style through-hole instead of that STL's
 approximately 8.2 mm mounting openings.
@@ -18,7 +15,6 @@ Axes:
 from __future__ import annotations
 
 import math
-from pathlib import Path
 
 import bmesh
 import bpy
@@ -28,11 +24,6 @@ import bpy
 # CONFIG
 
 CLEAR_SCENE = True
-EXPORT_STL = True
-EXPORT_DIRECTORY = ""  # Empty means the directory containing this script.
-EXPORT_STL_NAME = "flat-fan-cover.stl"
-SAVE_BLEND = False
-SAVE_BLEND_NAME = "flat-fan-cover.blend"
 
 # Select a square fan preset.  Noctua is the dimensional golden set where it
 # offers a matching size.  The 50/70/100/180 mm entries are generic industry
@@ -125,7 +116,7 @@ MOUNT_HOLE_EXTRA_CLEARANCE = 0.0
 COVER_OVERHANG_PER_SIDE = 3.35
 COVER_OUTER_WIDTH_OVERRIDE = None
 COVER_OUTER_HEIGHT_OVERRIDE = None
-COVER_THICKNESS = 2.9
+COVER_THICKNESS = 1.5
 COVER_CORNER_RADIUS = 2.5
 EDGE_BEVEL = 0.30
 EDGE_BEVEL_SEGMENTS = 3
@@ -135,7 +126,7 @@ AIRFLOW_DIAMETER_OVERRIDE = None
 AIRFLOW_EDGE_INSET = 0.50  # Auto diameter = min(fan width, height) - this.
 GRILLE_RING_RADIUS_FRACTIONS = (0.56, 0.80)  # Fractions of airflow radius.
 GRILLE_RING_RADII_OVERRIDE = None
-GRILLE_RING_WIDTH = 2.0
+GRILLE_RING_WIDTH = 1.5
 GRILLE_CROSSBAR_WIDTH = 2.0
 GRILLE_CROSSBAR_ANGLE_DEG = 0.0
 GRILLE_CENTER_DISK_DIAMETER_OVERRIDE = None
@@ -637,20 +628,7 @@ def build_flat_fan_cover():
             f"Generated mesh failed validation: {non_manifold} non-manifold edges, {shells} shells"
         )
 
-    output_directory = Path(EXPORT_DIRECTORY).expanduser() if EXPORT_DIRECTORY else Path(__file__).resolve().parent
-    output_directory.mkdir(parents=True, exist_ok=True)
     select_only(cover)
-    if EXPORT_STL:
-        path = (output_directory / EXPORT_STL_NAME).resolve()
-        if hasattr(bpy.ops.wm, "stl_export"):
-            bpy.ops.wm.stl_export(filepath=str(path), export_selected_objects=True)
-        else:
-            bpy.ops.export_mesh.stl(filepath=str(path), use_selection=True)
-        print(f"Wrote {path}")
-    if SAVE_BLEND:
-        path = (output_directory / SAVE_BLEND_NAME).resolve()
-        bpy.ops.wm.save_as_mainfile(filepath=str(path))
-        print(f"Wrote {path}")
     return cover
 
 

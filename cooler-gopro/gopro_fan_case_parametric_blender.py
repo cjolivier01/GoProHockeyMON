@@ -31,6 +31,11 @@ CLEAR_SCENE = True
 LAYOUT_MODE = "assembled"  # "assembled" or "print_bed"
 PRINT_BED_GAP = 12.0
 
+# Post-build viewport/render visibility. Geometry is still built, validated,
+# and exported when hidden, making it easy to inspect either part by itself.
+SHOW_BACK_SHELL = True
+SHOW_HOLLOW_INSERT = True
+
 EXPORT_STL = False
 EXPORT_DIRECTORY = ""
 EXPORT_COMBINED_STL = True
@@ -57,8 +62,8 @@ BACK_FACE_THICKNESS = 3.0
 # Optional smooth exterior dome. The central fan pad remains an exact flat
 # rectangle at the dome's outermost Y position; the surrounding surface
 # blends back into the rear shell perimeter.
-BACK_DOME_ENABLED = False
-BACK_DOME_DEPTH = 6.0
+BACK_DOME_ENABLED = True
+BACK_DOME_DEPTH = 10.0
 BACK_DOME_FAN_PAD_WIDTH = 45.0
 BACK_DOME_FAN_PAD_HEIGHT = 45.0
 BACK_DOME_SECTIONS = 12
@@ -79,7 +84,7 @@ FAN_HOLE_SPACING_Z = 32.0
 FAN_HOLE_DIAMETER = 3.6
 FAN_HOLE_BOSSES_ENABLED = True
 FAN_HOLE_BOSS_DIAMETER = 7.0
-FAN_HOLE_BOSS_HEIGHT = 3.0
+FAN_HOLE_BOSS_HEIGHT = 1.0
 
 # Smooth rectangular vent and diagonal louvers to the fan's right.
 VENT_ENABLED = False
@@ -100,7 +105,7 @@ CASE_FASTENER_POSITIONS_XZ = (
     (31.0, 28.5),
 )
 BACK_FASTENER_HOLE_DIAMETER = 4.0
-BACK_FASTENER_BOSS_DIAMETER = 7.0
+BACK_FASTENER_BOSS_DIAMETER = 8.0
 BACK_FASTENER_TUBE_GAP = 0.5
 INSERT_FASTENER_HOLE_DIAMETER = 3.3
 INSERT_FASTENER_BOSS_DIAMETER = 7.0
@@ -114,10 +119,10 @@ BACK_FASTENER_HEX_HEIGHT_Z = 5.70
 BACK_FASTENER_HEX_SEAT_TO_INSERT = 6.2076
 BACK_FASTENER_HEX_TRANSITION_DEPTH = 0.358
 BACK_FASTENER_RETENTION_TABS_ENABLED = True
-BACK_FASTENER_RETENTION_TAB_WIDTH_X = 1.05
+BACK_FASTENER_RETENTION_TAB_WIDTH_X = 2.05
 BACK_FASTENER_RETENTION_TAB_DEPTH_Y = 2.0
-BACK_FASTENER_RETENTION_TAB_PROTRUSION = 0.30
-BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT = 3.642
+BACK_FASTENER_RETENTION_TAB_PROTRUSION = 0.40
+BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT = 6.642
 BACK_FASTENER_RETENTION_TAB_BEVEL = 0.12
 
 # Six rear-shell stops prevent the camera sliding past the insert frame.
@@ -199,9 +204,10 @@ CAMERA_STOP_SPECS = (
 INSERT_FRONT_WIDTH = 90.55
 INSERT_FRONT_HEIGHT = 61.45
 INSERT_REAR_WIDTH = 90.55
+
 # Keep front/rear equal for straight walls; change either value to add taper.
 INSERT_REAR_HEIGHT = 61.45
-INSERT_DEPTH = 27.3
+INSERT_DEPTH = 25.3
 INSERT_OUTER_CORNER_RADIUS = 8.0
 INSERT_WALL_X = 2.0
 INSERT_WALL_Z = 1.8
@@ -228,9 +234,9 @@ RIGHT_USB_PORT_Z = -17.9001
 
 # Optional circular port through only the top wall.
 TOP_PORT_ENABLED = True
-TOP_PORT_DIAMETER = 7.0
-TOP_PORT_X = 13.0
-TOP_PORT_Y_OFFSET = 14.0
+TOP_PORT_DIAMETER = 6.1875
+TOP_PORT_X = 18.0
+TOP_PORT_Y_OFFSET = 14.3367
 
 # Six internal rails that position the camera inside the insert frame.
 LOCATING_TABS_ENABLED = True
@@ -516,8 +522,8 @@ def validate_config() -> None:
 
 
 def clear_scene() -> None:
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete(use_global=False)
+    for obj in list(bpy.data.objects):
+        bpy.data.objects.remove(obj, do_unlink=True)
 
 
 def set_units() -> None:
@@ -1751,6 +1757,15 @@ def apply_layout(back, insert) -> None:
     insert.location.y = -insert_start_y()
 
 
+def apply_post_build_visibility(back, insert) -> None:
+    for obj, visible in (
+        (back, SHOW_BACK_SHELL),
+        (insert, SHOW_HOLLOW_INSERT),
+    ):
+        obj.hide_set(not visible)
+        obj.hide_render = not visible
+
+
 def export_base_directory() -> Path:
     if EXPORT_DIRECTORY:
         return Path(EXPORT_DIRECTORY).expanduser().resolve()
@@ -1797,9 +1812,20 @@ def build_gopro_fan_case():
             export_stl(directory / INSERT_STL_NAME, [insert])
 
     bpy.ops.object.select_all(action="DESELECT")
-    back.select_set(True)
-    insert.select_set(True)
-    bpy.context.view_layer.objects.active = back
+    apply_post_build_visibility(back, insert)
+    visible_objects = [
+        obj
+        for obj, visible in (
+            (back, SHOW_BACK_SHELL),
+            (insert, SHOW_HOLLOW_INSERT),
+        )
+        if visible
+    ]
+    for obj in visible_objects:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = (
+        visible_objects[0] if visible_objects else None
+    )
     return back, insert
 
 
