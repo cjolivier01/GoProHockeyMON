@@ -86,7 +86,7 @@ FAN_WIRE_SLOT_ENABLED = True
 FAN_WIRE_SLOT_SIDE = "BOTTOM"  # "TOP", "BOTTOM", "LEFT", or "RIGHT"
 FAN_WIRE_SLOT_WIDTH = 5.0
 FAN_WIRE_SLOT_DEPTH = 9.0
-FAN_WIRE_SLOT_OFFSET = 16.0
+FAN_WIRE_SLOT_OFFSET = 22.0
 
 # Twisted support joining the stalk to the two fan cages.
 SUPPORT_ENABLED = True
