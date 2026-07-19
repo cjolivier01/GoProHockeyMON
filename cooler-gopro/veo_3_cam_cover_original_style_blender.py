@@ -32,6 +32,7 @@ triangulated source does not expose an exact optical axis.
 from __future__ import annotations
 
 import math
+import hashlib
 import sys
 from pathlib import Path
 
@@ -147,6 +148,11 @@ CAMERA_CENTERLINE_AZIMUTH_DEG = 180.0
 CAMERA_HALF_ANGLE_DEG = 35.0
 # Set a two-value tuple to override the symmetric centerline/half-angle logic.
 CAMERA_AZIMUTHS_DEG = None
+# Expand the camera-driven footprint and automatically placed post layouts to
+# their mirrored union about CAMERA_CENTERLINE_AZIMUTH_DEG. This keeps the
+# enclosure and hardware layout symmetric even though the upright camera's
+# lens is offset within its handed body envelope.
+FORCE_LAYOUT_SYMMETRY = True
 
 # Camera roll and lens-axis height.  The supplied STL is upright by default;
 # set CAMERA_UPSIDE_DOWN=True only when deliberately mounting it that way.
@@ -222,7 +228,8 @@ CAMERA_NOSE_CONTACT_TOLERANCE = 0.01
 CAMERA_NOSE_MAX_EXPANSION = 80.0
 
 # Base-integrated camera cradles.  Two pads support each camera at the exact
-# modeled lens height; short side guides prevent tangential slide/rotation.
+# modeled lens height.  Thick, zero-clearance side and rear guides form a snug
+# lower socket so bracket preload cannot rock the camera or pull it rearward.
 CAMERA_CRADLES_ENABLED = True
 CAMERA_SUPPORT_PAD_RADIAL_LENGTH = 12.0
 CAMERA_SUPPORT_PAD_TANGENTIAL_WIDTH = 12.0
@@ -230,10 +237,20 @@ CAMERA_SUPPORT_PAD_TANGENTIAL_SPACING = 36.0
 CAMERA_SUPPORT_PAD_EDGE_RADIUS = 0.8
 CAMERA_SUPPORT_PAD_MIN_GAP = 2.0
 CAMERA_SUPPORT_FEATURE_CLEARANCE = 0.5
-CAMERA_CRADLE_SIDE_GUIDE_HEIGHT = 10.0
-CAMERA_CRADLE_SIDE_GUIDE_THICKNESS = 3.0
-CAMERA_CRADLE_SIDE_GUIDE_RADIAL_LENGTH = 14.0
-CAMERA_CRADLE_SIDE_CLEARANCE = 0.25
+CAMERA_CRADLE_SIDE_GUIDE_HEIGHT = 12.0
+CAMERA_CRADLE_SIDE_GUIDE_THICKNESS = 7.0
+CAMERA_CRADLE_SIDE_GUIDE_RADIAL_LENGTH = 19.0
+CAMERA_CRADLE_SIDE_CLEARANCE = 0.0
+CAMERA_CRADLE_REAR_GUIDE_ENABLED = True
+CAMERA_CRADLE_REAR_GUIDE_HEIGHT = 12.0
+CAMERA_CRADLE_REAR_GUIDE_THICKNESS = 7.0
+CAMERA_CRADLE_REAR_GUIDE_TANGENTIAL_WIDTH = 50.0
+# The rear locator is split into two blocks around this open center channel so
+# air can enter the cooling gap beneath the camera.
+CAMERA_CRADLE_REAR_GUIDE_CENTER_AIR_GAP = 18.0
+CAMERA_CRADLE_REAR_GUIDE_MIN_SEGMENT_WIDTH = 10.0
+CAMERA_CRADLE_REAR_CLEARANCE = 0.0
+CAMERA_CRADLE_GUIDE_EDGE_RADIUS = 0.8
 
 # Positive radial location is toward/out through the eye.  Three integrated
 # pads project inward from the solid wall around each opening and contact the
@@ -294,7 +311,7 @@ CAMERA_BRACKET_CONTACT_RAIL_RADIAL_LENGTH = 8.0
 # One outer-side rail is sufficient because the cradle side guides prevent
 # yaw/tangential motion.  It keeps the two independent clamps out of the shared
 # center region.  Disable this to restore two full-width contact rails.
-CAMERA_BRACKET_COMPACT_OUTER_RAIL_ONLY = True
+CAMERA_BRACKET_COMPACT_OUTER_RAIL_ONLY = False
 CAMERA_BRACKET_COMPACT_REAR_LIP_WIDTH = 20.0
 CAMERA_BRACKET_COMPACT_POST_TANGENTIAL_SPACING = 22.0
 CAMERA_BRACKET_BUTTON_RELIEF_MARGIN = 1.0
@@ -317,7 +334,12 @@ CAMERA_BRACKET_POST_BASE_DIAMETER = 18.0
 CAMERA_BRACKET_PRIMARY_REAR_OVERLAP = 2.0
 CAMERA_BRACKET_PRIMARY_TANGENTIAL_MARGIN = 1.5
 CAMERA_BRACKET_ARM_WIDTH = 10.0
-CAMERA_BRACKET_ARM_PLATE_OVERLAP = 1.5
+# Every arm anchor is driven this far inside the primary plate instead of
+# merely touching its nearest corner.  The overlap adds material beyond that
+# embedded anchor and beyond the circular screw boss.
+CAMERA_BRACKET_ARM_PLATE_EMBED = 7.0
+CAMERA_BRACKET_ARM_PLATE_OVERLAP = 2.5
+CAMERA_BRACKET_ARM_COUNTERBORE_MIN_WEB = 1.5
 CAMERA_BRACKET_BOSS_EDGE_MARGIN = 2.5
 CAMERA_BRACKET_BOSS_POST_EDGE_MARGIN = 0.75
 CAMERA_BRACKET_COLOR = (0.82, 0.28, 0.08, 1.0)
@@ -366,12 +388,15 @@ REAR_FAN_AIR_OPENING_DIAMETER = 36.0
 REAR_FAN_CUTTER_INWARD_EXTENSION = 8.0
 REAR_FAN_MIN_WEB = 2.0
 
-# Vertical floor hole for a nominal 1/2-inch fastener.  The X fraction is
-# measured from the solved camera/front extreme toward the rear extreme.
+# Vertical floor mount for a nominal 1/2-inch fastener.  By default an
+# interior boss captures a standard 1/2-inch hex nut in a slightly undersized
+# press-fit pocket.  Six independent ramped lips let the nut press in from
+# above and then catch its top face.  Measure the actual nut and printer before
+# production; inch fastener hardware varies by standard and coating.
 BOTTOM_MOUNT_HOLE_ENABLED = True
 BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.50
 BOTTOM_MOUNT_HOLE_LATERAL_TARGET = 0.0
-BOTTOM_MOUNT_HOLE_DIAMETER = 6.75
+BOTTOM_MOUNT_HOLE_DIAMETER = 13.5
 BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE = 3.0
 BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE = 2.0
 BOTTOM_MOUNT_HOLE_AUTO_LATERAL = True
@@ -383,25 +408,58 @@ BOTTOM_MOUNT_HOLE_SEARCH_STEP = 2.0
 BOTTOM_MOUNT_HOLE_AUTO_FRONT_TO_BACK = True
 BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_RANGE = 0.40
 BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP = 0.01
+BOTTOM_MOUNT_NUT_HOLDER_ENABLED = True
+BOTTOM_MOUNT_NUT_THREAD_DIAMETER = 12.7
+BOTTOM_MOUNT_NUT_ACROSS_FLATS = 19.05
+BOTTOM_MOUNT_NUT_THICKNESS = 11.1
+BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE = 0.15
+BOTTOM_MOUNT_NUT_ROTATION_DEG = 0.0
+BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER = 36.0
+BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL = 4.0
+BOTTOM_MOUNT_NUT_MIN_SEAT_WIDTH = 2.0
+BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE = 0.3
+BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE = 0.35
+BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT = 2.4
+BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION = 0.6
+BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH = 5.5
+BOTTOM_MOUNT_NUT_SNAP_ROOT_EMBED = 0.4
+BOTTOM_MOUNT_NUT_SNAP_RELIEF_ENABLED = True
+BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS = 0.8
+BOTTOM_MOUNT_NUT_SNAP_RELIEF_DEPTH = 0.5
+BOTTOM_MOUNT_NUT_SNAP_SIDE_SLOT_WIDTH = 0.6
+BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT = 2.0
+BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER = "MANIFOLD"
 
-# Three bottom-facing snap-in keystone-module mounts grouped near one rear
-# corner.  The defaults are a generic keystone envelope; measure the exact
-# modules being installed and override the cutout/face/body dimensions.  The
-# external pocket depth should equal the module face/shoulder projection so its
-# exposed face finishes flush with the outside bottom at Z=0.
+# Three bottom-facing keystone sockets grouped near one rear corner.  The
+# default imports the supplied proven socket geometry, seats its exterior face
+# exactly at Z=0, and leaves its insertion opening facing the enclosure.  The
+# generic pocket/cutout dimensions remain available as a legacy fallback.
 BOTTOM_KEYSTONES_ENABLED = True
 BOTTOM_KEYSTONE_COUNT = 3
 BOTTOM_KEYSTONE_CORNER_Y_SIGN = 1.0
 BOTTOM_KEYSTONE_ROW_AXIS = "y"  # "x" runs rear-to-front; "y" runs toward center.
+BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET = True
+BOTTOM_KEYSTONE_REFERENCE_STL = "/home/colivier/Downloads/Keystone Connector.stl"
+BOTTOM_KEYSTONE_REFERENCE_SHA256 = (
+    "fc71ad6a3c78fa4a76e2909f688800cf900bd4a22e78868db25a4c9470a41c20"
+)
+BOTTOM_KEYSTONE_REFERENCE_DIMENSION_TOLERANCE = 0.10
+BOTTOM_KEYSTONE_SOCKET_OUTER_X = 17.7
+BOTTOM_KEYSTONE_SOCKET_OUTER_Y = 25.0
+BOTTOM_KEYSTONE_SOCKET_HEIGHT = 9.75
+BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X = 14.7
+BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y = 22.0
+BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE = 0.10
+BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG = 0.0
 BOTTOM_KEYSTONE_CUTOUT_X = 16.1
 BOTTOM_KEYSTONE_CUTOUT_Y = 14.7
 BOTTOM_KEYSTONE_FACE_POCKET_X = 19.5
 BOTTOM_KEYSTONE_FACE_POCKET_Y = 16.6
 BOTTOM_KEYSTONE_FACE_RECESS_DEPTH = 1.5
 BOTTOM_KEYSTONE_INTERNAL_BODY_X = 22.0
-BOTTOM_KEYSTONE_INTERNAL_BODY_Y = 20.0
+BOTTOM_KEYSTONE_INTERNAL_BODY_Y = 25.0
 BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT = 30.0
-BOTTOM_KEYSTONE_CENTER_SPACING = 24.0
+BOTTOM_KEYSTONE_CENTER_SPACING = 30.0
 BOTTOM_KEYSTONE_REAR_EDGE_INSET = 10.0
 BOTTOM_KEYSTONE_SIDE_EDGE_INSET = 10.0
 BOTTOM_KEYSTONE_EDGE_CLEARANCE = 2.0
@@ -648,6 +706,57 @@ def camera_support_pad_tangent_centers():
     return pairs[0][1]
 
 
+def bottom_mount_nut_pocket_across_flats() -> float:
+    return BOTTOM_MOUNT_NUT_ACROSS_FLATS - BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE
+
+
+def bottom_mount_nut_seat_z() -> float:
+    return BOTTOM_THICKNESS
+
+
+def bottom_mount_nut_snap_shoulder_z() -> float:
+    return (
+        bottom_mount_nut_seat_z()
+        + BOTTOM_MOUNT_NUT_THICKNESS
+        + BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE
+        + BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE
+    )
+
+
+def bottom_mount_nut_snap_relief_base_z() -> float:
+    return (
+        bottom_mount_nut_snap_shoulder_z()
+        - BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT
+    )
+
+
+def bottom_mount_nut_holder_top_z() -> float:
+    return (
+        bottom_mount_nut_snap_shoulder_z()
+        + BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT
+    )
+
+
+def bottom_mount_feature_radius() -> float:
+    if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
+        return BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0
+    return BOTTOM_MOUNT_HOLE_DIAMETER / 2.0
+
+
+def bottom_keystone_socket_plan_dimensions():
+    if not BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET:
+        return 0.0, 0.0
+    angle = math.radians(BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG)
+    cosine = abs(math.cos(angle))
+    sine = abs(math.sin(angle))
+    return (
+        BOTTOM_KEYSTONE_SOCKET_OUTER_X * cosine
+        + BOTTOM_KEYSTONE_SOCKET_OUTER_Y * sine,
+        BOTTOM_KEYSTONE_SOCKET_OUTER_X * sine
+        + BOTTOM_KEYSTONE_SOCKET_OUTER_Y * cosine,
+    )
+
+
 def validate_config() -> None:
     positive = {
         "BODY_WIDTH": BODY_WIDTH,
@@ -687,6 +796,20 @@ def validate_config() -> None:
         "CAMERA_CRADLE_SIDE_GUIDE_RADIAL_LENGTH": (
             CAMERA_CRADLE_SIDE_GUIDE_RADIAL_LENGTH
         ),
+        "CAMERA_CRADLE_REAR_GUIDE_HEIGHT": CAMERA_CRADLE_REAR_GUIDE_HEIGHT,
+        "CAMERA_CRADLE_REAR_GUIDE_THICKNESS": (
+            CAMERA_CRADLE_REAR_GUIDE_THICKNESS
+        ),
+        "CAMERA_CRADLE_REAR_GUIDE_TANGENTIAL_WIDTH": (
+            CAMERA_CRADLE_REAR_GUIDE_TANGENTIAL_WIDTH
+        ),
+        "CAMERA_CRADLE_REAR_GUIDE_CENTER_AIR_GAP": (
+            CAMERA_CRADLE_REAR_GUIDE_CENTER_AIR_GAP
+        ),
+        "CAMERA_CRADLE_REAR_GUIDE_MIN_SEGMENT_WIDTH": (
+            CAMERA_CRADLE_REAR_GUIDE_MIN_SEGMENT_WIDTH
+        ),
+        "CAMERA_CRADLE_GUIDE_EDGE_RADIUS": CAMERA_CRADLE_GUIDE_EDGE_RADIUS,
         "CAMERA_FRONT_STOP_PROJECTION": CAMERA_FRONT_STOP_PROJECTION,
         "CAMERA_FRONT_STOP_SIDE_WIDTH": CAMERA_FRONT_STOP_SIDE_WIDTH,
         "CAMERA_FRONT_STOP_SIDE_HEIGHT": CAMERA_FRONT_STOP_SIDE_HEIGHT,
@@ -733,8 +856,12 @@ def validate_config() -> None:
             CAMERA_BRACKET_PRIMARY_TANGENTIAL_MARGIN
         ),
         "CAMERA_BRACKET_ARM_WIDTH": CAMERA_BRACKET_ARM_WIDTH,
+        "CAMERA_BRACKET_ARM_PLATE_EMBED": CAMERA_BRACKET_ARM_PLATE_EMBED,
         "CAMERA_BRACKET_ARM_PLATE_OVERLAP": (
             CAMERA_BRACKET_ARM_PLATE_OVERLAP
+        ),
+        "CAMERA_BRACKET_ARM_COUNTERBORE_MIN_WEB": (
+            CAMERA_BRACKET_ARM_COUNTERBORE_MIN_WEB
         ),
         "CAMERA_BRACKET_BOSS_EDGE_MARGIN": (
             CAMERA_BRACKET_BOSS_EDGE_MARGIN
@@ -789,6 +916,42 @@ def validate_config() -> None:
         "BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP": (
             BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP
         ),
+        "BOTTOM_MOUNT_NUT_THREAD_DIAMETER": BOTTOM_MOUNT_NUT_THREAD_DIAMETER,
+        "BOTTOM_MOUNT_NUT_ACROSS_FLATS": BOTTOM_MOUNT_NUT_ACROSS_FLATS,
+        "BOTTOM_MOUNT_NUT_THICKNESS": BOTTOM_MOUNT_NUT_THICKNESS,
+        "BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER": (
+            BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER
+        ),
+        "BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL": (
+            BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL
+        ),
+        "BOTTOM_MOUNT_NUT_MIN_SEAT_WIDTH": BOTTOM_MOUNT_NUT_MIN_SEAT_WIDTH,
+        "BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE": (
+            BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE
+        ),
+        "BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE": (
+            BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE
+        ),
+        "BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT": (
+            BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT
+        ),
+        "BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION": (
+            BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION
+        ),
+        "BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH": BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH,
+        "BOTTOM_MOUNT_NUT_SNAP_ROOT_EMBED": BOTTOM_MOUNT_NUT_SNAP_ROOT_EMBED,
+        "BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS": (
+            BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS
+        ),
+        "BOTTOM_MOUNT_NUT_SNAP_RELIEF_DEPTH": (
+            BOTTOM_MOUNT_NUT_SNAP_RELIEF_DEPTH
+        ),
+        "BOTTOM_MOUNT_NUT_SNAP_SIDE_SLOT_WIDTH": (
+            BOTTOM_MOUNT_NUT_SNAP_SIDE_SLOT_WIDTH
+        ),
+        "BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT": (
+            BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT
+        ),
         "BOTTOM_KEYSTONE_CUTOUT_X": BOTTOM_KEYSTONE_CUTOUT_X,
         "BOTTOM_KEYSTONE_CUTOUT_Y": BOTTOM_KEYSTONE_CUTOUT_Y,
         "BOTTOM_KEYSTONE_FACE_POCKET_X": BOTTOM_KEYSTONE_FACE_POCKET_X,
@@ -804,6 +967,18 @@ def validate_config() -> None:
         "BOTTOM_KEYSTONE_CENTER_SPACING": BOTTOM_KEYSTONE_CENTER_SPACING,
         "BOTTOM_KEYSTONE_SEARCH_RANGE": BOTTOM_KEYSTONE_SEARCH_RANGE,
         "BOTTOM_KEYSTONE_SEARCH_STEP": BOTTOM_KEYSTONE_SEARCH_STEP,
+        "BOTTOM_KEYSTONE_REFERENCE_DIMENSION_TOLERANCE": (
+            BOTTOM_KEYSTONE_REFERENCE_DIMENSION_TOLERANCE
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_OUTER_X": BOTTOM_KEYSTONE_SOCKET_OUTER_X,
+        "BOTTOM_KEYSTONE_SOCKET_OUTER_Y": BOTTOM_KEYSTONE_SOCKET_OUTER_Y,
+        "BOTTOM_KEYSTONE_SOCKET_HEIGHT": BOTTOM_KEYSTONE_SOCKET_HEIGHT,
+        "BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X": (
+            BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y": (
+            BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y
+        ),
     }
     for name, value in positive.items():
         if value <= 0.0:
@@ -869,12 +1044,16 @@ def validate_config() -> None:
             CAMERA_FORWARD_SOLVE_SAFETY_MARGIN
         ),
         "CAMERA_CRADLE_SIDE_CLEARANCE": CAMERA_CRADLE_SIDE_CLEARANCE,
+        "CAMERA_CRADLE_REAR_CLEARANCE": CAMERA_CRADLE_REAR_CLEARANCE,
         "CAMERA_FRONT_STOP_WALL_LAND": CAMERA_FRONT_STOP_WALL_LAND,
         "CAMERA_FRONT_STOP_EDGE_RADIUS": CAMERA_FRONT_STOP_EDGE_RADIUS,
         "EYE_CUTTER_INWARD_EXTRA": EYE_CUTTER_INWARD_EXTRA,
         "EYE_FACE_RECESS_BORDER_OVERLAP": EYE_FACE_RECESS_BORDER_OVERLAP,
         "CAMERA_SUPPORT_PAD_EDGE_RADIUS": CAMERA_SUPPORT_PAD_EDGE_RADIUS,
         "CAMERA_SUPPORT_FEATURE_CLEARANCE": CAMERA_SUPPORT_FEATURE_CLEARANCE,
+        "BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE": (
+            BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE
+        ),
         "CAMERA_BRACKET_TOP_FEATURE_CLEARANCE_Z": (
             CAMERA_BRACKET_TOP_FEATURE_CLEARANCE_Z
         ),
@@ -900,6 +1079,9 @@ def validate_config() -> None:
         "BOTTOM_KEYSTONE_EDGE_CLEARANCE": BOTTOM_KEYSTONE_EDGE_CLEARANCE,
         "BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE": (
             BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE": (
+            BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE
         ),
     }
     for name, value in nonnegative.items():
@@ -928,12 +1110,93 @@ def validate_config() -> None:
         raise ValueError(
             "BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_RANGE cannot exceed 1"
         )
+    if not math.isfinite(float(BOTTOM_MOUNT_NUT_ROTATION_DEG)):
+        raise ValueError("BOTTOM_MOUNT_NUT_ROTATION_DEG must be finite")
+    if BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER not in {
+        "FLOAT",
+        "EXACT",
+        "MANIFOLD",
+    }:
+        raise ValueError("Unsupported captive-nut holder Boolean solver")
+    if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
+        nut_pocket_across_flats = bottom_mount_nut_pocket_across_flats()
+        nut_corner_diameter = 2.0 * nut_pocket_across_flats / math.sqrt(3.0)
+        if BOTTOM_MOUNT_HOLE_DIAMETER <= BOTTOM_MOUNT_NUT_THREAD_DIAMETER:
+            raise ValueError(
+                "Bottom mount through-hole must clear the configured nut thread"
+            )
+        if (
+            nut_pocket_across_flats - BOTTOM_MOUNT_HOLE_DIAMETER
+        ) / 2.0 < BOTTOM_MOUNT_NUT_MIN_SEAT_WIDTH:
+            raise ValueError("Bottom mount nut has insufficient floor seating width")
+        if BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER < (
+            nut_corner_diameter + 2.0 * BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL
+        ):
+            raise ValueError("Bottom mount nut holder wall is too thin")
+        if BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION >= (
+            nut_pocket_across_flats - BOTTOM_MOUNT_HOLE_DIAMETER
+        ) / 2.0:
+            raise ValueError("Bottom mount snap lips project into the bolt passage")
+        hex_face_length = nut_pocket_across_flats / math.sqrt(3.0)
+        if BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH >= hex_face_length:
+            raise ValueError("Bottom mount snap lips exceed the nut-pocket faces")
+        if BOTTOM_MOUNT_NUT_SNAP_ROOT_EMBED >= (
+            BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS
+        ):
+            raise ValueError("Bottom mount snap-lip root exceeds its flex wall")
+        side_slot_outer_radial = (
+            nut_pocket_across_flats / 2.0
+            + BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS
+            + BOTTOM_MOUNT_NUT_SNAP_RELIEF_DEPTH
+            + BOOLEAN_OVERLAP
+        )
+        relief_outer_tangential = (
+            BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH / 2.0
+            + BOTTOM_MOUNT_NUT_SNAP_SIDE_SLOT_WIDTH
+        )
+        relief_corner_radius = math.hypot(
+            side_slot_outer_radial,
+            relief_outer_tangential,
+        )
+        boss_inradius = (
+            BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER
+            / 2.0
+            * math.cos(math.pi / 72.0)
+        )
+        remaining_relief_wall = (
+            boss_inradius - relief_corner_radius
+        )
+        if (
+            BOTTOM_MOUNT_NUT_SNAP_RELIEF_ENABLED
+            and remaining_relief_wall < BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL
+        ):
+            raise ValueError("Bottom mount snap relief leaves too little outer wall")
+        if bottom_mount_nut_snap_relief_base_z() <= BOTTOM_THICKNESS:
+            raise ValueError("Bottom mount snap-flex tongues extend into the floor")
+        if bottom_mount_nut_holder_top_z() >= BASE_HEIGHT:
+            raise ValueError("Bottom mount nut holder does not fit below the lid")
     if not isinstance(BOTTOM_KEYSTONE_COUNT, int) or BOTTOM_KEYSTONE_COUNT < 1:
         raise ValueError("BOTTOM_KEYSTONE_COUNT must be a positive integer")
     if BOTTOM_KEYSTONE_CORNER_Y_SIGN not in {-1.0, 1.0}:
         raise ValueError("BOTTOM_KEYSTONE_CORNER_Y_SIGN must be -1 or +1")
     if BOTTOM_KEYSTONE_ROW_AXIS not in {"x", "y"}:
         raise ValueError('BOTTOM_KEYSTONE_ROW_AXIS must be "x" or "y"')
+    if not math.isfinite(float(BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG)):
+        raise ValueError("BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG must be finite")
+    if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET:
+        reference_path = Path(BOTTOM_KEYSTONE_REFERENCE_STL).expanduser()
+        if not reference_path.is_file():
+            raise ValueError(
+                "BOTTOM_KEYSTONE_REFERENCE_STL does not identify a readable file"
+            )
+        if BOTTOM_KEYSTONE_REFERENCE_SHA256:
+            reference_digest = hashlib.sha256(reference_path.read_bytes()).hexdigest()
+            if reference_digest != BOTTOM_KEYSTONE_REFERENCE_SHA256.lower():
+                raise ValueError("Keystone reference STL SHA-256 does not match")
+        if BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X >= BOTTOM_KEYSTONE_SOCKET_OUTER_X:
+            raise ValueError("Keystone socket X walls have no positive thickness")
+        if BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y >= BOTTOM_KEYSTONE_SOCKET_OUTER_Y:
+            raise ValueError("Keystone socket Y walls have no positive thickness")
     if (
         BOTTOM_KEYSTONE_FACE_POCKET_X <= BOTTOM_KEYSTONE_CUTOUT_X
         or BOTTOM_KEYSTONE_FACE_POCKET_Y <= BOTTOM_KEYSTONE_CUTOUT_Y
@@ -943,17 +1206,20 @@ def validate_config() -> None:
         raise ValueError("Keystone face recess must leave a snap-in panel floor")
     if BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT >= BASE_HEIGHT - BOTTOM_THICKNESS:
         raise ValueError("Keystone internal body keepout exceeds the base height")
+    socket_keepout_x, socket_keepout_y = bottom_keystone_socket_plan_dimensions()
     keystone_row_size = (
         max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_X,
             BOTTOM_KEYSTONE_FACE_POCKET_X,
             BOTTOM_KEYSTONE_CUTOUT_X,
+            socket_keepout_x,
         )
         if BOTTOM_KEYSTONE_ROW_AXIS == "x"
         else max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
             BOTTOM_KEYSTONE_FACE_POCKET_Y,
             BOTTOM_KEYSTONE_CUTOUT_Y,
+            socket_keepout_y,
         )
     )
     if BOTTOM_KEYSTONE_CENTER_SPACING < (
@@ -1113,6 +1379,23 @@ def validate_config() -> None:
             flat_radial_max - flat_radial_min
         ) + 1e-6:
             raise ValueError("Camera side guides exceed the flat body-side region")
+        if (
+            CAMERA_CRADLE_REAR_GUIDE_ENABLED
+            and CAMERA_CRADLE_REAR_GUIDE_TANGENTIAL_WIDTH
+            > (flat_tangent_max - flat_tangent_min) + 1e-6
+        ):
+            raise ValueError("Camera rear guide exceeds the flat body-back region")
+        if CAMERA_CRADLE_REAR_GUIDE_ENABLED:
+            rear_segment_width = (
+                CAMERA_CRADLE_REAR_GUIDE_TANGENTIAL_WIDTH
+                - CAMERA_CRADLE_REAR_GUIDE_CENTER_AIR_GAP
+            ) / 2.0
+            if rear_segment_width < (
+                CAMERA_CRADLE_REAR_GUIDE_MIN_SEGMENT_WIDTH - 1e-6
+            ):
+                raise ValueError(
+                    "Camera rear-guide air gap leaves undersized guide segments"
+                )
     if VISORS_ENABLED and VISOR_BACK_BOTTOM_Z > VISOR_BACK_TOP_Z:
         raise ValueError("Visor back Z values are reversed")
     if VISORS_ENABLED and VISOR_FRONT_BOTTOM_Z > VISOR_FRONT_TOP_Z:
@@ -1145,6 +1428,24 @@ def validate_config() -> None:
         if counterbore_floor < CAMERA_BRACKET_MIN_COUNTERBORE_FLOOR:
             raise ValueError(
                 "Bracket counterbores leave less than the configured solid floor"
+            )
+        primary_plate_radial_depth = (
+            CAMERA_BRACKET_PRIMARY_REAR_OVERLAP
+            + CAMERA_BRACKET_OVER_CAMERA_DEPTH
+        )
+        if 2.0 * CAMERA_BRACKET_ARM_PLATE_EMBED >= primary_plate_radial_depth:
+            raise ValueError(
+                "CAMERA_BRACKET_ARM_PLATE_EMBED must leave an interior radial "
+                "anchor region in the primary plate"
+            )
+        minimum_arm_width = (
+            LID_SCREW_HEAD_COUNTERBORE_DIAMETER
+            + 2.0 * CAMERA_BRACKET_ARM_COUNTERBORE_MIN_WEB
+        )
+        if CAMERA_BRACKET_ARM_WIDTH < minimum_arm_width:
+            raise ValueError(
+                "CAMERA_BRACKET_ARM_WIDTH leaves less than the configured web "
+                "around the socket-head counterbore"
             )
         clamp_travel = (
             CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z
@@ -1744,6 +2045,72 @@ def add_cylinder_z(
     return obj
 
 
+def add_hex_prism_z(
+    name: str,
+    across_flats: float,
+    z0: float,
+    z1: float,
+    x: float = 0.0,
+    y: float = 0.0,
+    rotation_z: float = 0.0,
+):
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=6,
+        radius=across_flats / math.sqrt(3.0),
+        depth=z1 - z0,
+        location=(x, y, (z0 + z1) / 2.0),
+        rotation=(0.0, 0.0, rotation_z),
+    )
+    obj = bpy.context.object
+    obj.name = name
+    obj.data.name = name + "_Mesh"
+    return obj
+
+
+def add_hex_face_snap_wedge(
+    name: str,
+    x: float,
+    y: float,
+    face_angle: float,
+    wall_apothem: float,
+    projection: float,
+    root_embed: float,
+    width: float,
+    z0: float,
+    z1: float,
+):
+    """Create one inward ramp with a sharp lower retention shoulder."""
+    normal = (math.cos(face_angle), math.sin(face_angle))
+    tangent = (-normal[1], normal[0])
+    root_radius = wall_apothem + root_embed
+    inner_radius = wall_apothem - projection
+    half_width = width / 2.0
+
+    def point(radius, tangent_offset, z):
+        return (
+            x + radius * normal[0] + tangent_offset * tangent[0],
+            y + radius * normal[1] + tangent_offset * tangent[1],
+            z,
+        )
+
+    vertices = [
+        point(root_radius, -half_width, z0),
+        point(root_radius, -half_width, z1),
+        point(inner_radius, -half_width, z0),
+        point(root_radius, half_width, z0),
+        point(root_radius, half_width, z1),
+        point(inner_radius, half_width, z0),
+    ]
+    faces = (
+        (0, 2, 1),
+        (3, 4, 5),
+        (0, 1, 4, 3),
+        (0, 3, 5, 2),
+        (2, 5, 4, 1),
+    )
+    return create_mesh_object(name, vertices, faces)
+
+
 def add_tapered_cylinder_z(
     name: str,
     bottom_radius: float,
@@ -1840,6 +2207,19 @@ def axis_point(angle_deg: float, radial: float, tangent: float, z: float):
     normal = Vector((math.cos(angle), math.sin(angle), 0.0))
     side = Vector((-math.sin(angle), math.cos(angle), 0.0))
     return normal * radial + side * tangent + Vector((0.0, 0.0, z))
+
+
+def mirror_xy_across_camera_centerline(point):
+    """Reflect an XY point across the configured camera centerline."""
+    angle = math.radians(CAMERA_CENTERLINE_AZIMUTH_DEG)
+    normal = (math.cos(angle), math.sin(angle))
+    tangent = (-math.sin(angle), math.cos(angle))
+    radial_value = point[0] * normal[0] + point[1] * normal[1]
+    tangent_value = point[0] * tangent[0] + point[1] * tangent[1]
+    return (
+        radial_value * normal[0] - tangent_value * tangent[0],
+        radial_value * normal[1] - tangent_value * tangent[1],
+    )
 
 
 def rounded_rectangle_prism_axis(
@@ -2448,6 +2828,11 @@ def build_camera_driven_footprint(cameras):
     # Keep the actual hull vertices.  Uniform perimeter resampling can bridge
     # across a required corner and silently shave away configured clearance.
     result = convex_hull_2d(trimmed_baseline + requirement_points)
+    if FORCE_LAYOUT_SYMMETRY:
+        result = convex_hull_2d(
+            result
+            + [mirror_xy_across_camera_centerline(point) for point in result]
+        )
     result = vertex_preserving_resample(
         result,
         max(FOOTPRINT_POINTS, len(result)),
@@ -2667,6 +3052,68 @@ def post_is_valid(
     return True
 
 
+def resolve_symmetric_post_pairs(
+    targets,
+    index_pairs,
+    cameras,
+    inner_loop,
+    accepted_positions,
+    post_diameter,
+    search_radius,
+    search_step,
+    label,
+):
+    resolved = [None] * len(targets)
+    accepted = list(accepted_positions)
+    steps = int(math.ceil(search_radius / search_step))
+    for first_index, second_index in index_pairs:
+        first_target = targets[first_index]
+        second_target = targets[second_index]
+        candidates = []
+        for ix in range(-steps, steps + 1):
+            for iy in range(-steps, steps + 1):
+                dx = ix * search_step
+                dy = iy * search_step
+                if math.hypot(dx, dy) > search_radius:
+                    continue
+                first = (first_target[0] + dx, first_target[1] + dy)
+                second = mirror_xy_across_camera_centerline(first)
+                if math.dist(second, second_target) > search_radius:
+                    continue
+                if not post_is_valid(
+                    first,
+                    cameras,
+                    inner_loop,
+                    accepted,
+                    post_diameter=post_diameter,
+                ):
+                    continue
+                if not post_is_valid(
+                    second,
+                    cameras,
+                    inner_loop,
+                    [*accepted, first],
+                    post_diameter=post_diameter,
+                ):
+                    continue
+                score = (
+                    math.dist(first, first_target) ** 2
+                    + math.dist(second, second_target) ** 2
+                )
+                candidates.append((score, first, second))
+        if not candidates:
+            raise ValueError(
+                f"No symmetric {label} pair fits targets "
+                f"{first_target} and {second_target}"
+            )
+        candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+        _, first, second = candidates[0]
+        resolved[first_index] = first
+        resolved[second_index] = second
+        accepted.extend((first, second))
+    return tuple(resolved)
+
+
 def resolve_fastener_post_positions(cameras, footprint):
     post_minimum_scale = minimum_body_scale_between(
         BOTTOM_THICKNESS - BOOLEAN_OVERLAP,
@@ -2685,6 +3132,19 @@ def resolve_fastener_post_positions(cameras, footprint):
                     "wall, or post-spacing keepout"
                 )
             accepted.append(position)
+    elif FORCE_LAYOUT_SYMMETRY:
+        positions = resolve_symmetric_post_pairs(
+            tuple(tuple(target) for target in FASTENER_POST_TARGETS_XY),
+            ((0, 1), (2, 3)),
+            cameras,
+            inner_loop,
+            (),
+            FASTENER_POST_DIAMETER,
+            FASTENER_AUTO_SEARCH_RADIUS,
+            FASTENER_AUTO_GRID_STEP,
+            "lid-fastener post",
+        )
+        accepted = list(positions)
     else:
         accepted = []
         steps = int(math.ceil(FASTENER_AUTO_SEARCH_RADIUS / FASTENER_AUTO_GRID_STEP))
@@ -2796,6 +3256,7 @@ def resolve_camera_bracket_post_positions(cameras, footprint, lid_positions):
     inner_loop = inset_footprint_loop(
         scale_loop(footprint, post_minimum_scale), BODY_WALL_THICKNESS
     )
+    targets = camera_bracket_post_targets(cameras)
     accepted = list(lid_positions)
     resolved = []
     steps = int(
@@ -2803,7 +3264,9 @@ def resolve_camera_bracket_post_positions(cameras, footprint, lid_positions):
             CAMERA_BRACKET_POST_SEARCH_RADIUS / CAMERA_BRACKET_POST_SEARCH_STEP
         )
     )
-    for index, target in enumerate(camera_bracket_post_targets(cameras), start=1):
+    for camera_index in range(2):
+        first_target = targets[2 * camera_index]
+        second_target = targets[2 * camera_index + 1]
         candidates = []
         for ix in range(-steps, steps + 1):
             for iy in range(-steps, steps + 1):
@@ -2811,24 +3274,34 @@ def resolve_camera_bracket_post_positions(cameras, footprint, lid_positions):
                 dy = iy * CAMERA_BRACKET_POST_SEARCH_STEP
                 if math.hypot(dx, dy) > CAMERA_BRACKET_POST_SEARCH_RADIUS:
                     continue
-                position = (target[0] + dx, target[1] + dy)
-                if post_is_valid(
-                    position,
+                first = (first_target[0] + dx, first_target[1] + dy)
+                second = (second_target[0] + dx, second_target[1] + dy)
+                if not post_is_valid(
+                    first,
                     cameras,
                     inner_loop,
                     accepted,
                     post_diameter=CAMERA_BRACKET_POST_BASE_DIAMETER,
                 ):
-                    candidates.append((dx * dx + dy * dy, position))
+                    continue
+                if not post_is_valid(
+                    second,
+                    cameras,
+                    inner_loop,
+                    [*accepted, first],
+                    post_diameter=CAMERA_BRACKET_POST_BASE_DIAMETER,
+                ):
+                    continue
+                candidates.append((dx * dx + dy * dy, first, second))
         if not candidates:
             raise ValueError(
-                f"No camera-bracket post location found near target {index} "
-                f"{target}; increase CAMERA_BRACKET_POST_SEARCH_RADIUS"
+                f"No balanced camera-bracket post pair found for camera "
+                f"{camera_index + 1}; increase CAMERA_BRACKET_POST_SEARCH_RADIUS"
             )
-        candidates.sort(key=lambda item: (item[0], item[1][0], item[1][1]))
-        position = candidates[0][1]
-        resolved.append(position)
-        accepted.append(position)
+        candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+        _, first, second = candidates[0]
+        resolved.extend((first, second))
+        accepted.extend((first, second))
     result = (tuple(resolved[:2]), tuple(resolved[2:]))
     print("CAMERA_BRACKET_POST_POSITIONS_XY", result)
     return result
@@ -2859,6 +3332,7 @@ def resolve_bottom_mount_hole_position(
     front_x = min(x for x, _ in footprint)
     rear_x = max(x for x, _ in footprint)
     hole_radius = BOTTOM_MOUNT_HOLE_DIAMETER / 2.0
+    feature_radius = bottom_mount_feature_radius()
     bottom_scale = minimum_body_scale_between(0.0, BOTTOM_THICKNESS)
     bottom_loop = scale_loop(footprint, bottom_scale)
     all_bracket_posts = [
@@ -2904,11 +3378,11 @@ def resolve_bottom_mount_hole_position(
             if not point_in_polygon(position, bottom_loop):
                 continue
             if polygon_boundary_distance(position, bottom_loop) < (
-                hole_radius + BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE
+                feature_radius + BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE
             ):
                 continue
             camera_clearance = (
-                hole_radius + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
+                feature_radius + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
             )
             if any(
                 point_inside_camera_keepout(position, camera, camera_clearance)
@@ -2917,7 +3391,7 @@ def resolve_bottom_mount_hole_position(
                 continue
             if any(
                 math.dist(position, post) < (
-                    hole_radius
+                    feature_radius
                     + FASTENER_POST_DIAMETER / 2.0
                     + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
                 )
@@ -2926,7 +3400,7 @@ def resolve_bottom_mount_hole_position(
                 continue
             if any(
                 math.dist(position, post) < (
-                    hole_radius
+                    feature_radius
                     + CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0
                     + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
                 )
@@ -2938,7 +3412,9 @@ def resolve_bottom_mount_hole_position(
                 f"requested_fraction="
                 f"{BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION:.3f} "
                 f"resolved_fraction={fraction:.3f} "
-                f"xy=({position[0]:.2f}, {position[1]:.2f})"
+                f"xy=({position[0]:.2f}, {position[1]:.2f}) "
+                f"feature_radius={feature_radius:.2f} "
+                f"hole_radius={hole_radius:.2f}"
             )
             return position
     raise ValueError(
@@ -3022,18 +3498,31 @@ def resolve_bottom_keystone_positions(
     )
     bottom_scale = minimum_body_scale_between(0.0, BOTTOM_THICKNESS)
     bottom_loop = scale_loop(footprint, bottom_scale)
+    socket_keepout_x, socket_keepout_y = bottom_keystone_socket_plan_dimensions()
+    keystone_keepout_x = max(
+        BOTTOM_KEYSTONE_INTERNAL_BODY_X,
+        BOTTOM_KEYSTONE_FACE_POCKET_X,
+        BOTTOM_KEYSTONE_CUTOUT_X,
+        socket_keepout_x,
+    )
+    keystone_keepout_y = max(
+        BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+        BOTTOM_KEYSTONE_FACE_POCKET_Y,
+        BOTTOM_KEYSTONE_CUTOUT_Y,
+        socket_keepout_y,
+    )
     side_sign = float(BOTTOM_KEYSTONE_CORNER_Y_SIGN)
     side_extreme = max(side_sign * y for _, y in inner_loop)
     target_y = side_sign * (
         side_extreme
         - BOTTOM_KEYSTONE_SIDE_EDGE_INSET
-        - BOTTOM_KEYSTONE_INTERNAL_BODY_Y / 2.0
+        - keystone_keepout_y / 2.0
     )
     local_rear_x = radial_surface_distance(0.0, target_y, inner_loop)
     target_x = (
         local_rear_x
         - BOTTOM_KEYSTONE_REAR_EDGE_INSET
-        - BOTTOM_KEYSTONE_INTERNAL_BODY_X / 2.0
+        - keystone_keepout_x / 2.0
     )
     all_posts = [
         *(
@@ -3046,16 +3535,6 @@ def resolve_bottom_keystone_positions(
             for position in pair
         ),
     ]
-    keystone_keepout_x = max(
-        BOTTOM_KEYSTONE_INTERNAL_BODY_X,
-        BOTTOM_KEYSTONE_FACE_POCKET_X,
-        BOTTOM_KEYSTONE_CUTOUT_X,
-    )
-    keystone_keepout_y = max(
-        BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
-        BOTTOM_KEYSTONE_FACE_POCKET_Y,
-        BOTTOM_KEYSTONE_CUTOUT_Y,
-    )
     def cluster_positions(shift_x, shift_y):
         positions = []
         for index in range(BOTTOM_KEYSTONE_COUNT):
@@ -3080,24 +3559,34 @@ def resolve_bottom_keystone_positions(
     def position_is_valid(position):
         body_corners = axis_aligned_rectangle_corners(
             position,
-            BOTTOM_KEYSTONE_INTERNAL_BODY_X,
-            BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+            keystone_keepout_x,
+            keystone_keepout_y,
             BOTTOM_KEYSTONE_EDGE_CLEARANCE,
         )
         if not all(point_in_polygon(corner, inner_loop) for corner in body_corners):
             return False
+        bottom_face_x = (
+            keystone_keepout_x
+            if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET
+            else BOTTOM_KEYSTONE_FACE_POCKET_X
+        )
+        bottom_face_y = (
+            keystone_keepout_y
+            if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET
+            else BOTTOM_KEYSTONE_FACE_POCKET_Y
+        )
         pocket_corners = axis_aligned_rectangle_corners(
             position,
-            BOTTOM_KEYSTONE_FACE_POCKET_X,
-            BOTTOM_KEYSTONE_FACE_POCKET_Y,
+            bottom_face_x,
+            bottom_face_y,
             BOTTOM_KEYSTONE_EDGE_CLEARANCE,
         )
         if not all(point_in_polygon(corner, bottom_loop) for corner in pocket_corners):
             return False
         body_rectangle = axis_aligned_rectangle_corners(
             position,
-            BOTTOM_KEYSTONE_INTERNAL_BODY_X,
-            BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+            keystone_keepout_x,
+            keystone_keepout_y,
         )
         if any(
             convex_polygons_overlap(
@@ -3128,7 +3617,7 @@ def resolve_bottom_keystone_positions(
                 keystone_keepout_x,
                 keystone_keepout_y,
             )
-            < BOTTOM_MOUNT_HOLE_DIAMETER / 2.0
+            < bottom_mount_feature_radius()
             + BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
         ):
             return False
@@ -3198,13 +3687,13 @@ def join_tools(name: str, objects):
     return objects[0]
 
 
-def apply_boolean(base, tool, operation: str, label: str):
+def apply_boolean(base, tool, operation: str, label: str, solver=None):
     select_only(base)
     modifier = base.modifiers.new(label, "BOOLEAN")
     modifier.operation = operation
     modifier.object = tool
     if hasattr(modifier, "solver"):
-        modifier.solver = BOOLEAN_SOLVER
+        modifier.solver = solver or BOOLEAN_SOLVER
     if hasattr(modifier, "use_self"):
         modifier.use_self = False
     bpy.ops.object.modifier_apply(modifier=modifier.name)
@@ -3214,8 +3703,14 @@ def apply_boolean(base, tool, operation: str, label: str):
     return base
 
 
-def boolean_union(base, part, label="Union"):
-    return apply_boolean(base, part, "UNION", label + "_" + part.name)
+def boolean_union(base, part, label="Union", solver=None):
+    return apply_boolean(
+        base,
+        part,
+        "UNION",
+        label + "_" + part.name,
+        solver=solver,
+    )
 
 
 def boolean_difference(base, tools, label="Cut"):
@@ -3509,7 +4004,7 @@ def add_fastener_posts(base, positions):
 
 
 def add_camera_cradles(base, cameras):
-    """Add floor supports and short tangential guides for both cameras."""
+    """Add floor supports and a snug, reinforced lower camera socket."""
     if not CAMERA_CRADLES_ENABLED:
         return base
     body_radial, body_tangent, body_vertical = mission1.canonical_body_bounds(
@@ -3547,8 +4042,8 @@ def add_camera_cradles(base, cameras):
                 f"Camera_{camera['index']}_Support_Pad_{pad_index}_Union",
             )
 
-        guide_z1 = support_top + CAMERA_CRADLE_SIDE_GUIDE_HEIGHT
-        guide_depth = guide_z1 - support_z0
+        side_guide_z1 = support_top + CAMERA_CRADLE_SIDE_GUIDE_HEIGHT
+        side_guide_depth = side_guide_z1 - support_z0
         guide_tangents = (
             body_tangent[0]
             - CAMERA_CRADLE_SIDE_CLEARANCE
@@ -3562,27 +4057,71 @@ def add_camera_cradles(base, cameras):
                 camera["angle"],
                 lens_face_radius + body_radial_center,
                 camera["eye_tangent"] + tangent,
-                (support_z0 + guide_z1) / 2.0,
+                (support_z0 + side_guide_z1) / 2.0,
             )
             guide = add_beveled_box(
                 f"Camera_{camera['index']}_Side_Guide_{guide_index}",
                 (
                     CAMERA_CRADLE_SIDE_GUIDE_RADIAL_LENGTH,
                     CAMERA_CRADLE_SIDE_GUIDE_THICKNESS,
-                    guide_depth,
+                    side_guide_depth,
                 ),
                 tuple(center),
                 rotation_z=math.radians(camera["angle"]),
-                bevel=0.6,
+                bevel=CAMERA_CRADLE_GUIDE_EDGE_RADIUS,
             )
             boolean_union(
                 base,
                 guide,
                 f"Camera_{camera['index']}_Side_Guide_{guide_index}_Union",
             )
+
+        if CAMERA_CRADLE_REAR_GUIDE_ENABLED:
+            body_back = lens_face_radius + body_radial[0]
+            rear_guide_z1 = support_top + CAMERA_CRADLE_REAR_GUIDE_HEIGHT
+            rear_segment_width = (
+                CAMERA_CRADLE_REAR_GUIDE_TANGENTIAL_WIDTH
+                - CAMERA_CRADLE_REAR_GUIDE_CENTER_AIR_GAP
+            ) / 2.0
+            rear_segment_offset = (
+                CAMERA_CRADLE_REAR_GUIDE_CENTER_AIR_GAP
+                + rear_segment_width
+            ) / 2.0
+            rear_tangent_center = (
+                camera["eye_tangent"] + sum(body_tangent) / 2.0
+            )
+            for rear_index, tangent_sign in enumerate((-1.0, 1.0), start=1):
+                rear_guide_center = axis_point(
+                    camera["angle"],
+                    body_back
+                    - CAMERA_CRADLE_REAR_CLEARANCE
+                    - CAMERA_CRADLE_REAR_GUIDE_THICKNESS / 2.0,
+                    rear_tangent_center
+                    + tangent_sign * rear_segment_offset,
+                    (support_z0 + rear_guide_z1) / 2.0,
+                )
+                rear_guide = add_beveled_box(
+                    f"Camera_{camera['index']}_Rear_Guide_{rear_index}",
+                    (
+                        CAMERA_CRADLE_REAR_GUIDE_THICKNESS,
+                        rear_segment_width,
+                        rear_guide_z1 - support_z0,
+                    ),
+                    tuple(rear_guide_center),
+                    rotation_z=math.radians(camera["angle"]),
+                    bevel=CAMERA_CRADLE_GUIDE_EDGE_RADIUS,
+                )
+                boolean_union(
+                    base,
+                    rear_guide,
+                    f"Camera_{camera['index']}_Rear_Guide_"
+                    f"{rear_index}_Union",
+                )
         print(
             f"CAMERA_CRADLE {camera['index']}: support_top={support_top:.2f} "
             f"side_clearance={CAMERA_CRADLE_SIDE_CLEARANCE:.2f} "
+            f"rear_clearance={CAMERA_CRADLE_REAR_CLEARANCE:.2f} "
+            f"rear_air_gap={CAMERA_CRADLE_REAR_GUIDE_CENTER_AIR_GAP:.2f} "
             f"pad_tangents=({pad_tangent_centers[0]:.2f}, "
             f"{pad_tangent_centers[1]:.2f})"
         )
@@ -3657,21 +4196,289 @@ def add_camera_bracket_posts(base, bracket_position_pairs):
 def add_bottom_mount_hole(base, position):
     if not BOTTOM_MOUNT_HOLE_ENABLED or position is None:
         return base
+    x, y = position
+    if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
+        holder_top = bottom_mount_nut_holder_top_z()
+        holder = add_cylinder_z(
+            "Bottom_Mount_Captive_Nut_Structural_Boss",
+            BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0,
+            BOTTOM_THICKNESS - BOOLEAN_OVERLAP,
+            holder_top,
+            x,
+            y,
+        )
+
+        pocket_across_flats = bottom_mount_nut_pocket_across_flats()
+        rotation = math.radians(BOTTOM_MOUNT_NUT_ROTATION_DEG)
+        pocket = add_hex_prism_z(
+            "Bottom_Mount_Captive_Nut_Press_Fit_Pocket",
+            pocket_across_flats,
+            bottom_mount_nut_seat_z(),
+            holder_top + BOOLEAN_OVERLAP,
+            x,
+            y,
+            rotation_z=rotation,
+        )
+        boolean_difference(
+            holder,
+            [pocket],
+            "Bottom_Mount_Captive_Nut_Press_Fit_Pocket",
+        )
+
+        lip_z0 = bottom_mount_nut_snap_shoulder_z()
+        lip_z1 = lip_z0 + BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT
+        pocket_apothem = pocket_across_flats / 2.0
+        back_relief_cutters = []
+        side_slot_cutters = []
+        if BOTTOM_MOUNT_NUT_SNAP_RELIEF_ENABLED:
+            relief_z0 = bottom_mount_nut_snap_relief_base_z()
+            relief_z1 = holder_top + BOOLEAN_OVERLAP
+            flex_wall = BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS
+            relief_depth = BOTTOM_MOUNT_NUT_SNAP_RELIEF_DEPTH
+            side_slot = BOTTOM_MOUNT_NUT_SNAP_SIDE_SLOT_WIDTH
+            for relief_index in range(6):
+                face_angle = rotation + math.radians(
+                    60.0 * relief_index
+                )
+                normal = (math.cos(face_angle), math.sin(face_angle))
+                tangent = (-normal[1], normal[0])
+
+                def relief_center(radial, tangential):
+                    return (
+                        x + radial * normal[0] + tangential * tangent[0],
+                        y + radial * normal[1] + tangential * tangent[1],
+                        (relief_z0 + relief_z1) / 2.0,
+                    )
+
+                back_relief_cutters.append(
+                    add_beveled_box(
+                        f"Bottom_Mount_Nut_Lip_{relief_index + 1}_Back_Relief",
+                        (
+                            relief_depth,
+                            BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH
+                            + 2.0 * side_slot,
+                            relief_z1 - relief_z0,
+                        ),
+                        relief_center(
+                            pocket_apothem + flex_wall + relief_depth / 2.0,
+                            0.0,
+                        ),
+                        rotation_z=face_angle,
+                        bevel=0.0,
+                    )
+                )
+                side_radial_start = pocket_apothem - BOOLEAN_OVERLAP
+                side_radial_end = (
+                    pocket_apothem
+                    + flex_wall
+                    + relief_depth
+                    + BOOLEAN_OVERLAP
+                )
+                for tangent_sign in (-1.0, 1.0):
+                    side_slot_cutters.append(
+                        add_beveled_box(
+                            f"Bottom_Mount_Nut_Lip_{relief_index + 1}_"
+                            f"Side_Slot_{tangent_sign:+.0f}",
+                            (
+                                side_radial_end - side_radial_start,
+                                side_slot,
+                                relief_z1 - relief_z0,
+                            ),
+                            relief_center(
+                                (side_radial_start + side_radial_end) / 2.0,
+                                tangent_sign
+                                * (
+                                    BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH / 2.0
+                                    + side_slot / 2.0
+                                ),
+                            ),
+                            rotation_z=face_angle,
+                            bevel=0.0,
+                        )
+                    )
+        for lip_index in range(6):
+            face_angle = rotation + math.radians(60.0 * lip_index)
+            lip = add_hex_face_snap_wedge(
+                f"Bottom_Mount_Nut_Snap_Lip_{lip_index + 1}",
+                x,
+                y,
+                face_angle,
+                pocket_apothem,
+                BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION,
+                BOTTOM_MOUNT_NUT_SNAP_ROOT_EMBED,
+                BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH,
+                lip_z0,
+                lip_z1,
+            )
+            boolean_union(
+                holder,
+                lip,
+                f"Bottom_Mount_Nut_Snap_Lip_{lip_index + 1}_Union",
+            )
+        if BOTTOM_MOUNT_NUT_SNAP_RELIEF_ENABLED:
+            boolean_difference(
+                holder,
+                back_relief_cutters,
+                "Bottom_Mount_Nut_Snap_Tongue_Back_Reliefs",
+            )
+            boolean_difference(
+                holder,
+                side_slot_cutters,
+                "Bottom_Mount_Nut_Snap_Tongue_Side_Slots",
+            )
+        holder_non_manifold = non_manifold_edge_count(holder)
+        holder_shells = connected_shell_count(holder)
+        print(
+            "BOTTOM_MOUNT_NUT_HOLDER_VALIDATION "
+            f"non_manifold_edges={holder_non_manifold} "
+            f"connected_shells={holder_shells}"
+        )
+        if holder_non_manifold or holder_shells != 1:
+            raise RuntimeError("Captive nut holder is not one manifold component")
+        boolean_union(
+            base,
+            holder,
+            "Bottom_Mount_Captive_Nut_Boss_Union",
+            solver=BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER,
+        )
+
     cutter = add_cylinder_z(
         "Bottom_One_Half_Inch_Through_Hole",
         BOTTOM_MOUNT_HOLE_DIAMETER / 2.0,
         -BOOLEAN_OVERLAP,
         BOTTOM_THICKNESS + BOOLEAN_OVERLAP,
-        position[0],
-        position[1],
+        x,
+        y,
     )
     boolean_difference(base, [cutter], "Bottom_One_Half_Inch_Through_Hole")
+    if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
+        print(
+            "BOTTOM_MOUNT_CAPTIVE_NUT "
+            f"thread={BOTTOM_MOUNT_NUT_THREAD_DIAMETER:.2f} "
+            f"hole={BOTTOM_MOUNT_HOLE_DIAMETER:.2f} "
+            f"nut_af={BOTTOM_MOUNT_NUT_ACROSS_FLATS:.2f} "
+            f"pocket_af={bottom_mount_nut_pocket_across_flats():.2f} "
+            f"nut_thickness={BOTTOM_MOUNT_NUT_THICKNESS:.2f} "
+            f"boss_od={BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER:.2f} "
+            f"retention_clearance="
+            f"{BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE:.2f} "
+            f"relieved_lips={BOTTOM_MOUNT_NUT_SNAP_RELIEF_ENABLED} "
+            f"snap_lips=6"
+        )
     return base
+
+
+def import_bottom_keystone_reference_socket(index, position):
+    path = Path(BOTTOM_KEYSTONE_REFERENCE_STL).expanduser().resolve()
+    before = set(bpy.data.objects)
+    if hasattr(bpy.ops.wm, "stl_import"):
+        bpy.ops.wm.stl_import(filepath=str(path))
+    else:
+        bpy.ops.import_mesh.stl(filepath=str(path))
+    imported = [
+        obj for obj in bpy.data.objects if obj not in before and obj.type == "MESH"
+    ]
+    if len(imported) != 1:
+        raise RuntimeError(
+            f"Expected one mesh in keystone reference STL, found {len(imported)}"
+        )
+    socket = imported[0]
+    coordinates = [vertex.co.copy() for vertex in socket.data.vertices]
+    minimum = Vector(
+        (
+            min(point.x for point in coordinates),
+            min(point.y for point in coordinates),
+            min(point.z for point in coordinates),
+        )
+    )
+    maximum = Vector(
+        (
+            max(point.x for point in coordinates),
+            max(point.y for point in coordinates),
+            max(point.z for point in coordinates),
+        )
+    )
+    measured = maximum - minimum
+    expected = Vector(
+        (
+            BOTTOM_KEYSTONE_SOCKET_OUTER_X,
+            BOTTOM_KEYSTONE_SOCKET_OUTER_Y,
+            BOTTOM_KEYSTONE_SOCKET_HEIGHT,
+        )
+    )
+    tolerance = BOTTOM_KEYSTONE_REFERENCE_DIMENSION_TOLERANCE
+    if any(
+        abs(measured[axis] - expected[axis]) > tolerance
+        for axis in range(3)
+    ):
+        raise ValueError(
+            "Keystone reference STL dimensions changed: measured="
+            f"{tuple(round(value, 3) for value in measured)} expected="
+            f"{tuple(round(value, 3) for value in expected)}"
+        )
+    center_x = (minimum.x + maximum.x) / 2.0
+    center_y = (minimum.y + maximum.y) / 2.0
+    for vertex in socket.data.vertices:
+        vertex.co.x -= center_x
+        vertex.co.y -= center_y
+        vertex.co.z -= minimum.z
+    socket.data.update()
+    socket.location = (position[0], position[1], 0.0)
+    socket.rotation_euler.z = math.radians(BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG)
+    socket.name = f"Bottom_Keystone_{index}_Reference_Snap_Socket"
+    cleanup_mesh(socket)
+    recalc_normals(socket)
+    bpy.context.view_layer.update()
+    return socket
 
 
 def add_bottom_keystone_mounts(base, positions):
     if not BOTTOM_KEYSTONES_ENABLED or not positions:
         return base
+    if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET:
+        rotation = math.radians(BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG)
+        cavity_cutters = [
+            add_beveled_box(
+                f"Bottom_Keystone_{index}_Reference_Inner_Clearance",
+                (
+                    BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X
+                    + 2.0 * BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE,
+                    BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y
+                    + 2.0 * BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE,
+                    BOTTOM_KEYSTONE_SOCKET_HEIGHT + 2.0 * BOOLEAN_OVERLAP,
+                ),
+                (
+                    x,
+                    y,
+                    BOTTOM_KEYSTONE_SOCKET_HEIGHT / 2.0,
+                ),
+                rotation_z=rotation,
+                bevel=0.0,
+            )
+            for index, (x, y) in enumerate(positions, start=1)
+        ]
+        boolean_difference(
+            base,
+            cavity_cutters,
+            "Bottom_Keystone_Reference_Socket_Inner_Clearances",
+        )
+        for index, position in enumerate(positions, start=1):
+            socket = import_bottom_keystone_reference_socket(index, position)
+            boolean_union(
+                base,
+                socket,
+                f"Bottom_Keystone_{index}_Reference_Snap_Socket_Union",
+            )
+        print(
+            "BOTTOM_KEYSTONE_REFERENCE_SNAP_SOCKETS "
+            f"count={len(positions)} outer="
+            f"({BOTTOM_KEYSTONE_SOCKET_OUTER_X:.2f}, "
+            f"{BOTTOM_KEYSTONE_SOCKET_OUTER_Y:.2f}, "
+            f"{BOTTOM_KEYSTONE_SOCKET_HEIGHT:.2f}) outside_face_z=0.00 "
+            "loading_side=inside"
+        )
+        return base
+
     pocket_cutters = []
     through_cutters = []
     for index, (x, y) in enumerate(positions, start=1):
@@ -3774,6 +4581,11 @@ def create_camera_bracket(camera, post_positions):
         lip_tangent_center + lip_width / 2.0,
         max(rail_tangents) + CAMERA_BRACKET_CONTACT_RAIL_WIDTH / 2.0,
     ) + CAMERA_BRACKET_PRIMARY_TANGENTIAL_MARGIN
+    if 2.0 * CAMERA_BRACKET_ARM_PLATE_EMBED >= tangent_max - tangent_min:
+        raise ValueError(
+            f"Camera {camera['index']} bracket plate has no interior "
+            "tangential arm-anchor region"
+        )
     underside, top = camera_bracket_z_bounds()
     plate_center = axis_point(
         camera["angle"],
@@ -3793,10 +4605,10 @@ def create_camera_bracket(camera, post_positions):
         bevel=1.2,
     )
 
-    # Circular bosses and narrow arms carry the two M3 screws without filling
-    # the full post-to-camera bounding rectangle.  The arm target is the
-    # nearest point on the compact primary plate, so custom post placements
-    # can move in either local axis without disconnecting the bracket.
+    # Circular bosses and compact arms carry the two M3 screws without filling
+    # the full post-to-camera bounding rectangle.  Each arm terminates at a
+    # point well inside the primary plate; aiming at the nearest plate corner
+    # can otherwise leave only a fragile corner-sized Boolean connection.
     boss_radius = max(
         LID_SCREW_HEAD_COUNTERBORE_DIAMETER / 2.0
         + CAMERA_BRACKET_BOSS_EDGE_MARGIN,
@@ -3821,8 +4633,21 @@ def create_camera_bracket(camera, post_positions):
             boss,
             f"Camera_Bracket_{camera['index']}_Screw_Boss_{post_index}_Union",
         )
-        target_radial = min(max(post_radial, radial_min), radial_max)
-        target_tangent = min(max(post_tangent, tangent_min), tangent_max)
+        def embedded_anchor_coordinate(value, lower, upper):
+            inset_lower = lower + CAMERA_BRACKET_ARM_PLATE_EMBED
+            inset_upper = upper - CAMERA_BRACKET_ARM_PLATE_EMBED
+            return min(max(value, inset_lower), inset_upper)
+
+        target_radial = embedded_anchor_coordinate(
+            post_radial,
+            radial_min,
+            radial_max,
+        )
+        target_tangent = embedded_anchor_coordinate(
+            post_tangent,
+            tangent_min,
+            tangent_max,
+        )
         target = axis_point(
             camera["angle"],
             target_radial,
