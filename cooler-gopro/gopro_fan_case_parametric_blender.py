@@ -109,7 +109,7 @@ BACK_FASTENER_BOSS_DIAMETER = 8.0
 # Axial gap between the rear tube end and the insert-boss socket boundary.
 # Its distance behind the open rim is INSERTION_DEPTH plus this value.
 BACK_FASTENER_TO_INSERT_SOCKET_GAP = 0.0
-INSERT_FASTENER_HOLE_DIAMETER = 3.3
+INSERT_FASTENER_HOLE_DIAMETER = 3.4
 INSERT_FASTENER_BOSS_DIAMETER = 7.0
 FASTENER_BOSS_SOCKET_CLEARANCE = 0.25
 

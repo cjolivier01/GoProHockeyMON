@@ -11,7 +11,9 @@ enclosure with:
 * two upright MISSION 1 cameras supported and centered by built-in cradles,
 * removable, button-relieved camera clamps using M3 heat-set inserts,
 * two camera openings on the same side with the lens faces projecting through,
-* camera axes angled apart in plan, and
+* camera axes angled apart in plan,
+* two locally wall-aligned 40 mm fan stations with inside/outside pads,
+* three flush-recessed bottom keystone-module mounts, and
 * an optional projecting eyelid/visor directly above each camera opening.
 
 Run inside Blender::
@@ -98,7 +100,7 @@ CAMERA_BASE_CONTACT_VOLUME_TOLERANCE = 0.01
 # after export and preview rendering, so hidden parts are still generated and
 # included in the requested output files.
 SHOW_MAIN_BODY_AFTER_BUILD = True
-SHOW_TOP_AFTER_BUILD = False
+SHOW_TOP_AFTER_BUILD = True
 
 RENDER_PREVIEW = False
 PREVIEW_PATH = "veo_3_cam_cover_original_style.png"
@@ -109,8 +111,10 @@ PREVIEW_LID_LIFT = 25.0
 PREVIEW_SHOW_CAMERA_MOCKUPS = True
 
 # Source STL envelope: 215.167 x 233.661 x 70.653 mm.
-BODY_WIDTH = 215.167
+# BODY_WIDTH = 215.167
+BODY_WIDTH = 180
 BODY_DEPTH = 233.661
+# BODY_DEPTH = 210
 BODY_HEIGHT = 70.653
 BASE_HEIGHT = 66.0
 LID_THICKNESS = BODY_HEIGHT - BASE_HEIGHT
@@ -264,7 +268,7 @@ FASTENER_AUTO_SEARCH_RADIUS = 90.0
 FASTENER_AUTO_GRID_STEP = 2.0
 FASTENER_POST_DIAMETER = 10.5
 FASTENER_POST_EDGE_CLEARANCE = 2.0
-FASTENER_POST_CAMERA_CLEARANCE = 5.0
+FASTENER_POST_CAMERA_CLEARANCE = 10.0
 FASTENER_POST_MIN_CENTER_SPACING = 18.0
 FASTENER_POST_TOP_CLEARANCE = 0.20
 
@@ -322,7 +326,7 @@ CAMERA_BRACKET_COLOR = (0.82, 0.28, 0.08, 1.0)
 # override these values.  A 4.0 mm pilot is common for inserts around 4.6 mm
 # knurled OD; the smaller pilot supplies the plastic interference for heating.
 HEAT_INSERT_HOLE_DIAMETER = 4.0
-HEAT_INSERT_HOLE_DEPTH = 6.5
+HEAT_INSERT_HOLE_DEPTH = 15.5
 HEAT_INSERT_LEADIN_DIAMETER = 4.8
 HEAT_INSERT_LEADIN_DEPTH = 1.0
 
@@ -334,14 +338,26 @@ LID_SCREW_HEAD_COUNTERBORE_DIAMETER = 6.2
 LID_SCREW_HEAD_COUNTERBORE_DEPTH = 3.3
 CAMERA_BRACKET_MIN_COUNTERBORE_FLOOR = 1.5
 
-# Two external 40 mm fan stations on the rounded rear (+X) wall.  Each fan
+# Two 40 mm fan stations on the rounded rear (+X) wall.  Each fan
 # seats against an exact 45 x 45 mm flat plane.  Standard 40 mm fan mounting
-# centers are 32 mm apart in both axes.
+# centers are 32 mm apart in both axes.  By default the two centers sit at the
+# configurable +/- centerline offset and each pad follows the rear wall's local
+# tangent.  Set REAR_FAN_CENTER_TANGENTS to two signed global-Y offsets for an
+# asymmetric layout.
 REAR_FANS_ENABLED = True
 REAR_FAN_PAD_SIZE = 45.0
 REAR_FAN_PAD_GAP = 4.0
+# Signed centers default to +/- this global-Y distance.  Set it to None to
+# derive the distance from (pad size + pad gap) / 2 instead.
+REAR_FAN_CENTERLINE_OFFSET = 32.5
 REAR_FAN_CENTER_TANGENTS = None
 REAR_FAN_CENTER_Z = 35.0
+REAR_FAN_ALIGN_TO_LOCAL_WALL = True
+REAR_FAN_WALL_ANGLE_SAMPLE_DISTANCE = 1.0
+# True puts the flat fan seating planes inside the cavity (the default).  False
+# restores external pads.  FACE_OUTSET is measured inward or outward from the
+# corresponding nominal wall surface, depending on this selection.
+REAR_FAN_PAD_INSIDE = True
 REAR_FAN_PAD_FACE_OUTSET = 1.5
 REAR_FAN_PAD_SURFACE_SAMPLES = 24
 REAR_FAN_MOUNT_SPACING = 32.0
@@ -367,6 +383,32 @@ BOTTOM_MOUNT_HOLE_SEARCH_STEP = 2.0
 BOTTOM_MOUNT_HOLE_AUTO_FRONT_TO_BACK = True
 BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_RANGE = 0.40
 BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP = 0.01
+
+# Three bottom-facing snap-in keystone-module mounts grouped near one rear
+# corner.  The defaults are a generic keystone envelope; measure the exact
+# modules being installed and override the cutout/face/body dimensions.  The
+# external pocket depth should equal the module face/shoulder projection so its
+# exposed face finishes flush with the outside bottom at Z=0.
+BOTTOM_KEYSTONES_ENABLED = True
+BOTTOM_KEYSTONE_COUNT = 3
+BOTTOM_KEYSTONE_CORNER_Y_SIGN = 1.0
+BOTTOM_KEYSTONE_ROW_AXIS = "y"  # "x" runs rear-to-front; "y" runs toward center.
+BOTTOM_KEYSTONE_CUTOUT_X = 16.1
+BOTTOM_KEYSTONE_CUTOUT_Y = 14.7
+BOTTOM_KEYSTONE_FACE_POCKET_X = 19.5
+BOTTOM_KEYSTONE_FACE_POCKET_Y = 16.6
+BOTTOM_KEYSTONE_FACE_RECESS_DEPTH = 1.5
+BOTTOM_KEYSTONE_INTERNAL_BODY_X = 22.0
+BOTTOM_KEYSTONE_INTERNAL_BODY_Y = 20.0
+BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT = 30.0
+BOTTOM_KEYSTONE_CENTER_SPACING = 24.0
+BOTTOM_KEYSTONE_REAR_EDGE_INSET = 10.0
+BOTTOM_KEYSTONE_SIDE_EDGE_INSET = 10.0
+BOTTOM_KEYSTONE_EDGE_CLEARANCE = 2.0
+BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE = 2.0
+BOTTOM_KEYSTONE_AUTO_PLACEMENT = True
+BOTTOM_KEYSTONE_SEARCH_RANGE = 110.0
+BOTTOM_KEYSTONE_SEARCH_STEP = 2.0
 
 # Geometry quality.
 ROUNDED_CORNER_SEGMENTS = 14
@@ -722,6 +764,9 @@ def validate_config() -> None:
         ),
         "REAR_FAN_PAD_SIZE": REAR_FAN_PAD_SIZE,
         "REAR_FAN_PAD_SURFACE_SAMPLES": REAR_FAN_PAD_SURFACE_SAMPLES,
+        "REAR_FAN_WALL_ANGLE_SAMPLE_DISTANCE": (
+            REAR_FAN_WALL_ANGLE_SAMPLE_DISTANCE
+        ),
         "REAR_FAN_MOUNT_SPACING": REAR_FAN_MOUNT_SPACING,
         "REAR_FAN_MOUNT_HOLE_DIAMETER": REAR_FAN_MOUNT_HOLE_DIAMETER,
         "REAR_FAN_AIR_OPENING_DIAMETER": REAR_FAN_AIR_OPENING_DIAMETER,
@@ -744,6 +789,21 @@ def validate_config() -> None:
         "BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP": (
             BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP
         ),
+        "BOTTOM_KEYSTONE_CUTOUT_X": BOTTOM_KEYSTONE_CUTOUT_X,
+        "BOTTOM_KEYSTONE_CUTOUT_Y": BOTTOM_KEYSTONE_CUTOUT_Y,
+        "BOTTOM_KEYSTONE_FACE_POCKET_X": BOTTOM_KEYSTONE_FACE_POCKET_X,
+        "BOTTOM_KEYSTONE_FACE_POCKET_Y": BOTTOM_KEYSTONE_FACE_POCKET_Y,
+        "BOTTOM_KEYSTONE_FACE_RECESS_DEPTH": (
+            BOTTOM_KEYSTONE_FACE_RECESS_DEPTH
+        ),
+        "BOTTOM_KEYSTONE_INTERNAL_BODY_X": BOTTOM_KEYSTONE_INTERNAL_BODY_X,
+        "BOTTOM_KEYSTONE_INTERNAL_BODY_Y": BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+        "BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT": (
+            BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT
+        ),
+        "BOTTOM_KEYSTONE_CENTER_SPACING": BOTTOM_KEYSTONE_CENTER_SPACING,
+        "BOTTOM_KEYSTONE_SEARCH_RANGE": BOTTOM_KEYSTONE_SEARCH_RANGE,
+        "BOTTOM_KEYSTONE_SEARCH_STEP": BOTTOM_KEYSTONE_SEARCH_STEP,
     }
     for name, value in positive.items():
         if value <= 0.0:
@@ -835,6 +895,12 @@ def validate_config() -> None:
         "CAMERA_BRACKET_WALL_CLEARANCE": CAMERA_BRACKET_WALL_CLEARANCE,
         "REAR_FAN_PAD_GAP": REAR_FAN_PAD_GAP,
         "REAR_FAN_PAD_FACE_OUTSET": REAR_FAN_PAD_FACE_OUTSET,
+        "BOTTOM_KEYSTONE_REAR_EDGE_INSET": BOTTOM_KEYSTONE_REAR_EDGE_INSET,
+        "BOTTOM_KEYSTONE_SIDE_EDGE_INSET": BOTTOM_KEYSTONE_SIDE_EDGE_INSET,
+        "BOTTOM_KEYSTONE_EDGE_CLEARANCE": BOTTOM_KEYSTONE_EDGE_CLEARANCE,
+        "BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE": (
+            BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
+        ),
     }
     for name, value in nonnegative.items():
         if value < 0.0:
@@ -862,12 +928,62 @@ def validate_config() -> None:
         raise ValueError(
             "BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_RANGE cannot exceed 1"
         )
+    if not isinstance(BOTTOM_KEYSTONE_COUNT, int) or BOTTOM_KEYSTONE_COUNT < 1:
+        raise ValueError("BOTTOM_KEYSTONE_COUNT must be a positive integer")
+    if BOTTOM_KEYSTONE_CORNER_Y_SIGN not in {-1.0, 1.0}:
+        raise ValueError("BOTTOM_KEYSTONE_CORNER_Y_SIGN must be -1 or +1")
+    if BOTTOM_KEYSTONE_ROW_AXIS not in {"x", "y"}:
+        raise ValueError('BOTTOM_KEYSTONE_ROW_AXIS must be "x" or "y"')
+    if (
+        BOTTOM_KEYSTONE_FACE_POCKET_X <= BOTTOM_KEYSTONE_CUTOUT_X
+        or BOTTOM_KEYSTONE_FACE_POCKET_Y <= BOTTOM_KEYSTONE_CUTOUT_Y
+    ):
+        raise ValueError("Keystone face pockets must exceed their through cutouts")
+    if BOTTOM_KEYSTONE_FACE_RECESS_DEPTH >= BOTTOM_THICKNESS:
+        raise ValueError("Keystone face recess must leave a snap-in panel floor")
+    if BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT >= BASE_HEIGHT - BOTTOM_THICKNESS:
+        raise ValueError("Keystone internal body keepout exceeds the base height")
+    keystone_row_size = (
+        max(
+            BOTTOM_KEYSTONE_INTERNAL_BODY_X,
+            BOTTOM_KEYSTONE_FACE_POCKET_X,
+            BOTTOM_KEYSTONE_CUTOUT_X,
+        )
+        if BOTTOM_KEYSTONE_ROW_AXIS == "x"
+        else max(
+            BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+            BOTTOM_KEYSTONE_FACE_POCKET_Y,
+            BOTTOM_KEYSTONE_CUTOUT_Y,
+        )
+    )
+    if BOTTOM_KEYSTONE_CENTER_SPACING < (
+        keystone_row_size + 2.0 * BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
+    ):
+        raise ValueError("Keystone center spacing violates body keepouts")
     if REAR_FAN_PAD_SURFACE_SAMPLES < 8:
         raise ValueError("REAR_FAN_PAD_SURFACE_SAMPLES must be at least 8")
     if REAR_FAN_CENTER_TANGENTS is not None and (
         len(REAR_FAN_CENTER_TANGENTS) != 2
     ):
         raise ValueError("REAR_FAN_CENTER_TANGENTS must contain two values")
+    if REAR_FAN_CENTERLINE_OFFSET is not None and (
+        not math.isfinite(float(REAR_FAN_CENTERLINE_OFFSET))
+        or REAR_FAN_CENTERLINE_OFFSET <= 0.0
+    ):
+        raise ValueError(
+            "REAR_FAN_CENTERLINE_OFFSET must be positive or None"
+        )
+    if REAR_FAN_CENTER_TANGENTS is not None and not all(
+        math.isfinite(float(value)) for value in REAR_FAN_CENTER_TANGENTS
+    ):
+        raise ValueError("REAR_FAN_CENTER_TANGENTS values must be finite")
+    fan_centers = rear_fan_center_tangents()
+    if abs(fan_centers[1] - fan_centers[0]) < (
+        REAR_FAN_PAD_SIZE + REAR_FAN_PAD_GAP
+    ) - 1e-6:
+        raise ValueError(
+            "Rear fan centerline offsets do not leave the configured pad gap"
+        )
     if (
         REAR_FAN_CENTER_Z - REAR_FAN_PAD_SIZE / 2.0 < BOTTOM_THICKNESS
         or REAR_FAN_CENTER_Z + REAR_FAN_PAD_SIZE / 2.0 > BASE_HEIGHT
@@ -1817,33 +1933,106 @@ def cylinder_prism_axis(
 def rear_fan_center_tangents():
     if REAR_FAN_CENTER_TANGENTS is not None:
         return tuple(float(value) for value in REAR_FAN_CENTER_TANGENTS)
-    half_spacing = (REAR_FAN_PAD_SIZE + REAR_FAN_PAD_GAP) / 2.0
-    return (-half_spacing, half_spacing)
+    if REAR_FAN_CENTERLINE_OFFSET is None:
+        offset = (REAR_FAN_PAD_SIZE + REAR_FAN_PAD_GAP) / 2.0
+    else:
+        offset = float(REAR_FAN_CENTERLINE_OFFSET)
+    return (-offset, offset)
+
+
+def rear_fan_wall_normal_angle_deg(footprint, centerline_offset: float) -> float:
+    """Return the rear wall's outward XY normal at a global-Y station."""
+    if not REAR_FAN_ALIGN_TO_LOCAL_WALL:
+        return 0.0
+    sample = REAR_FAN_WALL_ANGLE_SAMPLE_DISTANCE
+    x_low = radial_surface_distance(
+        0.0,
+        centerline_offset - sample,
+        footprint,
+    )
+    x_high = radial_surface_distance(
+        0.0,
+        centerline_offset + sample,
+        footprint,
+    )
+    dx_dy = (x_high - x_low) / (2.0 * sample)
+    return math.degrees(math.atan2(-dx_dy, 1.0))
 
 
 def curved_backed_flat_pad(name: str, footprint, center_tangent: float):
     half_size = REAR_FAN_PAD_SIZE / 2.0
     count = REAR_FAN_PAD_SURFACE_SAMPLES
+    wall_angle_deg = rear_fan_wall_normal_angle_deg(
+        footprint,
+        center_tangent,
+    )
+    wall_angle = math.radians(wall_angle_deg)
+    wall_tangent = (-math.sin(wall_angle), math.cos(wall_angle))
+    center_surface = (
+        radial_surface_distance(0.0, center_tangent, footprint),
+        center_tangent,
+    )
+    center_axis_tangent = (
+        center_surface[0] * wall_tangent[0]
+        + center_surface[1] * wall_tangent[1]
+    )
     tangents = [
-        center_tangent - half_size + REAR_FAN_PAD_SIZE * index / count
+        center_axis_tangent
+        - half_size
+        + REAR_FAN_PAD_SIZE * index / count
         for index in range(count + 1)
     ]
-    surfaces = [
-        radial_surface_distance(0.0, tangent, footprint)
+    outer_surfaces = [
+        radial_surface_distance(wall_angle_deg, tangent, footprint)
         for tangent in tangents
     ]
-    face_radius = max(surfaces) + REAR_FAN_PAD_FACE_OUTSET
+    if REAR_FAN_PAD_INSIDE:
+        inner_footprint = inset_footprint_loop(
+            footprint,
+            BODY_WALL_THICKNESS,
+        )
+        wall_surfaces = [
+            radial_surface_distance(
+                wall_angle_deg,
+                tangent,
+                inner_footprint,
+            )
+            for tangent in tangents
+        ]
+        backing_surfaces = [
+            surface + BOOLEAN_OVERLAP for surface in wall_surfaces
+        ]
+        face_radius = min(wall_surfaces) - REAR_FAN_PAD_FACE_OUTSET
+    else:
+        wall_surfaces = outer_surfaces
+        backing_surfaces = [
+            surface - BOOLEAN_OVERLAP for surface in wall_surfaces
+        ]
+        face_radius = max(wall_surfaces) + REAR_FAN_PAD_FACE_OUTSET
     z0 = REAR_FAN_CENTER_Z - half_size
     z1 = REAR_FAN_CENTER_Z + half_size
     vertices = []
-    for tangent, surface in zip(tangents, surfaces):
-        inner = surface - BOOLEAN_OVERLAP
+    for tangent, backing_surface in zip(tangents, backing_surfaces):
         vertices.extend(
             (
-                tuple(axis_point(0.0, inner, tangent, z0)),
-                tuple(axis_point(0.0, inner, tangent, z1)),
-                tuple(axis_point(0.0, face_radius, tangent, z0)),
-                tuple(axis_point(0.0, face_radius, tangent, z1)),
+                tuple(
+                    axis_point(
+                        wall_angle_deg,
+                        backing_surface,
+                        tangent,
+                        z0,
+                    )
+                ),
+                tuple(
+                    axis_point(
+                        wall_angle_deg,
+                        backing_surface,
+                        tangent,
+                        z1,
+                    )
+                ),
+                tuple(axis_point(wall_angle_deg, face_radius, tangent, z0)),
+                tuple(axis_point(wall_angle_deg, face_radius, tangent, z1)),
             )
         )
     faces = []
@@ -1863,7 +2052,22 @@ def curved_backed_flat_pad(name: str, footprint, center_tangent: float):
     faces.append([last, last + 2, last + 3, last + 1])
     obj = create_mesh_object(name, vertices, faces)
     obj["fan_face_radius"] = face_radius
-    obj["fan_min_surface_radius"] = min(surfaces)
+    obj["fan_min_surface_radius"] = min(outer_surfaces)
+    obj["fan_max_surface_radius"] = max(outer_surfaces)
+    obj["fan_min_wall_surface_radius"] = min(wall_surfaces)
+    obj["fan_max_wall_surface_radius"] = max(wall_surfaces)
+    obj["fan_face_angle_deg"] = wall_angle_deg
+    obj["fan_center_axis_tangent"] = center_axis_tangent
+    obj["fan_centerline_offset"] = center_tangent
+    obj["fan_pad_inside"] = REAR_FAN_PAD_INSIDE
+    face_center = axis_point(
+        wall_angle_deg,
+        face_radius,
+        center_axis_tangent,
+        REAR_FAN_CENTER_Z,
+    )
+    obj["fan_face_center_x"] = face_center.x
+    obj["fan_face_center_y"] = face_center.y
     return obj
 
 
@@ -2743,6 +2947,233 @@ def resolve_bottom_mount_hole_position(
     )
 
 
+def axis_aligned_rectangle_corners(position, size_x, size_y, clearance=0.0):
+    half_x = size_x / 2.0 + clearance
+    half_y = size_y / 2.0 + clearance
+    return tuple(
+        (
+            position[0] + sign_x * half_x,
+            position[1] + sign_y * half_y,
+        )
+        for sign_x in (-1.0, 1.0)
+        for sign_y in (-1.0, 1.0)
+    )
+
+
+def point_to_axis_aligned_rectangle_distance(point, center, size_x, size_y):
+    dx = max(abs(point[0] - center[0]) - size_x / 2.0, 0.0)
+    dy = max(abs(point[1] - center[1]) - size_y / 2.0, 0.0)
+    return math.hypot(dx, dy)
+
+
+def convex_polygons_overlap(first, second) -> bool:
+    """Separating-axis overlap test for two convex 2D polygons."""
+    def cyclic_order(polygon):
+        center_x = sum(point[0] for point in polygon) / len(polygon)
+        center_y = sum(point[1] for point in polygon) / len(polygon)
+        return sorted(
+            polygon,
+            key=lambda point: math.atan2(
+                point[1] - center_y,
+                point[0] - center_x,
+            ),
+        )
+
+    first = cyclic_order(first)
+    second = cyclic_order(second)
+    axes = []
+    for polygon in (first, second):
+        for index, point in enumerate(polygon):
+            following = polygon[(index + 1) % len(polygon)]
+            edge_x = following[0] - point[0]
+            edge_y = following[1] - point[1]
+            length = math.hypot(edge_x, edge_y)
+            if length > 1e-9:
+                axes.append((-edge_y / length, edge_x / length))
+    for axis_x, axis_y in axes:
+        first_projection = [
+            x * axis_x + y * axis_y for x, y in first
+        ]
+        second_projection = [
+            x * axis_x + y * axis_y for x, y in second
+        ]
+        if (
+            max(first_projection) <= min(second_projection)
+            or max(second_projection) <= min(first_projection)
+        ):
+            return False
+    return True
+
+
+def resolve_bottom_keystone_positions(
+    cameras,
+    footprint,
+    lid_post_positions,
+    bracket_position_pairs,
+    bottom_mount_hole_position,
+):
+    if not BOTTOM_KEYSTONES_ENABLED:
+        return ()
+    body_top = BOTTOM_THICKNESS + BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT
+    body_scale = minimum_body_scale_between(BOTTOM_THICKNESS, body_top)
+    inner_loop = inset_footprint_loop(
+        scale_loop(footprint, body_scale),
+        BODY_WALL_THICKNESS,
+    )
+    bottom_scale = minimum_body_scale_between(0.0, BOTTOM_THICKNESS)
+    bottom_loop = scale_loop(footprint, bottom_scale)
+    side_sign = float(BOTTOM_KEYSTONE_CORNER_Y_SIGN)
+    side_extreme = max(side_sign * y for _, y in inner_loop)
+    target_y = side_sign * (
+        side_extreme
+        - BOTTOM_KEYSTONE_SIDE_EDGE_INSET
+        - BOTTOM_KEYSTONE_INTERNAL_BODY_Y / 2.0
+    )
+    local_rear_x = radial_surface_distance(0.0, target_y, inner_loop)
+    target_x = (
+        local_rear_x
+        - BOTTOM_KEYSTONE_REAR_EDGE_INSET
+        - BOTTOM_KEYSTONE_INTERNAL_BODY_X / 2.0
+    )
+    all_posts = [
+        *(
+            (position, FASTENER_POST_DIAMETER / 2.0)
+            for position in lid_post_positions
+        ),
+        *(
+            (position, CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0)
+            for pair in bracket_position_pairs
+            for position in pair
+        ),
+    ]
+    keystone_keepout_x = max(
+        BOTTOM_KEYSTONE_INTERNAL_BODY_X,
+        BOTTOM_KEYSTONE_FACE_POCKET_X,
+        BOTTOM_KEYSTONE_CUTOUT_X,
+    )
+    keystone_keepout_y = max(
+        BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+        BOTTOM_KEYSTONE_FACE_POCKET_Y,
+        BOTTOM_KEYSTONE_CUTOUT_Y,
+    )
+    def cluster_positions(shift_x, shift_y):
+        positions = []
+        for index in range(BOTTOM_KEYSTONE_COUNT):
+            if BOTTOM_KEYSTONE_ROW_AXIS == "x":
+                positions.append(
+                    (
+                        target_x + shift_x - index * BOTTOM_KEYSTONE_CENTER_SPACING,
+                        target_y + shift_y,
+                    )
+                )
+            else:
+                positions.append(
+                    (
+                        target_x + shift_x,
+                        target_y
+                        + shift_y
+                        - side_sign * index * BOTTOM_KEYSTONE_CENTER_SPACING,
+                    )
+                )
+        return tuple(positions)
+
+    def position_is_valid(position):
+        body_corners = axis_aligned_rectangle_corners(
+            position,
+            BOTTOM_KEYSTONE_INTERNAL_BODY_X,
+            BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+            BOTTOM_KEYSTONE_EDGE_CLEARANCE,
+        )
+        if not all(point_in_polygon(corner, inner_loop) for corner in body_corners):
+            return False
+        pocket_corners = axis_aligned_rectangle_corners(
+            position,
+            BOTTOM_KEYSTONE_FACE_POCKET_X,
+            BOTTOM_KEYSTONE_FACE_POCKET_Y,
+            BOTTOM_KEYSTONE_EDGE_CLEARANCE,
+        )
+        if not all(point_in_polygon(corner, bottom_loop) for corner in pocket_corners):
+            return False
+        body_rectangle = axis_aligned_rectangle_corners(
+            position,
+            BOTTOM_KEYSTONE_INTERNAL_BODY_X,
+            BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+        )
+        if any(
+            convex_polygons_overlap(
+                body_rectangle,
+                camera_xy_corners(
+                    camera,
+                    BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE,
+                ),
+            )
+            for camera in cameras
+        ):
+            return False
+        if any(
+            point_to_axis_aligned_rectangle_distance(
+                post,
+                position,
+                keystone_keepout_x,
+                keystone_keepout_y,
+            )
+            < post_radius + BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
+            for post, post_radius in all_posts
+        ):
+            return False
+        if bottom_mount_hole_position is not None and (
+            point_to_axis_aligned_rectangle_distance(
+                bottom_mount_hole_position,
+                position,
+                keystone_keepout_x,
+                keystone_keepout_y,
+            )
+            < BOTTOM_MOUNT_HOLE_DIAMETER / 2.0
+            + BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
+        ):
+            return False
+        return True
+
+    candidates = [(0.0, 0.0)]
+    if BOTTOM_KEYSTONE_AUTO_PLACEMENT:
+        steps = int(
+            math.ceil(
+                BOTTOM_KEYSTONE_SEARCH_RANGE / BOTTOM_KEYSTONE_SEARCH_STEP
+            )
+        )
+        candidates = [
+            (
+                index_x * BOTTOM_KEYSTONE_SEARCH_STEP,
+                index_y * BOTTOM_KEYSTONE_SEARCH_STEP,
+            )
+            for index_x in range(-steps, steps + 1)
+            for index_y in range(-steps, steps + 1)
+            if math.hypot(index_x, index_y) <= steps
+        ]
+        candidates.sort(
+            key=lambda shift: (
+                shift[0] * shift[0] + shift[1] * shift[1],
+                abs(shift[1]),
+                abs(shift[0]),
+                shift[0],
+                shift[1],
+            )
+        )
+    for shift_x, shift_y in candidates:
+        positions = cluster_positions(shift_x, shift_y)
+        if all(position_is_valid(position) for position in positions):
+            print(
+                "BOTTOM_KEYSTONE_POSITIONS "
+                f"corner_y_sign={side_sign:+.0f} axis="
+                f"{BOTTOM_KEYSTONE_ROW_AXIS} xy={positions}"
+            )
+            return positions
+    raise ValueError(
+        "No bottom-keystone layout satisfies wall, camera, hole, and "
+        "fastener-post keepouts"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Booleans and construction
 
@@ -2949,27 +3380,40 @@ def add_rear_fan_mounts(base, footprint, post_keepouts=()):
         rear_fan_center_tangents(),
         start=1,
     ):
+        pad_side = "Inside" if REAR_FAN_PAD_INSIDE else "Outside"
         pad = curved_backed_flat_pad(
-            f"Rear_40mm_Fan_{fan_index}_45mm_Flat_Pad",
+            f"Rear_40mm_Fan_{fan_index}_{pad_side}_45mm_Flat_Pad",
             footprint,
             center_tangent,
         )
         face_radius = pad["fan_face_radius"]
-        cutter_start = (
-            pad["fan_min_surface_radius"]
-            - BODY_WALL_THICKNESS
-            - REAR_FAN_CUTTER_INWARD_EXTENSION
-        )
-        cutter_end = face_radius + BOOLEAN_OVERLAP
+        pad_inside = pad["fan_pad_inside"]
+        fan_angle_deg = pad["fan_face_angle_deg"]
+        fan_angle = math.radians(fan_angle_deg)
+        fan_normal = (math.cos(fan_angle), math.sin(fan_angle))
+        fan_tangent = (-math.sin(fan_angle), math.cos(fan_angle))
+        center_axis_tangent = pad["fan_center_axis_tangent"]
+        face_center_x = pad["fan_face_center_x"]
+        face_center_y = pad["fan_face_center_y"]
+        if pad_inside:
+            cutter_start = face_radius - BOOLEAN_OVERLAP
+            cutter_end = pad["fan_max_surface_radius"] + BOOLEAN_OVERLAP
+        else:
+            cutter_start = (
+                pad["fan_min_surface_radius"]
+                - BODY_WALL_THICKNESS
+                - REAR_FAN_CUTTER_INWARD_EXTENSION
+            )
+            cutter_end = face_radius + BOOLEAN_OVERLAP
         boolean_union(base, pad, f"Rear_Fan_{fan_index}_Flat_Pad_Union")
 
         air_cutter = cylinder_prism_axis(
             f"Rear_Fan_{fan_index}_Air_Opening",
-            0.0,
+            fan_angle_deg,
             cutter_start,
             cutter_end,
             air_radius,
-            center_tangent,
+            center_axis_tangent,
             REAR_FAN_CENTER_Z,
         )
         screw_cutters = []
@@ -2979,11 +3423,11 @@ def add_rear_fan_mounts(base, footprint, post_keepouts=()):
                     cylinder_prism_axis(
                         f"Rear_Fan_{fan_index}_Mount_Hole_"
                         f"{tangent_sign:+.0f}_{z_sign:+.0f}",
-                        0.0,
+                        fan_angle_deg,
                         cutter_start,
                         cutter_end,
                         hole_radius,
-                        center_tangent + tangent_sign * half_spacing,
+                        center_axis_tangent + tangent_sign * half_spacing,
                         REAR_FAN_CENTER_Z + z_sign * half_spacing,
                     )
                 )
@@ -2991,9 +3435,14 @@ def add_rear_fan_mounts(base, footprint, post_keepouts=()):
         # A rearward post would silently block a fan passage.  Reject such a
         # custom layout before cutting rather than leaving a partial airway.
         for x, y, post_radius in post_keepouts:
-            if x < cutter_start - post_radius:
+            post_radial = x * fan_normal[0] + y * fan_normal[1]
+            post_tangent = x * fan_tangent[0] + y * fan_tangent[1]
+            if (
+                post_radial < cutter_start - post_radius
+                or post_radial > cutter_end + post_radius
+            ):
                 continue
-            if abs(y - center_tangent) < (
+            if abs(post_tangent - center_axis_tangent) < (
                 air_radius + post_radius
             ):
                 raise ValueError(
@@ -3005,8 +3454,11 @@ def add_rear_fan_mounts(base, footprint, post_keepouts=()):
             f"Rear_Fan_{fan_index}_Air_And_Mount_Holes",
         )
         print(
-            f"REAR_FAN_MOUNT {fan_index}: tangent={center_tangent:.2f} "
-            f"z={REAR_FAN_CENTER_Z:.2f} face_x={face_radius:.2f} "
+            f"REAR_FAN_MOUNT {fan_index}: centerline_offset="
+            f"{center_tangent:.2f} angle={fan_angle_deg:.2f}deg "
+            f"pad_side={'inside' if pad_inside else 'outside'} "
+            f"face_center=({face_center_x:.2f}, "
+            f"{face_center_y:.2f}, {REAR_FAN_CENTER_Z:.2f}) "
             f"air_diameter={REAR_FAN_AIR_OPENING_DIAMETER:.2f}"
         )
     return base
@@ -3214,6 +3666,64 @@ def add_bottom_mount_hole(base, position):
         position[1],
     )
     boolean_difference(base, [cutter], "Bottom_One_Half_Inch_Through_Hole")
+    return base
+
+
+def add_bottom_keystone_mounts(base, positions):
+    if not BOTTOM_KEYSTONES_ENABLED or not positions:
+        return base
+    pocket_cutters = []
+    through_cutters = []
+    for index, (x, y) in enumerate(positions, start=1):
+        pocket_cutters.append(
+            add_beveled_box(
+                f"Bottom_Keystone_{index}_Flush_Face_Pocket",
+                (
+                    BOTTOM_KEYSTONE_FACE_POCKET_X,
+                    BOTTOM_KEYSTONE_FACE_POCKET_Y,
+                    BOTTOM_KEYSTONE_FACE_RECESS_DEPTH + BOOLEAN_OVERLAP,
+                ),
+                (
+                    x,
+                    y,
+                    (
+                        BOTTOM_KEYSTONE_FACE_RECESS_DEPTH
+                        - BOOLEAN_OVERLAP
+                    )
+                    / 2.0,
+                ),
+                bevel=0.0,
+            )
+        )
+        through_cutters.append(
+            add_beveled_box(
+                f"Bottom_Keystone_{index}_Snap_In_Through_Cutout",
+                (
+                    BOTTOM_KEYSTONE_CUTOUT_X,
+                    BOTTOM_KEYSTONE_CUTOUT_Y,
+                    BOTTOM_THICKNESS + 2.0 * BOOLEAN_OVERLAP,
+                ),
+                (x, y, BOTTOM_THICKNESS / 2.0),
+                bevel=0.0,
+            )
+        )
+    boolean_difference(
+        base,
+        pocket_cutters,
+        "Bottom_Keystone_Flush_Face_Pockets",
+    )
+    boolean_difference(
+        base,
+        through_cutters,
+        "Bottom_Keystone_Snap_In_Through_Cutouts",
+    )
+    print(
+        "BOTTOM_KEYSTONE_FLUSH_MOUNTS "
+        f"count={len(positions)} face_recess="
+        f"{BOTTOM_KEYSTONE_FACE_RECESS_DEPTH:.2f} "
+        f"remaining_snap_panel="
+        f"{BOTTOM_THICKNESS - BOTTOM_KEYSTONE_FACE_RECESS_DEPTH:.2f}"
+    )
     return base
 
 
@@ -3659,6 +4169,7 @@ def create_base(
     footprint,
     bracket_position_pairs,
     bottom_mount_hole_position=None,
+    bottom_keystone_positions=(),
 ):
     outer_sections = tuple(
         (z, scale_loop(footprint, scale))
@@ -3706,6 +4217,7 @@ def create_base(
     add_fastener_posts(base, positions)
     add_camera_bracket_posts(base, bracket_position_pairs)
     add_bottom_mount_hole(base, bottom_mount_hole_position)
+    add_bottom_keystone_mounts(base, bottom_keystone_positions)
     base.name = "Veo_3_Cam_Cover_Closed_Base"
     return base
 
@@ -4132,12 +4644,20 @@ def build_original_style_cover():
         positions,
         bracket_position_pairs,
     )
+    bottom_keystone_positions = resolve_bottom_keystone_positions(
+        cameras,
+        footprint,
+        positions,
+        bracket_position_pairs,
+        bottom_mount_hole_position,
+    )
     base = create_base(
         positions,
         cameras,
         footprint,
         bracket_position_pairs,
         bottom_mount_hole_position,
+        bottom_keystone_positions,
     )
     lid = create_lid(positions, footprint)
     camera_brackets = create_camera_brackets(cameras, bracket_position_pairs)
