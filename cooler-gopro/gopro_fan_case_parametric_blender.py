@@ -60,10 +60,14 @@ BACK_CORNER_RADIUS = 10.0
 BACK_FACE_THICKNESS = 3.0
 
 # Optional smooth exterior dome. The central fan pad remains an exact flat
-# rectangle at the dome's outermost Y position; the surrounding surface
-# blends back into the rear shell perimeter.
+# rectangle at the dome's rearmost Y position. The full-width front rim ends
+# just behind the camera stops so adjacent cases have more swivel clearance.
 BACK_DOME_ENABLED = False
 BACK_DOME_DEPTH = 10.0
+BACK_DOME_START_BEHIND_CAMERA_STOPS = 0.5
+# Keep the three narrow screw chimneys at the former rear-face plane so the
+# existing hex seats, retention tabs, and screw lengths remain unchanged.
+BACK_DOME_FASTENER_CHIMNEY_REAR_Y = 0.0
 BACK_DOME_FAN_PAD_WIDTH = 45.0
 BACK_DOME_FAN_PAD_HEIGHT = 45.0
 BACK_DOME_SECTIONS = 12
@@ -305,6 +309,18 @@ def camera_stop_end_y() -> float:
     return insert_start_y() - CAMERA_STOP_TO_INSERT_SOCKET_GAP
 
 
+def dome_outer_transition_y() -> float:
+    return camera_stop_end_y() - BACK_DOME_START_BEHIND_CAMERA_STOPS
+
+
+def dome_inner_transition_y() -> float:
+    return camera_stop_end_y()
+
+
+def rear_shell_start_y() -> float:
+    return dome_outer_transition_y() if BACK_DOME_ENABLED else 0.0
+
+
 def smoothstep(value: float) -> float:
     value = min(max(value, 0.0), 1.0)
     return value * value * (3.0 - 2.0 * value)
@@ -318,7 +334,19 @@ def dome_surface_y_approx(x: float, z: float) -> float:
     x_run = max(BACK_OUTER_WIDTH / 2.0 - BACK_DOME_FAN_PAD_WIDTH / 2.0, 0.001)
     z_run = max(BACK_OUTER_HEIGHT / 2.0 - BACK_DOME_FAN_PAD_HEIGHT / 2.0, 0.001)
     radial_t = max(x_from_pad / x_run, z_from_pad / z_run)
-    return -BACK_DOME_DEPTH * (1.0 - smoothstep(radial_t))
+    height_t = smoothstep(radial_t)
+    return back_exterior_y() + (
+        dome_outer_transition_y() - back_exterior_y()
+    ) * height_t
+
+
+def back_fastener_boss_start_y(x: float, z: float) -> float:
+    if BACK_DOME_ENABLED:
+        return min(
+            dome_surface_y_approx(x, z),
+            BACK_DOME_FASTENER_CHIMNEY_REAR_Y,
+        )
+    return 0.0
 
 
 def socket_width() -> float:
@@ -397,6 +425,41 @@ def validate_config() -> None:
         raise ValueError("BACK_DOME_SECTIONS must be at least 2")
     if BACK_DOME_LOOP_POINTS < 16 or BACK_DOME_LOOP_POINTS % 4:
         raise ValueError("BACK_DOME_LOOP_POINTS must be a multiple of 4 and at least 16")
+    if BACK_DOME_START_BEHIND_CAMERA_STOPS < 0.0:
+        raise ValueError(
+            "BACK_DOME_START_BEHIND_CAMERA_STOPS cannot be negative"
+        )
+    if BACK_DOME_ENABLED and not (
+        back_exterior_y() < dome_outer_transition_y() < BACK_DEPTH
+    ):
+        raise ValueError("The exterior dome transition must fit within the shell depth")
+    if BACK_DOME_ENABLED and not (
+        fan_pad_inner_y() < dome_inner_transition_y() <= BACK_DEPTH
+    ):
+        raise ValueError("The interior dome transition must fit within the shell depth")
+    if BACK_DOME_ENABLED and not (
+        back_exterior_y()
+        <= BACK_DOME_FASTENER_CHIMNEY_REAR_Y
+        < dome_outer_transition_y()
+    ):
+        raise ValueError(
+            "BACK_DOME_FASTENER_CHIMNEY_REAR_Y must lie within the dome depth"
+        )
+    retention_tab_rear_y = (
+        back_fastener_hex_seat_y()
+        - BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT
+        - BACK_FASTENER_RETENTION_TAB_DEPTH_Y / 2.0
+    )
+    if (
+        BACK_DOME_ENABLED
+        and BACK_FASTENER_HEX_RETENTION_ENABLED
+        and BACK_FASTENER_RETENTION_TABS_ENABLED
+        and BACK_DOME_FASTENER_CHIMNEY_REAR_Y
+        >= retention_tab_rear_y - BOOLEAN_OVERLAP
+    ):
+        raise ValueError(
+            "The dome fastener chimneys must begin behind the hex retention tabs"
+        )
     if (
         BACK_DOME_FAN_PAD_WIDTH >= BACK_OUTER_WIDTH
         or BACK_DOME_FAN_PAD_HEIGHT >= BACK_OUTER_HEIGHT
@@ -560,6 +623,35 @@ def cleanup_boolean_mesh(obj) -> None:
     bm.to_mesh(obj.data)
     bm.free()
     obj.data.update()
+
+
+def remove_tiny_mesh_components(obj, minimum_faces: int = 8) -> None:
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    unseen = set(bm.verts)
+    remove_verts = []
+    while unseen:
+        seed = unseen.pop()
+        stack = [seed]
+        component = [seed]
+        while stack:
+            vertex = stack.pop()
+            for edge in vertex.link_edges:
+                neighbor = edge.other_vert(vertex)
+                if neighbor in unseen:
+                    unseen.remove(neighbor)
+                    stack.append(neighbor)
+                    component.append(neighbor)
+        component_faces = {
+            face for vertex in component for face in vertex.link_faces
+        }
+        if len(component_faces) < minimum_faces:
+            remove_verts.extend(component)
+    if remove_verts:
+        bmesh.ops.delete(bm, geom=remove_verts, context="VERTS")
+        bm.to_mesh(obj.data)
+        obj.data.update()
+    bm.free()
 
 
 def create_mesh_object(name: str, vertices, faces):
@@ -905,10 +997,11 @@ def create_back_dome():
     for section in range(BACK_DOME_SECTIONS + 1):
         radial_t = section / BACK_DOME_SECTIONS
         height_t = smoothstep(radial_t)
-        y = (
-            -BACK_DOME_DEPTH * (1.0 - height_t)
-            + BOOLEAN_OVERLAP * height_t
-        )
+        y = back_exterior_y() + (
+            dome_outer_transition_y()
+            + BOOLEAN_OVERLAP
+            - back_exterior_y()
+        ) * height_t
         for inner_point, outer_point in zip(inner_loop, outer_loop):
             x = inner_point[0] + (outer_point[0] - inner_point[0]) * radial_t
             z = inner_point[1] + (outer_point[1] - inner_point[1]) * radial_t
@@ -933,9 +1026,9 @@ def create_back_dome():
             )
 
     inner_center = len(vertices)
-    vertices.append((FAN_CENTER_X, -BACK_DOME_DEPTH, FAN_CENTER_Z))
+    vertices.append((FAN_CENTER_X, back_exterior_y(), FAN_CENTER_Z))
     outer_center = len(vertices)
-    vertices.append((0.0, BOOLEAN_OVERLAP, 0.0))
+    vertices.append((0.0, dome_outer_transition_y() + BOOLEAN_OVERLAP, 0.0))
     last_section = BACK_DOME_SECTIONS
     for index in range(loop_count):
         next_index = index + 1
@@ -979,6 +1072,8 @@ def create_back_dome_cavity(
 
     section_loops = []
     y_positions = []
+    inner_surface_y = fan_pad_inner_y() + inner_surface_offset_y
+    outer_surface_y = dome_inner_transition_y() + inner_surface_offset_y
     for section in range(BACK_DOME_SECTIONS + 1):
         radial_t = section / BACK_DOME_SECTIONS
         height_t = smoothstep(radial_t)
@@ -994,9 +1089,8 @@ def create_back_dome_cavity(
             ]
         )
         y_positions.append(
-            -BACK_DOME_DEPTH * (1.0 - height_t)
-            + BACK_FACE_THICKNESS
-            + inner_surface_offset_y
+            inner_surface_y
+            + (outer_surface_y - inner_surface_y) * height_t
         )
     section_loops.append(socket_loop)
     y_positions.append(BACK_DEPTH + BOOLEAN_OVERLAP)
@@ -1027,7 +1121,7 @@ def create_back_dome_cavity(
     vertices.append(
         (
             FAN_CENTER_X,
-            fan_pad_inner_y() + inner_surface_offset_y,
+            inner_surface_y,
             FAN_CENTER_Z,
         )
     )
@@ -1401,6 +1495,7 @@ def clear_camera_stop_fastener_access(camera_stops):
             cutters,
             "Camera_Stop_Fastener_Access",
         )
+    remove_tiny_mesh_components(camera_stops)
     return camera_stops
 
 
@@ -1506,7 +1601,7 @@ def create_back_shell():
         BACK_OUTER_WIDTH,
         BACK_OUTER_HEIGHT,
         BACK_CORNER_RADIUS,
-        0.0,
+        rear_shell_start_y(),
         BACK_DEPTH,
     )
     dome = create_back_dome()
@@ -1543,7 +1638,7 @@ def create_back_shell():
                 add_cylinder_y(
                     f"Rear_Fastener_Boss_{index}",
                     BACK_FASTENER_BOSS_DIAMETER / 2.0,
-                    dome_surface_y_approx(x, z) - BOOLEAN_OVERLAP,
+                    back_fastener_boss_start_y(x, z) - BOOLEAN_OVERLAP,
                     boss_construction_end_y,
                     x=x,
                     z=z,
@@ -1632,6 +1727,7 @@ def create_back_shell():
 
     if camera_stops is not None:
         boolean_union(back, camera_stops, "Camera_Stops_Union")
+        remove_tiny_mesh_components(back)
 
     # Build short fan bosses with their bores already present. Reopening a
     # 1 mm solid boss with a second boolean can leave non-manifold edge fans.
