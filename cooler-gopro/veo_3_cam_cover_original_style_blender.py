@@ -389,6 +389,21 @@ CAMERA_BRACKET_REAR_LIP_WIDTH = 62.0
 CAMERA_BRACKET_SPLIT_REAR_LIP = True
 CAMERA_BRACKET_REAR_LIP_CENTER_AIR_GAP = 30.0
 CAMERA_BRACKET_REAR_LIP_MIN_SEGMENT_WIDTH = 10.0
+# Wrap each enabled side locator around the camera's rounded rear corner and
+# into its own rear-face stop.  This produces two continuous L-shaped guides:
+# one on the USB/battery side and one on the opposite side, while leaving the
+# center of the camera back open to cooling air.  The primary plate projects
+# beyond every guide footprint so the downturned walls have a monolithic roof
+# rather than meeting a beveled plate edge.
+CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED = True
+CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH = 12.0
+CAMERA_BRACKET_GUIDE_PLATE_OVERHANG = 2.0
+# Radially grow the solved footprint without changing its vertex topology.
+# This preserves a real cavity gap around the stronger/wider bracket roofs;
+# adding new sharp hull vertices here would destabilize the loft correspondence.
+CAMERA_BRACKET_SHELL_EXPANSION = 1.25
+CAMERA_BRACKET_LID_POST_CLEARANCE = 1.0
+CAMERA_BRACKET_LID_LIP_RELIEF_CLEARANCE = 0.5
 CAMERA_BRACKET_OTHER_CAMERA_CLEARANCE = 0.5
 CAMERA_BRACKET_WALL_CLEARANCE = 1.0
 CAMERA_BRACKET_POST_TANGENTIAL_SPACING = 50.0
@@ -487,15 +502,15 @@ REAR_FAN_AIR_OPENING_DIAMETER = 36.0
 REAR_FAN_CUTTER_INWARD_EXTENSION = 8.0
 REAR_FAN_MIN_WEB = 2.0
 
-# Vertical floor mount for a nominal 1/2-inch fastener.  By default an
-# interior boss captures a standard 1/2-inch hex nut in a slightly undersized
-# press-fit pocket.  Six independent ramped lips let the nut press in from
-# above and then catch its top face.  Measure the actual nut and printer before
-# production; inch fastener hardware varies by standard and coating.
+# Vertical floor mount for a nominal 1/4-20 UNC fastener.  By default an
+# interior boss captures a standard 1/4-inch finished hex nut in a slightly
+# undersized press-fit pocket.  Six independent ramped lips let the nut press
+# in from above and then catch its top face.  Measure the actual nut and printer
+# before production; inch fastener hardware varies by standard and coating.
 BOTTOM_MOUNT_HOLE_ENABLED = True
 BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.50
 BOTTOM_MOUNT_HOLE_LATERAL_TARGET = 0.0
-BOTTOM_MOUNT_HOLE_DIAMETER = 13.5
+BOTTOM_MOUNT_HOLE_DIAMETER = 6.8
 BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE = 3.0
 BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE = 2.0
 BOTTOM_MOUNT_HOLE_AUTO_LATERAL = True
@@ -508,25 +523,25 @@ BOTTOM_MOUNT_HOLE_AUTO_FRONT_TO_BACK = True
 BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_RANGE = 0.40
 BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP = 0.01
 BOTTOM_MOUNT_NUT_HOLDER_ENABLED = True
-BOTTOM_MOUNT_NUT_THREAD_DIAMETER = 12.7
-BOTTOM_MOUNT_NUT_ACROSS_FLATS = 19.05
-BOTTOM_MOUNT_NUT_THICKNESS = 11.1
+BOTTOM_MOUNT_NUT_THREAD_DIAMETER = 6.35
+BOTTOM_MOUNT_NUT_ACROSS_FLATS = 11.11
+BOTTOM_MOUNT_NUT_THICKNESS = 5.56
 BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE = 0.15
 BOTTOM_MOUNT_NUT_ROTATION_DEG = 0.0
-BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER = 36.0
+BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER = 24.0
 BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL = 4.0
 BOTTOM_MOUNT_NUT_MIN_SEAT_WIDTH = 2.0
 BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE = 0.3
 BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE = 0.35
-BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT = 2.4
-BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION = 0.6
-BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH = 5.5
+BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT = 1.5
+BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION = 0.4
+BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH = 3.5
 BOTTOM_MOUNT_NUT_SNAP_ROOT_EMBED = 0.4
 BOTTOM_MOUNT_NUT_SNAP_RELIEF_ENABLED = True
 BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS = 0.8
 BOTTOM_MOUNT_NUT_SNAP_RELIEF_DEPTH = 0.5
 BOTTOM_MOUNT_NUT_SNAP_SIDE_SLOT_WIDTH = 0.6
-BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT = 2.0
+BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT = 1.5
 BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER = "MANIFOLD"
 
 # Three bottom-facing keystone sockets grouped near one rear corner.  The
@@ -1104,6 +1119,19 @@ def validate_config() -> None:
         ),
         "CAMERA_BRACKET_REAR_LIP_MIN_SEGMENT_WIDTH": (
             CAMERA_BRACKET_REAR_LIP_MIN_SEGMENT_WIDTH
+        ),
+        "CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH": (
+            CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH
+        ),
+        "CAMERA_BRACKET_GUIDE_PLATE_OVERHANG": (
+            CAMERA_BRACKET_GUIDE_PLATE_OVERHANG
+        ),
+        "CAMERA_BRACKET_SHELL_EXPANSION": CAMERA_BRACKET_SHELL_EXPANSION,
+        "CAMERA_BRACKET_LID_POST_CLEARANCE": (
+            CAMERA_BRACKET_LID_POST_CLEARANCE
+        ),
+        "CAMERA_BRACKET_LID_LIP_RELIEF_CLEARANCE": (
+            CAMERA_BRACKET_LID_LIP_RELIEF_CLEARANCE
         ),
         "CAMERA_BRACKET_POST_TANGENTIAL_SPACING": (
             CAMERA_BRACKET_POST_TANGENTIAL_SPACING
@@ -1918,9 +1946,39 @@ def validate_config() -> None:
                 "CAMERA_BRACKET_ARM_PLATE_EMBED must leave an interior radial "
                 "anchor region in the primary plate"
             )
+        if CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED:
+            if not (
+                CAMERA_BRACKET_USB_SIDE_LOCATOR_ENABLED
+                or CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_ENABLED
+            ):
+                raise ValueError(
+                    "L-shaped corner guides require an enabled side locator"
+                )
+            if CAMERA_BRACKET_GUIDE_PLATE_OVERHANG < 1.2:
+                raise ValueError(
+                    "Bracket guide-plate overhang must cover the 1.2 mm "
+                    "primary-plate edge bevel"
+                )
+            _, corner_body_tangent, _ = mission1.canonical_body_bounds(
+                CAMERA_UPSIDE_DOWN
+            )
+            if CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH <= (
+                mission1.BODY_CORNER_RADIUS
+            ):
+                raise ValueError(
+                    "L-shaped rear returns must reach beyond the rounded "
+                    "camera corner"
+                )
+            if 2.0 * CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH >= (
+                corner_body_tangent[1] - corner_body_tangent[0]
+            ):
+                raise ValueError(
+                    "L-shaped rear returns consume the rear cooling channel"
+                )
         if (
             CAMERA_BRACKET_SPLIT_REAR_LIP
             and not CAMERA_BRACKET_COMPACT_OUTER_RAIL_ONLY
+            and not CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED
         ):
             rear_lip_segment_width = (
                 CAMERA_BRACKET_REAR_LIP_WIDTH
@@ -2202,6 +2260,21 @@ def superellipse_loop(width: float, depth: float):
 def scale_loop(loop, scale_x: float, scale_y: float = None):
     scale_y = scale_x if scale_y is None else scale_y
     return [(x * scale_x, y * scale_y) for x, y in loop]
+
+
+def radially_expand_loop(loop, distance: float):
+    if distance < 0.0:
+        raise ValueError("Radial loop expansion cannot be negative")
+    if distance == 0.0:
+        return list(loop)
+    result = []
+    for x, y in loop:
+        radius = math.hypot(x, y)
+        if radius <= 1e-9:
+            raise ValueError("Cannot radially expand a loop vertex at the origin")
+        scale = (radius + distance) / radius
+        result.append((x * scale, y * scale))
+    return result
 
 
 def inset_footprint_loop(loop, inset: float):
@@ -3706,12 +3779,99 @@ def circular_feature_intersects_camera_installation_sweep(
     )
 
 
+def camera_bracket_guide_plate_local_bounds(camera):
+    """Conservative local plan bounds for the reinforced guide roof."""
+    body_radial, body_tangent, _ = mission1.canonical_body_bounds(
+        CAMERA_UPSIDE_DOWN
+    )
+    lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
+    body_back = lens_face_radius + body_radial[0]
+    radial_bounds = (
+        body_back
+        - CAMERA_BRACKET_REAR_CLEARANCE
+        - CAMERA_BRACKET_REAR_LIP_THICKNESS
+        - CAMERA_BRACKET_GUIDE_PLATE_OVERHANG,
+        body_back
+        + CAMERA_BRACKET_OVER_CAMERA_DEPTH
+        + CAMERA_BRACKET_GUIDE_PLATE_OVERHANG,
+    )
+    tangent_values = [
+        camera["eye_tangent"]
+        + body_tangent[0]
+        - CAMERA_BRACKET_PRIMARY_TANGENTIAL_MARGIN,
+        camera["eye_tangent"]
+        + body_tangent[1]
+        + CAMERA_BRACKET_PRIMARY_TANGENTIAL_MARGIN,
+    ]
+    locator_specs = (
+        (
+            CAMERA_BRACKET_USB_SIDE_LOCATOR_ENABLED,
+            camera_usb_side_sign(),
+            CAMERA_BRACKET_USB_SIDE_LOCATOR_THICKNESS,
+            CAMERA_BRACKET_USB_SIDE_LOCATOR_CLEARANCE,
+        ),
+        (
+            CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_ENABLED,
+            -camera_usb_side_sign(),
+            CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_THICKNESS,
+            CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_CLEARANCE,
+        ),
+    )
+    for enabled, side_sign, thickness, side_clearance in locator_specs:
+        if not enabled:
+            continue
+        body_side = body_tangent[0] if side_sign < 0.0 else body_tangent[1]
+        outer_tangent = (
+            camera["eye_tangent"]
+            + body_side
+            + side_sign * (side_clearance + thickness)
+        )
+        if CAMERA_BRACKET_SIDE_LOCATOR_GUSSETS_ENABLED:
+            outer_tangent += (
+                side_sign * CAMERA_BRACKET_SIDE_LOCATOR_GUSSET_REACH
+            )
+        tangent_values.append(outer_tangent)
+    return radial_bounds, (
+        min(tangent_values) - CAMERA_BRACKET_GUIDE_PLATE_OVERHANG,
+        max(tangent_values) + CAMERA_BRACKET_GUIDE_PLATE_OVERHANG,
+    )
+
+
+def circular_feature_intersects_camera_bracket_plate(
+    position,
+    camera,
+    feature_radius: float,
+    clearance: float,
+) -> bool:
+    if not (
+        CAMERA_BRACKETS_ENABLED
+        and CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED
+    ):
+        return False
+    angle = math.radians(camera["angle"])
+    radial = position[0] * math.cos(angle) + position[1] * math.sin(angle)
+    tangent = -position[0] * math.sin(angle) + position[1] * math.cos(angle)
+    radial_bounds, tangent_bounds = camera_bracket_guide_plate_local_bounds(
+        camera
+    )
+    total_clearance = feature_radius + clearance
+    return (
+        radial_bounds[0] - total_clearance
+        < radial
+        < radial_bounds[1] + total_clearance
+        and tangent_bounds[0] - total_clearance
+        < tangent
+        < tangent_bounds[1] + total_clearance
+    )
+
+
 def post_is_valid(
     position,
     cameras,
     inner_loop,
     accepted_positions=(),
     post_diameter=FASTENER_POST_DIAMETER,
+    avoid_camera_bracket_plate=False,
 ) -> bool:
     post_radius = post_diameter / 2.0
     required_edge_distance = post_radius + FASTENER_POST_EDGE_CLEARANCE
@@ -3727,6 +3887,16 @@ def post_is_valid(
         if math.dist(position, accepted) < minimum_center_spacing:
             return False
     for camera in cameras:
+        if (
+            avoid_camera_bracket_plate
+            and circular_feature_intersects_camera_bracket_plate(
+                position,
+                camera,
+                post_radius,
+                CAMERA_BRACKET_LID_POST_CLEARANCE,
+            )
+        ):
+            return False
         if circular_feature_intersects_camera_installation_sweep(
             position,
             camera,
@@ -3767,6 +3937,7 @@ def resolve_symmetric_post_pairs(
     search_radius,
     search_step,
     label,
+    avoid_camera_bracket_plate=False,
 ):
     resolved = [None] * len(targets)
     accepted = list(accepted_positions)
@@ -3791,6 +3962,7 @@ def resolve_symmetric_post_pairs(
                     inner_loop,
                     accepted,
                     post_diameter=post_diameter,
+                    avoid_camera_bracket_plate=avoid_camera_bracket_plate,
                 ):
                     continue
                 if not post_is_valid(
@@ -3799,6 +3971,7 @@ def resolve_symmetric_post_pairs(
                     inner_loop,
                     [*accepted, first],
                     post_diameter=post_diameter,
+                    avoid_camera_bracket_plate=avoid_camera_bracket_plate,
                 ):
                     continue
                 score = (
@@ -3831,7 +4004,13 @@ def resolve_fastener_post_positions(cameras, footprint):
         positions = [tuple(position) for position in MANUAL_FASTENER_POST_POSITIONS_XY]
         accepted = []
         for index, position in enumerate(positions, start=1):
-            if not post_is_valid(position, cameras, inner_loop, accepted):
+            if not post_is_valid(
+                position,
+                cameras,
+                inner_loop,
+                accepted,
+                avoid_camera_bracket_plate=True,
+            ):
                 raise ValueError(
                     f"Manual fastener post {index} at {position} violates a camera, "
                     "wall, or post-spacing keepout"
@@ -3848,6 +4027,7 @@ def resolve_fastener_post_positions(cameras, footprint):
             FASTENER_AUTO_SEARCH_RADIUS,
             FASTENER_AUTO_GRID_STEP,
             "lid-fastener post",
+            avoid_camera_bracket_plate=True,
         )
         accepted = list(positions)
     else:
@@ -3862,7 +4042,13 @@ def resolve_fastener_post_positions(cameras, footprint):
                     if math.hypot(dx, dy) > FASTENER_AUTO_SEARCH_RADIUS:
                         continue
                     position = (target[0] + dx, target[1] + dy)
-                    if post_is_valid(position, cameras, inner_loop, accepted):
+                    if post_is_valid(
+                        position,
+                        cameras,
+                        inner_loop,
+                        accepted,
+                        avoid_camera_bracket_plate=True,
+                    ):
                         candidates.append((dx * dx + dy * dy, position))
             if not candidates:
                 raise ValueError(
@@ -5503,6 +5689,72 @@ def create_camera_bracket(camera, post_positions):
                     )
                 )
             )
+    corner_lip_segments = []
+    if CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED:
+        if CAMERA_BRACKET_USB_SIDE_LOCATOR_ENABLED:
+            usb_locator_outer_tangent = (
+                locator_tangent_center
+                + usb_side_sign
+                * CAMERA_BRACKET_USB_SIDE_LOCATOR_THICKNESS
+                / 2.0
+            )
+            usb_return_inboard_tangent = (
+                camera["eye_tangent"]
+                + usb_side_tangent
+                - usb_side_sign
+                * CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH
+            )
+            usb_return_bounds = tuple(
+                sorted(
+                    (
+                        usb_locator_outer_tangent,
+                        usb_return_inboard_tangent,
+                    )
+                )
+            )
+            corner_lip_segments.append(
+                (
+                    "USB_Battery_Side",
+                    sum(usb_return_bounds) / 2.0,
+                    usb_return_bounds[1] - usb_return_bounds[0],
+                    usb_return_bounds,
+                )
+            )
+        if CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_ENABLED:
+            non_usb_locator_outer_tangent = (
+                non_usb_locator_tangent_center
+                + non_usb_side_sign
+                * CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_THICKNESS
+                / 2.0
+            )
+            non_usb_return_inboard_tangent = (
+                camera["eye_tangent"]
+                + non_usb_side_tangent
+                - non_usb_side_sign
+                * CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH
+            )
+            non_usb_return_bounds = tuple(
+                sorted(
+                    (
+                        non_usb_locator_outer_tangent,
+                        non_usb_return_inboard_tangent,
+                    )
+                )
+            )
+            corner_lip_segments.append(
+                (
+                    "Opposite_Side",
+                    sum(non_usb_return_bounds) / 2.0,
+                    non_usb_return_bounds[1] - non_usb_return_bounds[0],
+                    non_usb_return_bounds,
+                )
+            )
+    rear_guide_radial_min = (
+        body_back
+        - CAMERA_BRACKET_REAR_CLEARANCE
+        - CAMERA_BRACKET_REAR_LIP_THICKNESS
+    )
+    rear_guide_radial_max = body_back - CAMERA_BRACKET_REAR_CLEARANCE
     radial_min = body_back - CAMERA_BRACKET_PRIMARY_REAR_OVERLAP
     radial_max = body_back + CAMERA_BRACKET_OVER_CAMERA_DEPTH
     tangent_min = min(
@@ -5525,6 +5777,22 @@ def create_camera_bracket(camera, post_positions):
     if non_usb_gusset_tangent_bounds is not None:
         tangent_min = min(tangent_min, non_usb_gusset_tangent_bounds[0])
         tangent_max = max(tangent_max, non_usb_gusset_tangent_bounds[1])
+    for _, _, _, return_bounds in corner_lip_segments:
+        tangent_min = min(tangent_min, return_bounds[0])
+        tangent_max = max(tangent_max, return_bounds[1])
+    if CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED:
+        radial_min = min(
+            radial_min,
+            rear_guide_radial_min - CAMERA_BRACKET_GUIDE_PLATE_OVERHANG,
+        )
+        radial_max = max(
+            radial_max,
+            body_back
+            + CAMERA_BRACKET_OVER_CAMERA_DEPTH
+            + CAMERA_BRACKET_GUIDE_PLATE_OVERHANG,
+        )
+        tangent_min -= CAMERA_BRACKET_GUIDE_PLATE_OVERHANG
+        tangent_max += CAMERA_BRACKET_GUIDE_PLATE_OVERHANG
     if 2.0 * CAMERA_BRACKET_ARM_PLATE_EMBED >= tangent_max - tangent_min:
         raise ValueError(
             f"Camera {camera['index']} bracket plate has no interior "
@@ -5632,8 +5900,20 @@ def create_camera_bracket(camera, post_positions):
                 f"Camera_Bracket_{camera['index']}_Arm_{post_index}_Union",
             )
 
-    lip_segments = [(lip_tangent_center, lip_width)]
-    if (
+    lip_segments = [
+        (
+            "Legacy",
+            lip_tangent_center,
+            lip_width,
+            (
+                lip_tangent_center - lip_width / 2.0,
+                lip_tangent_center + lip_width / 2.0,
+            ),
+        )
+    ]
+    if corner_lip_segments:
+        lip_segments = corner_lip_segments
+    elif (
         CAMERA_BRACKET_SPLIT_REAR_LIP
         and not CAMERA_BRACKET_COMPACT_OUTER_RAIL_ONLY
     ):
@@ -5644,10 +5924,32 @@ def create_camera_bracket(camera, post_positions):
             CAMERA_BRACKET_REAR_LIP_CENTER_AIR_GAP + segment_width
         ) / 2.0
         lip_segments = [
-            (lip_tangent_center - segment_offset, segment_width),
-            (lip_tangent_center + segment_offset, segment_width),
+            (
+                "Tangent_Min",
+                lip_tangent_center - segment_offset,
+                segment_width,
+                (
+                    lip_tangent_center - segment_offset - segment_width / 2.0,
+                    lip_tangent_center - segment_offset + segment_width / 2.0,
+                ),
+            ),
+            (
+                "Tangent_Max",
+                lip_tangent_center + segment_offset,
+                segment_width,
+                (
+                    lip_tangent_center + segment_offset - segment_width / 2.0,
+                    lip_tangent_center + segment_offset + segment_width / 2.0,
+                ),
+            ),
         ]
-    for lip_index, (segment_tangent, segment_width) in enumerate(
+    rear_lip_segment_bounds = []
+    for lip_index, (
+        segment_label,
+        segment_tangent,
+        segment_width,
+        segment_tangent_bounds,
+    ) in enumerate(
         lip_segments,
         start=1,
     ):
@@ -5660,7 +5962,8 @@ def create_camera_bracket(camera, post_positions):
             underside - CAMERA_BRACKET_REAR_LIP_HEIGHT / 2.0,
         )
         lip = add_beveled_box(
-            f"MISSION1_Camera_Bracket_{camera['index']}_Rear_Stop_{lip_index}",
+            f"MISSION1_Camera_Bracket_{camera['index']}_"
+            f"{segment_label}_Rear_Stop_{lip_index}",
             (
                 CAMERA_BRACKET_REAR_LIP_THICKNESS,
                 segment_width,
@@ -5674,6 +5977,18 @@ def create_camera_bracket(camera, post_positions):
             bracket,
             lip,
             f"Camera_Bracket_{camera['index']}_Rear_Stop_{lip_index}",
+        )
+        rear_lip_segment_bounds.append(
+            (
+                rear_guide_radial_min,
+                rear_guide_radial_max,
+                segment_tangent_bounds[0],
+                segment_tangent_bounds[1],
+                underside
+                - CAMERA_BRACKET_REAR_LIP_HEIGHT
+                - BOOLEAN_OVERLAP,
+                underside + BOOLEAN_OVERLAP,
+            )
         )
 
     # One compact outer rail (or two when configured) bypasses the top/shutter
@@ -5718,6 +6033,11 @@ def create_camera_bracket(camera, post_positions):
             locator_radial_max
             - CAMERA_BRACKET_USB_SIDE_LOCATOR_RADIAL_LENGTH
         )
+        if CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED:
+            locator_radial_min = min(
+                locator_radial_min,
+                rear_guide_radial_min - BOOLEAN_OVERLAP,
+            )
         locator_z_min = (
             body_top
             - mission1.BODY_CORNER_RADIUS
@@ -5794,6 +6114,11 @@ def create_camera_bracket(camera, post_positions):
             non_usb_locator_radial_max
             - CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_RADIAL_LENGTH
         )
+        if CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED:
+            non_usb_locator_radial_min = min(
+                non_usb_locator_radial_min,
+                rear_guide_radial_min - BOOLEAN_OVERLAP,
+            )
         non_usb_locator_z_min = (
             body_top
             - mission1.BODY_CORNER_RADIUS
@@ -5934,20 +6259,30 @@ def create_camera_bracket(camera, post_positions):
     bracket["plate_tangent_min"] = tangent_min
     bracket["plate_tangent_max"] = tangent_max
     bracket["camera_angle_deg"] = camera["angle"]
-    bracket["rear_lip_radial_min"] = (
-        body_back
-        - CAMERA_BRACKET_REAR_CLEARANCE
-        - CAMERA_BRACKET_REAR_LIP_THICKNESS
+    bracket["rear_lip_radial_min"] = rear_guide_radial_min
+    bracket["rear_lip_radial_max"] = rear_guide_radial_max
+    bracket["rear_lip_tangent_min"] = min(
+        bounds[2] for bounds in rear_lip_segment_bounds
     )
-    bracket["rear_lip_radial_max"] = body_back - CAMERA_BRACKET_REAR_CLEARANCE
-    bracket["rear_lip_tangent_min"] = (
-        lip_tangent_center - lip_width / 2.0
+    bracket["rear_lip_tangent_max"] = max(
+        bounds[3] for bounds in rear_lip_segment_bounds
     )
-    bracket["rear_lip_tangent_max"] = (
-        lip_tangent_center + lip_width / 2.0
+    bracket["rear_lip_z_min"] = min(
+        bounds[4] for bounds in rear_lip_segment_bounds
     )
-    bracket["rear_lip_z_min"] = underside - CAMERA_BRACKET_REAR_LIP_HEIGHT
-    bracket["rear_lip_z_max"] = underside + BOOLEAN_OVERLAP
+    bracket["rear_lip_z_max"] = max(
+        bounds[5] for bounds in rear_lip_segment_bounds
+    )
+    bracket["rear_lip_segment_count"] = len(rear_lip_segment_bounds)
+    for segment_index, bounds in enumerate(rear_lip_segment_bounds, start=1):
+        (
+            bracket[f"rear_lip_{segment_index}_radial_min"],
+            bracket[f"rear_lip_{segment_index}_radial_max"],
+            bracket[f"rear_lip_{segment_index}_tangent_min"],
+            bracket[f"rear_lip_{segment_index}_tangent_max"],
+            bracket[f"rear_lip_{segment_index}_z_min"],
+            bracket[f"rear_lip_{segment_index}_z_max"],
+        ) = bounds
     bracket["boss_radius"] = boss_radius
     for post_index, (x, y) in enumerate(post_positions, start=1):
         bracket[f"boss_{post_index}_x"] = x
@@ -6096,17 +6431,38 @@ def camera_bracket_mutual_clearance_tools(bracket):
                 bracket["non_usb_gusset_z_max"] + clearance,
             )
         )
-    tools.append(
-        local_box(
-            "Camera_Bracket_Rear_Lip_Clearance",
-            bracket["rear_lip_radial_min"] - clearance,
-            bracket["rear_lip_radial_max"] + clearance,
-            bracket["rear_lip_tangent_min"] - clearance,
-            bracket["rear_lip_tangent_max"] + clearance,
-            bracket["rear_lip_z_min"] - clearance,
-            bracket["rear_lip_z_max"] + clearance,
+    rear_lip_segment_count = int(bracket.get("rear_lip_segment_count", 1))
+    for segment_index in range(1, rear_lip_segment_count + 1):
+        prefix = f"rear_lip_{segment_index}_"
+        tools.append(
+            local_box(
+                f"Camera_Bracket_Rear_Lip_{segment_index}_Clearance",
+                bracket.get(
+                    prefix + "radial_min",
+                    bracket["rear_lip_radial_min"],
+                )
+                - clearance,
+                bracket.get(
+                    prefix + "radial_max",
+                    bracket["rear_lip_radial_max"],
+                )
+                + clearance,
+                bracket.get(
+                    prefix + "tangent_min",
+                    bracket["rear_lip_tangent_min"],
+                )
+                - clearance,
+                bracket.get(
+                    prefix + "tangent_max",
+                    bracket["rear_lip_tangent_max"],
+                )
+                + clearance,
+                bracket.get(prefix + "z_min", bracket["rear_lip_z_min"])
+                - clearance,
+                bracket.get(prefix + "z_max", bracket["rear_lip_z_max"])
+                + clearance,
+            )
         )
-    )
     boss_radius = bracket["boss_radius"] + clearance
     for boss_index in (1, 2):
         tools.append(
@@ -6405,6 +6761,52 @@ def add_lid_eye_closures(lid, cameras):
     return lid
 
 
+def add_lid_camera_bracket_reliefs(lid, cameras):
+    """Notch only the descending alignment lip around bracket guide roofs."""
+    if not (
+        LID_LIP_ENABLED
+        and CAMERA_BRACKETS_ENABLED
+        and CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED
+    ):
+        return lid
+    clearance = CAMERA_BRACKET_LID_LIP_RELIEF_CLEARANCE
+    z0 = BASE_HEIGHT - LID_LIP_DEPTH - BOOLEAN_OVERLAP
+    z1 = BASE_HEIGHT + BOOLEAN_OVERLAP
+    relief_count = 0
+    for camera in cameras:
+        radial_bounds, tangent_bounds = (
+            camera_bracket_guide_plate_local_bounds(camera)
+        )
+        center = axis_point(
+            camera["angle"],
+            sum(radial_bounds) / 2.0,
+            sum(tangent_bounds) / 2.0,
+            (z0 + z1) / 2.0,
+        )
+        cutter = add_beveled_box(
+            f"Lid_Camera_Bracket_{camera['index']}_Lip_Relief",
+            (
+                radial_bounds[1] - radial_bounds[0] + 2.0 * clearance,
+                tangent_bounds[1] - tangent_bounds[0] + 2.0 * clearance,
+                z1 - z0,
+            ),
+            tuple(center),
+            rotation_z=math.radians(camera["angle"]),
+            bevel=0.0,
+        )
+        boolean_difference(
+            lid,
+            [cutter],
+            f"Lid_Camera_Bracket_{camera['index']}_Lip_Relief_Cut",
+        )
+        relief_count += 1
+    print(
+        "LID_CAMERA_BRACKET_LIP_RELIEFS "
+        f"count={relief_count} clearance={clearance:.2f}"
+    )
+    return lid
+
+
 def create_lid(positions, footprint, cameras):
     outer_loop = list(footprint)
     if LID_LIP_ENABLED:
@@ -6428,6 +6830,7 @@ def create_lid(positions, footprint, cameras):
         )
 
     add_lid_eye_closures(lid, cameras)
+    add_lid_camera_bracket_reliefs(lid, cameras)
 
     if FASTENERS_ENABLED:
         clearance_cutters = [
@@ -6971,6 +7374,19 @@ def build_original_style_cover():
         clear_scene()
     set_units()
     cameras, footprint = resolve_camera_layout()
+    if (
+        CAMERA_BRACKETS_ENABLED
+        and CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED
+        and CAMERA_BRACKET_SHELL_EXPANSION > 0.0
+    ):
+        footprint = radially_expand_loop(
+            footprint,
+            CAMERA_BRACKET_SHELL_EXPANSION,
+        )
+        print(
+            "CAMERA_BRACKET_SHELL_EXPANSION "
+            f"radial={CAMERA_BRACKET_SHELL_EXPANSION:.2f}"
+        )
     positions = resolve_fastener_post_positions(cameras, footprint)
     bracket_position_pairs = resolve_camera_bracket_post_positions(
         cameras,
