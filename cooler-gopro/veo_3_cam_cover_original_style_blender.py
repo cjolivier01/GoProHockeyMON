@@ -45,9 +45,41 @@ from mathutils.bvhtree import BVHTree
 
 def import_mission1_module():
     """Find the companion module when run externally or from a Blender text."""
+    candidates = []
+
+    def add_file_parent(raw_path):
+        if not raw_path:
+            return
+        try:
+            # Resolve Blender's ``//`` paths relative to the current .blend.
+            expanded = bpy.path.abspath(str(raw_path))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            expanded = str(raw_path)
+        path = Path(expanded).expanduser()
+        try:
+            path = path.resolve()
+        except OSError:
+            path = path.absolute()
+        candidates.append(path.parent)
+
+    # Running a file from Blender's Text Editor can replace __file__ with a
+    # synthetic root path such as /script.py.  Prefer the active Text
+    # datablock's real disk filepath, then inspect every loaded Text datablock
+    # so this also works in non-interactive/context-free execution.
+    space_data = getattr(bpy.context, "space_data", None)
+    active_text = getattr(space_data, "text", None)
+    add_file_parent(getattr(active_text, "filepath", ""))
+    script_name = Path(__file__).name
+    loaded_texts = tuple(getattr(bpy.data, "texts", ()))
+    for text in loaded_texts:
+        if Path(text.name).name == script_name:
+            add_file_parent(getattr(text, "filepath", ""))
+    for text in loaded_texts:
+        add_file_parent(getattr(text, "filepath", ""))
+
     script_path = Path(__file__).expanduser().resolve()
     script_directory = script_path.parent
-    candidates = [Path.cwd().resolve(), script_directory]
+    candidates.extend((Path.cwd().resolve(), script_directory))
     # Blender text blocks commonly report a virtual path like
     # ``project.blend/script.py``.  Its parent is the .blend file, while the
     # companion module actually sits beside that file.
@@ -55,6 +87,13 @@ def import_mission1_module():
         candidates.append(script_directory.parent)
     if bpy.data.filepath:
         candidates.append(Path(bpy.data.filepath).expanduser().resolve().parent)
+    candidates.extend(
+        path
+        for entry in sys.path
+        if entry
+        for path in (Path(entry).expanduser().resolve(),)
+        if path.is_dir()
+    )
 
     searched = []
     for directory in candidates:
@@ -901,8 +940,8 @@ CAMERA_COOLING_WASH_SAMPLE_GRID = 17
 # while keeping the acoustic target clear of the rounded body edge.  The point
 # is converted from physical-camera coordinates and therefore follows the
 # optional upside-down camera orientation correctly.
-FAN_ACOUSTIC_ATTENUATOR_ENABLED = False
-FAN_VIBRATION_ISOLATION_ENABLED = True
+FAN_ACOUSTIC_ATTENUATOR_ENABLED = True
+FAN_VIBRATION_ISOLATION_ENABLED = False
 CAMERA_REAR_MIC_BACK_PANEL_EDGE_INSET = 5.0
 _rear_mic_bounds = mission1.canonical_feature_bounds(
     (
