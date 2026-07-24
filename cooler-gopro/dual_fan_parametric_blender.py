@@ -41,8 +41,10 @@ DEBUG_BOOLEAN_STEPS = False
 CLEAN_COINCIDENT_FACE_TOLERANCE = 1.0e-5
 
 # Fan cages. Distances are measured independently from the stalk centerline.
-FAN_1_DISTANCE_FROM_CENTER = 52.5
-FAN_2_DISTANCE_FROM_CENTER = 52.5
+FAN_1_DISTANCE_FROM_CENTER = 75
+FAN_2_DISTANCE_FROM_CENTER = 75
+#FAN_1_DISTANCE_FROM_CENTER = 52.5
+#FAN_2_DISTANCE_FROM_CENTER = 52.5
 FAN_FRAME_SIZE = 66.7
 FAN_FRAME_DEPTH = 14.7
 FAN_FRAME_WALL = 3.0
@@ -51,8 +53,8 @@ GRILL_THICKNESS = 2.8
 
 # Fan angles relative to the unrotated support, in Blender XYZ Euler degrees.
 # Fan 1 is on the negative-X (left) side; fan 2 is on positive X (right).
-FAN_1_ROTATION_DEG = (0.0, 0.0, 0.0)
-FAN_2_ROTATION_DEG = (0.0, 0.0, 0.0)
+FAN_1_ROTATION_DEG = (0.0, -30.0, 0.0)
+FAN_2_ROTATION_DEG = (0.0, 30.0, 0.0)
 
 # "support_contact" rotates around the lower-inner connection to the support.
 # "fan_center" rotates around the geometric center of each fan cage.
@@ -63,10 +65,10 @@ FAN_ROTATION_PIVOT_Z = 2.25
 
 # Fan airflow grille.
 AIRFLOW_DIAMETER = 61.4
-GRILL_BAR_WIDTH = 1.5
+GRILL_BAR_WIDTH = 2.0
 GRILL_CENTER_DISK_DIAMETER = 21.4
 GRILL_RING_CENTER_RADII = (16.7, 23.7)
-GRILL_RING_WIDTH = 1.0
+GRILL_RING_WIDTH = 2.0
 GRILL_CONNECTION_OVERLAP = 1.0
 
 # Four fan screw holes in each cage.

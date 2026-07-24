@@ -40,6 +40,7 @@ from pathlib import Path
 import bmesh
 import bpy
 from mathutils import Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 
 def import_mission1_module():
@@ -92,6 +93,14 @@ CAMERA_BRACKET_1_STL_NAME = "veo_3_cam_cover_camera_bracket_1.stl"
 CAMERA_BRACKET_2_STL_NAME = "veo_3_cam_cover_camera_bracket_2.stl"
 CAMERA_CARRIER_STL_NAME = "veo_3_cam_cover_rotating_camera_cartridge.stl"
 CAMERA_WORM_STL_NAME = "veo_3_cam_cover_purchased_worm_reference.stl"
+CAMERA_WORM_INNER_CAP_STL_NAME = "veo_3_cam_cover_worm_inner_bearing_cap.stl"
+CAMERA_WORM_OUTER_CAP_STL_NAME = "veo_3_cam_cover_worm_outer_bearing_cap.stl"
+FAN_ACOUSTIC_CASSETTE_STL_NAME = "veo_3_cam_cover_fan_acoustic_trough.stl"
+FAN_ACOUSTIC_LID_STL_NAME = "veo_3_cam_cover_fan_acoustic_lid.stl"
+FAN_ACOUSTIC_BOOT_SEAL_1_STL_NAME = "veo_3_cam_cover_fan_acoustic_boot_seal_1.stl"
+FAN_ACOUSTIC_BOOT_SEAL_2_STL_NAME = "veo_3_cam_cover_fan_acoustic_boot_seal_2.stl"
+FAN_GASKET_1_STL_NAME = "veo_3_cam_cover_fan_gasket_1.stl"
+FAN_GASKET_2_STL_NAME = "veo_3_cam_cover_fan_gasket_2.stl"
 EXPORT_PURCHASED_WORM_REFERENCE_STL = False
 NORMALIZE_SEPARATE_STLS = True
 # Print-specific exports put the lid exterior and removable bracket top faces
@@ -104,6 +113,7 @@ PRINT_ORIENT_SEPARATE_STLS = True
 TRIANGULATE_BASE_IN_SCENE = True
 VALIDATE_ASSEMBLY_CLEARANCES = True
 ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE = 0.0001
+ASSEMBLY_SERVICE_SWEEP_MAX_STEP = 1.0
 # Blender may return a triangulated zero-thickness mesh for coincident mating
 # faces and report a bogus signed volume.  Intersections thinner than this on
 # any axis are treated as coplanar contact, not solid interference.
@@ -120,6 +130,11 @@ SHOW_MAIN_BODY_AFTER_BUILD = True
 SHOW_TOP_AFTER_BUILD = True
 SHOW_CAMERA_CARTRIDGE_AFTER_BUILD = True
 SHOW_PURCHASED_WORM_REFERENCE_AFTER_BUILD = True
+SHOW_CAMERA_WORM_BEARING_CAPS_AFTER_BUILD = True
+SHOW_FAN_ACOUSTIC_CASSETTE_AFTER_BUILD = True
+SHOW_FAN_ACOUSTIC_LID_AFTER_BUILD = True
+SHOW_FAN_ACOUSTIC_BOOT_SEALS_AFTER_BUILD = True
+SHOW_FAN_VIBRATION_GASKETS_AFTER_BUILD = True
 
 RENDER_PREVIEW = False
 PREVIEW_PATH = "veo_3_cam_cover_original_style.png"
@@ -146,6 +161,38 @@ BODY_WALL_THICKNESS = 3.2
 FOOTPRINT_TRIANGULARITY = 0.68
 FOOTPRINT_POINTS = 192
 
+# Optional rear (+X) taper.  The keepout solver applies width taper only after
+# the camera-driven shell has expanded, and derives the local base/lid seam
+# before either mesh is made.  Fractions are measured from the camera-side
+# minimum X (0.0) to the rearmost maximum X (1.0).  Functional camera and worm
+# envelopes can automatically move the start rearward; lid posts may remain in
+# the taper because their insert and counterbore stacks use local roof heights.
+REAR_TAPER_SOLVER = "keepout"
+REAR_WIDTH_TAPER_SCALE = 0.75
+REAR_WIDTH_TAPER_START_FRACTION = 0.55
+REAR_HEIGHT_REDUCTION = 10.0
+REAR_HEIGHT_TAPER_START_FRACTION = 0.88
+# Minimum untapered run behind the protected camera/mechanism envelope and a
+# slope limit for the roof.  When a request is too aggressive the taper starts
+# earlier only if all protected geometry remains ahead of it; otherwise the
+# reduction is clamped and reported rather than warping functional hardware.
+REAR_TAPER_PROTECTED_MARGIN = 4.0
+REAR_TAPER_MIN_RUN = 30.0
+REAR_TAPER_MAX_SLOPE_DEG = 18.0
+REAR_TAPER_SOLVE_MAX_ITERATIONS = 12
+REAR_TAPER_SOLVE_TOLERANCE = 0.01
+REAR_TAPER_FORCE_SYMMETRY = True
+# Base material below this Z remains vertical.  Fan pads automatically raise
+# the resolved anchor so their entire 45 mm sealing face stays supported.
+REAR_HEIGHT_TAPER_ANCHOR_Z = 12.0
+# Socket-head seating islands keep vertical screws and circular counterbores
+# on horizontal lands even when the surrounding lid roof is sloped.
+REAR_TAPER_SCREW_ISLAND_RADIUS = 6.0
+REAR_TAPER_SCREW_ISLAND_BLEND = 2.5
+REAR_TAPER_SCREW_MIN_ANNULAR_WEB = 2.0
+HEAT_INSERT_MIN_BOTTOM_WEB = 2.0
+REAR_TAPER_WARN_UNSUPPORTED_LID_EXPORT = True
+
 # (Z, XY scale) controls the rounded bottom edge and vertical main body.
 BODY_SECTIONS = (
     (0.0, 0.96),
@@ -160,6 +207,11 @@ LID_LIP_ENABLED = True
 LID_LIP_DEPTH = 3.0
 LID_LIP_THICKNESS = 1.8
 LID_LIP_CLEARANCE = 0.30
+# The height-taper synchronizer resamples nested loops independently so their
+# vertices share the roof-knee indices.  This small radial allowance absorbs
+# the worst chord-phase error while preserving at least LID_LIP_CLEARANCE in
+# the printed assembly, including alternate worm-mechanism handedness.
+LID_LIP_MESH_APPROXIMATION_ALLOWANCE = 0.25
 
 # Both camera openings sit on the -X half of the shell.  The half-angle is a
 # primary shape input: reducing it keeps the cameras closer together and the
@@ -335,6 +387,15 @@ CAMERA_CARRIER_TRAY_TANGENTIAL_MARGIN = 5.0
 CAMERA_CARRIER_TRAY_FRAME_WIDTH = 5.0
 CAMERA_CARRIER_SUPPORT_RAIL_WIDTH = 8.0
 CAMERA_CARRIER_MIN_TRAY_OPEN_AREA_RATIO = 0.35
+CAMERA_CARRIER_FINAL_AIRFLOW_GRID = 48
+# The tray frame would otherwise leave only the small residual gap between its
+# top and the camera floor.  Cut a broad rear-facing opening completely through
+# that frame so fan air can enter the vented under-camera volume laterally.  The
+# final-mesh validator measures this aperture rather than trusting the cutter.
+CAMERA_CARRIER_REAR_UNDERBODY_INLET_ENABLED = True
+CAMERA_CARRIER_REAR_UNDERBODY_INLET_WIDTH = 21.0
+CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_HEIGHT = 3.0
+CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_AREA = 40.0
 CAMERA_CARRIER_CAMERA_CLEARANCE = 0.0
 # Installed-fit validation lifts the camera by this tiny amount to separate
 # intentional floor-pad contact from real lateral interference.  This is only
@@ -438,16 +499,78 @@ CAMERA_WORM_BEARING_POCKET_DEPTH_CLEARANCE = 0.10
 # Keep the worm/gear mesh above the locally thickened 3.2 mm carrier tray.
 CAMERA_WORM_FLOOR_CLEARANCE = 1.40
 CAMERA_WORM_BLOCK_LENGTH = 6.0
-CAMERA_WORM_BLOCK_WIDTH = 12.0
+CAMERA_WORM_BLOCK_WIDTH = 16.0
 CAMERA_WORM_BLOCK_TOP_CLEARANCE = 0.8
 # Each worm end sits close to its bearing with a thin thrust washer/spacer.
 # Retain the 4 mm shaft with collars or E-clips outside both bearings.
 CAMERA_WORM_THRUST_WASHER_THICKNESS = 0.50
+CAMERA_WORM_THRUST_SPACER_THICKNESS = 0.30
 CAMERA_WORM_AXIAL_RUNNING_CLEARANCE = 0.20
-CAMERA_WORM_BLOCK_OFFSET = 0.70
+CAMERA_WORM_AXIAL_CLEARANCE_TOLERANCE = 0.10
+# A 0.50 mm thrust washer plus 0.30 mm shim is used at each end.  Both end
+# gaps and both bearing-pocket slacks contribute to total travel; the default
+# 0.85 mm offset and 3.10 mm pockets resolve 0.10--0.30 mm total endplay.
+CAMERA_WORM_BLOCK_OFFSET = 0.85
 CAMERA_WORM_PORT_BOSS_RADIUS = 6.5
 CAMERA_WORM_PORT_OUTSET = 3.0
 CAMERA_WORM_PORT_INWARD_EXTENSION = 4.0
+# A third 8 mm bearing at the external port supports the otherwise long shaft
+# run used by the mirrored camera-1 layout.  It presses in from outside and
+# seats against the smaller shaft passage at the bottom of the counterbore.
+CAMERA_WORM_WALL_BEARING_ENABLED = True
+CAMERA_WORM_WALL_BEARING_OD = 8.0
+CAMERA_WORM_WALL_BEARING_WIDTH = 3.0
+# The distant wall bearing is deliberately a floating/alignment bearing.  The
+# two worm-side bearings locate the shaft; positive diametral clearance here
+# prevents a long three-bearing FDM stack from binding due to print skew.  A
+# purchased internal snap ring retains it axially without turning this third
+# bearing into the shaft's locating bearing.
+CAMERA_WORM_WALL_BEARING_POCKET_DIAMETER_ADJUSTMENT = 0.20
+CAMERA_WORM_WALL_BEARING_POCKET_DEPTH_CLEARANCE = 1.55
+CAMERA_WORM_WALL_BEARING_MIN_RADIAL_WEB = 2.0
+CAMERA_WORM_WALL_BEARING_RETENTION = "internal_snap_ring"  # or "none"
+# Nominal DIN-472-style 8 mm internal retaining ring; verify the purchased
+# ring's supplier drawing before production and tune these groove dimensions.
+CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER = 9.0
+CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_WIDTH = 0.90
+CAMERA_WORM_WALL_BEARING_SNAP_RING_EDGE_SETBACK = 0.30
+CAMERA_WORM_WALL_BEARING_SNAP_RING_AXIAL_CLEARANCE = 0.25
+CAMERA_WORM_WALL_BEARING_SNAP_RING_NOMINAL_THICKNESS = 0.80
+# Final-solid residual allowed inside the purchased shaft, wall-bearing, and
+# retaining-ring envelopes.  This catches a modifier that Blender leaves
+# unapplied even when its operator call only emits a warning.
+CAMERA_WORM_FINAL_CAVITY_RESIDUAL_VOLUME_TOLERANCE = 0.001
+
+# Support-free worm bearing mounts.  The base contains open-top lower saddles
+# and four short heat-set inserts; two keyed caps are separate printed parts.
+# The hard seating lands, rather than screw torque, set bearing crush.
+CAMERA_WORM_BEARING_MOUNT_STYLE = "split_caps"  # "split_caps" or "integral"
+CAMERA_WORM_SPLIT_BEARING_DIAMETER = 8.15
+CAMERA_WORM_SPLIT_POCKET_WIDTH = 3.10
+CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER = 4.0
+CAMERA_WORM_CAP_INSERT_DEPTH = 5.5
+CAMERA_WORM_CAP_INSERT_LEADIN_DIAMETER = 4.8
+CAMERA_WORM_CAP_INSERT_LEADIN_DEPTH = 0.8
+CAMERA_WORM_CAP_SCREW_CLEARANCE = 3.4
+CAMERA_WORM_CAP_EAR_DIAMETER = 10.0
+CAMERA_WORM_CAP_KEY_CLEARANCE = 0.20
+CAMERA_WORM_CAP_TOTAL_WIDTH = 26.0
+# Both cap screws sit on the pivot-away side of each bearing saddle so the
+# moving sector/tray sweep cannot erase one insert ear.  Both also sit beyond
+# the purchased worm end: the first overlaps the central saddle/cap and the
+# second overlaps that first ear, forming one monolithic two-screw outrigger.
+CAMERA_WORM_CAP_SCREW_SPACING = 16.0
+CAMERA_WORM_CAP_SCREW_AXIAL_INBOARD_OFFSET = 3.0
+CAMERA_WORM_CAP_SCREW_AXIAL_SPACING = 6.0
+CAMERA_WORM_CAP_SEAT_ABOVE_SHAFT = 1.0
+CAMERA_WORM_CAP_TOP_CLEARANCE = 0.9
+CAMERA_WORM_CAP_KEY_WIDTH = 3.0
+CAMERA_WORM_CAP_KEY_DEPTH = 1.2
+CAMERA_WORM_CAP_KEY_HEIGHT = 1.2
+CAMERA_WORM_CAP_LAND_WIDTH = 2.0
+CAMERA_WORM_SHAFT_PASSAGE_STYLE = "teardrop"  # "teardrop" or "round"
+CAMERA_WORM_TEARDROP_ROOF_FACTOR = 1.50
+CAMERA_WORM_CAP_COLOR = (0.88, 0.50, 0.10, 1.0)
 
 # A fixed pin below the camera runs in a reinforced arcuate slot in the moving
 # tray.  HARD_STOP_LIMIT is the physical contact angle, not the slot-end-center
@@ -478,6 +601,7 @@ CAMERA_HOLD_DOWN_CENTER_PLATE_DIAMETER = 18.0
 # centered on the yaw axis, so the stationary bridge adds negligible yaw drag.
 CAMERA_HOLD_DOWN_PAD_MATERIAL_THICKNESS = 0.25
 CAMERA_HOLD_DOWN_PAD_MATERIAL_CLEARANCE = 0.20
+CAMERA_HOLD_DOWN_MIN_FINAL_PAD_AREA_RATIO = 0.95
 CAMERA_CARRIER_COLOR = (0.92, 0.55, 0.08, 1.0)
 CAMERA_WORM_COLOR = (0.72, 0.43, 0.12, 1.0)
 CAMERA_CARTRIDGE_DEBUG_MESH_STAGES = False
@@ -523,10 +647,14 @@ CAMERA_CRADLE_REAR_GUIDE_MIN_SEGMENT_WIDTH = 10.0
 CAMERA_CRADLE_REAR_CLEARANCE = 0.0
 CAMERA_CRADLE_GUIDE_EDGE_RADIUS = 0.8
 
-# USB-C access envelope measured from gopro_fan_case_parametric_blender.py.
-# Its +X/right-side opening maps to tangent_min in the upright canonical
-# MISSION 1 orientation and tangent_max when the camera is upside down.
+# USB-C connector keepout measured from gopro_fan_case_parametric_blender.py.
+# Keep ACCESS enabled to preserve room beside the camera for a pre-connected
+# or internally routed cable.  CASE_OPENINGS independently controls whether
+# that reserved corridor is cut through the case; False leaves the case solid.
+# The +X/right-side connector
+# maps to tangent_min upright and tangent_max when the camera is upside down.
 CAMERA_USB_ACCESS_ENABLED = True
+CAMERA_USB_CASE_OPENINGS_ENABLED = False
 CAMERA_USB_SIDE = "auto"  # "auto", "tangent_min", or "tangent_max"
 CAMERA_USB_PORT_RADIAL_WIDTH = 13.1998
 CAMERA_USB_PORT_HEIGHT = 7.2
@@ -565,8 +693,8 @@ CAMERA_FRONT_STOP_CONTACT_TOLERANCE = 0.01
 FASTENERS_ENABLED = True
 FASTENER_POST_PLACEMENT = "auto"  # "auto" or "manual"
 FASTENER_POST_TARGETS_XY = (
-    (55.0, -65.0),
-    (55.0, 65.0),
+    (55.0, -55.0),
+    (55.0, 55.0),
     (-5.0, -95.0),
     (-5.0, 95.0),
 )
@@ -704,6 +832,8 @@ HEAT_INSERT_LEADIN_DEPTH = 1.0
 # M3 socket-head cap screw: 3.4 mm shank clearance and a circular counterbore
 # for a nominal 5.5 mm diameter x 3.0 mm high head.  The internal drive is hex;
 # the outside of a socket-head cap screw remains cylindrical.
+M3_SOCKET_HEAD_NOMINAL_DIAMETER = 5.5
+M3_SOCKET_HEAD_NOMINAL_HEIGHT = 3.0
 LID_SCREW_CLEARANCE_DIAMETER = 3.4
 LID_SCREW_HEAD_COUNTERBORE_DIAMETER = 6.2
 LID_SCREW_HEAD_COUNTERBORE_DEPTH = 3.3
@@ -720,7 +850,7 @@ REAR_FAN_PAD_SIZE = 45.0
 REAR_FAN_PAD_GAP = 4.0
 # Signed centers default to +/- this global-Y distance.  Set it to None to
 # derive the distance from (pad size + pad gap) / 2 instead.
-REAR_FAN_CENTERLINE_OFFSET = 32.5
+REAR_FAN_CENTERLINE_OFFSET = 50.0
 REAR_FAN_CENTER_TANGENTS = None
 REAR_FAN_CENTER_Z = 35.0
 REAR_FAN_ALIGN_TO_LOCAL_WALL = True
@@ -734,6 +864,7 @@ REAR_FAN_PAD_SURFACE_SAMPLES = 24
 REAR_FAN_MOUNT_SPACING = 32.0
 REAR_FAN_MOUNT_HOLE_DIAMETER = 3.4
 REAR_FAN_AIR_OPENING_DIAMETER = 36.0
+REAR_FAN_FRAME_SIZE = 40.0
 # Default model is a 40 x 40 x 10 mm Noctua-style fan mounted inside and
 # blowing inward.  The keepout is validated against both camera stations and
 # every cartridge yaw pose; change depth for a 40 x 20 mm fan.
@@ -749,6 +880,150 @@ REAR_FAN_MIN_WEB = 2.0
 # rain/debris-facing perforations to the removable lid.
 CAMERA_COOLING_MIN_EXHAUST_TO_FAN_AREA_RATIO = 0.75
 CAMERA_COOLING_MIN_EYE_EDGE_GAP = 1.5
+# Do not accept a cooling layout merely because the inlet and exhaust areas
+# are large enough in isolation.  Model each fan's useful discharge as a
+# spreading plume and require it to wash a minimum fraction of its camera's
+# rear body face at every configured yaw sample.  Fourteen degrees represents
+# the useful broad flow behind an un-ducted 40 mm axial fan; replace it with a
+# measured value when qualifying the chosen fan.  The grid is an analytical
+# validation only; it does not create flow-obstructing ductwork.
+CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG = 14.0
+CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO = 0.22
+CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE = 0.25
+CAMERA_COOLING_WASH_SAMPLE_GRID = 17
+
+# Optional removable fan-side acoustic cassette.  It uses short divided inlet
+# boots, an expanded common plenum, rounded line-of-sight baffles, and broad
+# side/bottom outlets instead of a solid wall behind the cameras.  Microphone
+# The Mission 1 rear microphone is near the bottom-left corner when looking at
+# its back screen.  Its exact aperture was not represented in the reference
+# dummy, so this configurable 5 mm edge inset encodes that identified corner
+# while keeping the acoustic target clear of the rounded body edge.  The point
+# is converted from physical-camera coordinates and therefore follows the
+# optional upside-down camera orientation correctly.
+FAN_ACOUSTIC_ATTENUATOR_ENABLED = False
+FAN_VIBRATION_ISOLATION_ENABLED = True
+CAMERA_REAR_MIC_BACK_PANEL_EDGE_INSET = 5.0
+_rear_mic_bounds = mission1.canonical_feature_bounds(
+    (
+        -mission1.BODY_WIDTH / 2.0 + CAMERA_REAR_MIC_BACK_PANEL_EDGE_INSET,
+        mission1.REFERENCE_MIN_Y,
+        -mission1.BODY_HEIGHT / 2.0 + CAMERA_REAR_MIC_BACK_PANEL_EDGE_INSET,
+    ),
+    (0.0, 0.0, 0.0),
+    upside_down=CAMERA_UPSIDE_DOWN,
+)
+MISSION1_REAR_MIC_LOCAL_CENTER = tuple(
+    bounds[0] for bounds in _rear_mic_bounds
+)
+CAMERA_REAR_MIC_LOCAL_CENTERS = (
+    MISSION1_REAR_MIC_LOCAL_CENTER,
+    MISSION1_REAR_MIC_LOCAL_CENTER,
+)
+# The labyrinth baffles provide the acoustic line-of-sight break.  A separate
+# bracket-mounted blocker is unnecessary by default and consumes valuable
+# worm-cap and cooling clearance; enable this only for experiments.
+CAMERA_MIC_DEFLECTORS_ENABLED = False
+CAMERA_MIC_NO_DIRECT_JET_RADIUS = 7.5
+# Twelve millimetres keeps the broad deflector clear of the adjustable
+# camera's rounded rear/side corner throughout the default yaw sweep while
+# remaining close enough to shadow its microphone from the fan outlet.
+CAMERA_MIC_DEFLECTOR_STANDOFF = 12.0
+FAN_ACOUSTIC_DIVIDED_INLET_DEPTH = 16.0
+FAN_ACOUSTIC_PLENUM_DEPTH = 30.0
+FAN_ACOUSTIC_BAFFLE_THICKNESS = 2.0
+FAN_ACOUSTIC_NOSE_RADIUS = 5.0
+FAN_ACOUSTIC_WALL_THICKNESS = 2.0
+FAN_ACOUSTIC_FAN_GAP = 8.0
+FAN_ACOUSTIC_PLENUM_SIDE_EXPANSION = 10.0
+FAN_ACOUSTIC_BAFFLE_WIDTH = 34.0
+FAN_ACOUSTIC_OUTLET_HEIGHT = 41.0
+# Signed global-Y trim for balancing custom fan/microphone arrangements.  The
+# small default offset compensates for the adjustable-camera baffle family;
+# final printed-mesh sampling still rejects imbalance or a choked path.
+FAN_ACOUSTIC_PATH_SPLIT_OFFSET = 1.0
+FAN_ACOUSTIC_MIN_TOTAL_THROAT_AREA = 1713.0
+# Size each printed labyrinth gap for half the total target, while allowing a
+# small measured per-path deficit when the total flow and imbalance limits are
+# both still satisfied after seals, gaskets, and voxel remeshing.
+FAN_ACOUSTIC_DESIGN_PER_CAMERA_PATH_AREA = 1100.0
+FAN_ACOUSTIC_MIN_PER_CAMERA_PATH_AREA = 800.0
+FAN_ACOUSTIC_MAX_PATH_IMBALANCE = 0.20
+# The final front outlets are broad rectangular apertures, not the original
+# fan discs.  Validate their mildly spreading discharge against each complete
+# rear camera face at every configured yaw pose.
+FAN_ACOUSTIC_OUTLET_PLUME_HALF_ANGLE_DEG = 8.0
+FAN_ACOUSTIC_MIN_REAR_FACE_WASH_RATIO = 0.20
+FAN_ACOUSTIC_MIN_OUTLET_TO_REAR_FACE_COSINE = 0.20
+FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE = 1.0
+FAN_ACOUSTIC_SERVICE_YAW_DEG = 0.0
+FAN_ACOUSTIC_REMESH_VOXEL_SIZE = 0.50
+FAN_ACOUSTIC_LID_THICKNESS = 4.0
+# Installed rigid gap for closed-cell perimeter tape.  It also absorbs the
+# half-voxel dimensional uncertainty of the separately remeshed trough/lid so
+# their hard parts never rely on mesh penetration to seal.
+FAN_ACOUSTIC_LID_FIT_CLEARANCE = 0.60
+FAN_ACOUSTIC_LID_KEY_DEPTH = 1.5
+FAN_ACOUSTIC_LID_SCREW_CLEARANCE = 3.4
+FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DIAMETER = 6.4
+FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DEPTH = 3.1
+FAN_ACOUSTIC_LID_MIN_COUNTERBORE_FLOOR = 0.75
+# Tiny remesh/Boolean seams can report a few thousandths of a cubic
+# millimetre even with a 0.45 mm radial and 0.10 mm axial purchased-head fit.
+FAN_ACOUSTIC_HARDWARE_FIT_VOLUME_TOLERANCE = 0.02
+FAN_ACOUSTIC_LID_INSERT_HOLE_DIAMETER = 4.0
+FAN_ACOUSTIC_LID_INSERT_DEPTH = 5.5
+FAN_ACOUSTIC_LID_BOSS_DIAMETER = 9.0
+FAN_ACOUSTIC_BASE_POST_DIAMETER = 10.0
+FAN_ACOUSTIC_BASE_INSERT_HOLE_DIAMETER = 4.0
+FAN_ACOUSTIC_BASE_INSERT_DEPTH = 5.5
+# Four purchased TPU/silicone washers occupy this exact axial gap between the
+# rigid trough floor and base posts, breaking the remaining vibration bridge.
+FAN_ACOUSTIC_BASE_ISOLATOR_THICKNESS = 0.60
+FAN_ACOUSTIC_BASE_ISOLATOR_OUTER_DIAMETER = 10.0
+FAN_ACOUSTIC_BASE_ISOLATOR_INNER_DIAMETER = 3.6
+FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_THICKNESS = 0.50
+FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_OUTER_DIAMETER = 6.2
+FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_INNER_DIAMETER = 3.6
+FAN_ACOUSTIC_BASE_SCREW_CLEARANCE = 3.4
+FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DIAMETER = 7.2
+FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DEPTH = 2.0
+FAN_ACOUSTIC_BASE_HEAD_BOSS_DIAMETER = 10.0
+FAN_ACOUSTIC_BASE_HEAD_BOSS_HEIGHT = 4.0
+FAN_ACOUSTIC_BASE_HEAD_MIN_FLOOR = 1.2
+FAN_ACOUSTIC_BASE_HEAD_MIN_ANNULAR_WEB = 1.2
+FAN_ACOUSTIC_BASE_DRIVER_DIAMETER = 8.0
+FAN_ACOUSTIC_BAFFLE_LID_CLEARANCE = 0.60
+FAN_ACOUSTIC_BOOT_SEAL_WALL = 2.0
+# The rigid boot-to-plenum opening uses the full 41 mm clear interior of the
+# 45 mm boot.  The upstream case/fan aperture remains the configured 36 mm.
+FAN_ACOUSTIC_TROUGH_BOOT_OPENING_SIZE = 41.0
+# Extra cutter travel beyond the oblique rear wall.  The required travel is
+# derived from each fan's wall angle; this margin absorbs the cutter edge
+# radius and final voxel-remesh uncertainty without enlarging the 41 mm
+# transverse opening or the upstream 36 mm fan aperture.
+FAN_ACOUSTIC_TROUGH_BOOT_OPENING_RADIAL_MARGIN = 1.0
+# Total intentional squeeze shared by the two rigid boot interfaces.  This is
+# functional compliant contact, not Boolean-tool overlap.
+FAN_ACOUSTIC_BOOT_SEAL_COMPRESSION = 0.60
+FAN_ACOUSTIC_RAY_APERTURE_GRID = 3
+FAN_ACOUSTIC_RAY_MIC_SAMPLES = 7
+FAN_ACOUSTIC_FLOW_PROBE_THICKNESS = 0.30
+FAN_ACOUSTIC_FLOW_SECTION_GRID = 28
+# Conservative rear-width floor keeps the divided boots and their base
+# hardware reliefs from degenerating when an aggressive shell taper is asked
+# to share the same corner as the keystone cluster and lid posts.
+FAN_ACOUSTIC_MIN_REAR_WIDTH_SCALE = 1.00
+# In automatic lid-post mode, pull rear posts ahead of the widened default
+# ±50 mm fan bodies/cassette.  Manual post coordinates are never rewritten.
+REAR_FAN_AUTO_LID_POST_MAX_X = 15.0
+FAN_GASKET_THICKNESS = 1.5
+FAN_GASKET_OUTER_SIZE = 42.0
+FAN_GASKET_INNER_DIAMETER = 36.0
+FAN_GASKET_SLEEVE_OUTER_DIAMETER = 7.0
+FAN_GASKET_SCREW_CLEARANCE = 3.4
+FAN_ACOUSTIC_COLOR = (0.18, 0.42, 0.70, 1.0)
+FAN_GASKET_COLOR = (0.12, 0.12, 0.12, 1.0)
 
 # Vertical floor mount for a nominal 1/4-20 UNC fastener.  By default an
 # interior boss captures a standard 1/4-inch finished hex nut in a slightly
@@ -790,7 +1065,11 @@ BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS = 0.8
 BOTTOM_MOUNT_NUT_SNAP_RELIEF_DEPTH = 0.5
 BOTTOM_MOUNT_NUT_SNAP_SIDE_SLOT_WIDTH = 0.6
 BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT = 1.5
-BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER = "MANIFOLD"
+# The base can contain transient non-manifold Boolean seams at this stage;
+# Blender's MANIFOLD solver silently leaves the detached boss unapplied.
+BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER = "EXACT"
+BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT = 24
+BOTTOM_MOUNT_NUT_FINAL_BOSS_MIN_SOLID_RATIO = 1.0
 
 # Three bottom-facing keystone sockets grouped near one rear corner.  The
 # default imports the supplied proven socket geometry, seats its exterior face
@@ -835,6 +1114,10 @@ ROUNDED_CORNER_SEGMENTS = 14
 BOOLEAN_SOLVER = "EXACT"
 BOOLEAN_OVERLAP = 0.25
 BOOLEAN_CLEANUP_DISTANCE = 0.0001
+BASE_REMOVE_SMALL_BOOLEAN_FRAGMENTS = True
+BASE_MAX_FRAGMENT_FACES = 16
+BASE_MAX_FRAGMENT_VOLUME = 0.20
+BASE_MAX_FRAGMENT_EXTENT = 1.0
 
 COVER_COLOR = (0.10, 0.38, 0.72, 1.0)
 LID_COLOR = (0.12, 0.62, 0.34, 1.0)
@@ -843,6 +1126,7 @@ CAMERA_COLOR = (0.03, 0.035, 0.045, 1.0)
 # Set during layout solving; kept private so repeated Blender builds can reset
 # it and respond to changed configuration values.
 _RESOLVED_CAMERA_LENS_FACE_OUTSET = None
+_RESOLVED_REAR_ENVELOPE = None
 
 
 # ---------------------------------------------------------------------------
@@ -1460,6 +1744,426 @@ def forced_airflow_path_metrics():
     )
 
 
+def installed_fan_gasket_thickness() -> float:
+    """Return the axial fan offset created by the installed soft gasket."""
+    return FAN_GASKET_THICKNESS if FAN_VIBRATION_ISOLATION_ENABLED else 0.0
+
+
+def camera_rear_face_pose(camera, yaw_delta=0.0):
+    """Return the posed rear-body face center and its in-plane basis."""
+    body_radial, body_tangent, body_vertical = (
+        mission1.canonical_body_bounds(CAMERA_UPSIDE_DOWN)
+    )
+    tangent_center = sum(body_tangent) / 2.0
+    vertical_center = sum(body_vertical) / 2.0
+    if camera_is_adjustable(camera):
+        center = adjustable_camera_local_point(
+            camera,
+            body_radial[0],
+            tangent_center,
+            camera_eye_center_z() + vertical_center,
+            yaw_delta,
+        )
+        angle_deg = camera["angle"] + yaw_delta
+    else:
+        lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
+        center = axis_point(
+            camera["angle"],
+            lens_face_radius + body_radial[0],
+            camera["eye_tangent"] + tangent_center,
+            camera_eye_center_z() + vertical_center,
+        )
+        angle_deg = camera["angle"]
+    angle = math.radians(angle_deg)
+    normal = Vector((math.cos(angle), math.sin(angle), 0.0))
+    tangent_axis = Vector((-math.sin(angle), math.cos(angle), 0.0))
+    return {
+        "center": center,
+        "normal": normal,
+        "tangent_axis": tangent_axis,
+        "tangent_span": body_tangent[1] - body_tangent[0],
+        "vertical_span": body_vertical[1] - body_vertical[0],
+    }
+
+
+def fan_discharge_geometry(station):
+    """Return the installed fan's inward discharge origin and direction."""
+    angle = math.radians(station["wall_angle_deg"])
+    outward_normal = Vector((math.cos(angle), math.sin(angle), 0.0))
+    inward_direction = -outward_normal
+    face_center = Vector(station["face_center"])
+    # An internal fan discharges from its inward face.  An external intake
+    # discharges into the wall opening, so the useful internal plume begins at
+    # the seating plane rather than behind the exterior fan body.
+    internal_discharge_offset = (
+        installed_fan_gasket_thickness() + REAR_FAN_DEPTH
+        if REAR_FAN_PAD_INSIDE
+        else 0.0
+    )
+    return (
+        face_center + inward_direction * internal_discharge_offset,
+        inward_direction,
+    )
+
+
+def fan_camera_rear_wash_metrics(station, camera, yaw_delta=0.0):
+    """Sample the camera rear face inside one mildly divergent fan plume."""
+    origin, direction = fan_discharge_geometry(station)
+    face = camera_rear_face_pose(camera, yaw_delta)
+    denominator = direction.dot(face["normal"])
+    incidence_cosine = abs(denominator)
+    if abs(denominator) <= 1e-9:
+        return 0.0, incidence_cosine, float("inf")
+    centerline_distance = (
+        (face["center"] - origin).dot(face["normal"]) / denominator
+    )
+    if centerline_distance <= 0.0:
+        return 0.0, incidence_cosine, centerline_distance
+
+    grid = CAMERA_COOLING_WASH_SAMPLE_GRID
+    tangent_span = face["tangent_span"]
+    vertical_span = face["vertical_span"]
+    plume_slope = math.tan(
+        math.radians(CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG)
+    )
+    initial_radius = REAR_FAN_AIR_OPENING_DIAMETER / 2.0
+    washed = 0
+    for tangent_index in range(grid):
+        tangent_offset = tangent_span * (
+            (tangent_index + 0.5) / grid - 0.5
+        )
+        for vertical_index in range(grid):
+            vertical_offset = vertical_span * (
+                (vertical_index + 0.5) / grid - 0.5
+            )
+            point = (
+                face["center"]
+                + face["tangent_axis"] * tangent_offset
+                + Vector((0.0, 0.0, vertical_offset))
+            )
+            delta = point - origin
+            axial_distance = delta.dot(direction)
+            if axial_distance <= 0.0:
+                continue
+            transverse_squared = max(
+                delta.length_squared - axial_distance * axial_distance,
+                0.0,
+            )
+            plume_radius = initial_radius + axial_distance * plume_slope
+            if transverse_squared <= plume_radius * plume_radius:
+                washed += 1
+    return (
+        washed / float(grid * grid),
+        incidence_cosine,
+        centerline_distance,
+    )
+
+
+def validate_forced_air_camera_wash(footprint, cameras):
+    """Require one rear fan to wash each camera throughout its yaw sweep."""
+    if not REAR_FANS_ENABLED:
+        return
+    stations = sorted(
+        (
+            rear_fan_station_geometry(footprint, tangent)
+            for tangent in rear_fan_center_tangents()
+        ),
+        key=lambda station: station["face_center"].y,
+    )
+    cameras_by_side = sorted(
+        cameras,
+        key=lambda camera: camera_rear_face_pose(camera, 0.0)["center"].y,
+    )
+    candidate_pairings = (
+        tuple(zip(stations, cameras_by_side)),
+        tuple(zip(stations, reversed(cameras_by_side))),
+    )
+
+    def pairing_score(pairing):
+        minimum_ratio = 1.0
+        for station, camera in pairing:
+            yaw_samples = (
+                adjustable_yaw_samples(include_preview=True)
+                if camera_is_adjustable(camera)
+                else (0.0,)
+            )
+            for yaw_delta in yaw_samples:
+                ratio, _, distance = fan_camera_rear_wash_metrics(
+                    station,
+                    camera,
+                    yaw_delta,
+                )
+                if distance <= 0.0:
+                    return -1.0
+                minimum_ratio = min(minimum_ratio, ratio)
+        return minimum_ratio
+
+    pairing = max(candidate_pairings, key=pairing_score)
+    for fan_index, (station, camera) in enumerate(pairing, start=1):
+        yaw_samples = (
+            adjustable_yaw_samples(include_preview=True)
+            if camera_is_adjustable(camera)
+            else (0.0,)
+        )
+        records = [
+            (
+                yaw_delta,
+                *fan_camera_rear_wash_metrics(
+                    station,
+                    camera,
+                    yaw_delta,
+                ),
+            )
+            for yaw_delta in yaw_samples
+        ]
+        worst = min(records, key=lambda record: record[1])
+        minimum_incidence = min(record[2] for record in records)
+        if worst[3] <= 0.0:
+            raise ValueError(
+                f"Rear fan {fan_index} points away from camera "
+                f"{camera['index']} at yaw {worst[0]:+.2f}"
+            )
+        if minimum_incidence < CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE:
+            raise ValueError(
+                f"Rear fan {fan_index} grazes camera {camera['index']} too "
+                f"obliquely: {minimum_incidence:.3f} < "
+                f"{CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE:.3f}"
+            )
+        if worst[1] < CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO:
+            raise ValueError(
+                f"Rear fan {fan_index} washes too little of camera "
+                f"{camera['index']} at yaw {worst[0]:+.2f}: "
+                f"{worst[1]:.3f} < "
+                f"{CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO:.3f}. Adjust "
+                "REAR_FAN_CENTER_TANGENTS or the plume/coverage settings."
+            )
+        print(
+            "FORCED_AIR_CAMERA_WASH "
+            f"fan={fan_index} camera={camera['index']} "
+            f"minimum_ratio={worst[1]:.3f} "
+            f"worst_yaw={worst[0]:+.2f}deg "
+            f"minimum_incidence_cosine={minimum_incidence:.3f} "
+            f"rear_face_distance={worst[3]:.1f}mm "
+            f"under_camera_gap={CAMERA_FLOOR_CLEARANCE:.1f}mm"
+        )
+    print(
+        "FORCED_AIR_CAMERA_WASH PASS "
+        f"plume_half_angle={CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG:.1f}deg "
+        f"minimum_rear_face_ratio="
+        f"{CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO:.3f} "
+        f"yaw_step={ADJUSTABLE_CAMERA_SWEEP_STEP_DEG:.1f}deg"
+    )
+
+
+def validate_final_forced_air_camera_wash(
+    footprint,
+    cameras,
+    camera_mockups,
+    base,
+    lid,
+    camera_brackets,
+    camera_carrier=None,
+    camera_worm=None,
+    worm_bearing_caps=(),
+):
+    """Ray-test useful fan wash through the completed installed geometry."""
+    if (
+        not REAR_FANS_ENABLED
+        or FAN_ACOUSTIC_ATTENUATOR_ENABLED
+        or not VALIDATE_REAR_FAN_BODY_CLEARANCE
+    ):
+        return
+    stations = sorted(
+        (
+            rear_fan_station_geometry(footprint, tangent)
+            for tangent in rear_fan_center_tangents()
+        ),
+        key=lambda station: station["face_center"].y,
+    )
+    cameras_by_side = sorted(
+        cameras,
+        key=lambda camera: camera_rear_face_pose(camera, 0.0)["center"].y,
+    )
+    candidate_pairings = (
+        tuple(zip(stations, cameras_by_side)),
+        tuple(zip(stations, reversed(cameras_by_side))),
+    )
+    pairing = max(
+        candidate_pairings,
+        key=lambda records: min(
+            fan_camera_rear_wash_metrics(station, camera, 0.0)[0]
+            for station, camera in records
+        ),
+    )
+    fixed_obstacles = [base, lid, *camera_brackets, *worm_bearing_caps]
+    if camera_worm is not None:
+        fixed_obstacles.append(camera_worm)
+    fixed_records = [object_bvh_record(obj) for obj in fixed_obstacles]
+    fixed_record_names = [obj.name for obj in fixed_obstacles]
+    grid = CAMERA_COOLING_WASH_SAMPLE_GRID
+    plume_slope = math.tan(
+        math.radians(CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG)
+    )
+    initial_radius = REAR_FAN_AIR_OPENING_DIAMETER / 2.0
+    moving_camera = adjustable_camera(cameras)
+    mockups_by_index = {
+        camera["index"]: mockup
+        for camera, mockup in zip(cameras, camera_mockups)
+    }
+    try:
+        for fan_index, (station, camera) in enumerate(pairing, start=1):
+            assembly_yaws = (
+                adjustable_yaw_samples(include_preview=True)
+                if moving_camera is not None
+                else (0.0,)
+            )
+            pose_records = []
+            for assembly_yaw in assembly_yaws:
+                camera_yaw = assembly_yaw if camera_is_adjustable(camera) else 0.0
+                origin, direction = fan_discharge_geometry(station)
+                origin = origin + direction * max(
+                    BOOLEAN_CLEANUP_DISTANCE * 2.0,
+                    0.10,
+                )
+                face = camera_rear_face_pose(camera, camera_yaw)
+                incidence = abs(direction.dot(face["normal"]))
+                posed_carrier = None
+                pose_bvh = []
+                pose_record_names = []
+                pose_owned_objects = []
+                if camera_carrier is not None and moving_camera is not None:
+                    posed_carrier = posed_carrier_copy(
+                        camera_carrier,
+                        moving_camera,
+                        assembly_yaw,
+                        f"Final_Fan_Wash_Carrier_{fan_index}_"
+                        f"{assembly_yaw:+.1f}",
+                    )
+                    pose_bvh.append(object_bvh_record(posed_carrier))
+                    pose_record_names.append(posed_carrier.name)
+                    pose_owned_objects.append(posed_carrier)
+                for other_camera in cameras:
+                    if other_camera["index"] == camera["index"]:
+                        continue
+                    other_mockup = mockups_by_index.get(other_camera["index"])
+                    if other_mockup is None:
+                        continue
+                    if camera_is_adjustable(other_camera):
+                        sibling = posed_camera_copy(
+                            other_mockup,
+                            other_camera,
+                            assembly_yaw,
+                            f"Final_Fan_Wash_Sibling_Camera_"
+                            f"{other_camera['index']}_{assembly_yaw:+.1f}",
+                        )
+                        pose_owned_objects.append(sibling)
+                    else:
+                        sibling = other_mockup
+                    pose_bvh.append(object_bvh_record(sibling))
+                    pose_record_names.append(
+                        f"sibling_camera_{other_camera['index']}"
+                    )
+                records = (*fixed_records, *pose_bvh)
+                record_names = (
+                    *fixed_record_names,
+                    *pose_record_names,
+                )
+                occlusion_counts = [0] * len(records)
+                washed = 0
+                geometrically_washed = 0
+                try:
+                    for tangent_index in range(grid):
+                        tangent_offset = face["tangent_span"] * (
+                            (tangent_index + 0.5) / grid - 0.5
+                        )
+                        for vertical_index in range(grid):
+                            vertical_offset = face["vertical_span"] * (
+                                (vertical_index + 0.5) / grid - 0.5
+                            )
+                            point = (
+                                face["center"]
+                                + face["tangent_axis"] * tangent_offset
+                                + Vector((0.0, 0.0, vertical_offset))
+                            )
+                            delta = point - origin
+                            axial = delta.dot(direction)
+                            if axial <= 0.0:
+                                continue
+                            transverse_squared = max(
+                                delta.length_squared - axial * axial,
+                                0.0,
+                            )
+                            plume_radius = initial_radius + axial * plume_slope
+                            if transverse_squared > plume_radius * plume_radius:
+                                continue
+                            geometrically_washed += 1
+                            blocked = False
+                            for obstacle_index, (tree, inverse, bm) in enumerate(
+                                records
+                            ):
+                                if point_inside_closed_bvh(
+                                    tree,
+                                    inverse @ origin,
+                                ) or segment_intersects_bvh_record(
+                                    origin,
+                                    point,
+                                    (tree, inverse, bm),
+                                    endpoint_margin=0.50,
+                                ):
+                                    occlusion_counts[obstacle_index] += 1
+                                    blocked = True
+                            if not blocked:
+                                washed += 1
+                finally:
+                    for _tree, _inverse, bm in pose_bvh:
+                        bm.free()
+                    for owned in pose_owned_objects:
+                        bpy.data.objects.remove(owned, do_unlink=True)
+                ratio = washed / float(grid * grid)
+                pose_records.append(
+                    (
+                        assembly_yaw,
+                        ratio,
+                        incidence,
+                        geometrically_washed,
+                        tuple(zip(record_names, occlusion_counts)),
+                    )
+                )
+            worst = min(pose_records, key=lambda record: record[1])
+            minimum_incidence = min(record[2] for record in pose_records)
+            if minimum_incidence < CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE:
+                raise RuntimeError(
+                    f"Final rear fan {fan_index} reaches camera "
+                    f"{camera['index']} too obliquely: {minimum_incidence:.3f}"
+                )
+            if worst[1] < CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO:
+                raise RuntimeError(
+                    f"Final installed hardware blocks rear fan {fan_index} "
+                    f"wash of camera {camera['index']} at assembly yaw "
+                    f"{worst[0]:+.2f}: {worst[1]:.3f} < "
+                    f"{CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO:.3f}; "
+                    f"geometric_candidate_cells={worst[3]} "
+                    f"occlusions={worst[4]}"
+                )
+            print(
+                "FINAL_FORCED_AIR_CAMERA_WASH "
+                f"fan={fan_index} camera={camera['index']} "
+                f"minimum_unoccluded_ratio={worst[1]:.3f} "
+                f"worst_assembly_yaw={worst[0]:+.2f}deg "
+                f"candidate_cells={worst[3]} "
+                f"minimum_incidence_cosine={minimum_incidence:.3f} "
+                f"occlusions={worst[4]}"
+            )
+    finally:
+        for _tree, _inverse, bm in fixed_records:
+            bm.free()
+    print(
+        "FINAL_FORCED_AIR_CAMERA_WASH PASS "
+        "occluders=base,lid,brackets,carrier,worm,caps,sibling_camera "
+        f"yaw_step={ADJUSTABLE_CAMERA_SWEEP_STEP_DEG:.2f}deg"
+    )
+
+
 def camera_usb_local_access_bounds():
     body_radial, body_tangent, body_vertical = mission1.canonical_body_bounds(
         CAMERA_UPSIDE_DOWN
@@ -1558,6 +2262,9 @@ def validate_config() -> None:
         "LID_THICKNESS": LID_THICKNESS,
         "BOTTOM_THICKNESS": BOTTOM_THICKNESS,
         "BODY_WALL_THICKNESS": BODY_WALL_THICKNESS,
+        "ASSEMBLY_SERVICE_SWEEP_MAX_STEP": ASSEMBLY_SERVICE_SWEEP_MAX_STEP,
+        "REAR_WIDTH_TAPER_SCALE": REAR_WIDTH_TAPER_SCALE,
+        "REAR_HEIGHT_TAPER_ANCHOR_Z": REAR_HEIGHT_TAPER_ANCHOR_Z,
         "EYE_OPENING_WIDTH": EYE_OPENING_WIDTH,
         "EYE_OPENING_HEIGHT": EYE_OPENING_HEIGHT,
         "EYE_TOP_LOADING_SLOT_WIDTH": EYE_TOP_LOADING_SLOT_WIDTH,
@@ -1769,6 +2476,15 @@ def validate_config() -> None:
         "CAMERA_CARRIER_SUPPORT_RAIL_WIDTH": (
             CAMERA_CARRIER_SUPPORT_RAIL_WIDTH
         ),
+        "CAMERA_CARRIER_REAR_UNDERBODY_INLET_WIDTH": (
+            CAMERA_CARRIER_REAR_UNDERBODY_INLET_WIDTH
+        ),
+        "CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_HEIGHT": (
+            CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_HEIGHT
+        ),
+        "CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_AREA": (
+            CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_AREA
+        ),
         "CAMERA_CARRIER_FIT_PROBE_LIFT": CAMERA_CARRIER_FIT_PROBE_LIFT,
         "CAMERA_CARRIER_GUIDE_HEIGHT": CAMERA_CARRIER_GUIDE_HEIGHT,
         "CAMERA_CARRIER_GUIDE_THICKNESS": CAMERA_CARRIER_GUIDE_THICKNESS,
@@ -1853,10 +2569,30 @@ def validate_config() -> None:
         "CAMERA_WORM_THRUST_WASHER_THICKNESS": (
             CAMERA_WORM_THRUST_WASHER_THICKNESS
         ),
+        "CAMERA_WORM_THRUST_SPACER_THICKNESS": (
+            CAMERA_WORM_THRUST_SPACER_THICKNESS
+        ),
         "CAMERA_WORM_AXIAL_RUNNING_CLEARANCE": (
             CAMERA_WORM_AXIAL_RUNNING_CLEARANCE
         ),
+        "CAMERA_WORM_AXIAL_CLEARANCE_TOLERANCE": (
+            CAMERA_WORM_AXIAL_CLEARANCE_TOLERANCE
+        ),
         "CAMERA_WORM_PORT_BOSS_RADIUS": CAMERA_WORM_PORT_BOSS_RADIUS,
+        "CAMERA_WORM_WALL_BEARING_OD": CAMERA_WORM_WALL_BEARING_OD,
+        "CAMERA_WORM_WALL_BEARING_WIDTH": CAMERA_WORM_WALL_BEARING_WIDTH,
+        "CAMERA_WORM_WALL_BEARING_POCKET_DEPTH_CLEARANCE": (
+            CAMERA_WORM_WALL_BEARING_POCKET_DEPTH_CLEARANCE
+        ),
+        "CAMERA_WORM_WALL_BEARING_MIN_RADIAL_WEB": (
+            CAMERA_WORM_WALL_BEARING_MIN_RADIAL_WEB
+        ),
+        "CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER": (
+            CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER
+        ),
+        "CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_WIDTH": (
+            CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_WIDTH
+        ),
         "CAMERA_WORM_MAX_INPUT_TORQUE_NMM": (
             CAMERA_WORM_MAX_INPUT_TORQUE_NMM
         ),
@@ -1883,6 +2619,15 @@ def validate_config() -> None:
         "CAMERA_COOLING_MIN_EYE_EDGE_GAP": (
             CAMERA_COOLING_MIN_EYE_EDGE_GAP
         ),
+        "CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG": (
+            CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG
+        ),
+        "CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO": (
+            CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO
+        ),
+        "CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE": (
+            CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE
+        ),
         "REAR_FAN_PAD_SIZE": REAR_FAN_PAD_SIZE,
         "REAR_FAN_PAD_SURFACE_SAMPLES": REAR_FAN_PAD_SURFACE_SAMPLES,
         "REAR_FAN_WALL_ANGLE_SAMPLE_DISTANCE": (
@@ -1891,6 +2636,7 @@ def validate_config() -> None:
         "REAR_FAN_MOUNT_SPACING": REAR_FAN_MOUNT_SPACING,
         "REAR_FAN_MOUNT_HOLE_DIAMETER": REAR_FAN_MOUNT_HOLE_DIAMETER,
         "REAR_FAN_AIR_OPENING_DIAMETER": REAR_FAN_AIR_OPENING_DIAMETER,
+        "REAR_FAN_FRAME_SIZE": REAR_FAN_FRAME_SIZE,
         "REAR_FAN_DEPTH": REAR_FAN_DEPTH,
         "REAR_FAN_HUB_DIAMETER": REAR_FAN_HUB_DIAMETER,
         "REAR_FAN_CUTTER_INWARD_EXTENSION": (
@@ -1977,18 +2723,504 @@ def validate_config() -> None:
         ),
     }
     for name, value in positive.items():
-        if value <= 0.0:
-            raise ValueError(f"{name} must be positive")
+        if not math.isfinite(value) or value <= 0.0:
+            raise ValueError(f"{name} must be finite and positive")
     if not 0.0 <= FOOTPRINT_TRIANGULARITY < 0.85:
         raise ValueError("FOOTPRINT_TRIANGULARITY must be between 0 and 0.85")
     if FOOTPRINT_POINTS < 32 or FOOTPRINT_POINTS % 4:
         raise ValueError("FOOTPRINT_POINTS must be a multiple of four and at least 32")
+    if (
+        not math.isfinite(REAR_WIDTH_TAPER_SCALE)
+        or not 0.0 < REAR_WIDTH_TAPER_SCALE <= 1.0
+    ):
+        raise ValueError("REAR_WIDTH_TAPER_SCALE must be in (0, 1]")
+    if not math.isfinite(REAR_HEIGHT_TAPER_ANCHOR_Z):
+        raise ValueError("REAR_HEIGHT_TAPER_ANCHOR_Z must be finite")
+    for name, value in (
+        ("REAR_WIDTH_TAPER_START_FRACTION", REAR_WIDTH_TAPER_START_FRACTION),
+        ("REAR_HEIGHT_TAPER_START_FRACTION", REAR_HEIGHT_TAPER_START_FRACTION),
+    ):
+        if not math.isfinite(value) or not 0.0 <= value < 1.0:
+            raise ValueError(f"{name} must be in [0, 1)")
+    if not math.isfinite(REAR_HEIGHT_REDUCTION) or REAR_HEIGHT_REDUCTION < 0.0:
+        raise ValueError("REAR_HEIGHT_REDUCTION must be finite and nonnegative")
+    if REAR_TAPER_SOLVER not in {"keepout", "fraction"}:
+        raise ValueError('REAR_TAPER_SOLVER must be "keepout" or "fraction"')
+    for name, value in (
+        ("REAR_TAPER_PROTECTED_MARGIN", REAR_TAPER_PROTECTED_MARGIN),
+        ("REAR_TAPER_MIN_RUN", REAR_TAPER_MIN_RUN),
+        ("REAR_TAPER_MAX_SLOPE_DEG", REAR_TAPER_MAX_SLOPE_DEG),
+        ("REAR_TAPER_SCREW_ISLAND_RADIUS", REAR_TAPER_SCREW_ISLAND_RADIUS),
+        ("REAR_TAPER_SCREW_ISLAND_BLEND", REAR_TAPER_SCREW_ISLAND_BLEND),
+        ("REAR_TAPER_SOLVE_TOLERANCE", REAR_TAPER_SOLVE_TOLERANCE),
+        ("REAR_TAPER_SCREW_MIN_ANNULAR_WEB", REAR_TAPER_SCREW_MIN_ANNULAR_WEB),
+        ("HEAT_INSERT_MIN_BOTTOM_WEB", HEAT_INSERT_MIN_BOTTOM_WEB),
+    ):
+        if not math.isfinite(value) or value <= 0.0:
+            raise ValueError(f"{name} must be finite and positive")
+    if not 0.0 < REAR_TAPER_MAX_SLOPE_DEG < 90.0:
+        raise ValueError("REAR_TAPER_MAX_SLOPE_DEG must be in (0, 90)")
+    effective_rear_anchor = effective_rear_height_taper_anchor_z()
+    if BASE_HEIGHT < effective_rear_anchor + REAR_FAN_MIN_WEB:
+        raise ValueError(
+            "Even the untapered base leaves too little wall above the "
+            f"{'fan pads' if REAR_FANS_ENABLED else 'fixed lower body'}"
+        )
+    if REAR_TAPER_SOLVE_MAX_ITERATIONS < 2:
+        raise ValueError("REAR_TAPER_SOLVE_MAX_ITERATIONS must be at least 2")
+    required_island_radius = (
+        LID_SCREW_HEAD_COUNTERBORE_DIAMETER / 2.0
+        + REAR_TAPER_SCREW_MIN_ANNULAR_WEB
+    )
+    if REAR_TAPER_SCREW_ISLAND_RADIUS < required_island_radius:
+        raise ValueError(
+            "REAR_TAPER_SCREW_ISLAND_RADIUS leaves too little socket-head "
+            f"annular web; minimum is {required_island_radius:.2f} mm"
+        )
+    if CAMERA_WORM_BEARING_MOUNT_STYLE not in {"integral", "split_caps"}:
+        raise ValueError(
+            'CAMERA_WORM_BEARING_MOUNT_STYLE must be "integral" or "split_caps"'
+        )
+    if CAMERA_WORM_SHAFT_PASSAGE_STYLE not in {"round", "teardrop"}:
+        raise ValueError(
+            'CAMERA_WORM_SHAFT_PASSAGE_STYLE must be "round" or "teardrop"'
+        )
+    if (
+        not math.isfinite(CAMERA_WORM_FINAL_CAVITY_RESIDUAL_VOLUME_TOLERANCE)
+        or CAMERA_WORM_FINAL_CAVITY_RESIDUAL_VOLUME_TOLERANCE < 0.0
+    ):
+        raise ValueError(
+            "CAMERA_WORM_FINAL_CAVITY_RESIDUAL_VOLUME_TOLERANCE must be "
+            "finite and nonnegative"
+        )
+    if (
+        CAMERA_WORM_BEARING_MOUNT_STYLE == "split_caps"
+        and CAMERA_WORM_SHAFT_PASSAGE_STYLE == "teardrop"
+        and (
+            not math.isfinite(CAMERA_WORM_TEARDROP_ROOF_FACTOR)
+            or CAMERA_WORM_TEARDROP_ROOF_FACTOR <= 1.0
+        )
+    ):
+        raise ValueError("CAMERA_WORM_TEARDROP_ROOF_FACTOR must exceed 1")
+    for name, value in (
+        (
+        ("CAMERA_WORM_SPLIT_BEARING_DIAMETER", CAMERA_WORM_SPLIT_BEARING_DIAMETER),
+        ("CAMERA_WORM_SPLIT_POCKET_WIDTH", CAMERA_WORM_SPLIT_POCKET_WIDTH),
+        ("CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER", CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER),
+        ("CAMERA_WORM_CAP_INSERT_DEPTH", CAMERA_WORM_CAP_INSERT_DEPTH),
+        ("CAMERA_WORM_CAP_INSERT_LEADIN_DIAMETER", CAMERA_WORM_CAP_INSERT_LEADIN_DIAMETER),
+        ("CAMERA_WORM_CAP_INSERT_LEADIN_DEPTH", CAMERA_WORM_CAP_INSERT_LEADIN_DEPTH),
+        ("CAMERA_WORM_CAP_SCREW_CLEARANCE", CAMERA_WORM_CAP_SCREW_CLEARANCE),
+        ("CAMERA_WORM_CAP_EAR_DIAMETER", CAMERA_WORM_CAP_EAR_DIAMETER),
+        ("CAMERA_WORM_CAP_TOTAL_WIDTH", CAMERA_WORM_CAP_TOTAL_WIDTH),
+        ("CAMERA_WORM_CAP_SCREW_SPACING", CAMERA_WORM_CAP_SCREW_SPACING),
+        (
+            "CAMERA_WORM_CAP_SCREW_AXIAL_INBOARD_OFFSET",
+            CAMERA_WORM_CAP_SCREW_AXIAL_INBOARD_OFFSET,
+        ),
+        (
+            "CAMERA_WORM_CAP_SCREW_AXIAL_SPACING",
+            CAMERA_WORM_CAP_SCREW_AXIAL_SPACING,
+        ),
+        ("CAMERA_WORM_CAP_SEAT_ABOVE_SHAFT", CAMERA_WORM_CAP_SEAT_ABOVE_SHAFT),
+        ("CAMERA_WORM_CAP_TOP_CLEARANCE", CAMERA_WORM_CAP_TOP_CLEARANCE),
+        ("CAMERA_WORM_CAP_KEY_WIDTH", CAMERA_WORM_CAP_KEY_WIDTH),
+        ("CAMERA_WORM_CAP_KEY_DEPTH", CAMERA_WORM_CAP_KEY_DEPTH),
+        ("CAMERA_WORM_CAP_KEY_HEIGHT", CAMERA_WORM_CAP_KEY_HEIGHT),
+        ("CAMERA_WORM_CAP_LAND_WIDTH", CAMERA_WORM_CAP_LAND_WIDTH),
+        )
+        if CAMERA_WORM_BEARING_MOUNT_STYLE == "split_caps"
+        else ()
+    ):
+        if not math.isfinite(value) or value <= 0.0:
+            raise ValueError(f"{name} must be finite and positive")
+    if CAMERA_WORM_BEARING_MOUNT_STYLE == "split_caps":
+        if CAMERA_WORM_SPLIT_BEARING_DIAMETER <= CAMERA_WORM_SHAFT_DIAMETER:
+            raise ValueError("Split bearing diameter must exceed the worm shaft diameter")
+        largest_ear_cut = max(
+            CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER,
+            CAMERA_WORM_CAP_INSERT_LEADIN_DIAMETER,
+            CAMERA_WORM_CAP_SCREW_CLEARANCE,
+        )
+        if largest_ear_cut >= CAMERA_WORM_CAP_EAR_DIAMETER:
+            raise ValueError("Worm-cap insert/screw cuts must fit inside their ears")
+        if (
+            CAMERA_WORM_CAP_EAR_DIAMETER - largest_ear_cut
+        ) / 2.0 < CAMERA_WORM_CAP_LAND_WIDTH:
+            raise ValueError(
+                "Worm-cap insert lead-in leaves too little hard seating land"
+            )
+        if CAMERA_WORM_CAP_SCREW_SPACING + CAMERA_WORM_CAP_EAR_DIAMETER > (
+            CAMERA_WORM_CAP_TOTAL_WIDTH + 1e-6
+        ):
+            raise ValueError("Worm-cap ears do not fit CAMERA_WORM_CAP_TOTAL_WIDTH")
+        first_ear_overlap = (
+            CAMERA_WORM_BLOCK_LENGTH / 2.0
+            + CAMERA_WORM_CAP_EAR_DIAMETER / 2.0
+            - CAMERA_WORM_CAP_SCREW_AXIAL_INBOARD_OFFSET
+        )
+        second_ear_overlap = (
+            CAMERA_WORM_CAP_EAR_DIAMETER
+            - CAMERA_WORM_CAP_SCREW_AXIAL_SPACING
+        )
+        if min(first_ear_overlap, second_ear_overlap) < (
+            CAMERA_WORM_CAP_LAND_WIDTH
+        ):
+            raise ValueError(
+                "Worm-cap screw outrigger lacks monolithic ear overlap"
+            )
+        worm_to_first_ear_gap = (
+            CAMERA_WORM_BLOCK_OFFSET
+            + CAMERA_WORM_BLOCK_LENGTH / 2.0
+            + CAMERA_WORM_CAP_SCREW_AXIAL_INBOARD_OFFSET
+            - CAMERA_WORM_CAP_EAR_DIAMETER / 2.0
+        )
+        if worm_to_first_ear_gap < CAMERA_WORM_AXIAL_RUNNING_CLEARANCE:
+            raise ValueError("Worm-cap screw outrigger enters the purchased worm")
+        if CAMERA_WORM_CAP_INSERT_LEADIN_DEPTH > CAMERA_WORM_CAP_INSERT_DEPTH:
+            raise ValueError("Worm-cap insert lead-in cannot exceed insert depth")
+        if CAMERA_WORM_CAP_KEY_CLEARANCE < 0.0 or not math.isfinite(
+            CAMERA_WORM_CAP_KEY_CLEARANCE
+        ):
+            raise ValueError(
+                "CAMERA_WORM_CAP_KEY_CLEARANCE must be finite and nonnegative"
+            )
+        if CAMERA_WORM_CAP_KEY_WIDTH + 2.0 * CAMERA_WORM_CAP_KEY_CLEARANCE >= (
+            CAMERA_WORM_CAP_SCREW_SPACING / 2.0
+        ):
+            raise ValueError("Worm-cap key sockets collide with their screw axes")
+    wall_bearing_pocket_diameter = (
+        CAMERA_WORM_WALL_BEARING_OD
+        + CAMERA_WORM_WALL_BEARING_POCKET_DIAMETER_ADJUSTMENT
+    )
+    if not math.isfinite(wall_bearing_pocket_diameter) or (
+        wall_bearing_pocket_diameter <= CAMERA_WORM_SHAFT_DIAMETER
+    ):
+        raise ValueError("Wall-bearing pocket must remain larger than the shaft")
+    if CAMERA_WORM_WALL_BEARING_ENABLED and (
+        CAMERA_WORM_PORT_BOSS_RADIUS
+        - wall_bearing_pocket_diameter / 2.0
+        < CAMERA_WORM_WALL_BEARING_MIN_RADIAL_WEB
+    ):
+        raise ValueError("Wall-bearing counterbore leaves too little port-boss web")
+    if CAMERA_WORM_WALL_BEARING_RETENTION not in {
+        "none",
+        "internal_snap_ring",
+    }:
+        raise ValueError(
+            'CAMERA_WORM_WALL_BEARING_RETENTION must be "none" or '
+            '"internal_snap_ring"'
+        )
+    if (
+        CAMERA_WORM_WALL_BEARING_ENABLED
+        and CAMERA_WORM_WALL_BEARING_RETENTION == "internal_snap_ring"
+    ):
+        for name, value in (
+            (
+                "CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER",
+                CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER,
+            ),
+            (
+                "CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_WIDTH",
+                CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_WIDTH,
+            ),
+            (
+                "CAMERA_WORM_WALL_BEARING_SNAP_RING_EDGE_SETBACK",
+                CAMERA_WORM_WALL_BEARING_SNAP_RING_EDGE_SETBACK,
+            ),
+            (
+                "CAMERA_WORM_WALL_BEARING_SNAP_RING_AXIAL_CLEARANCE",
+                CAMERA_WORM_WALL_BEARING_SNAP_RING_AXIAL_CLEARANCE,
+            ),
+            (
+                "CAMERA_WORM_WALL_BEARING_SNAP_RING_NOMINAL_THICKNESS",
+                CAMERA_WORM_WALL_BEARING_SNAP_RING_NOMINAL_THICKNESS,
+            ),
+        ):
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError(f"{name} must be positive and finite")
+        if CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER <= (
+            wall_bearing_pocket_diameter
+        ):
+            raise ValueError(
+                "Wall-bearing snap-ring groove must be larger than its pocket"
+            )
+        if (
+            CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER / 2.0
+            + CAMERA_WORM_WALL_BEARING_MIN_RADIAL_WEB
+            > CAMERA_WORM_PORT_BOSS_RADIUS
+        ):
+            raise ValueError(
+                "Wall-bearing snap-ring groove leaves too little boss web"
+            )
+        required_retention_depth = (
+            CAMERA_WORM_WALL_BEARING_SNAP_RING_EDGE_SETBACK
+            + CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_WIDTH
+            + CAMERA_WORM_WALL_BEARING_SNAP_RING_AXIAL_CLEARANCE
+        )
+        if CAMERA_WORM_WALL_BEARING_POCKET_DEPTH_CLEARANCE < (
+            required_retention_depth
+        ):
+            raise ValueError(
+                "Wall-bearing pocket depth clearance cannot fit the retaining "
+                "ring and configured axial float"
+            )
+    acoustic_positive = {
+        "CAMERA_MIC_NO_DIRECT_JET_RADIUS": CAMERA_MIC_NO_DIRECT_JET_RADIUS,
+        "CAMERA_MIC_DEFLECTOR_STANDOFF": CAMERA_MIC_DEFLECTOR_STANDOFF,
+        "FAN_ACOUSTIC_DIVIDED_INLET_DEPTH": FAN_ACOUSTIC_DIVIDED_INLET_DEPTH,
+        "FAN_ACOUSTIC_PLENUM_DEPTH": FAN_ACOUSTIC_PLENUM_DEPTH,
+        "FAN_ACOUSTIC_BAFFLE_THICKNESS": FAN_ACOUSTIC_BAFFLE_THICKNESS,
+        "FAN_ACOUSTIC_NOSE_RADIUS": FAN_ACOUSTIC_NOSE_RADIUS,
+        "FAN_ACOUSTIC_WALL_THICKNESS": FAN_ACOUSTIC_WALL_THICKNESS,
+        "FAN_ACOUSTIC_FAN_GAP": FAN_ACOUSTIC_FAN_GAP,
+        "FAN_ACOUSTIC_PLENUM_SIDE_EXPANSION": FAN_ACOUSTIC_PLENUM_SIDE_EXPANSION,
+        "FAN_ACOUSTIC_BAFFLE_WIDTH": FAN_ACOUSTIC_BAFFLE_WIDTH,
+        "FAN_ACOUSTIC_OUTLET_HEIGHT": FAN_ACOUSTIC_OUTLET_HEIGHT,
+        "FAN_ACOUSTIC_MIN_TOTAL_THROAT_AREA": FAN_ACOUSTIC_MIN_TOTAL_THROAT_AREA,
+        "FAN_ACOUSTIC_DESIGN_PER_CAMERA_PATH_AREA": (
+            FAN_ACOUSTIC_DESIGN_PER_CAMERA_PATH_AREA
+        ),
+        "FAN_ACOUSTIC_MIN_PER_CAMERA_PATH_AREA": FAN_ACOUSTIC_MIN_PER_CAMERA_PATH_AREA,
+        "FAN_ACOUSTIC_OUTLET_PLUME_HALF_ANGLE_DEG": (
+            FAN_ACOUSTIC_OUTLET_PLUME_HALF_ANGLE_DEG
+        ),
+        "FAN_ACOUSTIC_REMESH_VOXEL_SIZE": FAN_ACOUSTIC_REMESH_VOXEL_SIZE,
+        "FAN_ACOUSTIC_LID_THICKNESS": FAN_ACOUSTIC_LID_THICKNESS,
+        "FAN_ACOUSTIC_LID_FIT_CLEARANCE": FAN_ACOUSTIC_LID_FIT_CLEARANCE,
+        "FAN_ACOUSTIC_LID_KEY_DEPTH": FAN_ACOUSTIC_LID_KEY_DEPTH,
+        "FAN_ACOUSTIC_LID_SCREW_CLEARANCE": FAN_ACOUSTIC_LID_SCREW_CLEARANCE,
+        "FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DIAMETER": (
+            FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DIAMETER
+        ),
+        "FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DEPTH": (
+            FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DEPTH
+        ),
+        "FAN_ACOUSTIC_LID_MIN_COUNTERBORE_FLOOR": (
+            FAN_ACOUSTIC_LID_MIN_COUNTERBORE_FLOOR
+        ),
+        "FAN_ACOUSTIC_LID_INSERT_HOLE_DIAMETER": (
+            FAN_ACOUSTIC_LID_INSERT_HOLE_DIAMETER
+        ),
+        "FAN_ACOUSTIC_LID_INSERT_DEPTH": FAN_ACOUSTIC_LID_INSERT_DEPTH,
+        "FAN_ACOUSTIC_LID_BOSS_DIAMETER": FAN_ACOUSTIC_LID_BOSS_DIAMETER,
+        "FAN_ACOUSTIC_BASE_POST_DIAMETER": FAN_ACOUSTIC_BASE_POST_DIAMETER,
+        "FAN_ACOUSTIC_BASE_INSERT_HOLE_DIAMETER": (
+            FAN_ACOUSTIC_BASE_INSERT_HOLE_DIAMETER
+        ),
+        "FAN_ACOUSTIC_BASE_INSERT_DEPTH": FAN_ACOUSTIC_BASE_INSERT_DEPTH,
+        "FAN_ACOUSTIC_BASE_ISOLATOR_THICKNESS": (
+            FAN_ACOUSTIC_BASE_ISOLATOR_THICKNESS
+        ),
+        "FAN_ACOUSTIC_BASE_ISOLATOR_OUTER_DIAMETER": (
+            FAN_ACOUSTIC_BASE_ISOLATOR_OUTER_DIAMETER
+        ),
+        "FAN_ACOUSTIC_BASE_ISOLATOR_INNER_DIAMETER": (
+            FAN_ACOUSTIC_BASE_ISOLATOR_INNER_DIAMETER
+        ),
+        "FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_THICKNESS": (
+            FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_THICKNESS
+        ),
+        "FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_OUTER_DIAMETER": (
+            FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_OUTER_DIAMETER
+        ),
+        "FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_INNER_DIAMETER": (
+            FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_INNER_DIAMETER
+        ),
+        "FAN_ACOUSTIC_BASE_SCREW_CLEARANCE": FAN_ACOUSTIC_BASE_SCREW_CLEARANCE,
+        "FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DIAMETER": (
+            FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DIAMETER
+        ),
+        "FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DEPTH": (
+            FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DEPTH
+        ),
+        "FAN_ACOUSTIC_BASE_HEAD_BOSS_DIAMETER": (
+            FAN_ACOUSTIC_BASE_HEAD_BOSS_DIAMETER
+        ),
+        "FAN_ACOUSTIC_BASE_HEAD_BOSS_HEIGHT": FAN_ACOUSTIC_BASE_HEAD_BOSS_HEIGHT,
+        "FAN_ACOUSTIC_BASE_HEAD_MIN_FLOOR": FAN_ACOUSTIC_BASE_HEAD_MIN_FLOOR,
+        "FAN_ACOUSTIC_BASE_HEAD_MIN_ANNULAR_WEB": (
+            FAN_ACOUSTIC_BASE_HEAD_MIN_ANNULAR_WEB
+        ),
+        "FAN_ACOUSTIC_BASE_DRIVER_DIAMETER": FAN_ACOUSTIC_BASE_DRIVER_DIAMETER,
+        "FAN_ACOUSTIC_BAFFLE_LID_CLEARANCE": (
+            FAN_ACOUSTIC_BAFFLE_LID_CLEARANCE
+        ),
+        "FAN_ACOUSTIC_BOOT_SEAL_WALL": FAN_ACOUSTIC_BOOT_SEAL_WALL,
+        "FAN_ACOUSTIC_TROUGH_BOOT_OPENING_SIZE": (
+            FAN_ACOUSTIC_TROUGH_BOOT_OPENING_SIZE
+        ),
+        "FAN_ACOUSTIC_TROUGH_BOOT_OPENING_RADIAL_MARGIN": (
+            FAN_ACOUSTIC_TROUGH_BOOT_OPENING_RADIAL_MARGIN
+        ),
+        "FAN_ACOUSTIC_BOOT_SEAL_COMPRESSION": (
+            FAN_ACOUSTIC_BOOT_SEAL_COMPRESSION
+        ),
+        "FAN_ACOUSTIC_HARDWARE_FIT_VOLUME_TOLERANCE": (
+            FAN_ACOUSTIC_HARDWARE_FIT_VOLUME_TOLERANCE
+        ),
+        "FAN_ACOUSTIC_FLOW_PROBE_THICKNESS": FAN_ACOUSTIC_FLOW_PROBE_THICKNESS,
+        "FAN_GASKET_THICKNESS": FAN_GASKET_THICKNESS,
+        "FAN_GASKET_OUTER_SIZE": FAN_GASKET_OUTER_SIZE,
+        "FAN_GASKET_INNER_DIAMETER": FAN_GASKET_INNER_DIAMETER,
+        "FAN_GASKET_SLEEVE_OUTER_DIAMETER": FAN_GASKET_SLEEVE_OUTER_DIAMETER,
+        "FAN_GASKET_SCREW_CLEARANCE": FAN_GASKET_SCREW_CLEARANCE,
+    }
+    for name, value in acoustic_positive.items():
+        if not math.isfinite(value) or value <= 0.0:
+            raise ValueError(f"{name} must be finite and positive")
+    if not 0.0 <= FAN_ACOUSTIC_MAX_PATH_IMBALANCE < 1.0:
+        raise ValueError("FAN_ACOUSTIC_MAX_PATH_IMBALANCE must be in [0, 1)")
+    if not 0.0 < FAN_ACOUSTIC_OUTLET_PLUME_HALF_ANGLE_DEG < 90.0:
+        raise ValueError(
+            "FAN_ACOUSTIC_OUTLET_PLUME_HALF_ANGLE_DEG must be in (0, 90)"
+        )
+    if not 0.0 < FAN_ACOUSTIC_MIN_REAR_FACE_WASH_RATIO <= 1.0:
+        raise ValueError(
+            "FAN_ACOUSTIC_MIN_REAR_FACE_WASH_RATIO must be in (0, 1]"
+        )
+    if not 0.0 <= FAN_ACOUSTIC_MIN_OUTLET_TO_REAR_FACE_COSINE <= 1.0:
+        raise ValueError(
+            "FAN_ACOUSTIC_MIN_OUTLET_TO_REAR_FACE_COSINE must be in [0, 1]"
+        )
+    if not math.isfinite(FAN_ACOUSTIC_PATH_SPLIT_OFFSET):
+        raise ValueError("FAN_ACOUSTIC_PATH_SPLIT_OFFSET must be finite")
+    if (
+        FAN_ACOUSTIC_DESIGN_PER_CAMERA_PATH_AREA
+        < FAN_ACOUSTIC_MIN_PER_CAMERA_PATH_AREA
+    ):
+        raise ValueError(
+            "Acoustic per-path design area cannot be below its measured minimum"
+        )
+    if not 0.0 < FAN_ACOUSTIC_MIN_REAR_WIDTH_SCALE <= 1.0:
+        raise ValueError("FAN_ACOUSTIC_MIN_REAR_WIDTH_SCALE must be in (0, 1]")
+    if REAR_FAN_AUTO_LID_POST_MAX_X is not None and not math.isfinite(
+        REAR_FAN_AUTO_LID_POST_MAX_X
+    ):
+        raise ValueError("REAR_FAN_AUTO_LID_POST_MAX_X must be finite or None")
+    if FAN_ACOUSTIC_RAY_APERTURE_GRID < 2:
+        raise ValueError("FAN_ACOUSTIC_RAY_APERTURE_GRID must be at least 2")
+    if FAN_ACOUSTIC_FLOW_SECTION_GRID < 12:
+        raise ValueError("FAN_ACOUSTIC_FLOW_SECTION_GRID must be at least 12")
+    if FAN_ACOUSTIC_RAY_MIC_SAMPLES != 7:
+        raise ValueError("FAN_ACOUSTIC_RAY_MIC_SAMPLES currently must equal 7")
+    if FAN_ACOUSTIC_LID_INSERT_HOLE_DIAMETER >= FAN_ACOUSTIC_LID_BOSS_DIAMETER:
+        raise ValueError("Acoustic-lid inserts do not fit their trough bosses")
+    if FAN_ACOUSTIC_BASE_INSERT_HOLE_DIAMETER >= FAN_ACOUSTIC_BASE_POST_DIAMETER:
+        raise ValueError("Acoustic-base inserts do not fit their floor posts")
+    if (
+        FAN_ACOUSTIC_BASE_ISOLATOR_OUTER_DIAMETER
+        > FAN_ACOUSTIC_BASE_POST_DIAMETER
+        or FAN_ACOUSTIC_BASE_ISOLATOR_INNER_DIAMETER
+        < FAN_ACOUSTIC_BASE_SCREW_CLEARANCE
+    ):
+        raise ValueError(
+            "Purchased acoustic base isolator does not fit its post/screw stack"
+        )
+    if (
+        FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_OUTER_DIAMETER
+        > FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DIAMETER
+        or FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_INNER_DIAMETER
+        < FAN_ACOUSTIC_BASE_SCREW_CLEARANCE
+    ):
+        raise ValueError(
+            "Purchased acoustic head isolator does not fit its counterbore/screw"
+        )
+    if FAN_ACOUSTIC_BASE_HEAD_BOSS_HEIGHT < (
+        FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DEPTH
+        + FAN_ACOUSTIC_BASE_HEAD_MIN_FLOOR
+    ):
+        raise ValueError(
+            "Acoustic base-head bosses leave too little floor under the "
+            "counterbores"
+        )
+    if (
+        FAN_ACOUSTIC_BASE_HEAD_BOSS_DIAMETER
+        - FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DIAMETER
+    ) / 2.0 < FAN_ACOUSTIC_BASE_HEAD_MIN_ANNULAR_WEB:
+        raise ValueError("Acoustic base-head bosses leave too little annular web")
+    if FAN_ACOUSTIC_BAFFLE_LID_CLEARANCE >= FAN_ACOUSTIC_OUTLET_HEIGHT:
+        raise ValueError("Acoustic baffle lid clearance consumes the duct height")
+    if (
+        REAR_FAN_AIR_OPENING_DIAMETER
+        + 2.0 * FAN_ACOUSTIC_BOOT_SEAL_WALL
+        > REAR_FAN_PAD_SIZE
+    ):
+        raise ValueError(
+            "Acoustic boot seal must remain inside the 45 mm fan contact pad"
+        )
+    if FAN_ACOUSTIC_TROUGH_BOOT_OPENING_SIZE > (
+        REAR_FAN_PAD_SIZE - 2.0 * FAN_ACOUSTIC_WALL_THICKNESS
+    ):
+        raise ValueError("Acoustic rigid boot opening exceeds its inner width")
+    if (
+        FAN_ACOUSTIC_LID_THICKNESS
+        - FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DEPTH
+        < FAN_ACOUSTIC_LID_MIN_COUNTERBORE_FLOOR
+    ):
+        raise ValueError(
+            "Acoustic-lid counterbores leave too little configured floor"
+        )
+    if (
+        M3_SOCKET_HEAD_NOMINAL_DIAMETER
+        > FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DIAMETER
+    ):
+        raise ValueError("M3 heads do not fit the acoustic-lid counterbores")
+    if (
+        M3_SOCKET_HEAD_NOMINAL_HEIGHT
+        > FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DEPTH
+        + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE
+    ):
+        raise ValueError(
+            "Acoustic-lid M3 heads exceed their counterbore plus roof clearance"
+        )
+    if not math.isfinite(FAN_ACOUSTIC_SERVICE_YAW_DEG):
+        raise ValueError("FAN_ACOUSTIC_SERVICE_YAW_DEG must be finite")
+    if CAMERA_CARTRIDGE_WORM_ENABLED and abs(FAN_ACOUSTIC_SERVICE_YAW_DEG) > (
+        ADJUSTABLE_CAMERA_YAW_RANGE_DEG + 1e-9
+    ):
+        raise ValueError("Acoustic service yaw exceeds the mechanical yaw range")
+    if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        if not REAR_FANS_ENABLED:
+            raise ValueError("The acoustic attenuator requires REAR_FANS_ENABLED")
+        if not isinstance(CAMERA_MIC_DEFLECTORS_ENABLED, bool):
+            raise ValueError("CAMERA_MIC_DEFLECTORS_ENABLED must be True or False")
+        if CAMERA_REAR_MIC_LOCAL_CENTERS is None:
+            raise ValueError(
+                "FAN_ACOUSTIC_ATTENUATOR_ENABLED requires two measured "
+                "CAMERA_REAR_MIC_LOCAL_CENTERS; the Mission 1 dummy STL does "
+                "not identify microphone coordinates"
+            )
+        if len(CAMERA_REAR_MIC_LOCAL_CENTERS) != 2 or any(
+            len(point) != 3 for point in CAMERA_REAR_MIC_LOCAL_CENTERS
+        ):
+            raise ValueError(
+                "CAMERA_REAR_MIC_LOCAL_CENTERS must contain two (radial, tangent, z) triples"
+            )
+        if any(
+            not math.isfinite(float(value))
+            for point in CAMERA_REAR_MIC_LOCAL_CENTERS
+            for value in point
+        ):
+            raise ValueError("Camera microphone coordinates must be finite")
+        print(
+            "MISSION1_REAR_MIC_TARGETS "
+            "location=back_panel_bottom_left "
+            f"local_centers={CAMERA_REAR_MIC_LOCAL_CENTERS} "
+            f"edge_inset={CAMERA_REAR_MIC_BACK_PANEL_EDGE_INSET:.2f}mm "
+            f"separate_deflectors={CAMERA_MIC_DEFLECTORS_ENABLED}"
+        )
     if tuple(z for z, _ in BODY_SECTIONS) != tuple(
         sorted(z for z, _ in BODY_SECTIONS)
     ):
         raise ValueError("BODY_SECTIONS must be ordered by increasing Z")
     if BODY_SECTIONS[0][0] != 0.0 or BODY_SECTIONS[-1][0] != BASE_HEIGHT:
         raise ValueError("BODY_SECTIONS must span Z=0 through BASE_HEIGHT")
+    if abs(BODY_SECTIONS[-1][1] - 1.0) > 1e-9:
+        raise ValueError(
+            "BODY_SECTIONS must end at scale 1.0 so the base and lid share "
+            "one resolved seam loop"
+        )
     if abs(BASE_HEIGHT + LID_THICKNESS - BODY_HEIGHT) > 1e-6:
         raise ValueError("BASE_HEIGHT + LID_THICKNESS must equal BODY_HEIGHT")
     if not 0.0 < BOTTOM_THICKNESS < BASE_HEIGHT:
@@ -1997,6 +3229,22 @@ def validate_config() -> None:
         raise ValueError('FASTENER_POST_PLACEMENT must be "auto" or "manual"')
     if HEAT_INSERT_HOLE_DIAMETER >= FASTENER_POST_DIAMETER:
         raise ValueError("Heat-insert hole must fit inside the fastener post")
+    if not 0.0 <= FASTENER_POST_TOP_CLEARANCE < LID_LIP_DEPTH:
+        raise ValueError(
+            "FASTENER_POST_TOP_CLEARANCE must be nonnegative and below the lid lip depth"
+        )
+    if not 0.0 <= HEAT_INSERT_LEADIN_DEPTH <= HEAT_INSERT_HOLE_DEPTH:
+        raise ValueError(
+            "HEAT_INSERT_LEADIN_DEPTH must fit within HEAT_INSERT_HOLE_DEPTH"
+        )
+    if not (
+        HEAT_INSERT_HOLE_DIAMETER
+        <= HEAT_INSERT_LEADIN_DIAMETER
+        < FASTENER_POST_DIAMETER
+    ):
+        raise ValueError(
+            "Heat-insert lead-in diameter must nest between the insert hole and post"
+        )
     if LID_SCREW_HEAD_COUNTERBORE_DIAMETER <= LID_SCREW_CLEARANCE_DIAMETER:
         raise ValueError("Socket-head counterbore must exceed shank clearance")
     if LID_SCREW_HEAD_COUNTERBORE_DEPTH >= LID_THICKNESS:
@@ -2192,6 +3440,18 @@ def validate_config() -> None:
     }:
         raise ValueError("Unsupported captive-nut holder Boolean solver")
     if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
+        if (
+            not isinstance(BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT, int)
+            or BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT < 12
+        ):
+            raise ValueError(
+                "BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT must be an integer "
+                "of at least 12"
+            )
+        if not 0.0 < BOTTOM_MOUNT_NUT_FINAL_BOSS_MIN_SOLID_RATIO <= 1.0:
+            raise ValueError(
+                "BOTTOM_MOUNT_NUT_FINAL_BOSS_MIN_SOLID_RATIO must be in (0, 1]"
+            )
         nut_pocket_across_flats = bottom_mount_nut_pocket_across_flats()
         nut_corner_diameter = 2.0 * nut_pocket_across_flats / math.sqrt(3.0)
         if BOTTOM_MOUNT_HOLE_DIAMETER <= BOTTOM_MOUNT_NUT_THREAD_DIAMETER:
@@ -2301,6 +3561,27 @@ def validate_config() -> None:
         raise ValueError("Keystone center spacing violates body keepouts")
     if REAR_FAN_PAD_SURFACE_SAMPLES < 8:
         raise ValueError("REAR_FAN_PAD_SURFACE_SAMPLES must be at least 8")
+    if (
+        not isinstance(CAMERA_COOLING_WASH_SAMPLE_GRID, int)
+        or isinstance(CAMERA_COOLING_WASH_SAMPLE_GRID, bool)
+        or CAMERA_COOLING_WASH_SAMPLE_GRID < 9
+        or CAMERA_COOLING_WASH_SAMPLE_GRID % 2 == 0
+    ):
+        raise ValueError(
+            "CAMERA_COOLING_WASH_SAMPLE_GRID must be an odd integer >= 9"
+        )
+    if not 0.0 < CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG < 45.0:
+        raise ValueError(
+            "CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG must be between 0 and 45"
+        )
+    if not 0.0 < CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO <= 1.0:
+        raise ValueError(
+            "CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO must be in (0, 1]"
+        )
+    if not 0.0 < CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE <= 1.0:
+        raise ValueError(
+            "CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE must be in (0, 1]"
+        )
     if REAR_FAN_CENTER_TANGENTS is not None and (
         len(REAR_FAN_CENTER_TANGENTS) != 2
     ):
@@ -2616,6 +3897,20 @@ def validate_config() -> None:
         )
     if CAMERA_USB_SIDE not in {"auto", "tangent_min", "tangent_max"}:
         raise ValueError("Unsupported CAMERA_USB_SIDE mode")
+    for name, enabled in (
+        ("CAMERA_USB_ACCESS_ENABLED", CAMERA_USB_ACCESS_ENABLED),
+        (
+            "CAMERA_USB_CASE_OPENINGS_ENABLED",
+            CAMERA_USB_CASE_OPENINGS_ENABLED,
+        ),
+    ):
+        if not isinstance(enabled, bool):
+            raise ValueError(f"{name} must be True or False")
+    if CAMERA_USB_CASE_OPENINGS_ENABLED and not CAMERA_USB_ACCESS_ENABLED:
+        raise ValueError(
+            "CAMERA_USB_CASE_OPENINGS_ENABLED requires "
+            "CAMERA_USB_ACCESS_ENABLED"
+        )
     if CAMERA_BRACKET_COMPACT_RAIL_SIDE not in {
         "usb",
         "non_usb",
@@ -2792,6 +4087,47 @@ def validate_config() -> None:
             )
         if not 0.0 < CAMERA_CARRIER_MIN_TRAY_OPEN_AREA_RATIO < 1.0:
             raise ValueError("Carrier minimum tray open-area ratio must be 0..1")
+        if CAMERA_CARRIER_REAR_UNDERBODY_INLET_ENABLED:
+            if not (
+                0.0
+                < CAMERA_CARRIER_REAR_UNDERBODY_INLET_WIDTH
+                <= body_tangent[1] - body_tangent[0]
+            ):
+                raise ValueError(
+                    "Carrier rear underbody inlet width must fit the camera body"
+                )
+            available_lateral_height = (
+                camera_eye_center_z()
+                + body_vertical[0]
+                - (
+                    BOTTOM_THICKNESS
+                    + CAMERA_CARRIER_BOTTOM_CLEARANCE
+                )
+            )
+            if available_lateral_height < (
+                CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_HEIGHT
+            ):
+                raise ValueError(
+                    "Carrier stack cannot provide the configured lateral "
+                    "under-camera cooling throat height"
+                )
+            if (
+                CAMERA_CARRIER_REAR_UNDERBODY_INLET_WIDTH
+                * available_lateral_height
+                < CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_AREA
+            ):
+                raise ValueError(
+                    "Carrier rear underbody inlet is too small for its minimum "
+                    "cooling throat area"
+                )
+        if (
+            not isinstance(CAMERA_CARRIER_FINAL_AIRFLOW_GRID, int)
+            or isinstance(CAMERA_CARRIER_FINAL_AIRFLOW_GRID, bool)
+            or CAMERA_CARRIER_FINAL_AIRFLOW_GRID < 12
+        ):
+            raise ValueError(
+                "CAMERA_CARRIER_FINAL_AIRFLOW_GRID must be an integer >= 12"
+            )
         *_, tray_open_area_ratio = camera_carrier_tray_airflow_metrics(
             body_radial,
             body_tangent,
@@ -3016,14 +4352,47 @@ def validate_config() -> None:
         )
         if bearing_pocket_diameter <= CAMERA_WORM_SHAFT_DIAMETER:
             raise ValueError("Worm bearing pocket collapses into the shaft bore")
-        intended_worm_end_gap = (
-            CAMERA_WORM_THRUST_WASHER_THICKNESS
-            + CAMERA_WORM_AXIAL_RUNNING_CLEARANCE
+        bearing_axial_slack = max(
+            (
+                CAMERA_WORM_SPLIT_POCKET_WIDTH
+                if CAMERA_WORM_BEARING_MOUNT_STYLE == "split_caps"
+                else (
+                    CAMERA_WORM_BEARING_WIDTH
+                    + CAMERA_WORM_BEARING_POCKET_DEPTH_CLEARANCE
+                )
+            )
+            - CAMERA_WORM_BEARING_WIDTH,
+            0.0,
         )
-        if abs(CAMERA_WORM_BLOCK_OFFSET - intended_worm_end_gap) > 1e-6:
+        per_end_gap = (
+            CAMERA_WORM_BLOCK_OFFSET
+            - CAMERA_WORM_THRUST_WASHER_THICKNESS
+            - CAMERA_WORM_THRUST_SPACER_THICKNESS
+        )
+        minimum_worm_endplay = 2.0 * per_end_gap
+        maximum_worm_endplay = (
+            minimum_worm_endplay + 2.0 * bearing_axial_slack
+        )
+        if minimum_worm_endplay < -1e-6:
             raise ValueError(
-                "CAMERA_WORM_BLOCK_OFFSET must equal the thrust-washer + "
-                "axial-clearance stack"
+                "CAMERA_WORM_BLOCK_OFFSET pinches the configured thrust washer"
+            )
+        if minimum_worm_endplay < (
+            CAMERA_WORM_AXIAL_RUNNING_CLEARANCE
+            - CAMERA_WORM_AXIAL_CLEARANCE_TOLERANCE
+            - 1e-6
+        ):
+            raise ValueError(
+                "The symmetric thrust stacks leave too little total worm endplay"
+            )
+        if maximum_worm_endplay > (
+            CAMERA_WORM_AXIAL_RUNNING_CLEARANCE
+            + CAMERA_WORM_AXIAL_CLEARANCE_TOLERANCE
+            + 1e-6
+        ):
+            raise ValueError(
+                "Bearing-pocket travel permits excessive worm endplay; reduce "
+                "CAMERA_WORM_BLOCK_OFFSET or the pocket width"
             )
         hold_down_disk_diameter = (
             CAMERA_HOLD_DOWN_PAD_DIAMETER
@@ -3031,6 +4400,10 @@ def validate_config() -> None:
         )
         if hold_down_disk_diameter <= 0.0:
             raise ValueError("Hold-down material clearance consumes its pad")
+        if not 0.0 < CAMERA_HOLD_DOWN_MIN_FINAL_PAD_AREA_RATIO <= 1.0:
+            raise ValueError(
+                "CAMERA_HOLD_DOWN_MIN_FINAL_PAD_AREA_RATIO must be in (0, 1]"
+            )
         if CAMERA_HOLD_DOWN_PAD_MATERIAL_THICKNESS <= (
             CAMERA_BRACKET_CLAMP_PRELOAD_Z
         ):
@@ -3497,6 +4870,811 @@ def create_mesh_object(name: str, vertices, faces):
 # Mesh primitives
 
 
+def rear_taper_progress(
+    x: float,
+    loop,
+    start_fraction: float = None,
+    start_x: float = None,
+) -> float:
+    """Return linear front-to-rear taper progress in [0, 1]."""
+    front_x = min(point[0] for point in loop)
+    rear_x = max(point[0] for point in loop)
+    if start_x is None:
+        if start_fraction is None:
+            raise ValueError("Rear taper progress needs a start fraction or X")
+        start_x = front_x + start_fraction * (rear_x - front_x)
+    if x <= start_x:
+        return 0.0
+    if x >= rear_x:
+        return 1.0
+    return (x - start_x) / (rear_x - start_x)
+
+
+def rear_taper_start_x(loop, start_fraction: float) -> float:
+    front_x = min(point[0] for point in loop)
+    rear_x = max(point[0] for point in loop)
+    return front_x + start_fraction * (rear_x - front_x)
+
+
+def effective_rear_height_taper_anchor_z() -> float:
+    anchor = REAR_HEIGHT_TAPER_ANCHOR_Z
+    if REAR_FANS_ENABLED:
+        anchor = max(
+            anchor,
+            REAR_FAN_CENTER_Z + REAR_FAN_PAD_SIZE / 2.0,
+        )
+    if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        acoustic_lid_top = (
+            REAR_FAN_CENTER_Z
+            + max(FAN_ACOUSTIC_OUTLET_HEIGHT, REAR_FAN_AIR_OPENING_DIAMETER)
+            / 2.0
+            + FAN_ACOUSTIC_LID_FIT_CLEARANCE
+            + FAN_ACOUSTIC_LID_THICKNESS
+        )
+        acoustic_head_top = (
+            acoustic_lid_top
+            - FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DEPTH
+            + M3_SOCKET_HEAD_NOMINAL_HEIGHT
+        )
+        anchor = max(
+            anchor,
+            max(acoustic_lid_top, acoustic_head_top)
+            + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE,
+        )
+    return anchor
+
+
+def rear_taper_camera_keepout_max_x(cameras, mechanism=None) -> float:
+    """Return the complete functional X extent that must retain a full roof."""
+    protected_x = -math.inf
+    for camera in cameras:
+        yaw_samples = (
+            adjustable_yaw_samples(include_preview=True)
+            if camera_is_adjustable(camera)
+            else (0.0,)
+        )
+        body_radial, body_tangent, _ = mission1.canonical_body_bounds(
+            CAMERA_UPSIDE_DOWN
+        )
+        for yaw_delta in yaw_samples:
+            if camera_is_adjustable(camera):
+                corners = adjustable_camera_pose_corners(
+                    camera,
+                    body_radial,
+                    body_tangent,
+                    yaw_delta,
+                    CAMERA_NOSE_SHELL_CLEARANCE,
+                )
+            else:
+                corners = camera_body_xy_corners(
+                    camera,
+                    CAMERA_NOSE_SHELL_CLEARANCE,
+                )
+            protected_x = max(protected_x, *(point[0] for point in corners))
+            if CAMERA_USB_ACCESS_ENABLED:
+                usb_corners = camera_usb_access_xy_corners(
+                    camera,
+                    yaw_delta,
+                    CAMERA_USB_ACCESS_OTHER_CAMERA_CLEARANCE,
+                )
+                protected_x = max(
+                    protected_x,
+                    *(point[0] for point in usb_corners),
+                )
+
+        if CAMERA_BRACKETS_ENABLED:
+            radial_bounds, tangent_bounds = (
+                camera_bracket_guide_plate_local_bounds(camera)
+            )
+            bracket_points = [
+                axis_point(camera["angle"], radial, tangent, 0.0)
+                for radial in radial_bounds
+                for tangent in tangent_bounds
+            ]
+            protected_x = max(
+                protected_x,
+                *(point.x for point in bracket_points),
+            )
+
+        if (
+            FAN_ACOUSTIC_ATTENUATOR_ENABLED
+            and CAMERA_REAR_MIC_LOCAL_CENTERS is not None
+        ):
+            local_mic = CAMERA_REAR_MIC_LOCAL_CENTERS[camera["index"] - 1]
+            mic_yaws = yaw_samples if camera_is_adjustable(camera) else (0.0,)
+            mic_radius = (
+                CAMERA_MIC_NO_DIRECT_JET_RADIUS
+                + CAMERA_MIC_DEFLECTOR_STANDOFF
+                + FAN_ACOUSTIC_WALL_THICKNESS
+            )
+            for yaw_delta in mic_yaws:
+                if camera_is_adjustable(camera):
+                    mic = adjustable_camera_local_point(
+                        camera,
+                        local_mic[0],
+                        local_mic[1],
+                        camera_eye_center_z() + local_mic[2],
+                        yaw_delta,
+                    )
+                else:
+                    mic = camera_local_point_world(camera, local_mic)
+                protected_x = max(protected_x, mic.x + mic_radius)
+
+    if mechanism is not None:
+        moving_camera = mechanism["camera"]
+        for yaw_delta in adjustable_yaw_samples(include_preview=True):
+            carrier_points = adjustable_carrier_plan_points(
+                moving_camera,
+                yaw_delta,
+                ADJUSTABLE_CAMERA_SWEEP_CLEARANCE,
+            )
+            protected_x = max(
+                protected_x,
+                *(point[0] for point in carrier_points),
+            )
+        if CAMERA_CARRIER_TOP_LOADING_CHIMNEY_ENABLED:
+            chimney_loop, _, _ = adjustable_carrier_top_loading_chimney_loop(
+                moving_camera
+            )
+            protected_x = max(
+                protected_x,
+                *(point[0] for point in chimney_loop),
+            )
+
+        direction = mechanism["shaft_direction"]
+        tangent = Vector((-direction.y, direction.x, 0.0))
+        half_length = worm_cap_plan_half_length()
+        half_width = worm_cap_plan_half_width()
+        for center in (mechanism["inner_block"], mechanism["outer_block"]):
+            for length_sign in (-1.0, 1.0):
+                for width_sign in (-1.0, 1.0):
+                    corner = (
+                        center
+                        + direction * (length_sign * half_length)
+                        + tangent * (width_sign * half_width)
+                    )
+                    protected_x = max(protected_x, corner.x)
+        protected_x = max(
+            protected_x,
+            mechanism["wall_point"].x + CAMERA_WORM_PORT_BOSS_RADIUS,
+        )
+
+    if CAMERA_BRACKETS_ENABLED:
+        for x, _ in camera_bracket_post_targets(cameras):
+            protected_x = max(
+                protected_x,
+                x + CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0,
+            )
+    return protected_x
+
+
+def apply_resolved_rear_width_taper(loop, start_x: float, scale: float = None):
+    """Taper the already camera-expanded footprint without moving its X datum."""
+    scale = REAR_WIDTH_TAPER_SCALE if scale is None else float(scale)
+    if abs(scale - 1.0) <= 1e-9:
+        return list(loop)
+    tapered = [
+        (
+            x,
+            y
+            * (
+                1.0
+                - (1.0 - scale)
+                * rear_taper_progress(x, loop, start_x=start_x)
+            ),
+        )
+        for x, y in loop
+    ]
+    if REAR_TAPER_FORCE_SYMMETRY:
+        tapered = convex_hull_2d(
+            tapered + [(x, -y) for x, y in tapered]
+        )
+    else:
+        tapered = convex_hull_2d(tapered)
+    return vertex_preserving_resample(
+        tapered,
+        max(len(loop), len(tapered)),
+    )
+
+
+def rear_fan_plan_keepouts_fit(footprint) -> bool:
+    """Cheap XY gate for complete inside-mounted fan-frame envelopes."""
+    if not REAR_FANS_ENABLED or not REAR_FAN_PAD_INSIDE:
+        return True
+    try:
+        inner_loop = inset_footprint_loop(footprint, BODY_WALL_THICKNESS)
+        depth = REAR_FAN_DEPTH + 2.0 * REAR_FAN_BODY_CLEARANCE
+        side = REAR_FAN_FRAME_SIZE + 2.0 * REAR_FAN_BODY_CLEARANCE
+        axial_offset = installed_fan_gasket_thickness() + REAR_FAN_DEPTH / 2.0
+        for tangent_offset in rear_fan_center_tangents():
+            station = rear_fan_station_geometry(footprint, tangent_offset)
+            angle = math.radians(station["wall_angle_deg"])
+            direction = Vector((math.cos(angle), math.sin(angle), 0.0))
+            tangent = Vector((-math.sin(angle), math.cos(angle), 0.0))
+            center = axis_point(
+                station["wall_angle_deg"],
+                station["face_radius"] - axial_offset,
+                station["center_axis_tangent"],
+                0.0,
+            )
+            corners = tuple(
+                (
+                    center.x
+                    + radial_sign * depth / 2.0 * direction.x
+                    + tangent_sign * side / 2.0 * tangent.x,
+                    center.y
+                    + radial_sign * depth / 2.0 * direction.y
+                    + tangent_sign * side / 2.0 * tangent.y,
+                )
+                for radial_sign, tangent_sign in (
+                    (-1.0, -1.0),
+                    (1.0, -1.0),
+                    (1.0, 1.0),
+                    (-1.0, 1.0),
+                )
+            )
+            if not all(point_in_polygon(point, inner_loop) for point in corners):
+                return False
+        return True
+    except (RuntimeError, ValueError):
+        return False
+
+
+def acoustic_plan_keepouts_fit(footprint, cameras) -> bool:
+    """Cheap plan-view gate used while resolving acoustic rear width."""
+    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        return True
+    try:
+        inner_loop = inset_footprint_loop(
+            footprint,
+            BODY_WALL_THICKNESS + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE,
+        )
+        stations = [
+            rear_fan_station_geometry(footprint, tangent)
+            for tangent in rear_fan_center_tangents()
+        ]
+        boot_points = []
+        boot_ends = []
+        for station in stations:
+            inner_wall_radius = radial_surface_distance(
+                station["wall_angle_deg"],
+                station["center_axis_tangent"],
+                inset_footprint_loop(footprint, BODY_WALL_THICKNESS),
+            )
+            if REAR_FAN_PAD_INSIDE:
+                boot_start = (
+                    station["face_radius"]
+                    - REAR_FAN_DEPTH
+                    - FAN_ACOUSTIC_FAN_GAP
+                )
+            else:
+                boot_start = (
+                    inner_wall_radius - REAR_FAN_DEPTH - FAN_ACOUSTIC_FAN_GAP
+                )
+            boot_end = boot_start - FAN_ACOUSTIC_DIVIDED_INLET_DEPTH
+            boot_ends.append(
+                axis_point(
+                    station["wall_angle_deg"],
+                    boot_end,
+                    station["center_axis_tangent"],
+                    0.0,
+                )
+            )
+            half = REAR_FAN_PAD_SIZE / 2.0
+            for radial in (boot_start, boot_end):
+                for tangent_sign in (-1.0, 1.0):
+                    point = axis_point(
+                        station["wall_angle_deg"],
+                        radial,
+                        station["center_axis_tangent"] + tangent_sign * half,
+                        0.0,
+                    )
+                    boot_points.append((point.x, point.y))
+        plenum_rear_x = max(point.x for point in boot_ends) + FAN_ACOUSTIC_WALL_THICKNESS
+        plenum_front_x = (
+            min(point.x for point in boot_ends) - FAN_ACOUSTIC_PLENUM_DEPTH
+        )
+        plenum_y_min = min(point.y for point in boot_ends) - REAR_FAN_PAD_SIZE / 2.0
+        plenum_y_max = max(point.y for point in boot_ends) + REAR_FAN_PAD_SIZE / 2.0
+        plan_points = [
+            *boot_points,
+            (plenum_front_x, plenum_y_min),
+            (plenum_front_x, plenum_y_max),
+            (plenum_rear_x, plenum_y_min),
+            (plenum_rear_x, plenum_y_max),
+        ]
+        for camera, local_point in zip(cameras, CAMERA_REAR_MIC_LOCAL_CENTERS):
+            mic = camera_local_point_world(camera, local_point)
+            radius = CAMERA_MIC_NO_DIRECT_JET_RADIUS + FAN_ACOUSTIC_WALL_THICKNESS
+            plan_points.extend(
+                (
+                    (mic.x + sign_x * radius, mic.y + sign_y * radius)
+                    for sign_x in (-1.0, 1.0)
+                    for sign_y in (-1.0, 1.0)
+                )
+            )
+        return all(point_in_polygon(point, inner_loop) for point in plan_points)
+    except (RuntimeError, ValueError):
+        return False
+
+
+def resolve_rear_envelope(footprint, cameras, mechanism=None):
+    """Resolve final footprint and shared local seam before mesh generation."""
+    global _RESOLVED_REAR_ENVELOPE
+    front_x = min(x for x, _ in footprint)
+    rear_x = max(x for x, _ in footprint)
+    protected_x = rear_taper_camera_keepout_max_x(cameras, mechanism)
+    configured_width_start = rear_taper_start_x(
+        footprint,
+        REAR_WIDTH_TAPER_START_FRACTION,
+    )
+    configured_height_start = rear_taper_start_x(
+        footprint,
+        REAR_HEIGHT_TAPER_START_FRACTION,
+    )
+    if REAR_TAPER_SOLVER == "keepout":
+        protected_start = protected_x + REAR_TAPER_PROTECTED_MARGIN
+        earliest_long_run_start = rear_x - REAR_TAPER_MIN_RUN
+        height_start_x = max(
+            protected_start,
+            min(configured_height_start, earliest_long_run_start),
+        )
+        width_start_x = max(configured_width_start, protected_start)
+    else:
+        protected_start = protected_x + REAR_TAPER_PROTECTED_MARGIN
+        width_start_x = configured_width_start
+        height_start_x = configured_height_start
+    width_has_run = width_start_x < rear_x - BOOLEAN_CLEANUP_DISTANCE
+    height_has_run = height_start_x < rear_x - BOOLEAN_CLEANUP_DISTANCE
+    if not width_has_run:
+        width_start_x = rear_x
+    if not height_has_run:
+        height_start_x = rear_x
+    run = max(rear_x - height_start_x, 0.0)
+    slope_limited_drop = run * math.tan(math.radians(REAR_TAPER_MAX_SLOPE_DEG))
+    web_limited_drop = max(
+        BASE_HEIGHT
+        - effective_rear_height_taper_anchor_z()
+        - REAR_FAN_MIN_WEB,
+        0.0,
+    )
+    resolved_drop = min(
+        REAR_HEIGHT_REDUCTION,
+        slope_limited_drop,
+        web_limited_drop,
+    )
+    resolved_width_scale = (
+        REAR_WIDTH_TAPER_SCALE if width_has_run else 1.0
+    )
+    if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        resolved_width_scale = max(
+            resolved_width_scale,
+            FAN_ACOUSTIC_MIN_REAR_WIDTH_SCALE,
+        )
+        if resolved_width_scale > REAR_WIDTH_TAPER_SCALE + 1e-9:
+            print(
+                "REAR_WIDTH_TAPER_ACOUSTIC_HARDWARE_FLOOR "
+                f"requested={REAR_WIDTH_TAPER_SCALE:.3f} "
+                f"resolved={resolved_width_scale:.3f}"
+            )
+    final_footprint = apply_resolved_rear_width_taper(
+        footprint,
+        width_start_x,
+        resolved_width_scale,
+    )
+    if resolved_drop > 0.0 and not rear_height_taper_lid_loops_feasible(
+        final_footprint,
+        height_start_x,
+    ):
+        resolved_drop = 0.0
+        print(
+            "REAR_HEIGHT_TAPER_DISABLED knee_does_not_cross_all_lid_loops"
+        )
+    fan_plan_fits = rear_fan_plan_keepouts_fit(final_footprint)
+    acoustic_plan_fits = acoustic_plan_keepouts_fit(final_footprint, cameras)
+    if not (fan_plan_fits and acoustic_plan_fits):
+        clamp_reasons = []
+        if not fan_plan_fits:
+            clamp_reasons.append("fan_body")
+        if not acoustic_plan_fits:
+            clamp_reasons.append("acoustic_cassette")
+        low = resolved_width_scale
+        high = 1.0
+        untapered = apply_resolved_rear_width_taper(
+            footprint,
+            width_start_x,
+            high,
+        )
+        if not (
+            rear_fan_plan_keepouts_fit(untapered)
+            and acoustic_plan_keepouts_fit(untapered, cameras)
+        ):
+            raise ValueError(
+                "The configured fan body/acoustic hardware does not fit even "
+                "the untapered camera-driven shell; enlarge BODY_WIDTH/"
+                "BODY_DEPTH or reduce the fan spacing/cassette size"
+            )
+        for _ in range(18):
+            middle = (low + high) / 2.0
+            candidate = apply_resolved_rear_width_taper(
+                footprint,
+                width_start_x,
+                middle,
+            )
+            if (
+                rear_fan_plan_keepouts_fit(candidate)
+                and acoustic_plan_keepouts_fit(candidate, cameras)
+            ):
+                high = middle
+                final_footprint = candidate
+            else:
+                low = middle
+        resolved_width_scale = high
+        print(
+            "REAR_WIDTH_TAPER_HARDWARE_CLAMP "
+            f"reasons={tuple(clamp_reasons)} "
+            f"requested={REAR_WIDTH_TAPER_SCALE:.3f} "
+            f"resolved={resolved_width_scale:.3f}"
+        )
+    if resolved_drop > 0.0 and not rear_height_taper_lid_loops_feasible(
+        final_footprint,
+        height_start_x,
+    ):
+        resolved_drop = 0.0
+        print(
+            "REAR_HEIGHT_TAPER_DISABLED "
+            "post_width_clamp_knee_does_not_cross_all_lid_loops"
+        )
+    if resolved_width_scale < 1.0 - 1e-9 and (
+        width_start_x + 1e-9 < protected_start
+    ):
+        raise RuntimeError("Resolved width taper enters a protected keepout")
+    if resolved_drop > 0.0 and height_start_x + 1e-9 < protected_start:
+        raise RuntimeError("Resolved height taper enters a protected keepout")
+    _RESOLVED_REAR_ENVELOPE = {
+        "bootstrap_footprint": tuple(footprint),
+        "footprint": tuple(final_footprint),
+        "front_x": front_x,
+        "rear_x": rear_x,
+        "protected_max_x": protected_x,
+        "width_start_x": width_start_x,
+        "height_start_x": height_start_x,
+        "height_reduction": resolved_drop,
+        "width_scale": resolved_width_scale,
+        "anchor_z": effective_rear_height_taper_anchor_z(),
+    }
+    print(
+        "REAR_ENVELOPE_RESOLVED "
+        f"protected_max_x={protected_x:.2f} width_start_x={width_start_x:.2f} "
+        f"height_start_x={height_start_x:.2f} run={run:.2f} "
+        f"requested_drop={REAR_HEIGHT_REDUCTION:.2f} "
+        f"resolved_drop={resolved_drop:.2f} "
+        f"rear_width_scale={resolved_width_scale:.3f}"
+    )
+    if resolved_drop + 1e-6 < REAR_HEIGHT_REDUCTION:
+        print(
+            "REAR_HEIGHT_TAPER_CLAMP "
+            f"maximum_slope={REAR_TAPER_MAX_SLOPE_DEG:.2f}deg "
+            f"maximum_web_drop={web_limited_drop:.2f} "
+            f"requested={REAR_HEIGHT_REDUCTION:.2f} resolved={resolved_drop:.2f}"
+        )
+    return final_footprint
+
+
+def resolve_rear_envelope_converged(untapered_footprint, cameras):
+    """Iterate wall-dependent mechanism geometry and the taper to a fixed point."""
+    candidate = list(untapered_footprint)
+    previous_wall_point = None
+    for iteration in range(1, REAR_TAPER_SOLVE_MAX_ITERATIONS + 1):
+        mechanism = adjustable_mechanism_layout(cameras, candidate)
+        resolved = resolve_rear_envelope(
+            untapered_footprint,
+            cameras,
+            mechanism,
+        )
+        loop_delta = max(
+            math.dist(first, second)
+            for first, second in zip(candidate, resolved)
+        )
+        wall_point = mechanism["wall_point"] if mechanism is not None else None
+        wall_delta = 0.0
+        if wall_point is not None and previous_wall_point is not None:
+            wall_delta = (wall_point - previous_wall_point).length
+        print(
+            "REAR_TAPER_SOLVE_ITERATION "
+            f"iteration={iteration} loop_delta={loop_delta:.6f} "
+            f"wall_delta={wall_delta:.6f}"
+        )
+        if (
+            loop_delta <= REAR_TAPER_SOLVE_TOLERANCE
+            and (
+                wall_point is None
+                or previous_wall_point is None
+                or wall_delta <= REAR_TAPER_SOLVE_TOLERANCE
+            )
+        ):
+            final_mechanism = adjustable_mechanism_layout(cameras, resolved)
+            final_protected = rear_taper_camera_keepout_max_x(
+                cameras,
+                final_mechanism,
+            )
+            protected_start = final_protected + REAR_TAPER_PROTECTED_MARGIN
+            if (
+                _RESOLVED_REAR_ENVELOPE["width_scale"] < 1.0 - 1e-9
+                and _RESOLVED_REAR_ENVELOPE["width_start_x"] + 1e-9
+                < protected_start
+            ):
+                candidate = resolved
+                previous_wall_point = wall_point.copy()
+                continue
+            if (
+                _RESOLVED_REAR_ENVELOPE["height_reduction"] > 0.0
+                and _RESOLVED_REAR_ENVELOPE["height_start_x"] + 1e-9
+                < protected_start
+            ):
+                candidate = resolved
+                previous_wall_point = wall_point.copy()
+                continue
+            _RESOLVED_REAR_ENVELOPE["protected_max_x"] = final_protected
+            print(
+                "REAR_TAPER_SOLVE_CONVERGED "
+                f"iterations={iteration} protected_max_x={final_protected:.2f}"
+            )
+            return resolved, final_mechanism
+        candidate = resolved
+        previous_wall_point = (
+            wall_point.copy() if wall_point is not None else None
+        )
+    raise RuntimeError(
+        "Rear taper/mechanism solver did not converge; reduce the taper or "
+        "increase REAR_TAPER_SOLVE_MAX_ITERATIONS"
+    )
+
+
+def local_base_seam_z(x: float, y: float = 0.0) -> float:
+    if _RESOLVED_REAR_ENVELOPE is None:
+        return BASE_HEIGHT
+    drop = _RESOLVED_REAR_ENVELOPE["height_reduction"]
+    if drop <= 0.0:
+        return BASE_HEIGHT
+    progress = rear_taper_progress(
+        x,
+        _RESOLVED_REAR_ENVELOPE["footprint"],
+        start_x=_RESOLVED_REAR_ENVELOPE["height_start_x"],
+    )
+    return BASE_HEIGHT - drop * progress
+
+
+def local_lid_top_z(x: float, y: float = 0.0) -> float:
+    return local_base_seam_z(x, y) + LID_THICKNESS
+
+
+def local_screw_island_top_z(x: float, y: float) -> float:
+    """Horizontal island top clearing the highest surrounding roof sample."""
+    radius = REAR_TAPER_SCREW_ISLAND_RADIUS + REAR_TAPER_SCREW_ISLAND_BLEND
+    samples = [local_lid_top_z(x, y)]
+    for index in range(16):
+        angle = 2.0 * math.pi * index / 16
+        samples.append(
+            local_lid_top_z(
+                x + radius * math.cos(angle),
+                y + radius * math.sin(angle),
+            )
+        )
+    return max(samples)
+
+
+def local_disk_seam_bounds(x: float, y: float, radius: float, samples=32):
+    """Return the minimum/maximum seam over a finite circular footprint."""
+    values = [local_base_seam_z(x, y)]
+    for index in range(samples):
+        angle = 2.0 * math.pi * index / samples
+        values.append(
+            local_base_seam_z(
+                x + radius * math.cos(angle),
+                y + radius * math.sin(angle),
+            )
+        )
+    return min(values), max(values)
+
+
+def fastener_post_top_z(x: float, y: float) -> float:
+    """Keep the complete post disk below the lowest local sloped roof."""
+    minimum_seam, _maximum_seam = local_disk_seam_bounds(
+        x,
+        y,
+        FASTENER_POST_DIAMETER / 2.0,
+    )
+    return minimum_seam - FASTENER_POST_TOP_CLEARANCE
+
+
+def height_taper_mesh_break_x() -> float | None:
+    """Return the exact X coordinate of the flat-to-sloped roof knee."""
+    if (
+        _RESOLVED_REAR_ENVELOPE is None
+        or _RESOLVED_REAR_ENVELOPE["height_reduction"] <= 0.0
+    ):
+        return None
+    return _RESOLVED_REAR_ENVELOPE["height_start_x"]
+
+
+def rear_height_taper_lid_loops_feasible(footprint, break_x) -> bool:
+    """Return whether every seam/lip loop crosses the roof knee twice."""
+    loops = [list(footprint)]
+    loops.append(inset_footprint_loop(footprint, BODY_WALL_THICKNESS))
+    if LID_LIP_ENABLED:
+        loops.extend(
+            (
+                inset_footprint_loop(
+                    footprint,
+                    BODY_WALL_THICKNESS
+                    + LID_LIP_CLEARANCE
+                    + LID_LIP_MESH_APPROXIMATION_ALLOWANCE,
+                ),
+                inset_footprint_loop(
+                    footprint,
+                    BODY_WALL_THICKNESS
+                    + LID_LIP_CLEARANCE
+                    + LID_LIP_MESH_APPROXIMATION_ALLOWANCE
+                    + LID_LIP_THICKNESS,
+                ),
+            )
+        )
+    return all(
+        len(loop_normalized_crossing_parameters(loop, break_x)) == 2
+        for loop in loops
+    )
+
+
+def loop_normalized_crossing_parameters(loop, break_x):
+    """Return normalized perimeter stations where a loop crosses X=break_x."""
+    lengths = [
+        math.dist(point, loop[(index + 1) % len(loop)])
+        for index, point in enumerate(loop)
+    ]
+    perimeter = sum(lengths)
+    cumulative = 0.0
+    parameters = []
+    coordinate_tolerance = max(BOOLEAN_CLEANUP_DISTANCE / 2.0, 1e-8)
+    for index, point in enumerate(loop):
+        following = loop[(index + 1) % len(loop)]
+        first_delta = point[0] - break_x
+        second_delta = following[0] - break_x
+        if abs(first_delta) <= coordinate_tolerance:
+            parameters.append(cumulative / perimeter)
+        elif first_delta * second_delta < 0.0:
+            fraction = (break_x - point[0]) / (following[0] - point[0])
+            parameters.append((cumulative + fraction * lengths[index]) / perimeter)
+        cumulative += lengths[index]
+    unique = []
+    for parameter in sorted(parameter % 1.0 for parameter in parameters):
+        if not unique or abs(parameter - unique[-1]) > 1e-9:
+            unique.append(parameter)
+    if len(unique) > 1 and 1.0 - unique[-1] + unique[0] <= 1e-9:
+        unique.pop()
+    return tuple(unique)
+
+
+def sample_loop_at_normalized_parameter(loop, parameter):
+    """Interpolate a closed loop at a normalized arc-length station."""
+    lengths = [
+        math.dist(point, loop[(index + 1) % len(loop)])
+        for index, point in enumerate(loop)
+    ]
+    target = (parameter % 1.0) * sum(lengths)
+    cumulative = 0.0
+    for index, length in enumerate(lengths):
+        if target <= cumulative + length or index == len(lengths) - 1:
+            fraction = 0.0 if length <= 1e-12 else (target - cumulative) / length
+            point = loop[index]
+            following = loop[(index + 1) % len(loop)]
+            return (
+                point[0] + (following[0] - point[0]) * fraction,
+                point[1] + (following[1] - point[1]) * fraction,
+            )
+        cumulative += length
+    raise RuntimeError("Could not sample enclosure perimeter")
+
+
+def synchronize_height_taper_loops(
+    loops,
+    break_x=None,
+    required_crossing_indices=(),
+    reference_crossing_index=None,
+):
+    """Resample related loops with the roof-knee edges at shared indices.
+
+    A normalized perimeter station is not sufficient for a non-planar roof:
+    inset loops reach ``X=break_x`` at different perimeter fractions.  If
+    those fractions are merely pooled, a connecting quad can straddle the
+    knee on one loop but not the other and its triangulation cuts below the
+    analytic seam.  Map each loop's two crossing stations onto the same two
+    output indices instead.  Every roof annulus then has explicit edges along
+    the knee and every intervening face lies wholly on one linear roof plane.
+    """
+    loops = [list(loop) for loop in loops]
+    count = max(len(loop) for loop in loops)
+    break_x = height_taper_mesh_break_x() if break_x is None else break_x
+    if break_x is None:
+        parameters = [index / count for index in range(count)]
+        return [
+            [
+                sample_loop_at_normalized_parameter(loop, parameter)
+                for parameter in parameters
+            ]
+            for loop in loops
+        ]
+
+    crossing_sets = [
+        loop_normalized_crossing_parameters(loop, break_x)
+        for loop in loops
+    ]
+    for index in required_crossing_indices:
+        if len(crossing_sets[index]) != 2:
+            raise RuntimeError(
+                "Resolved roof knee must cross each top/lid loop twice; "
+                f"loop {index} has {len(crossing_sets[index])} crossings"
+            )
+    if reference_crossing_index is None:
+        reference_crossings = next(
+            (crossings for crossings in crossing_sets if len(crossings) == 2),
+            None,
+        )
+    else:
+        if not 0 <= reference_crossing_index < len(crossing_sets):
+            raise ValueError("Height-taper reference loop index is out of range")
+        reference_crossings = crossing_sets[reference_crossing_index]
+        if len(reference_crossings) != 2:
+            raise RuntimeError(
+                "Height-taper reference loop must cross the roof knee twice"
+            )
+    if reference_crossings is None:
+        parameters = [index / count for index in range(count)]
+        return [
+            [
+                sample_loop_at_normalized_parameter(loop, parameter)
+                for parameter in parameters
+            ]
+            for loop in loops
+        ]
+
+    first_reference, second_reference = reference_crossings
+    first_arc_fraction = second_reference - first_reference
+    first_arc_count = max(2, min(count - 2, round(count * first_arc_fraction)))
+    second_arc_count = count - first_arc_count
+    synchronized = []
+    for loop, crossings in zip(loops, crossing_sets):
+        if len(crossings) == 2:
+            first, second = crossings
+        else:
+            # A lower loft section may sit wholly to one side of the roof
+            # knee.  It still needs the same vertex count, but no seam face is
+            # built from it, so the reference stations are sufficient.
+            first, second = reference_crossings
+        parameters = [
+            first + (second - first) * index / first_arc_count
+            for index in range(first_arc_count)
+        ]
+        parameters.extend(
+            second
+            + (first + 1.0 - second) * index / second_arc_count
+            for index in range(second_arc_count)
+        )
+        sampled = [
+            sample_loop_at_normalized_parameter(loop, parameter)
+            for parameter in parameters
+        ]
+        if len(crossings) == 2:
+            sampled[0] = (break_x, sampled[0][1])
+            sampled[first_arc_count] = (
+                break_x,
+                sampled[first_arc_count][1],
+            )
+        synchronized.append(sampled)
+    return synchronized
+
+
+
 def superellipse_loop(width: float, depth: float):
     # An egg/limaçon-like loop gives a rounded triangular plan without a sharp
     # apex.  Normalize Y afterward so BODY_DEPTH remains an exact dimension.
@@ -3728,13 +5906,26 @@ def rounded_rectangle_loop(width: float, height: float, radius: float):
     return points
 
 
-def loft_solid(name: str, sections):
+def loft_solid(
+    name: str,
+    sections,
+    cap_center_x: float = 0.0,
+    cap_center_zs=None,
+):
     count = len(sections[0][1])
     if len(sections) < 2 or any(len(loop) != count for _, loop in sections):
         raise ValueError("Loft requires at least two equal-length loops")
+    def section_z(section_z_value, index):
+        if isinstance(section_z_value, (int, float)):
+            return float(section_z_value)
+        return float(section_z_value[index])
+
     vertices = []
     for z, loop in sections:
-        vertices.extend((x, y, z) for x, y in loop)
+        vertices.extend(
+            (x, y, section_z(z, index))
+            for index, (x, y) in enumerate(loop)
+        )
 
     def vertex(section, index):
         return section * count + index % count
@@ -3751,9 +5942,19 @@ def loft_solid(name: str, sections):
                 ]
             )
     bottom_center = len(vertices)
-    vertices.append((0.0, 0.0, sections[0][0]))
+    bottom_center_z = (
+        section_z(sections[0][0], 0)
+        if cap_center_zs is None
+        else cap_center_zs[0]
+    )
+    vertices.append((cap_center_x, 0.0, bottom_center_z))
     top_center = len(vertices)
-    vertices.append((0.0, 0.0, sections[-1][0]))
+    top_center_z = (
+        section_z(sections[-1][0], 0)
+        if cap_center_zs is None
+        else cap_center_zs[1]
+    )
+    vertices.append((cap_center_x, 0.0, top_center_z))
     last = len(sections) - 1
     for index in range(count):
         faces.append([bottom_center, vertex(0, index + 1), vertex(0, index)])
@@ -3773,18 +5974,26 @@ def hollow_loft_solid(name: str, outer_sections, inner_sections):
         or any(len(loop) != inner_count for _, loop in inner_sections)
     ):
         raise ValueError("Hollow loft requires equal-length outer and inner loops")
-    if abs(outer_sections[-1][0] - inner_sections[-1][0]) > 1e-9:
-        raise ValueError("Hollow loft outer and inner loops must share a top Z")
+    def section_z(section_z, index):
+        if isinstance(section_z, (int, float)):
+            return float(section_z)
+        return float(section_z[index])
 
     vertices = []
     outer_offsets = []
     for z, loop in outer_sections:
         outer_offsets.append(len(vertices))
-        vertices.extend((x, y, z) for x, y in loop)
+        vertices.extend(
+            (x, y, section_z(z, index))
+            for index, (x, y) in enumerate(loop)
+        )
     inner_offsets = []
     for z, loop in inner_sections:
         inner_offsets.append(len(vertices))
-        vertices.extend((x, y, z) for x, y in loop)
+        vertices.extend(
+            (x, y, section_z(z, index))
+            for index, (x, y) in enumerate(loop)
+        )
 
     faces = []
     for section in range(len(outer_sections) - 1):
@@ -3805,9 +6014,9 @@ def hollow_loft_solid(name: str, outer_sections, inner_sections):
             )
 
     bottom_center = len(vertices)
-    vertices.append((0.0, 0.0, outer_sections[0][0]))
+    vertices.append((0.0, 0.0, section_z(outer_sections[0][0], 0)))
     floor_center = len(vertices)
-    vertices.append((0.0, 0.0, inner_sections[0][0]))
+    vertices.append((0.0, 0.0, section_z(inner_sections[0][0], 0)))
     outer_bottom = outer_offsets[0]
     inner_bottom = inner_offsets[0]
     outer_top = outer_offsets[-1]
@@ -3855,29 +6064,48 @@ def ring_prism(name: str, outer_loop, inner_loop, z0: float, z1: float):
     return create_mesh_object(name, vertices, faces)
 
 
-def lid_with_alignment_lip(name: str, outer_loop, lip_outer_loop, lip_inner_loop):
+def lid_with_alignment_lip(
+    name: str,
+    outer_loop,
+    lip_outer_loop,
+    lip_inner_loop,
+    cap_center_x: float = 0.0,
+    seam_z_fn=None,
+    top_z_fn=None,
+):
     """Build the plate and downward locating ring as one manifold mesh."""
     count = len(outer_loop)
     if len(lip_outer_loop) != count or len(lip_inner_loop) != count:
         raise ValueError("Lid and alignment-lip loops must have equal lengths")
-    lip_bottom_z = BASE_HEIGHT - LID_LIP_DEPTH
     vertices = []
 
     def add_loop(loop, z):
         offset = len(vertices)
-        vertices.extend((x, y, z) for x, y in loop)
+        vertices.extend(
+            (
+                x,
+                y,
+                z(x, y) if callable(z) else z,
+            )
+            for x, y in loop
+        )
         return offset
 
-    outer_bottom = add_loop(outer_loop, BASE_HEIGHT)
-    outer_top = add_loop(outer_loop, BODY_HEIGHT)
-    lip_outer_top = add_loop(lip_outer_loop, BASE_HEIGHT)
-    lip_outer_bottom = add_loop(lip_outer_loop, lip_bottom_z)
-    lip_inner_top = add_loop(lip_inner_loop, BASE_HEIGHT)
-    lip_inner_bottom = add_loop(lip_inner_loop, lip_bottom_z)
+    seam_z_fn = seam_z_fn or (lambda _x, _y: BASE_HEIGHT)
+    top_z_fn = top_z_fn or (lambda _x, _y: BODY_HEIGHT)
+    def lip_bottom_fn(x, y):
+        return seam_z_fn(x, y) - LID_LIP_DEPTH
+
+    outer_bottom = add_loop(outer_loop, seam_z_fn)
+    outer_top = add_loop(outer_loop, top_z_fn)
+    lip_outer_top = add_loop(lip_outer_loop, seam_z_fn)
+    lip_outer_bottom = add_loop(lip_outer_loop, lip_bottom_fn)
+    lip_inner_top = add_loop(lip_inner_loop, seam_z_fn)
+    lip_inner_bottom = add_loop(lip_inner_loop, lip_bottom_fn)
     top_center = len(vertices)
-    vertices.append((0.0, 0.0, BODY_HEIGHT))
+    vertices.append((cap_center_x, 0.0, top_z_fn(cap_center_x, 0.0)))
     underside_center = len(vertices)
-    vertices.append((0.0, 0.0, BASE_HEIGHT))
+    vertices.append((cap_center_x, 0.0, seam_z_fn(cap_center_x, 0.0)))
 
     faces = []
     for index in range(count):
@@ -3942,6 +6170,72 @@ def add_cylinder_z(
     obj.name = name
     obj.data.name = name + "_Mesh"
     return obj
+
+
+def add_annular_cylinder_z(
+    name: str,
+    outer_radius: float,
+    inner_radius: float,
+    z0: float,
+    z1: float,
+    x: float,
+    y: float,
+    segments=72,
+):
+    """Create a closed annular axial solid without a concentric Boolean."""
+    if not 0.0 < inner_radius < outer_radius or z1 <= z0:
+        raise ValueError("Annular cylinder requires ordered radii and heights")
+    vertices = []
+    for z, radius in (
+        (z0, outer_radius),
+        (z1, outer_radius),
+        (z0, inner_radius),
+        (z1, inner_radius),
+    ):
+        vertices.extend(
+            (
+                x + radius * math.cos(2.0 * math.pi * index / segments),
+                y + radius * math.sin(2.0 * math.pi * index / segments),
+                z,
+            )
+            for index in range(segments)
+        )
+    outer_bottom = 0
+    outer_top = segments
+    inner_bottom = 2 * segments
+    inner_top = 3 * segments
+    faces = []
+    for index in range(segments):
+        next_index = (index + 1) % segments
+        faces.extend(
+            (
+                [
+                    outer_bottom + index,
+                    outer_bottom + next_index,
+                    outer_top + next_index,
+                    outer_top + index,
+                ],
+                [
+                    inner_bottom + index,
+                    inner_top + index,
+                    inner_top + next_index,
+                    inner_bottom + next_index,
+                ],
+                [
+                    outer_top + index,
+                    outer_top + next_index,
+                    inner_top + next_index,
+                    inner_top + index,
+                ],
+                [
+                    outer_bottom + index,
+                    inner_bottom + index,
+                    inner_bottom + next_index,
+                    outer_bottom + next_index,
+                ],
+            )
+        )
+    return create_mesh_object(name, vertices, faces)
 
 
 def add_hex_prism_z(
@@ -4425,6 +6719,13 @@ def camera_worm_root_radius() -> float:
     )
 
 
+def resolved_worm_shaft_passage_style() -> str:
+    """Integral blocks require a round drilled passage; split caps may bridge."""
+    if CAMERA_WORM_BEARING_MOUNT_STYLE == "integral":
+        return "round"
+    return CAMERA_WORM_SHAFT_PASSAGE_STYLE
+
+
 def ray_polygon_hit(origin, direction, loop):
     """Nearest nonnegative intersection of a ray and a closed polygon."""
     def cross(first, second):
@@ -4524,6 +6825,118 @@ def adjustable_mechanism_layout(cameras, footprint):
         "hard_stop_slot_start_deg": stop_geometry["slot_start_deg"],
         "hard_stop_slot_end_deg": stop_geometry["slot_end_deg"],
     }
+
+
+def validate_stationary_worm_hardware_clearance(cameras, mechanism):
+    """Reject a requested mechanism hand that occupies the fixed camera."""
+    if mechanism is None:
+        return
+    moving_camera = mechanism["camera"]
+    fixed_camera = cameras[1 - cameras.index(moving_camera)]
+    fixed_body = convex_hull_2d(camera_body_xy_corners(fixed_camera))
+    direction = mechanism["shaft_direction"]
+    tangent = Vector((-direction.y, direction.x, 0.0))
+    half_length = worm_cap_plan_half_length()
+    half_width = worm_cap_plan_half_width()
+    hardware_records = (
+        ("inner bearing mount", mechanism["inner_block"]),
+        ("outer bearing mount", mechanism["outer_block"]),
+    )
+    for label, center in hardware_records:
+        footprint = [
+            (
+                center.x
+                + length_sign * half_length * direction.x
+                + width_sign * half_width * tangent.x,
+                center.y
+                + length_sign * half_length * direction.y
+                + width_sign * half_width * tangent.y,
+            )
+            for length_sign, width_sign in (
+                (-1.0, -1.0),
+                (1.0, -1.0),
+                (1.0, 1.0),
+                (-1.0, 1.0),
+            )
+        ]
+        if convex_polygons_overlap(footprint, fixed_body):
+            raise ValueError(
+                f"The requested adjustable-camera mechanism hand puts its "
+                f"{label} inside fixed camera {fixed_camera['index']}. "
+                "Enable ADJUSTABLE_CAMERA_MIRROR_MECHANISM_BY_SIDE, increase "
+                "CAMERA_HALF_ANGLE_DEG, or provide wider custom camera angles."
+            )
+
+    def oriented_rectangle(center, length, width):
+        return [
+            (
+                center.x
+                + length_sign * length / 2.0 * direction.x
+                + width_sign * width / 2.0 * tangent.x,
+                center.y
+                + length_sign * length / 2.0 * direction.y
+                + width_sign * width / 2.0 * tangent.y,
+            )
+            for length_sign, width_sign in (
+                (-1.0, -1.0),
+                (1.0, -1.0),
+                (1.0, 1.0),
+                (-1.0, 1.0),
+            )
+        ]
+
+    worm_width = 2.0 * camera_worm_outer_radius() + 1.0
+    complete_keepouts = [
+        (
+            "purchased worm",
+            oriented_rectangle(
+                mechanism["worm_center"],
+                CAMERA_WORM_LENGTH + 1.0,
+                worm_width,
+            ),
+        )
+    ]
+    shaft_projections = [
+        point.x * direction.x + point.y * direction.y
+        for point in (
+            mechanism["inner_block"],
+            mechanism["outer_block"],
+            mechanism["wall_point"],
+        )
+    ]
+    shaft_min = min(shaft_projections) - CAMERA_WORM_BLOCK_LENGTH / 2.0
+    shaft_max = max(shaft_projections) + CAMERA_WORM_PORT_OUTSET + 3.0
+    shaft_center = (
+        mechanism["worm_center"]
+        + direction
+        * (
+            (shaft_min + shaft_max) / 2.0
+            - mechanism["worm_center"].dot(direction)
+        )
+    )
+    complete_keepouts.append(
+        (
+            "complete shaft/bearing/collar corridor",
+            oriented_rectangle(
+                shaft_center,
+                shaft_max - shaft_min,
+                max(
+                    CAMERA_WORM_WALL_BEARING_OD,
+                    CAMERA_WORM_BEARING_OD,
+                    CAMERA_WORM_PORT_BOSS_RADIUS * 2.0,
+                )
+                + 1.0,
+            ),
+        )
+    )
+    for label, keepout in complete_keepouts:
+        if convex_polygons_overlap(keepout, fixed_body):
+            raise ValueError(
+                "The requested adjustable-camera mechanism hand puts its "
+                f"{label} inside fixed camera {fixed_camera['index']}. Enable "
+                "ADJUSTABLE_CAMERA_MIRROR_MECHANISM_BY_SIDE, increase "
+                "CAMERA_HALF_ANGLE_DEG, or provide wider custom camera angles."
+            )
 
 
 def mirror_xy_across_camera_centerline(point):
@@ -4747,6 +7160,56 @@ def cylinder_prism_axis(
         faces.append(
             [high_center, segments + index, segments + next_index]
         )
+    return create_mesh_object(name, vertices, faces)
+
+
+def teardrop_prism_axis(
+    name: str,
+    angle_deg: float,
+    radial0: float,
+    radial1: float,
+    radius: float,
+    center_tangent: float,
+    center_z: float,
+    roof_factor: float = 1.5,
+    arc_segments: int = 54,
+):
+    """Create a horizontal support-free shaft passage with a peaked roof."""
+    cross_section = []
+    for index in range(arc_segments + 1):
+        angle = math.radians(135.0 + 270.0 * index / arc_segments)
+        cross_section.append(
+            (radius * math.cos(angle), radius * math.sin(angle))
+        )
+    cross_section.append((0.0, radius * roof_factor))
+    count = len(cross_section)
+    vertices = []
+    for radial in (radial0, radial1):
+        vertices.extend(
+            tuple(
+                axis_point(
+                    angle_deg,
+                    radial,
+                    center_tangent + tangent,
+                    center_z + vertical,
+                )
+            )
+            for tangent, vertical in cross_section
+        )
+    low_center = len(vertices)
+    vertices.append(
+        tuple(axis_point(angle_deg, radial0, center_tangent, center_z))
+    )
+    high_center = len(vertices)
+    vertices.append(
+        tuple(axis_point(angle_deg, radial1, center_tangent, center_z))
+    )
+    faces = []
+    for index in range(count):
+        following = (index + 1) % count
+        faces.append([index, count + index, count + following, following])
+        faces.append([low_center, following, index])
+        faces.append([high_center, count + index, count + following])
     return create_mesh_object(name, vertices, faces)
 
 
@@ -5191,8 +7654,8 @@ def adjustable_mechanism_intersects_post(
         return True
 
     shaft_tangent = (-shaft_direction.y, shaft_direction.x)
-    half_length = CAMERA_WORM_BLOCK_LENGTH / 2.0
-    half_width = CAMERA_WORM_BLOCK_WIDTH / 2.0
+    half_length = worm_cap_plan_half_length()
+    half_width = worm_cap_plan_half_width()
     for block_center in (mechanism["inner_block"], mechanism["outer_block"]):
         block_loop = [
             (
@@ -5946,6 +8409,99 @@ def refresh_camera_eye_recesses(cameras, footprint):
         camera["eye_face_recess_depth"] = recess_depth
 
 
+def validate_rear_taper_layout(footprint, lid_post_positions, cameras) -> None:
+    """Report the resolved keepout taper and each local screw stack."""
+    front_x = min(x for x, _ in footprint)
+    rear_x = max(x for x, _ in footprint)
+    envelope = _RESOLVED_REAR_ENVELOPE or {}
+    width_start_x = envelope.get(
+        "width_start_x",
+        rear_taper_start_x(footprint, REAR_WIDTH_TAPER_START_FRACTION),
+    )
+    height_start_x = envelope.get(
+        "height_start_x",
+        rear_taper_start_x(footprint, REAR_HEIGHT_TAPER_START_FRACTION),
+    )
+    resolved_drop = envelope.get("height_reduction", REAR_HEIGHT_REDUCTION)
+    resolved_width_scale = envelope.get("width_scale", REAR_WIDTH_TAPER_SCALE)
+    island_outer_radius = (
+        REAR_TAPER_SCREW_ISLAND_RADIUS + REAR_TAPER_SCREW_ISLAND_BLEND
+    )
+    for index, (x, y) in enumerate(lid_post_positions, start=1):
+        post_top = fastener_post_top_z(x, y)
+        if (
+            post_top
+            - HEAT_INSERT_HOLE_DEPTH
+            - HEAT_INSERT_MIN_BOTTOM_WEB
+            < BOTTOM_THICKNESS
+        ):
+            raise ValueError(
+                f"Local tapered lid post {index} leaves insufficient insert "
+                "depth and bottom web above the enclosure floor"
+            )
+        if (
+            not point_in_polygon((x, y), footprint)
+            or polygon_boundary_distance((x, y), footprint)
+            < island_outer_radius
+        ):
+            raise ValueError(
+                f"Lid screw island {index} leaves the lid footprint"
+            )
+        if EYE_TOP_LOADING_ENABLED:
+            for camera in cameras:
+                angle = math.radians(camera["angle"])
+                radial = x * math.cos(angle) + y * math.sin(angle)
+                tangent = -x * math.sin(angle) + y * math.cos(angle)
+                _main_radial, backing_radial = eye_lid_closure_radial_bounds(
+                    camera
+                )
+                backing_width = (
+                    EYE_TOP_LOADING_SLOT_WIDTH
+                    - 2.0 * EYE_LID_CLOSURE_FIT_CLEARANCE
+                    + 2.0 * EYE_LID_CLOSURE_BACKING_SIDE_OVERLAP
+                )
+                radial_distance = max(
+                    backing_radial[0] - radial,
+                    0.0,
+                    radial - backing_radial[1],
+                )
+                tangent_distance = max(
+                    camera["eye_tangent"] - backing_width / 2.0 - tangent,
+                    0.0,
+                    tangent
+                    - (camera["eye_tangent"] + backing_width / 2.0),
+                )
+                if math.hypot(radial_distance, tangent_distance) < (
+                    island_outer_radius + REAR_TAPER_SCREW_MIN_ANNULAR_WEB
+                ):
+                    raise ValueError(
+                        f"Lid screw island {index} crowds camera "
+                        f"{camera['index']} eye closure"
+                    )
+        counterbore_floor = (
+            local_screw_island_top_z(x, y)
+            - LID_SCREW_HEAD_COUNTERBORE_DEPTH
+        )
+        if counterbore_floor <= local_base_seam_z(x, y):
+            raise ValueError(
+                f"Local tapered lid counterbore {index} breaks through the lid"
+            )
+    if (
+        abs(resolved_width_scale - 1.0) > 1e-9
+        or resolved_drop > 0.0
+    ):
+        print(
+            "REAR_TAPER_LAYOUT "
+            f"x_range=({front_x:.2f},{rear_x:.2f}) "
+            f"width_scale={resolved_width_scale:.3f} "
+            f"width_start_x={width_start_x:.2f} "
+            f"height_reduction={resolved_drop:.2f} "
+            f"height_start_x={height_start_x:.2f} "
+            f"rear_base_height={BASE_HEIGHT - resolved_drop:.2f} "
+            f"rear_total_height={BODY_HEIGHT - resolved_drop:.2f}"
+        )
+
+
 def validate_camera_lens_protrusion(cameras):
     """Keep every lens face ahead of its eye throughout the yaw sweep."""
     expected_nominal = camera_lens_face_outset() + EYE_FACE_INSET
@@ -6345,7 +8901,12 @@ def resolve_symmetric_post_pairs(
     return tuple(resolved)
 
 
-def resolve_fastener_post_positions(cameras, footprint, mechanism=None):
+def resolve_fastener_post_positions(
+    cameras,
+    footprint,
+    mechanism=None,
+    target_positions=None,
+):
     if mechanism is None and CAMERA_CARTRIDGE_WORM_ENABLED:
         mechanism = adjustable_mechanism_layout(cameras, footprint)
     post_minimum_scale = minimum_body_scale_between(
@@ -6354,6 +8915,9 @@ def resolve_fastener_post_positions(cameras, footprint, mechanism=None):
     )
     inner_loop = inset_footprint_loop(
         scale_loop(footprint, post_minimum_scale), BODY_WALL_THICKNESS
+    )
+    resolved_targets = tuple(
+        tuple(target) for target in (target_positions or FASTENER_POST_TARGETS_XY)
     )
     if FASTENER_POST_PLACEMENT == "manual":
         positions = [tuple(position) for position in MANUAL_FASTENER_POST_POSITIONS_XY]
@@ -6374,7 +8938,7 @@ def resolve_fastener_post_positions(cameras, footprint, mechanism=None):
             accepted.append(position)
     elif FORCE_LAYOUT_SYMMETRY:
         positions = resolve_symmetric_post_pairs(
-            tuple(tuple(target) for target in FASTENER_POST_TARGETS_XY),
+            resolved_targets,
             ((0, 1), (2, 3)),
             cameras,
             inner_loop,
@@ -6390,7 +8954,7 @@ def resolve_fastener_post_positions(cameras, footprint, mechanism=None):
     else:
         accepted = []
         steps = int(math.ceil(FASTENER_AUTO_SEARCH_RADIUS / FASTENER_AUTO_GRID_STEP))
-        for index, target in enumerate(FASTENER_POST_TARGETS_XY, start=1):
+        for index, target in enumerate(resolved_targets, start=1):
             candidates = []
             for ix in range(-steps, steps + 1):
                 for iy in range(-steps, steps + 1):
@@ -6617,6 +9181,84 @@ def resolve_camera_bracket_post_positions(
     return result
 
 
+def protect_rear_taper_for_resolved_bracket_posts(bracket_position_pairs):
+    """Keep the final searched bracket posts below a full-height roof land.
+
+    The preliminary taper solver can only see nominal bracket-post targets;
+    the collision-aware post search runs later and may translate a pair.  Move
+    only the height-taper knee rearward around those resolved disks, then
+    re-clamp the requested drop to the remaining run and slope limit.  Width
+    taper and all mechanism/wall coordinates remain unchanged.
+    """
+    if (
+        not CAMERA_BRACKETS_ENABLED
+        or _RESOLVED_REAR_ENVELOPE is None
+        or _RESOLVED_REAR_ENVELOPE["height_reduction"] <= 0.0
+    ):
+        return
+    positions = tuple(
+        position for pair in bracket_position_pairs for position in pair
+    )
+    if not positions:
+        return
+    post_radius = CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0
+    required_start = max(x + post_radius for x, _y in positions)
+    required_start += REAR_TAPER_PROTECTED_MARGIN
+    old_start = _RESOLVED_REAR_ENVELOPE["height_start_x"]
+    rear_x = _RESOLVED_REAR_ENVELOPE["rear_x"]
+    if required_start > old_start:
+        new_start = min(required_start, rear_x)
+        run = max(rear_x - new_start, 0.0)
+        slope_limited_drop = run * math.tan(
+            math.radians(REAR_TAPER_MAX_SLOPE_DEG)
+        )
+        web_limited_drop = max(
+            BASE_HEIGHT
+            - effective_rear_height_taper_anchor_z()
+            - REAR_FAN_MIN_WEB,
+            0.0,
+        )
+        _RESOLVED_REAR_ENVELOPE["height_start_x"] = new_start
+        _RESOLVED_REAR_ENVELOPE["height_reduction"] = min(
+            REAR_HEIGHT_REDUCTION,
+            slope_limited_drop,
+            web_limited_drop,
+        )
+        if (
+            _RESOLVED_REAR_ENVELOPE["height_reduction"] > 0.0
+            and not rear_height_taper_lid_loops_feasible(
+                _RESOLVED_REAR_ENVELOPE["footprint"],
+                new_start,
+            )
+        ):
+            _RESOLVED_REAR_ENVELOPE["height_start_x"] = rear_x
+            _RESOLVED_REAR_ENVELOPE["height_reduction"] = 0.0
+            print(
+                "REAR_HEIGHT_TAPER_DISABLED "
+                "bracket_post_knee_does_not_cross_all_lid_loops"
+            )
+        print(
+            "REAR_HEIGHT_TAPER_BRACKET_POST_PROTECTION "
+            f"old_start_x={old_start:.2f} new_start_x={new_start:.2f} "
+            f"resolved_drop="
+            f"{_RESOLVED_REAR_ENVELOPE['height_reduction']:.2f}"
+        )
+
+    bracket_underside, _bracket_top = camera_bracket_z_bounds()
+    post_top = bracket_underside - camera_bracket_clamp_travel()
+    for index, (x, y) in enumerate(positions, start=1):
+        minimum_seam, _maximum_seam = local_disk_seam_bounds(
+            x,
+            y,
+            post_radius,
+        )
+        if minimum_seam - post_top < FASTENER_POST_TOP_CLEARANCE:
+            raise RuntimeError(
+                f"Resolved bracket post {index} lacks roof clearance after "
+                "height-taper protection"
+            )
+
+
 def point_inside_camera_keepout(position, camera, clearance: float) -> bool:
     angle = math.radians(camera["angle"])
     normal = (math.cos(angle), math.sin(angle))
@@ -6760,6 +9402,28 @@ def point_to_axis_aligned_rectangle_distance(point, center, size_x, size_y):
     dx = max(abs(point[0] - center[0]) - size_x / 2.0, 0.0)
     dy = max(abs(point[1] - center[1]) - size_y / 2.0, 0.0)
     return math.hypot(dx, dy)
+
+
+def point_to_oriented_rectangle_distance(
+    point,
+    center,
+    size_x,
+    size_y,
+    angle_deg,
+):
+    """Plan distance to a rectangle whose local X axis is ``angle_deg``."""
+    angle = math.radians(angle_deg)
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    dx = point[0] - center[0]
+    dy = point[1] - center[1]
+    local = (dx * cosine + dy * sine, -dx * sine + dy * cosine)
+    return point_to_axis_aligned_rectangle_distance(
+        local,
+        (0.0, 0.0),
+        size_x,
+        size_y,
+    )
 
 
 def convex_polygons_overlap(first, second) -> bool:
@@ -7027,7 +9691,16 @@ def apply_boolean(base, tool, operation: str, label: str, solver=None):
         modifier.solver = solver or BOOLEAN_SOLVER
     if hasattr(modifier, "use_self"):
         modifier.use_self = False
-    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    modifier_name = modifier.name
+    result = bpy.ops.object.modifier_apply(modifier=modifier_name)
+    if (
+        "FINISHED" not in result
+        or base.modifiers.get(modifier_name) is not None
+    ):
+        raise RuntimeError(
+            f"Boolean {label} did not apply: operation={operation} "
+            f"solver={solver or BOOLEAN_SOLVER} result={result}"
+        )
     bpy.data.objects.remove(tool, do_unlink=True)
     cleanup_mesh(base)
     recalc_normals(base)
@@ -7407,7 +10080,12 @@ def add_camera_front_stops(base, cameras):
 
 def add_camera_usb_access_openings(base, cameras):
     """Cut the measured plug envelope from each USB side through the shell."""
-    if not CAMERA_USB_ACCESS_ENABLED:
+    if not CAMERA_USB_ACCESS_ENABLED or not CAMERA_USB_CASE_OPENINGS_ENABLED:
+        if CAMERA_USB_ACCESS_ENABLED:
+            print(
+                "CAMERA_USB_CASE_OPENINGS disabled "
+                "usb_aware_layout_and_guides_retained=True"
+            )
         return base
     for camera in cameras:
         yaw_samples = (
@@ -7424,12 +10102,13 @@ def add_camera_usb_access_openings(base, cameras):
                 f"Opening_{sample_index}",
             )
         print(
-            f"CAMERA_USB_ACCESS_OPENING {camera['index']}: "
+            f"CAMERA_USB_ACCESS_CORRIDOR {camera['index']}: "
             f"side={camera_usb_side_name()} radial_width="
             f"{CAMERA_USB_PORT_RADIAL_WIDTH:.2f} height="
             f"{CAMERA_USB_PORT_HEIGHT:.2f} plug_depth="
             f"{CAMERA_USB_PLUG_OUTWARD_DEPTH:.2f} "
-            f"yaw_samples={len(yaw_samples)}"
+            f"yaw_samples={len(yaw_samples)} "
+            f"case_openings={CAMERA_USB_CASE_OPENINGS_ENABLED}"
         )
     return base
 
@@ -7528,23 +10207,42 @@ def add_rear_fan_mounts(base, footprint, post_keepouts=()):
     return base
 
 
-def create_rear_fan_body_keepouts(footprint):
-    """Create temporary 40 mm fan solids including installation clearance."""
-    if not REAR_FANS_ENABLED or not VALIDATE_REAR_FAN_BODY_CLEARANCE:
+def create_rear_fan_body_keepouts(
+    footprint,
+    force=False,
+    preserve_contact_face=False,
+):
+    """Create temporary fan-frame solids including installation clearance."""
+    if not REAR_FANS_ENABLED or (
+        not VALIDATE_REAR_FAN_BODY_CLEARANCE and not force
+    ):
         return []
     keepouts = []
-    depth = REAR_FAN_DEPTH + 2.0 * REAR_FAN_BODY_CLEARANCE
-    side = 40.0 + 2.0 * REAR_FAN_BODY_CLEARANCE
+    depth = REAR_FAN_DEPTH + (
+        REAR_FAN_BODY_CLEARANCE
+        if preserve_contact_face
+        else 2.0 * REAR_FAN_BODY_CLEARANCE
+    )
+    side = REAR_FAN_FRAME_SIZE + 2.0 * REAR_FAN_BODY_CLEARANCE
     inward_sign = -1.0 if REAR_FAN_PAD_INSIDE else 1.0
+    gasket_offset = installed_fan_gasket_thickness()
     for fan_index, center_tangent in enumerate(
         rear_fan_center_tangents(),
         start=1,
     ):
         station = rear_fan_station_geometry(footprint, center_tangent)
-        center_radius = (
-            station["face_radius"]
-            + inward_sign * REAR_FAN_DEPTH / 2.0
-        )
+        if preserve_contact_face:
+            # Keep the fan's seating face just clear of the pad while retaining
+            # the full configured side and downstream installation clearance.
+            # This makes intersection with the final base authoritative for
+            # posts, nut bosses, and keystone bodies without falsely treating
+            # the intended seating contact as a collision.
+            axial_offset = (
+                gasket_offset + BOOLEAN_CLEANUP_DISTANCE + depth / 2.0
+            )
+        else:
+            axial_offset = gasket_offset + REAR_FAN_DEPTH / 2.0
+        center_radius = station["face_radius"] + inward_sign * axial_offset
         center = axis_point(
             station["wall_angle_deg"],
             center_radius,
@@ -7563,6 +10261,2875 @@ def create_rear_fan_body_keepouts(footprint):
     return keepouts
 
 
+def create_fan_vibration_gaskets(footprint):
+    """Create one connected soft gasket/screw-sleeve part per rear fan."""
+    if not (REAR_FANS_ENABLED and FAN_VIBRATION_ISOLATION_ENABLED):
+        return []
+    gaskets = []
+    half_spacing = REAR_FAN_MOUNT_SPACING / 2.0
+    for fan_index, center_tangent in enumerate(
+        rear_fan_center_tangents(),
+        start=1,
+    ):
+        station = rear_fan_station_geometry(footprint, center_tangent)
+        angle = station["wall_angle_deg"]
+        inward_sign = -1.0 if REAR_FAN_PAD_INSIDE else 1.0
+        z_center = REAR_FAN_CENTER_Z
+        face_radius = station["face_radius"]
+        gasket_end = face_radius + inward_sign * FAN_GASKET_THICKNESS
+        center_radius = (face_radius + gasket_end) / 2.0
+        center = axis_point(
+            angle,
+            center_radius,
+            station["center_axis_tangent"],
+            z_center,
+        )
+        gasket = add_beveled_box(
+            f"Rear_Fan_{fan_index}_Soft_Isolator_Gasket",
+            (
+                FAN_GASKET_THICKNESS,
+                FAN_GASKET_OUTER_SIZE,
+                FAN_GASKET_OUTER_SIZE,
+            ),
+            tuple(center),
+            rotation_z=math.radians(angle),
+            bevel=1.0,
+        )
+        sleeve_extension = 1.0
+        sleeve_end = gasket_end + inward_sign * sleeve_extension
+        sleeve_radial_min = min(face_radius, sleeve_end) - BOOLEAN_OVERLAP
+        sleeve_radial_max = max(face_radius, sleeve_end) + BOOLEAN_OVERLAP
+        for tangent_sign in (-1.0, 1.0):
+            for z_sign in (-1.0, 1.0):
+                sleeve = cylinder_prism_axis(
+                    f"Rear_Fan_{fan_index}_Isolated_Screw_Sleeve_"
+                    f"{tangent_sign:+.0f}_{z_sign:+.0f}",
+                    angle,
+                    sleeve_radial_min,
+                    sleeve_radial_max,
+                    FAN_GASKET_SLEEVE_OUTER_DIAMETER / 2.0,
+                    station["center_axis_tangent"]
+                    + tangent_sign * half_spacing,
+                    z_center + z_sign * half_spacing,
+                )
+                boolean_union(
+                    gasket,
+                    sleeve,
+                    f"Rear_Fan_{fan_index}_Isolated_Screw_Sleeve_Union",
+                )
+        cutters = [
+            cylinder_prism_axis(
+                f"Rear_Fan_{fan_index}_Gasket_Airway",
+                angle,
+                sleeve_radial_min - BOOLEAN_OVERLAP,
+                sleeve_radial_max + BOOLEAN_OVERLAP,
+                FAN_GASKET_INNER_DIAMETER / 2.0,
+                station["center_axis_tangent"],
+                z_center,
+            )
+        ]
+        for tangent_sign in (-1.0, 1.0):
+            for z_sign in (-1.0, 1.0):
+                cutters.append(
+                    cylinder_prism_axis(
+                        f"Rear_Fan_{fan_index}_Gasket_Screw_Clearance_"
+                        f"{tangent_sign:+.0f}_{z_sign:+.0f}",
+                        angle,
+                        sleeve_radial_min - BOOLEAN_OVERLAP,
+                        sleeve_radial_max + BOOLEAN_OVERLAP,
+                        FAN_GASKET_SCREW_CLEARANCE / 2.0,
+                        station["center_axis_tangent"]
+                        + tangent_sign * half_spacing,
+                        z_center + z_sign * half_spacing,
+                    )
+                )
+        boolean_difference(
+            gasket,
+            cutters,
+            f"Rear_Fan_{fan_index}_Gasket_Air_And_Screw_Clearances",
+        )
+        gasket["recommended_material"] = "TPU_or_silicone"
+        gasket["installation_note"] = (
+            "Use soft head-side washers or pull-through fan mounts; a bare "
+            "metal screw head can bridge the modeled frame and shank isolation."
+        )
+        gasket["fan_index"] = fan_index
+        gasket["print_axis_angle_deg"] = angle
+        gaskets.append(gasket)
+    print(
+        "FAN_VIBRATION_ISOLATORS count=2 material=TPU_or_silicone "
+        f"thickness={FAN_GASKET_THICKNESS:.2f} "
+        "head_isolation=soft_washer_or_pull_through_mount_required"
+    )
+    return gaskets
+
+
+def camera_local_point_world(camera, local_point, yaw_delta=0.0):
+    radial, tangent, vertical = (float(value) for value in local_point)
+    if camera_is_adjustable(camera):
+        return adjustable_camera_local_point(
+            camera,
+            radial,
+            tangent,
+            camera_eye_center_z() + vertical,
+            yaw_delta,
+        )
+    lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
+    return axis_point(
+        camera["angle"],
+        lens_face_radius + radial,
+        camera["eye_tangent"] + tangent,
+        camera_eye_center_z() + vertical,
+    )
+
+
+def voxel_union_printed_assembly(obj, voxel_size, label):
+    """Resolve many overlapping duct walls into one printable manifold."""
+    select_only(obj)
+    obj.data.remesh_voxel_size = voxel_size
+    obj.data.remesh_voxel_adaptivity = 0.0
+    bpy.ops.object.voxel_remesh()
+    recalc_normals(obj)
+    print(
+        f"VOXEL_UNION {label}: voxel_size={voxel_size:.3f} "
+        f"vertices={len(obj.data.vertices)} faces={len(obj.data.polygons)}"
+    )
+    return obj
+
+
+def resolve_fan_acoustic_layout(
+    footprint,
+    cameras,
+    case_post_keepouts=(),
+    base_hardware_keepouts=(),
+):
+    """Resolve the removable acoustic trough around the final fan stations."""
+    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        return None
+    wall = FAN_ACOUSTIC_WALL_THICKNESS
+    inner_height = max(
+        FAN_ACOUSTIC_OUTLET_HEIGHT,
+        REAR_FAN_AIR_OPENING_DIAMETER,
+    )
+    inner_bottom_z = REAR_FAN_CENTER_Z - inner_height / 2.0
+    inner_top_z = REAR_FAN_CENTER_Z + inner_height / 2.0
+    outer_bottom_z = inner_bottom_z - wall
+    outer_top_z = inner_top_z
+    if (
+        outer_bottom_z - FAN_ACOUSTIC_BASE_ISOLATOR_THICKNESS
+        <= BOTTOM_THICKNESS + FAN_ACOUSTIC_BASE_INSERT_DEPTH
+    ):
+        raise ValueError(
+            "The acoustic trough is too low for its M3 base-post heat inserts"
+        )
+
+    stations = sorted(
+        (
+            rear_fan_station_geometry(footprint, tangent)
+            for tangent in rear_fan_center_tangents()
+        ),
+        key=lambda station: station["face_center"].y,
+    )
+    camera_records = tuple(
+        sorted(
+            zip(cameras, CAMERA_REAR_MIC_LOCAL_CENTERS),
+            key=lambda record: record[0]["center_xy"][1],
+        )
+    )
+    boot_records = []
+    boot_plan_points = []
+    boot_end_points = []
+    for fan_index, station in enumerate(stations, start=1):
+        inner_wall_radius = radial_surface_distance(
+            station["wall_angle_deg"],
+            station["center_axis_tangent"],
+            inset_footprint_loop(footprint, BODY_WALL_THICKNESS),
+        )
+        if REAR_FAN_PAD_INSIDE:
+            boot_start_radius = (
+                station["face_radius"]
+                - REAR_FAN_DEPTH
+                - FAN_ACOUSTIC_FAN_GAP
+            )
+        else:
+            # Keep the rigid cassette entirely inside the shell.  The soft
+            # boot spans from the true inner wall to this recessed start while
+            # the separate outer gasket seals the externally mounted fan.  A
+            # fan-depth-equivalent recess preserves the same lid-post corridor
+            # available to the default inside-pad layout.
+            boot_start_radius = (
+                inner_wall_radius - REAR_FAN_DEPTH - FAN_ACOUSTIC_FAN_GAP
+            )
+        boot_end_radius = (
+            boot_start_radius - FAN_ACOUSTIC_DIVIDED_INLET_DEPTH
+        )
+        boot_center_radius = (boot_start_radius + boot_end_radius) / 2.0
+        boot_start_point = axis_point(
+            station["wall_angle_deg"],
+            boot_start_radius,
+            station["center_axis_tangent"],
+            REAR_FAN_CENTER_Z,
+        )
+        boot_end_point = axis_point(
+            station["wall_angle_deg"],
+            boot_end_radius,
+            station["center_axis_tangent"],
+            REAR_FAN_CENTER_Z,
+        )
+        boot_center = axis_point(
+            station["wall_angle_deg"],
+            boot_center_radius,
+            station["center_axis_tangent"],
+            REAR_FAN_CENTER_Z,
+        )
+        discharge_point, _direction = fan_discharge_geometry(station)
+        if not REAR_FAN_PAD_INSIDE:
+            discharge_point = axis_point(
+                station["wall_angle_deg"],
+                inner_wall_radius - BOOLEAN_CLEANUP_DISTANCE,
+                station["center_axis_tangent"],
+                REAR_FAN_CENTER_Z,
+            )
+        boot_end_points.append(boot_end_point)
+        half_width = REAR_FAN_PAD_SIZE / 2.0
+        for radial in (boot_start_radius, boot_end_radius):
+            for tangent_offset in (-half_width, half_width):
+                point = axis_point(
+                    station["wall_angle_deg"],
+                    radial,
+                    station["center_axis_tangent"] + tangent_offset,
+                    REAR_FAN_CENTER_Z,
+                )
+                boot_plan_points.append((point.x, point.y))
+        boot_records.append(
+            {
+                "fan_index": fan_index,
+                "station": station,
+                "boot_start_radius": boot_start_radius,
+                "boot_end_radius": boot_end_radius,
+                "boot_start_point": boot_start_point,
+                "boot_end_point": boot_end_point,
+                "boot_center": boot_center,
+                "discharge_point": Vector(discharge_point),
+                "inner_wall_radius": inner_wall_radius,
+            }
+        )
+
+    plenum_rear_x = max(point.x for point in boot_end_points) + wall
+    plenum_front_x = (
+        min(point.x for point in boot_end_points) - FAN_ACOUSTIC_PLENUM_DEPTH
+    )
+    plenum_y_min = (
+        min(point[1] for point in boot_plan_points)
+        - FAN_ACOUSTIC_PLENUM_SIDE_EXPANSION
+    )
+    plenum_y_max = (
+        max(point[1] for point in boot_plan_points)
+        + FAN_ACOUSTIC_PLENUM_SIDE_EXPANSION
+    )
+    cassette_center_y = (plenum_y_min + plenum_y_max) / 2.0
+    lower_rear_chamfer = 0.0
+    upper_rear_chamfer = 0.0
+    for post_x, post_y, post_radius in case_post_keepouts:
+        keepout_radius = (
+            post_radius + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE
+        )
+        if post_y >= cassette_center_y:
+            corner_excess = (
+                post_x - plenum_rear_x + post_y - plenum_y_max
+            )
+            if post_x > plenum_front_x and post_y > plenum_y_min:
+                upper_rear_chamfer = max(
+                    upper_rear_chamfer,
+                    keepout_radius * math.sqrt(2.0) - corner_excess,
+                )
+        else:
+            corner_excess = (
+                post_x - plenum_rear_x + plenum_y_min - post_y
+            )
+            if post_x > plenum_front_x and post_y < plenum_y_max:
+                lower_rear_chamfer = max(
+                    lower_rear_chamfer,
+                    keepout_radius * math.sqrt(2.0) - corner_excess,
+                )
+    lower_rear_chamfer = max(lower_rear_chamfer, 0.0)
+    upper_rear_chamfer = max(upper_rear_chamfer, 0.0)
+    maximum_chamfer = min(
+        plenum_rear_x - plenum_front_x,
+        plenum_y_max - plenum_y_min,
+    ) / 2.0 - wall
+    if max(lower_rear_chamfer, upper_rear_chamfer) > maximum_chamfer:
+        raise ValueError(
+            "The fan acoustic cassette cannot chamfer around the configured "
+            "case posts. Move the lid posts/fan stations or use the default "
+            "internal fan pads for this acoustic layout."
+        )
+    raw_plenum_loop = (
+        (plenum_front_x, plenum_y_min),
+        (plenum_rear_x - lower_rear_chamfer, plenum_y_min),
+        (plenum_rear_x, plenum_y_min + lower_rear_chamfer),
+        (plenum_rear_x, plenum_y_max - upper_rear_chamfer),
+        (plenum_rear_x - upper_rear_chamfer, plenum_y_max),
+        (plenum_front_x, plenum_y_max),
+    )
+    plenum_loop = []
+    for point in raw_plenum_loop:
+        if not plenum_loop or math.dist(point, plenum_loop[-1]) > 1e-9:
+            plenum_loop.append(point)
+    plenum_loop = tuple(plenum_loop)
+    path_split_y = (
+        max(record["boot_end_point"].y for record in boot_records[:1])
+        + min(record["boot_end_point"].y for record in boot_records[1:])
+    ) / 2.0 + FAN_ACOUSTIC_PATH_SPLIT_OFFSET
+    if not plenum_y_min + 2.0 * wall < path_split_y < plenum_y_max - 2.0 * wall:
+        raise ValueError("FAN_ACOUSTIC_PATH_SPLIT_OFFSET collapses one airflow path")
+
+    # Put one full-height, support-free blocker in each fan/microphone ray
+    # family.  The four blockers sit at different plenum depths so air must
+    # turn around their rounded ends instead of seeing a straight fan-to-mic
+    # path.  Their widths are derived from the complete configured yaw sweep.
+    ray_families = [
+        (boot, camera, local_mic)
+        for boot in boot_records
+        for camera, local_mic in camera_records
+    ]
+    baffles = []
+    aperture_half = REAR_FAN_AIR_OPENING_DIAMETER / 2.0
+    mic_radius = CAMERA_MIC_NO_DIRECT_JET_RADIUS
+    for family_index, (boot, camera, local_mic) in enumerate(ray_families):
+        source_center = Vector(boot["discharge_point"])
+        yaw_samples = (
+            adjustable_yaw_samples(include_preview=True)
+            if camera_is_adjustable(camera)
+            else (0.0,)
+        )
+        mic_centers = tuple(
+            camera_local_point_world(camera, local_mic, yaw_delta)
+            for yaw_delta in yaw_samples
+        )
+        target_center = sum(
+            mic_centers,
+            Vector((0.0, 0.0, 0.0)),
+        ) / len(mic_centers)
+        ray_xy = Vector(
+            (
+                target_center.x - source_center.x,
+                target_center.y - source_center.y,
+                0.0,
+            )
+        )
+        if ray_xy.length <= 1e-6:
+            raise ValueError("Fan discharge and microphone cannot share an XY point")
+        normal = ray_xy.normalized()
+        tangent = Vector((-normal.y, normal.x, 0.0))
+        desired_x = plenum_rear_x - (
+            family_index + 1
+        ) * (plenum_rear_x - plenum_front_x) / (len(ray_families) + 1)
+        if abs(target_center.x - source_center.x) > 1e-6:
+            fraction = (desired_x - source_center.x) / (
+                target_center.x - source_center.x
+            )
+        else:
+            fraction = (family_index + 1) / (len(ray_families) + 1)
+        fraction = min(max(fraction, 0.10), 0.90)
+        plane_point = source_center.lerp(target_center, fraction)
+        # Root the blocker into the trough floor while leaving a real remesh-
+        # tolerant gap below the separately printed acoustic lid.
+        baffle_bottom_z = inner_bottom_z - BOOLEAN_OVERLAP
+        baffle_top_z = inner_top_z - FAN_ACOUSTIC_BAFFLE_LID_CLEARANCE
+        plane_point.z = (baffle_bottom_z + baffle_top_z) / 2.0
+        source_tangent = Vector(
+            (
+                -math.sin(math.radians(boot["station"]["wall_angle_deg"])),
+                math.cos(math.radians(boot["station"]["wall_angle_deg"])),
+                0.0,
+            )
+        )
+        sources = tuple(
+            source_center + source_tangent * offset
+            for offset in (-aperture_half, 0.0, aperture_half)
+        )
+        targets = tuple(
+            mic_center + offset
+            for mic_center in mic_centers
+            for offset in (
+                Vector((0.0, 0.0, 0.0)),
+                Vector((mic_radius, 0.0, 0.0)),
+                Vector((-mic_radius, 0.0, 0.0)),
+                Vector((0.0, mic_radius, 0.0)),
+                Vector((0.0, -mic_radius, 0.0)),
+            )
+        )
+        transverse_hits = []
+        for source in sources:
+            for target in targets:
+                direction = target - source
+                denominator = direction.dot(normal)
+                if abs(denominator) <= 1e-9:
+                    continue
+                parameter = (plane_point - source).dot(normal) / denominator
+                hit = source + direction * parameter
+                transverse_hits.append(hit.dot(tangent))
+        if not transverse_hits:
+            raise RuntimeError("Could not resolve an acoustic baffle ray family")
+        transverse_min = min(transverse_hits)
+        transverse_max = max(transverse_hits)
+        transverse_center = (transverse_min + transverse_max) / 2.0
+        baffle_center = plane_point + tangent * (
+            transverse_center - plane_point.dot(tangent)
+        )
+        sampled_ray_bundle_width = (
+            transverse_max
+            - transverse_min
+            + 2.0 * FAN_ACOUSTIC_BAFFLE_THICKNESS
+        )
+        baffle_width = FAN_ACOUSTIC_BAFFLE_WIDTH
+        baffles.append(
+            {
+                "center": Vector(baffle_center),
+                "dimensions": (
+                    FAN_ACOUSTIC_BAFFLE_THICKNESS,
+                    baffle_width,
+                    baffle_top_z - baffle_bottom_z,
+                ),
+                "angle_deg": math.degrees(math.atan2(normal.y, normal.x)),
+                "fan_index": boot["fan_index"],
+                "camera_index": camera["index"],
+                "sampled_ray_bundle_width": sampled_ray_bundle_width,
+            }
+        )
+
+    # Resolve the printable acoustic core as two isolated, staggered S-paths.
+    # The four analytical fan/mic blockers above establish the required ray
+    # families; the final labyrinth below provides a predictable open throat
+    # instead of allowing four oblique blockers to overlap into a solid wall.
+    baffles = []
+    baffle_bottom_z = inner_bottom_z - BOOLEAN_OVERLAP
+    baffle_top_z = inner_top_z - FAN_ACOUSTIC_BAFFLE_LID_CLEARANCE
+    minimum_gap_width = (
+        FAN_ACOUSTIC_DESIGN_PER_CAMERA_PATH_AREA / inner_height + 5.0
+    )
+    path_edges = (
+        (plenum_y_min + wall, path_split_y),
+        (path_split_y, plenum_y_max - wall),
+    )
+    plenum_depth = plenum_rear_x - plenum_front_x
+    for path_index, (path_y0, path_y1) in enumerate(path_edges, start=1):
+        path_width = path_y1 - path_y0
+        gap_width = max(minimum_gap_width, path_width * 0.38)
+        blocker_width = path_width - gap_width
+        if blocker_width <= 2.0 * FAN_ACOUSTIC_BAFFLE_THICKNESS:
+            raise ValueError("Acoustic path is too narrow for a staggered labyrinth")
+        for blocker_index, depth_fraction in enumerate((0.25, 0.50, 0.75)):
+            anchor_low = (blocker_index + path_index) % 2 == 0
+            center_y = (
+                path_y0 + blocker_width / 2.0
+                if anchor_low
+                else path_y1 - blocker_width / 2.0
+            )
+            baffles.append(
+                {
+                    "center": Vector(
+                        (
+                            plenum_rear_x - depth_fraction * plenum_depth,
+                            center_y,
+                            (baffle_bottom_z + baffle_top_z) / 2.0,
+                        )
+                    ),
+                    "dimensions": (
+                        FAN_ACOUSTIC_BAFFLE_THICKNESS,
+                        blocker_width,
+                        baffle_top_z - baffle_bottom_z,
+                    ),
+                    "angle_deg": 0.0,
+                    "fan_index": path_index,
+                    "camera_index": path_index,
+                    "sampled_ray_bundle_width": blocker_width,
+                    "kind": f"labyrinth_{path_index}_{blocker_index + 1}",
+                }
+            )
+
+    divider_length = plenum_depth - 2.0 * wall
+    internal_member_records = [*baffles]
+    internal_member_records.append(
+        {
+            "center": Vector(
+                (
+                    plenum_front_x + wall + divider_length / 2.0,
+                    path_split_y,
+                    (inner_bottom_z + inner_top_z) / 2.0,
+                )
+            ),
+            "dimensions": (
+                divider_length,
+                FAN_ACOUSTIC_BAFFLE_THICKNESS,
+                inner_height,
+            ),
+            "angle_deg": 0.0,
+            "kind": "divider",
+        }
+    )
+    outlet_records = []
+    for outlet_index, (camera, _local_mic) in enumerate(
+        camera_records,
+        start=1,
+    ):
+        outlet_y_bounds = (
+            (plenum_y_min + wall, path_split_y - FAN_ACOUSTIC_BAFFLE_THICKNESS / 2.0)
+            if outlet_index == 1
+            else (
+                path_split_y + FAN_ACOUSTIC_BAFFLE_THICKNESS / 2.0,
+                plenum_y_max - wall,
+            )
+        )
+        y_center = sum(outlet_y_bounds) / 2.0
+        vane_center = Vector((plenum_front_x + 7.0, y_center, 0.0))
+        target = camera_rear_face_pose(camera, 0.0)["center"]
+        vane_angle_deg = math.degrees(
+            math.atan2(target.y - vane_center.y, target.x - vane_center.x)
+        )
+        internal_member_records.append(
+            {
+                "center": Vector(
+                    (
+                        vane_center.x,
+                        vane_center.y,
+                        (inner_bottom_z + inner_top_z) / 2.0,
+                    )
+                ),
+                "dimensions": (
+                    12.0,
+                    FAN_ACOUSTIC_BAFFLE_THICKNESS,
+                    inner_height,
+                ),
+                "angle_deg": vane_angle_deg,
+                "kind": f"turning_vane_{outlet_index}",
+            }
+        )
+        outlet_records.append(
+            {
+                "path_index": outlet_index,
+                "camera_index": camera["index"],
+                "center": Vector(
+                    (
+                        plenum_front_x - BOOLEAN_CLEANUP_DISTANCE,
+                        y_center,
+                        (inner_bottom_z + inner_top_z) / 2.0,
+                    )
+                ),
+                "direction": Vector(
+                    (
+                        math.cos(math.radians(vane_angle_deg)),
+                        math.sin(math.radians(vane_angle_deg)),
+                        0.0,
+                    )
+                ),
+                "tangent_span": outlet_y_bounds[1] - outlet_y_bounds[0],
+                "vertical_span": inner_height,
+            }
+        )
+
+    # Embed the screw bosses into the plenum perimeter wall.  This both gives
+    # the inserts a direct structural load path and keeps free-standing round
+    # bosses out of the alternating labyrinth gaps.
+    hardware_offset = (
+        max(
+            FAN_ACOUSTIC_LID_BOSS_DIAMETER,
+            FAN_ACOUSTIC_BASE_POST_DIAMETER,
+        )
+        / 2.0
+        + 0.8
+    )
+    if 2.0 * hardware_offset >= min(
+        plenum_rear_x - plenum_front_x,
+        plenum_y_max - plenum_y_min,
+    ):
+        raise ValueError("The acoustic plenum is too small for its M3 hardware")
+    lid_boss_targets = (
+        (plenum_front_x + hardware_offset, path_split_y - hardware_offset),
+        (plenum_front_x + hardware_offset, path_split_y + hardware_offset),
+        (plenum_rear_x - hardware_offset, path_split_y - hardware_offset),
+        (plenum_rear_x - hardware_offset, path_split_y + hardware_offset),
+    )
+    inner_case_loop = inset_footprint_loop(
+        footprint,
+        BODY_WALL_THICKNESS + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE,
+    )
+    service_points = [*plenum_loop, *boot_plan_points]
+    if not all(point_in_polygon(point, inner_case_loop) for point in service_points):
+        raise ValueError(
+            "The resolved acoustic cassette leaves the lid-off service envelope"
+        )
+    lid_boss_radius = FAN_ACOUSTIC_LID_BOSS_DIAMETER / 2.0
+    hardware_x_candidates = [
+        plenum_front_x + hardware_offset + index
+        for index in range(
+            max(
+                int(
+                    math.floor(
+                        plenum_rear_x
+                        - plenum_front_x
+                        - 2.0 * hardware_offset
+                    )
+                ),
+                0,
+            )
+            + 1
+        )
+    ]
+    hardware_y_candidates = [
+        plenum_y_min + hardware_offset + index
+        for index in range(
+            max(
+                int(
+                    math.floor(
+                        plenum_y_max
+                        - plenum_y_min
+                        - 2.0 * hardware_offset
+                    )
+                ),
+                0,
+            )
+            + 1
+        )
+    ]
+    lid_boss_positions = []
+    for target in lid_boss_targets:
+        candidates = sorted(
+            (
+                (math.dist((x, y), target), x, y)
+                for x in hardware_x_candidates
+                for y in hardware_y_candidates
+                if point_in_polygon((x, y), plenum_loop)
+                and polygon_boundary_distance((x, y), plenum_loop)
+                >= lid_boss_radius + 0.8
+                and polygon_boundary_distance((x, y), inner_case_loop)
+                >= lid_boss_radius
+                and all(
+                    math.dist((x, y), accepted)
+                    >= 2.0 * lid_boss_radius + 2.0
+                    for accepted in lid_boss_positions
+                )
+            ),
+            key=lambda record: (record[0], record[1], record[2]),
+        )
+        if not candidates:
+            raise ValueError(
+                "No acoustic-lid insert-boss layout fits the final chamfered "
+                "plenum and internal baffles"
+            )
+        _distance, x, y = candidates[0]
+        lid_boss_positions.append((x, y))
+    lid_boss_positions = tuple(lid_boss_positions)
+
+    # Tie every tall lid-insert tower directly into the full-height central
+    # divider.  The narrow web crosses both centerlines, so it retains a real
+    # overlap after voxel remeshing even when a custom plenum moves a boss
+    # away from incidental baffle contact.
+    lid_boss_ribs = []
+    for rib_index, (x, y) in enumerate(lid_boss_positions, start=1):
+        rib_span = abs(y - path_split_y) + 2.0 * BOOLEAN_OVERLAP
+        lid_boss_ribs.append(
+            {
+                "center": Vector(
+                    (
+                        x,
+                        (y + path_split_y) / 2.0,
+                        (inner_bottom_z + inner_top_z) / 2.0,
+                    )
+                ),
+                "dimensions": (
+                    FAN_ACOUSTIC_BAFFLE_THICKNESS,
+                    rib_span,
+                    inner_height,
+                ),
+                "angle_deg": 0.0,
+                "kind": f"lid_boss_divider_rib_{rib_index}",
+            }
+        )
+    internal_member_records.extend(lid_boss_ribs)
+
+    post_radius = FAN_ACOUSTIC_BASE_POST_DIAMETER / 2.0
+    post_clearance = 1.0
+    x_candidates = []
+    x = plenum_front_x + hardware_offset
+    while x <= plenum_rear_x - hardware_offset + 1e-9:
+        x_candidates.append(x)
+        x += 2.0
+    x_candidates.append(plenum_rear_x - hardware_offset)
+    y_candidates = []
+    y = plenum_y_min + hardware_offset
+    while y <= plenum_y_max - hardware_offset + 1e-9:
+        y_candidates.append(y)
+        y += 4.0
+    y_candidates.append(plenum_y_max - hardware_offset)
+
+    mechanism = adjustable_mechanism_layout(cameras, footprint)
+    post_rejection_counts = {
+        "wall": 0,
+        "functional": 0,
+        "fan_airway": 0,
+        "driver": 0,
+        "lid_boss": 0,
+        "spacing": 0,
+        "base_hardware": 0,
+    }
+
+    def acoustic_base_post_valid(position, accepted):
+        if polygon_boundary_distance(position, inner_case_loop) < (
+            post_radius + post_clearance
+        ):
+            post_rejection_counts["wall"] += 1
+            return False
+        if not post_is_valid(
+            position,
+            cameras,
+            inner_case_loop,
+            accepted_positions=(),
+            post_diameter=FAN_ACOUSTIC_BASE_POST_DIAMETER,
+            avoid_camera_bracket_plate=False,
+            mechanism=mechanism,
+        ):
+            post_rejection_counts["functional"] += 1
+            return False
+        for boot in boot_records:
+            angle_deg = boot["station"]["wall_angle_deg"]
+            angle = math.radians(angle_deg)
+            discharge_radius = (
+                boot["discharge_point"].x * math.cos(angle)
+                + boot["discharge_point"].y * math.sin(angle)
+            )
+            airway_min = min(discharge_radius, boot["boot_end_radius"])
+            airway_max = max(discharge_radius, boot["boot_end_radius"])
+            airway_center = axis_point(
+                angle_deg,
+                (airway_min + airway_max) / 2.0,
+                boot["station"]["center_axis_tangent"],
+                0.0,
+            )
+            if point_to_oriented_rectangle_distance(
+                position,
+                (airway_center.x, airway_center.y),
+                airway_max - airway_min,
+                REAR_FAN_AIR_OPENING_DIAMETER,
+                angle_deg,
+            ) < post_radius + post_clearance:
+                post_rejection_counts["fan_airway"] += 1
+                return False
+        # A vertical driver corridor is cut through any intersecting low-speed
+        # baffle after union.  Final-mesh acoustic ray validation remains the
+        # authority, so this service opening cannot silently defeat attenuation.
+        if any(
+            math.dist(position, lid_position)
+            < post_radius + lid_boss_radius + post_clearance
+            for lid_position in lid_boss_positions
+        ):
+            post_rejection_counts["lid_boss"] += 1
+            return False
+        if any(
+            math.dist(position, other)
+            < 2.0 * post_radius + 2.0 * post_clearance
+            for other in accepted
+        ):
+            post_rejection_counts["spacing"] += 1
+            return False
+        for keepout in base_hardware_keepouts:
+            if keepout[0] == "circle":
+                _kind, center, radius = keepout
+                if math.dist(position, center) < (
+                    post_radius + radius + post_clearance
+                ):
+                    post_rejection_counts["base_hardware"] += 1
+                    return False
+            elif keepout[0] == "rectangle":
+                _kind, center, size_x, size_y = keepout
+                if point_to_axis_aligned_rectangle_distance(
+                    position,
+                    center,
+                    size_x,
+                    size_y,
+                ) < post_radius + post_clearance:
+                    post_rejection_counts["base_hardware"] += 1
+                    return False
+            else:
+                raise ValueError(f"Unknown acoustic base keepout {keepout[0]!r}")
+        return True
+
+    base_post_targets = (
+        (plenum_front_x + hardware_offset, plenum_y_min + hardware_offset),
+        (plenum_front_x + hardware_offset, plenum_y_max - hardware_offset),
+        (plenum_rear_x - hardware_offset, plenum_y_min + hardware_offset),
+        (plenum_rear_x - hardware_offset, plenum_y_max - hardware_offset),
+    )
+    base_post_positions = []
+    for target in base_post_targets:
+        candidates = sorted(
+            (
+                (math.dist((x, y), target), x, y)
+                for x in x_candidates
+                for y in y_candidates
+                if acoustic_base_post_valid((x, y), base_post_positions)
+            ),
+            key=lambda record: (record[0], record[1], record[2]),
+        )
+        if not candidates:
+            raise ValueError(
+                "No four-point acoustic trough retention layout clears the "
+                "keystones and configured bottom hardware; rejection_counts="
+                f"{post_rejection_counts}"
+            )
+        _distance, x, y = candidates[0]
+        base_post_positions.append((x, y))
+    base_post_positions = tuple(base_post_positions)
+
+    print(
+        "FAN_ACOUSTIC_LAYOUT "
+        f"plenum=({plenum_rear_x - plenum_front_x:.2f}x"
+        f"{plenum_y_max - plenum_y_min:.2f}x{inner_height:.2f}) "
+        f"baffles={len(baffles)} lid_boss_ribs={len(lid_boss_ribs)} "
+        f"base_posts={len(base_post_positions)} "
+        f"lid_boss_positions={tuple((round(x, 2), round(y, 2)) for x, y in lid_boss_positions)} "
+        f"base_post_positions={tuple((round(x, 2), round(y, 2)) for x, y in base_post_positions)} "
+        f"sampled_ray_bundle_widths="
+        f"{tuple(round(record['sampled_ray_bundle_width'], 2) for record in baffles)}"
+    )
+    return {
+        "plenum_front_x": plenum_front_x,
+        "plenum_rear_x": plenum_rear_x,
+        "plenum_y_min": plenum_y_min,
+        "plenum_y_max": plenum_y_max,
+        "plenum_loop": plenum_loop,
+        "lower_rear_chamfer": lower_rear_chamfer,
+        "upper_rear_chamfer": upper_rear_chamfer,
+        "path_split_y": path_split_y,
+        "outer_bottom_z": outer_bottom_z,
+        "outer_top_z": outer_top_z,
+        "inner_bottom_z": inner_bottom_z,
+        "inner_top_z": inner_top_z,
+        "inner_height": inner_height,
+        "boot_records": tuple(boot_records),
+        "camera_records": camera_records,
+        "baffles": tuple(baffles),
+        "internal_member_records": tuple(internal_member_records),
+        "outlet_records": tuple(outlet_records),
+        "lid_boss_positions": lid_boss_positions,
+        "base_post_positions": base_post_positions,
+    }
+
+
+def add_fan_acoustic_base_posts(base, layout):
+    """Add four base-owned heat-insert posts for the removable trough."""
+    if layout is None:
+        return base
+    post_top = (
+        layout["outer_bottom_z"] - FAN_ACOUSTIC_BASE_ISOLATOR_THICKNESS
+    )
+    post_bottom = BOTTOM_THICKNESS - BOOLEAN_OVERLAP
+    if post_top - post_bottom < FAN_ACOUSTIC_BASE_INSERT_DEPTH + 1.0:
+        raise ValueError("Acoustic base posts are too short for their heat inserts")
+    posts = []
+    holes = []
+    for index, (x, y) in enumerate(layout["base_post_positions"], start=1):
+        posts.append(
+            add_cylinder_z(
+                f"Fan_Acoustic_Base_Heat_Insert_Post_{index}",
+                FAN_ACOUSTIC_BASE_POST_DIAMETER / 2.0,
+                post_bottom,
+                post_top,
+                x,
+                y,
+            )
+        )
+        holes.append(
+            add_cylinder_z(
+                f"Fan_Acoustic_Base_Heat_Insert_Hole_{index}",
+                FAN_ACOUSTIC_BASE_INSERT_HOLE_DIAMETER / 2.0,
+                post_top - FAN_ACOUSTIC_BASE_INSERT_DEPTH,
+                post_top + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+        )
+    for index, post in enumerate(posts, start=1):
+        boolean_union(base, post, f"Fan_Acoustic_Base_Post_{index}_Union")
+    boolean_difference(base, holes, "Fan_Acoustic_Base_Heat_Insert_Holes")
+    print(
+        "FAN_ACOUSTIC_BASE_POSTS count=4 retention=M3_heat_inserts "
+        f"post_height={post_top - BOTTOM_THICKNESS:.2f} "
+        f"compliant_isolator={FAN_ACOUSTIC_BASE_ISOLATOR_THICKNESS:.2f}mm"
+    )
+    return base
+
+
+def create_fan_acoustic_boot_seals(layout):
+    """Create compliant, screw-cleared fan-to-boot seals with no bypass gap."""
+    seals = []
+    half_spacing = REAR_FAN_MOUNT_SPACING / 2.0
+    for record in layout["boot_records"]:
+        station = record["station"]
+        angle = station["wall_angle_deg"]
+        discharge_radius = (
+            record["discharge_point"].x * math.cos(math.radians(angle))
+            + record["discharge_point"].y * math.sin(math.radians(angle))
+        )
+        if not REAR_FAN_PAD_INSIDE:
+            # The external gasket seals the fan to the outer pad.  This second
+            # compliant part begins at the *inside* wall surface, so its wide
+            # flange never tries to pass through or occupy the 36 mm wall bore.
+            discharge_radius = (
+                record["inner_wall_radius"] - BOOLEAN_CLEANUP_DISTANCE
+            )
+        boot_radius = record["boot_start_radius"]
+        nominal_radial_min = min(discharge_radius, boot_radius)
+        nominal_radial_max = max(discharge_radius, boot_radius)
+        interface_squeeze = FAN_ACOUSTIC_BOOT_SEAL_COMPRESSION / 2.0
+        radial_min = nominal_radial_min - interface_squeeze
+        radial_max = nominal_radial_max + interface_squeeze
+        length = radial_max - radial_min
+        center_radius = (radial_min + radial_max) / 2.0
+        center = axis_point(
+            angle,
+            center_radius,
+            station["center_axis_tangent"],
+            REAR_FAN_CENTER_Z,
+        )
+        seal_outer_size = (
+            REAR_FAN_AIR_OPENING_DIAMETER
+            + 2.0 * FAN_ACOUSTIC_BOOT_SEAL_WALL
+        )
+        seal = add_beveled_box(
+            f"Fan_Acoustic_Boot_Seal_{record['fan_index']}",
+            (length, seal_outer_size, seal_outer_size),
+            tuple(center),
+            rotation_z=math.radians(angle),
+            bevel=min(FAN_ACOUSTIC_BOOT_SEAL_WALL / 2.0, 1.0),
+        )
+        cutters = [
+            cylinder_prism_axis(
+                f"Fan_Acoustic_Boot_Seal_{record['fan_index']}_Airway",
+                angle,
+                radial_min - BOOLEAN_OVERLAP,
+                radial_max + BOOLEAN_OVERLAP,
+                REAR_FAN_AIR_OPENING_DIAMETER / 2.0,
+                station["center_axis_tangent"],
+                REAR_FAN_CENTER_Z,
+            )
+        ]
+        for tangent_sign in (-1.0, 1.0):
+            for z_sign in (-1.0, 1.0):
+                cutters.append(
+                    cylinder_prism_axis(
+                        f"Fan_Acoustic_Boot_Seal_{record['fan_index']}_Screw",
+                        angle,
+                        radial_min - 2.0 * BOOLEAN_OVERLAP,
+                        radial_max + 2.0 * BOOLEAN_OVERLAP,
+                        FAN_GASKET_SCREW_CLEARANCE / 2.0,
+                        station["center_axis_tangent"]
+                        + tangent_sign * half_spacing,
+                        REAR_FAN_CENTER_Z + z_sign * half_spacing,
+                    )
+                )
+        boolean_difference(
+            seal,
+            cutters,
+            f"Fan_Acoustic_Boot_Seal_{record['fan_index']}_Openings",
+        )
+        voxel_union_printed_assembly(
+            seal,
+            FAN_ACOUSTIC_REMESH_VOXEL_SIZE,
+            f"fan_acoustic_boot_seal_{record['fan_index']}_final",
+        )
+        seal["recommended_material"] = "TPU_or_closed_cell_silicone"
+        seal["compression_target_mm"] = FAN_ACOUSTIC_BOOT_SEAL_COMPRESSION
+        seal["interface_compression_mm"] = interface_squeeze
+        seal["nominal_radial_min_mm"] = nominal_radial_min
+        seal["nominal_radial_max_mm"] = nominal_radial_max
+        seal["sealed_axial_gap_mm"] = nominal_radial_max - nominal_radial_min
+        seal["print_axis_angle_deg"] = angle
+        seals.append(seal)
+    return seals
+
+
+def create_fan_acoustic_cassette(footprint, cameras, base=None, layout=None):
+    """Build an open-upward trough, sealed lid, and compliant fan boots."""
+    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        return None
+    layout = layout or resolve_fan_acoustic_layout(footprint, cameras)
+    wall = FAN_ACOUSTIC_WALL_THICKNESS
+    x0 = layout["plenum_front_x"]
+    x1 = layout["plenum_rear_x"]
+    y0 = layout["plenum_y_min"]
+    y1 = layout["plenum_y_max"]
+    z0 = layout["outer_bottom_z"]
+    z1 = layout["outer_top_z"]
+    depth = x1 - x0
+    height = z1 - z0
+
+    def report_trough_stage(label, part):
+        bpy.context.view_layer.update()
+        dimensions = tuple(round(value, 3) for value in part.dimensions)
+        print(f"FAN_ACOUSTIC_TROUGH_STAGE {label}: dimensions={dimensions}")
+
+    plenum_loop = layout["plenum_loop"]
+    trough = polygon_prism_z(
+        "Fan_Acoustic_Open_Trough_Bottom",
+        plenum_loop,
+        z0,
+        z0 + wall,
+    )
+    trough_parts = [trough]
+    for edge_index in range(len(plenum_loop) - 1):
+        start = Vector((*plenum_loop[edge_index], 0.0))
+        end = Vector((*plenum_loop[edge_index + 1], 0.0))
+        edge = end - start
+        edge_length = math.hypot(edge.x, edge.y)
+        inward = Vector((-edge.y / edge_length, edge.x / edge_length, 0.0))
+        center = (start + end) / 2.0 + inward * (wall / 2.0)
+        side = add_beveled_box(
+            f"Fan_Acoustic_Open_Trough_Perimeter_Wall_{edge_index + 1}",
+            (edge_length + BOOLEAN_OVERLAP, wall, height),
+            (center.x, center.y, (z0 + z1) / 2.0),
+            rotation_z=math.atan2(edge.y, edge.x),
+            bevel=wall / 3.0,
+        )
+        trough_parts.append(side)
+
+    for record in layout["boot_records"]:
+        angle = record["station"]["wall_angle_deg"]
+        center = record["boot_center"]
+        fan_tangent = Vector(
+            (-math.sin(math.radians(angle)), math.cos(math.radians(angle)), 0.0)
+        )
+        bottom = add_beveled_box(
+            f"Fan_{record['fan_index']}_Acoustic_Open_Boot_Bottom",
+            (FAN_ACOUSTIC_DIVIDED_INLET_DEPTH + BOOLEAN_OVERLAP, REAR_FAN_PAD_SIZE, wall),
+            (center.x, center.y, z0 + wall / 2.0),
+            rotation_z=math.radians(angle),
+            bevel=wall / 3.0,
+        )
+        trough_parts.append(bottom)
+        for tangent_sign in (-1.0, 1.0):
+            side_center = center + fan_tangent * (
+                tangent_sign * (REAR_FAN_PAD_SIZE / 2.0 - wall / 2.0)
+            )
+            side = add_beveled_box(
+                f"Fan_{record['fan_index']}_Acoustic_Open_Boot_Side",
+                (FAN_ACOUSTIC_DIVIDED_INLET_DEPTH + BOOLEAN_OVERLAP, wall, height),
+                (side_center.x, side_center.y, (z0 + z1) / 2.0),
+                rotation_z=math.radians(angle),
+                bevel=wall / 3.0,
+            )
+            trough_parts.append(side)
+
+    for index, baffle_record in enumerate(layout["baffles"], start=1):
+        baffle = add_beveled_box(
+            f"Fan_Acoustic_Line_Of_Sight_Baffle_{index}",
+            baffle_record["dimensions"],
+            tuple(baffle_record["center"]),
+            rotation_z=math.radians(baffle_record["angle_deg"]),
+            bevel=min(
+                FAN_ACOUSTIC_NOSE_RADIUS,
+                FAN_ACOUSTIC_BAFFLE_THICKNESS / 2.1,
+            ),
+        )
+        trough_parts.append(baffle)
+
+    for member_index, record in enumerate(
+        layout["internal_member_records"][len(layout["baffles"]) :],
+        start=1,
+    ):
+        member = add_beveled_box(
+            f"Fan_Acoustic_Internal_Outlet_Member_{member_index}",
+            record["dimensions"],
+            tuple(record["center"]),
+            rotation_z=math.radians(record["angle_deg"]),
+            bevel=FAN_ACOUSTIC_BAFFLE_THICKNESS / 3.0,
+        )
+        trough_parts.append(member)
+
+    base_head_boss_top = z0 + FAN_ACOUSTIC_BASE_HEAD_BOSS_HEIGHT
+    for boss_index, (x, y) in enumerate(
+        layout["base_post_positions"],
+        start=1,
+    ):
+        head_boss = add_cylinder_z(
+            f"Fan_Acoustic_Base_Screw_Seat_Boss_{boss_index}",
+            FAN_ACOUSTIC_BASE_HEAD_BOSS_DIAMETER / 2.0,
+            z0 - BOOLEAN_OVERLAP,
+            base_head_boss_top,
+            x,
+            y,
+        )
+        trough_parts.append(head_boss)
+
+    for boss_index, (x, y) in enumerate(layout["lid_boss_positions"], start=1):
+        boss = add_cylinder_z(
+            f"Fan_Acoustic_Lid_Insert_Boss_{boss_index}",
+            FAN_ACOUSTIC_LID_BOSS_DIAMETER / 2.0,
+            z0 + wall - BOOLEAN_OVERLAP,
+            z1,
+            x,
+            y,
+        )
+        trough_parts.append(boss)
+
+    trough = join_tools("Fan_Acoustic_Trough_Raw_Assembly", trough_parts)
+    voxel_union_printed_assembly(
+        trough,
+        FAN_ACOUSTIC_REMESH_VOXEL_SIZE,
+        "fan_acoustic_open_trough_pre_holes",
+    )
+    report_trough_stage("pre_holes", trough)
+
+    rear_openings = []
+    for record in layout["boot_records"]:
+        opening_center = record["boot_end_point"]
+        opening_angle = math.radians(record["station"]["wall_angle_deg"])
+        # The plenum's rear wall is global-X while each boot follows the local
+        # fan normal.  A wall-normal cutter only 2*wall deep leaves diagonal
+        # crescents at either side of an angled 40/45 mm fan boot.  Project the
+        # complete opening half-width through the rear wall so the final
+        # printed throat remains the intended 36 mm circular fan aperture.
+        opening_cosine = abs(math.cos(opening_angle))
+        if opening_cosine <= 1e-6:
+            raise ValueError("Acoustic fan boot cannot be parallel to rear wall")
+        opening_half_depth = (
+            wall / opening_cosine
+            + FAN_ACOUSTIC_TROUGH_BOOT_OPENING_SIZE
+            / 2.0
+            * abs(math.tan(opening_angle))
+            + FAN_ACOUSTIC_TROUGH_BOOT_OPENING_RADIAL_MARGIN
+        )
+        if opening_half_depth >= FAN_ACOUSTIC_DIVIDED_INLET_DEPTH:
+            raise ValueError(
+                "FAN_ACOUSTIC_DIVIDED_INLET_DEPTH is too short for the "
+                "configured oblique fan boot opening"
+            )
+        rear_openings.append(
+            add_beveled_box(
+                f"Fan_Acoustic_Rear_Boot_Opening_{record['fan_index']}",
+                (
+                    2.0 * opening_half_depth,
+                    FAN_ACOUSTIC_TROUGH_BOOT_OPENING_SIZE,
+                    FAN_ACOUSTIC_TROUGH_BOOT_OPENING_SIZE,
+                ),
+                (opening_center.x, opening_center.y, REAR_FAN_CENTER_Z),
+                rotation_z=opening_angle,
+                bevel=min(wall / 3.0, 0.75),
+            )
+        )
+    for index, opening in enumerate(rear_openings, start=1):
+        boolean_difference(
+            trough,
+            [opening],
+            f"Fan_Acoustic_Rear_Boot_Opening_{index}",
+            solver="MANIFOLD",
+        )
+    report_trough_stage("rear_openings", trough)
+    insert_cutters = []
+    for index, (x, y) in enumerate(layout["lid_boss_positions"], start=1):
+        insert_cutters.append(
+            add_cylinder_z(
+                f"Fan_Acoustic_Lid_Insert_Hole_{index}",
+                FAN_ACOUSTIC_LID_INSERT_HOLE_DIAMETER / 2.0,
+                z1 - FAN_ACOUSTIC_LID_INSERT_DEPTH,
+                z1 + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+        )
+    boolean_difference(trough, insert_cutters, "Fan_Acoustic_Lid_Insert_Holes")
+    report_trough_stage("lid_insert_holes", trough)
+    base_screw_cutters = []
+    base_counterbores = []
+    base_driver_corridors = []
+    for index, (x, y) in enumerate(layout["base_post_positions"], start=1):
+        base_screw_cutters.append(
+            add_cylinder_z(
+                f"Fan_Acoustic_Base_Screw_Clearance_{index}",
+                FAN_ACOUSTIC_BASE_SCREW_CLEARANCE / 2.0,
+                z0 - BOOLEAN_OVERLAP,
+                base_head_boss_top + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+        )
+        base_counterbores.append(
+            add_cylinder_z(
+                f"Fan_Acoustic_Base_Screw_Counterbore_{index}",
+                FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DIAMETER / 2.0,
+                base_head_boss_top
+                - FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DEPTH,
+                base_head_boss_top + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+        )
+        base_driver_corridors.append(
+            add_cylinder_z(
+                f"Fan_Acoustic_Base_Screw_Driver_Corridor_{index}",
+                FAN_ACOUSTIC_BASE_DRIVER_DIAMETER / 2.0,
+                base_head_boss_top - BOOLEAN_OVERLAP,
+                z1 + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+        )
+    boolean_difference(
+        trough,
+        base_screw_cutters,
+        "Fan_Acoustic_Base_Retention_Through_Holes",
+    )
+    report_trough_stage("base_through_holes", trough)
+    boolean_difference(
+        trough,
+        base_counterbores,
+        "Fan_Acoustic_Base_Retention_Counterbores",
+    )
+    report_trough_stage("base_counterbores", trough)
+    for index, corridor in enumerate(base_driver_corridors, start=1):
+        boolean_difference(
+            trough,
+            [corridor],
+            f"Fan_Acoustic_Base_Screw_Driver_Corridor_{index}",
+        )
+        report_trough_stage(f"driver_corridor_{index}", trough)
+    voxel_union_printed_assembly(
+        trough,
+        FAN_ACOUSTIC_REMESH_VOXEL_SIZE,
+        "fan_acoustic_open_trough_final",
+    )
+    trough.name = "Fan_Acoustic_Open_Upward_Trough"
+    trough["removable_component"] = True
+    trough["retention"] = "four_M3_screws_into_base_heat_inserts"
+    trough["base_screw_head_floor_mm"] = (
+        FAN_ACOUSTIC_BASE_HEAD_BOSS_HEIGHT
+        - FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DEPTH
+    )
+    trough["purchased_base_isolator_stack"] = (
+        "4x silicone/TPU washers below trough plus 4x head-side washers; "
+        "select M3 screw length for the complete compressed stack"
+    )
+    trough["base_isolator_dimensions_mm"] = (
+        FAN_ACOUSTIC_BASE_ISOLATOR_OUTER_DIAMETER,
+        FAN_ACOUSTIC_BASE_ISOLATOR_INNER_DIAMETER,
+        FAN_ACOUSTIC_BASE_ISOLATOR_THICKNESS,
+    )
+    trough["head_isolator_dimensions_mm"] = (
+        FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_OUTER_DIAMETER,
+        FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_INNER_DIAMETER,
+        FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_THICKNESS,
+    )
+
+    # The rigid lid seats on compressed foam tape rather than intersecting the
+    # separately voxel-remeshed trough rim.  Keys still extend below the gap.
+    lid_z0 = z1 + FAN_ACOUSTIC_LID_FIT_CLEARANCE
+    lid_z1 = lid_z0 + FAN_ACOUSTIC_LID_THICKNESS
+    lid = polygon_prism_z(
+        "Fan_Acoustic_Removable_Lid_Main_Plate",
+        plenum_loop,
+        lid_z0,
+        lid_z1,
+    )
+    lid_parts = [lid]
+    for record in layout["boot_records"]:
+        top = add_beveled_box(
+            f"Fan_{record['fan_index']}_Acoustic_Boot_Removable_Top",
+            (
+                FAN_ACOUSTIC_DIVIDED_INLET_DEPTH + BOOLEAN_OVERLAP,
+                REAR_FAN_PAD_SIZE,
+                FAN_ACOUSTIC_LID_THICKNESS,
+            ),
+            (
+                record["boot_center"].x,
+                record["boot_center"].y,
+                (lid_z0 + lid_z1) / 2.0,
+            ),
+            rotation_z=math.radians(record["station"]["wall_angle_deg"]),
+            bevel=FAN_ACOUSTIC_LID_THICKNESS / 3.0,
+        )
+        lid_parts.append(top)
+    for side_index, (y, chamfer) in enumerate(
+        (
+            (
+                y0 + wall + FAN_ACOUSTIC_LID_FIT_CLEARANCE + wall / 2.0,
+                layout["lower_rear_chamfer"],
+            ),
+            (
+                y1 - wall - FAN_ACOUSTIC_LID_FIT_CLEARANCE - wall / 2.0,
+                layout["upper_rear_chamfer"],
+            ),
+        ),
+        start=1,
+    ):
+        key_length = depth - chamfer - 2.0 * wall
+        key = add_beveled_box(
+            f"Fan_Acoustic_Lid_Side_Key_{side_index}",
+            (
+                key_length,
+                wall,
+                FAN_ACOUSTIC_LID_KEY_DEPTH,
+            ),
+            (
+                x0 + wall + key_length / 2.0,
+                y,
+                lid_z0 - FAN_ACOUSTIC_LID_KEY_DEPTH / 2.0,
+            ),
+            bevel=wall / 3.0,
+        )
+        lid_parts.append(key)
+    lid = join_tools("Fan_Acoustic_Lid_Raw_Assembly", lid_parts)
+    voxel_union_printed_assembly(
+        lid,
+        FAN_ACOUSTIC_REMESH_VOXEL_SIZE,
+        "fan_acoustic_removable_lid_pre_holes",
+    )
+    lid_holes = []
+    lid_counterbores = []
+    for index, (x, y) in enumerate(layout["lid_boss_positions"], start=1):
+        lid_holes.append(
+            add_cylinder_z(
+                f"Fan_Acoustic_Lid_Screw_Clearance_{index}",
+                FAN_ACOUSTIC_LID_SCREW_CLEARANCE / 2.0,
+                lid_z0 - FAN_ACOUSTIC_LID_KEY_DEPTH - BOOLEAN_OVERLAP,
+                lid_z1 + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+        )
+        lid_counterbores.append(
+            add_cylinder_z(
+                f"Fan_Acoustic_Lid_Screw_Counterbore_{index}",
+                FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DIAMETER / 2.0,
+                lid_z1 - FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DEPTH,
+                lid_z1 + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+        )
+    boolean_difference(
+        lid,
+        lid_holes,
+        "Fan_Acoustic_Lid_Screw_Through_Holes",
+    )
+    boolean_difference(
+        lid,
+        lid_counterbores,
+        "Fan_Acoustic_Lid_Screw_Counterbores",
+    )
+    # The long descending side keys pass beside the four trough-owned insert
+    # bosses.  Relieve only the key layer around each boss; cutting through
+    # the plate would unnecessarily enlarge the screw seating structure.
+    key_boss_reliefs = [
+        add_cylinder_z(
+            f"Fan_Acoustic_Lid_Key_Boss_Relief_{index}",
+            FAN_ACOUSTIC_LID_BOSS_DIAMETER / 2.0
+            + FAN_ACOUSTIC_LID_FIT_CLEARANCE,
+            lid_z0 - FAN_ACOUSTIC_LID_KEY_DEPTH - BOOLEAN_OVERLAP,
+            lid_z0 - BOOLEAN_CLEANUP_DISTANCE,
+            x,
+            y,
+        )
+        for index, (x, y) in enumerate(
+            layout["lid_boss_positions"],
+            start=1,
+        )
+    ]
+    boolean_difference(
+        lid,
+        key_boss_reliefs,
+        "Fan_Acoustic_Lid_Key_Boss_Reliefs",
+    )
+    key_member_reliefs = [
+        add_beveled_box(
+            f"Fan_Acoustic_Lid_Key_Internal_Member_Relief_{index}",
+            (
+                record["dimensions"][0]
+                + 2.0 * FAN_ACOUSTIC_LID_FIT_CLEARANCE,
+                record["dimensions"][1]
+                + 2.0 * FAN_ACOUSTIC_LID_FIT_CLEARANCE,
+                FAN_ACOUSTIC_LID_KEY_DEPTH,
+            ),
+            (
+                record["center"].x,
+                record["center"].y,
+                lid_z0 - FAN_ACOUSTIC_LID_KEY_DEPTH / 2.0,
+            ),
+            rotation_z=math.radians(record["angle_deg"]),
+            bevel=0.0,
+        )
+        for index, record in enumerate(
+            layout["internal_member_records"],
+            start=1,
+        )
+    ]
+    boolean_difference(
+        lid,
+        key_member_reliefs,
+        "Fan_Acoustic_Lid_Key_Internal_Member_Reliefs",
+    )
+    voxel_union_printed_assembly(
+        lid,
+        FAN_ACOUSTIC_REMESH_VOXEL_SIZE,
+        "fan_acoustic_removable_lid_final",
+    )
+    lid.name = "Fan_Acoustic_Sealed_Removable_Lid"
+    lid["retention"] = "four_M3_screws_into_trough_heat_inserts"
+    lid["seal_note"] = (
+        "use_closed_cell_foam_perimeter_tape_compressed_to_configured_gap"
+    )
+
+    boot_seals = create_fan_acoustic_boot_seals(layout)
+    hardware_envelopes = []
+    lid_head_seat_z = lid_z1 - FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DEPTH
+    for index, (x, y) in enumerate(layout["lid_boss_positions"], start=1):
+        head = add_cylinder_z(
+            f"Purchased_Acoustic_Lid_M3_Head_Envelope_{index}",
+            M3_SOCKET_HEAD_NOMINAL_DIAMETER / 2.0,
+            lid_head_seat_z,
+            lid_head_seat_z + M3_SOCKET_HEAD_NOMINAL_HEIGHT,
+            x,
+            y,
+        )
+        head["purchased_hardware_reference"] = True
+        head["hardware_role"] = "acoustic_lid_M3_socket_head"
+        hardware_envelopes.append(head)
+    base_head_seat_z = (
+        base_head_boss_top - FAN_ACOUSTIC_BASE_SCREW_COUNTERBORE_DEPTH
+    )
+    for index, (x, y) in enumerate(layout["base_post_positions"], start=1):
+        washer = add_cylinder_z(
+            f"Purchased_Acoustic_Base_Head_Isolator_Envelope_{index}",
+            FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_OUTER_DIAMETER / 2.0,
+            base_head_seat_z,
+            base_head_seat_z + FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_THICKNESS,
+            x,
+            y,
+        )
+        washer["purchased_hardware_reference"] = True
+        washer["hardware_role"] = "acoustic_base_head_isolator"
+        hardware_envelopes.append(washer)
+        head_z0 = base_head_seat_z + FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_THICKNESS
+        head = add_cylinder_z(
+            f"Purchased_Acoustic_Base_M3_Head_Envelope_{index}",
+            M3_SOCKET_HEAD_NOMINAL_DIAMETER / 2.0,
+            head_z0,
+            head_z0 + M3_SOCKET_HEAD_NOMINAL_HEIGHT,
+            x,
+            y,
+        )
+        head["purchased_hardware_reference"] = True
+        head["hardware_role"] = "acoustic_base_M3_socket_head"
+        hardware_envelopes.append(head)
+    for hardware in hardware_envelopes:
+        hardware.display_type = "WIRE"
+        hardware.hide_render = True
+        hardware.hide_set(True)
+    print(
+        "FAN_ACOUSTIC_SUPPORT_FREE_SPLIT trough=open_upward lid=separate "
+        "internal_baffles=vertical boot_bypass=sealed base_retention=4xM3 "
+        "lid_retention=4xM3 purchased_isolators="
+        f"4x{FAN_ACOUSTIC_BASE_ISOLATOR_OUTER_DIAMETER:.1f}ODx"
+        f"{FAN_ACOUSTIC_BASE_ISOLATOR_INNER_DIAMETER:.1f}IDx"
+        f"{FAN_ACOUSTIC_BASE_ISOLATOR_THICKNESS:.1f}+"
+        f"4x{FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_OUTER_DIAMETER:.1f}ODx"
+        f"{FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_INNER_DIAMETER:.1f}IDx"
+        f"{FAN_ACOUSTIC_BASE_HEAD_ISOLATOR_THICKNESS:.1f}mm"
+    )
+    return {
+        "trough": trough,
+        "lid": lid,
+        "boot_seals": boot_seals,
+        "hardware_envelopes": tuple(hardware_envelopes),
+        "layout": layout,
+    }
+
+
+def validate_acoustic_boot_seal_stack(cassette):
+    """Verify final soft boots span and preload both rigid interfaces."""
+    if cassette is None:
+        return
+    minimum_contact = max(
+        FAN_ACOUSTIC_BOOT_SEAL_COMPRESSION / 2.0
+        - FAN_ACOUSTIC_REMESH_VOXEL_SIZE / 2.0
+        - BOOLEAN_CLEANUP_DISTANCE,
+        0.02,
+    )
+    maximum_contact = (
+        FAN_ACOUSTIC_BOOT_SEAL_COMPRESSION / 2.0
+        + FAN_ACOUSTIC_REMESH_VOXEL_SIZE
+    )
+    for record, seal in zip(
+        cassette["layout"]["boot_records"],
+        cassette["boot_seals"],
+    ):
+        angle = math.radians(record["station"]["wall_angle_deg"])
+        axis = Vector((math.cos(angle), math.sin(angle), 0.0))
+        tangent_axis = Vector((-math.sin(angle), math.cos(angle), 0.0))
+        world_vertices = [
+            seal.matrix_world @ vertex.co for vertex in seal.data.vertices
+        ]
+        radial_values = [
+            vertex.dot(axis) for vertex in world_vertices
+        ]
+        actual_min = min(radial_values)
+        actual_max = max(radial_values)
+        nominal_min = float(seal["nominal_radial_min_mm"])
+        nominal_max = float(seal["nominal_radial_max_mm"])
+        contact_low = nominal_min - actual_min
+        contact_high = actual_max - nominal_max
+        if min(contact_low, contact_high) < minimum_contact:
+            raise RuntimeError(
+                f"Acoustic boot seal {record['fan_index']} does not contact "
+                "both rigid interfaces after remeshing"
+            )
+        if max(contact_low, contact_high) > maximum_contact:
+            raise RuntimeError(
+                f"Acoustic boot seal {record['fan_index']} requires excessive "
+                "interface compression"
+            )
+        pad_half = REAR_FAN_PAD_SIZE / 2.0 + FAN_ACOUSTIC_REMESH_VOXEL_SIZE
+        tangent_center = record["station"]["center_axis_tangent"]
+        maximum_tangent_offset = max(
+            abs(vertex.dot(tangent_axis) - tangent_center)
+            for vertex in world_vertices
+        )
+        maximum_vertical_offset = max(
+            abs(vertex.z - REAR_FAN_CENTER_Z) for vertex in world_vertices
+        )
+        if max(maximum_tangent_offset, maximum_vertical_offset) > pad_half:
+            raise RuntimeError(
+                f"Acoustic boot seal {record['fan_index']} leaves its bounded "
+                "fan-pad contact envelope"
+            )
+        seal["validated_interface_contact_low_mm"] = contact_low
+        seal["validated_interface_contact_high_mm"] = contact_high
+        seal["validated_pad_tangent_half_span_mm"] = maximum_tangent_offset
+        seal["validated_pad_vertical_half_span_mm"] = maximum_vertical_offset
+        print(
+            "FAN_ACOUSTIC_BOOT_SEAL_STACK "
+            f"fan={record['fan_index']} contact=({contact_low:.3f},"
+            f"{contact_high:.3f})mm pad_inside={REAR_FAN_PAD_INSIDE}"
+        )
+    cassette["boot_stack_validated"] = True
+    print("FAN_ACOUSTIC_BOOT_SEAL_STACK PASS")
+
+
+def validate_acoustic_hardware_envelopes(cassette, base, case_lid):
+    """Check purchased head/washer stacks against every rigid printed part."""
+    if cassette is None:
+        return
+    targets = (
+        ("base", base),
+        ("case_lid", case_lid),
+        ("acoustic_trough", cassette["trough"]),
+        ("acoustic_lid", cassette["lid"]),
+    )
+    checked = 0
+    for hardware in cassette["hardware_envelopes"]:
+        for label, target in targets:
+            if not object_bounds_overlap(hardware, target):
+                continue
+            volume = intersection_metrics(
+                hardware,
+                target,
+                f"{hardware.name}_{label}",
+            )[2]
+            checked += 1
+            if volume > FAN_ACOUSTIC_HARDWARE_FIT_VOLUME_TOLERANCE:
+                raise RuntimeError(
+                    f"Installed {hardware['hardware_role']} overlaps {label}: "
+                    f"{volume:.9f} mm^3"
+                )
+    for x, y in cassette["layout"]["lid_boss_positions"]:
+        head_seat = (
+            cassette["layout"]["outer_top_z"]
+            + FAN_ACOUSTIC_LID_FIT_CLEARANCE
+            + FAN_ACOUSTIC_LID_THICKNESS
+            - FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DEPTH
+        )
+        head_top = head_seat + M3_SOCKET_HEAD_NOMINAL_HEIGHT
+        roof_limit = (
+            local_base_seam_z(x, y) - FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE
+        )
+        if head_top > roof_limit + 1e-6:
+            raise RuntimeError(
+                "Installed acoustic-lid M3 head violates the protected roof gap"
+            )
+    cassette["hardware_envelopes_validated"] = True
+    print(
+        "FAN_ACOUSTIC_INSTALLED_HARDWARE PASS "
+        f"envelopes={len(cassette['hardware_envelopes'])} "
+        f"intersection_checks={checked}"
+    )
+
+
+def segment_intersects_oriented_box(start, end, record, clearance=0.0):
+    """Return whether a segment crosses one configured acoustic baffle."""
+    center = record["center"]
+    angle = math.radians(record["angle_deg"])
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+
+    def local(point):
+        dx = point.x - center.x
+        dy = point.y - center.y
+        return Vector(
+            (
+                dx * cosine + dy * sine,
+                -dx * sine + dy * cosine,
+                point.z - center.z,
+            )
+        )
+
+    first = local(start)
+    second = local(end)
+    direction = second - first
+    half = tuple(value / 2.0 + clearance for value in record["dimensions"])
+    minimum_t = 0.0
+    maximum_t = 1.0
+    for axis in range(3):
+        if abs(direction[axis]) <= 1e-12:
+            if abs(first[axis]) > half[axis]:
+                return False
+            continue
+        low_t = (-half[axis] - first[axis]) / direction[axis]
+        high_t = (half[axis] - first[axis]) / direction[axis]
+        if low_t > high_t:
+            low_t, high_t = high_t, low_t
+        minimum_t = max(minimum_t, low_t)
+        maximum_t = min(maximum_t, high_t)
+        if minimum_t > maximum_t:
+            return False
+    return maximum_t >= 0.0 and minimum_t <= 1.0
+
+
+def object_bvh_record(obj):
+    """Build a local-space BVH plus transform and owned BMesh."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    return (BVHTree.FromBMesh(bm), obj.matrix_world.inverted(), bm)
+
+
+def segment_intersects_bvh_record(start, end, record, endpoint_margin=0.02):
+    """Return whether a finite world segment hits one final mesh BVH."""
+    tree, inverse, _bm = record
+    local_start = inverse @ Vector(start)
+    local_end = inverse @ Vector(end)
+    delta = local_end - local_start
+    length = delta.length
+    if length <= 1e-9:
+        return False
+    _location, _normal, _face, distance = tree.ray_cast(
+        local_start,
+        delta / length,
+        max(length - endpoint_margin, 0.0),
+    )
+    return distance is not None and distance <= length - endpoint_margin
+
+
+def validate_fan_acoustic_line_of_sight(cassette, cameras):
+    """Sample every fan aperture against both swept microphone keepouts."""
+    if cassette is None:
+        return
+    layout = cassette["layout"]
+    radius = CAMERA_MIC_NO_DIRECT_JET_RADIUS
+    mic_offsets = (
+        Vector((0.0, 0.0, 0.0)),
+        Vector((radius, 0.0, 0.0)),
+        Vector((-radius, 0.0, 0.0)),
+        Vector((0.0, radius, 0.0)),
+        Vector((0.0, -radius, 0.0)),
+        Vector((0.0, 0.0, radius)),
+        Vector((0.0, 0.0, -radius)),
+    )
+    if len(mic_offsets) != FAN_ACOUSTIC_RAY_MIC_SAMPLES:
+        raise RuntimeError("Acoustic microphone sample configuration changed")
+    half_aperture = REAR_FAN_AIR_OPENING_DIAMETER / 2.0
+    aperture_offsets = tuple(
+        -half_aperture
+        + 2.0
+        * half_aperture
+        * (index + 0.5)
+        / FAN_ACOUSTIC_RAY_APERTURE_GRID
+        for index in range(FAN_ACOUSTIC_RAY_APERTURE_GRID)
+    )
+    tested = 0
+    bvh_records = tuple(
+        object_bvh_record(part)
+        for part in (cassette["trough"], cassette["lid"])
+    )
+    try:
+        for boot in layout["boot_records"]:
+            angle = math.radians(boot["station"]["wall_angle_deg"])
+            tangent = Vector((-math.sin(angle), math.cos(angle), 0.0))
+            for camera, local_mic in layout["camera_records"]:
+                yaw_samples = (
+                    adjustable_yaw_samples(include_preview=True)
+                    if camera_is_adjustable(camera)
+                    else (0.0,)
+                )
+                for yaw_delta in yaw_samples:
+                    mic_center = camera_local_point_world(
+                        camera,
+                        local_mic,
+                        yaw_delta,
+                    )
+                    for tangent_offset in aperture_offsets:
+                        for vertical_offset in aperture_offsets:
+                            if (
+                                tangent_offset**2 + vertical_offset**2
+                                > half_aperture**2 + 1e-9
+                            ):
+                                continue
+                            origin = (
+                                boot["discharge_point"]
+                                + tangent * tangent_offset
+                                + Vector((0.0, 0.0, vertical_offset))
+                            )
+                            for mic_offset in mic_offsets:
+                                target = mic_center + mic_offset
+                                tested += 1
+                                if not any(
+                                    segment_intersects_bvh_record(
+                                        origin,
+                                        target,
+                                        record,
+                                    )
+                                    for record in bvh_records
+                                ):
+                                    raise RuntimeError(
+                                        "Final printed acoustic meshes leave "
+                                        "line-of-sight from fan "
+                                        f"{boot['fan_index']} to camera "
+                                        f"{camera['index']} microphone keepout at "
+                                        f"yaw {yaw_delta:+.1f} deg; "
+                                        f"aperture_offset="
+                                        f"({tangent_offset:.2f},"
+                                        f"{vertical_offset:.2f}) "
+                                        f"mic_offset={tuple(mic_offset)}"
+                                    )
+    finally:
+        for _tree, _inverse, bm in bvh_records:
+            bm.free()
+    cassette["trough"]["no_direct_fan_to_mic_rays"] = True
+    print(
+        "FAN_ACOUSTIC_RAY_VALIDATION PASS "
+        f"sampled_segments={tested} fan_camera_pairs=4 "
+        f"yaw_step={ADJUSTABLE_CAMERA_SWEEP_STEP_DEG:.2f}"
+    )
+
+
+def point_inside_closed_bvh(tree, point):
+    """Classify a point from the nearest final-mesh outward normal.
+
+    A long parity ray can cross many connected baffles and double-count a
+    shared voxel edge.  The signed nearest-surface test is stable for these
+    validated, watertight printed solids and treats on-surface probe points as
+    conservatively occupied.
+    """
+    point = Vector(point)
+    location, normal, _face, distance = tree.find_nearest(point)
+    if location is None or normal is None:
+        return False
+    if distance <= BOOLEAN_CLEANUP_DISTANCE:
+        return True
+    return (point - location).dot(normal) < 0.0
+
+
+def point_inside_bvh_parity(tree, point):
+    """Classify difficult Boolean-union interiors with three parity rays."""
+    point = Vector(point)
+    directions = (
+        Vector((0.731, 0.413, 0.543)).normalized(),
+        Vector((-0.367, 0.821, 0.437)).normalized(),
+        Vector((0.291, -0.529, 0.797)).normalized(),
+    )
+    inside_votes = 0
+    for direction in directions:
+        cursor = point.copy()
+        crossings = 0
+        for _index in range(256):
+            location, _normal, _face, distance = tree.ray_cast(
+                cursor,
+                direction,
+            )
+            if location is None or distance is None:
+                break
+            crossings += 1
+            cursor = location + direction * 0.0017
+        if crossings % 2 == 1:
+            inside_votes += 1
+    return inside_votes >= 2
+
+
+def validate_acoustic_lid_counterbore_floors(cassette):
+    """Measure the final remeshed plate floor below each socket head."""
+    if cassette is None:
+        return
+    lid = cassette["lid"]
+    layout = cassette["layout"]
+    lid_z0 = layout["outer_top_z"] + FAN_ACOUSTIC_LID_FIT_CLEARANCE
+    lid_z1 = lid_z0 + FAN_ACOUSTIC_LID_THICKNESS
+    annulus_radius = (
+        FAN_ACOUSTIC_LID_SCREW_CLEARANCE
+        + FAN_ACOUSTIC_LID_SCREW_COUNTERBORE_DIAMETER
+    ) / 4.0
+    tree, inverse, bm = object_bvh_record(lid)
+    measured = []
+    try:
+        local_direction = (
+            inverse.to_3x3() @ Vector((0.0, 0.0, 1.0))
+        ).normalized()
+        for x, y in layout["lid_boss_positions"]:
+            for angle_index in range(8):
+                angle = 2.0 * math.pi * angle_index / 8.0
+                world_start = Vector(
+                    (
+                        x + annulus_radius * math.cos(angle),
+                        y + annulus_radius * math.sin(angle),
+                        lid_z0 - 2.0,
+                    )
+                )
+                world_end = Vector((world_start.x, world_start.y, lid_z1 + 1.0))
+                local_start = inverse @ world_start
+                local_end = inverse @ world_end
+                remaining = (local_end - local_start).length
+                cursor = local_start
+                hit_z = []
+                for _hit_index in range(6):
+                    location, _normal, _face, distance = tree.ray_cast(
+                        cursor,
+                        local_direction,
+                        remaining,
+                    )
+                    if location is None or distance is None:
+                        break
+                    hit_z.append((lid.matrix_world @ location).z)
+                    advance = distance + 0.01
+                    cursor += local_direction * advance
+                    remaining -= advance
+                    if remaining <= 0.0:
+                        break
+                if len(hit_z) < 2:
+                    raise RuntimeError(
+                        "Could not measure final acoustic-lid counterbore floor"
+                    )
+                measured.append(hit_z[1] - hit_z[0])
+    finally:
+        bm.free()
+    minimum_floor = min(measured)
+    if minimum_floor < FAN_ACOUSTIC_LID_MIN_COUNTERBORE_FLOOR:
+        raise RuntimeError(
+            "Final remeshed acoustic-lid counterbore floor is too thin: "
+            f"{minimum_floor:.3f} mm"
+        )
+    lid["measured_minimum_counterbore_floor_mm"] = minimum_floor
+    print(
+        "FAN_ACOUSTIC_LID_COUNTERBORE_FLOOR PASS "
+        f"minimum={minimum_floor:.3f}mm samples={len(measured)}"
+    )
+
+
+def validate_fan_acoustic_flow_sections(cassette, fan_gaskets=()):
+    """Measure final printed blockage by BVH sampling of cross-sections."""
+    if cassette is None:
+        return
+    layout = cassette["layout"]
+    trough = cassette["trough"]
+    lid = cassette["lid"]
+    wall = FAN_ACOUSTIC_WALL_THICKNESS
+    y_edges = (
+        layout["plenum_y_min"] + wall,
+        layout["path_split_y"],
+        layout["plenum_y_max"] - wall,
+    )
+    z0 = layout["inner_bottom_z"]
+    z1 = layout["inner_top_z"]
+    thickness = FAN_ACOUSTIC_FLOW_PROBE_THICKNESS
+    # Measure the material crossing this actual section, not any wall which
+    # merely lies a few millimetres upstream or downstream.  A former probe
+    # span based on full wall thickness falsely halved the oblique boot throat
+    # whenever the segment reached back into the adjacent plenum rear wall.
+    probe_half_span = thickness / 2.0
+    section_x_min = layout["plenum_front_x"] + wall + thickness
+    section_x_max = layout["plenum_rear_x"] - wall - thickness
+    x_samples = {
+        section_x_min,
+        (layout["plenum_front_x"] + layout["plenum_rear_x"]) / 2.0,
+    }
+    x_samples.update(
+        min(
+            max(
+                baffle["center"].x,
+                section_x_min,
+            ),
+            section_x_max,
+        )
+        for baffle in layout["baffles"]
+    )
+    def add_section_x(value):
+        x_samples.add(min(max(value, section_x_min), section_x_max))
+
+    for member in layout["internal_member_records"]:
+        angle = math.radians(member["angle_deg"])
+        half_x = (
+            abs(math.cos(angle)) * member["dimensions"][0]
+            + abs(math.sin(angle)) * member["dimensions"][1]
+        ) / 2.0
+        for x in (
+            member["center"].x - half_x,
+            member["center"].x,
+            member["center"].x + half_x,
+        ):
+            add_section_x(x)
+    for x, _y in layout["lid_boss_positions"]:
+        for offset in (
+            -FAN_ACOUSTIC_LID_BOSS_DIAMETER / 2.0,
+            0.0,
+            FAN_ACOUSTIC_LID_BOSS_DIAMETER / 2.0,
+        ):
+            add_section_x(x + offset)
+    base_hardware_radius = max(
+        FAN_ACOUSTIC_BASE_HEAD_BOSS_DIAMETER,
+        FAN_ACOUSTIC_BASE_DRIVER_DIAMETER,
+    ) / 2.0
+    for x, _y in layout["base_post_positions"]:
+        for offset in (-base_hardware_radius, 0.0, base_hardware_radius):
+            add_section_x(x + offset)
+    for hardware in cassette["hardware_envelopes"]:
+        x_bounds = object_world_bounds(hardware)[0]
+        for x in (x_bounds[0], sum(x_bounds) / 2.0, x_bounds[1]):
+            add_section_x(x)
+    bvh_parts = (
+        trough,
+        lid,
+        *cassette["boot_seals"],
+        *cassette["hardware_envelopes"],
+        *fan_gaskets,
+    )
+    bvh_records = [object_bvh_record(part) for part in bvh_parts]
+    minimum_areas = []
+    try:
+        for path_index in range(2):
+            path_y0 = y_edges[path_index]
+            path_y1 = y_edges[path_index + 1]
+            gross_area = (path_y1 - path_y0) * (z1 - z0)
+            cell_area = gross_area / FAN_ACOUSTIC_FLOW_SECTION_GRID**2
+            minimum_area = gross_area
+            minimum_x = None
+            for x in sorted(x_samples):
+                free_cells = 0
+                for y_index in range(FAN_ACOUSTIC_FLOW_SECTION_GRID):
+                    y = path_y0 + (path_y1 - path_y0) * (
+                        y_index + 0.5
+                    ) / FAN_ACOUSTIC_FLOW_SECTION_GRID
+                    for z_index in range(FAN_ACOUSTIC_FLOW_SECTION_GRID):
+                        z = z0 + (z1 - z0) * (
+                            z_index + 0.5
+                        ) / FAN_ACOUSTIC_FLOW_SECTION_GRID
+                        part_hits = [
+                            point_inside_closed_bvh(
+                                tree,
+                                inverse @ Vector((x, y, z)),
+                            )
+                            or segment_intersects_bvh_record(
+                                Vector((x - probe_half_span, y, z)),
+                                Vector((x + probe_half_span, y, z)),
+                                (tree, inverse, bm),
+                                endpoint_margin=0.0,
+                            )
+                            for tree, inverse, bm in bvh_records
+                        ]
+                        occupied = any(part_hits)
+                        if not occupied:
+                            free_cells += 1
+                free_area = free_cells * cell_area
+                if free_area < minimum_area:
+                    minimum_area = free_area
+                    minimum_x = x
+            minimum_areas.append(minimum_area)
+            print(
+                f"FAN_ACOUSTIC_GEOMETRY_SECTION path={path_index + 1} "
+                f"minimum_area={minimum_area:.1f}mm2 at_x={minimum_x:.2f} "
+                f"grid={FAN_ACOUSTIC_FLOW_SECTION_GRID}x"
+                f"{FAN_ACOUSTIC_FLOW_SECTION_GRID}"
+            )
+
+        # Also sample every oblique fan/gasket/boot throat in a plane normal to
+        # its own axis.  This catches restrictions which global-X plenum slices
+        # cannot see, including final TPU seal and gasket meshes.
+        opening_radius = REAR_FAN_AIR_OPENING_DIAMETER / 2.0
+        inlet_minimum_areas = []
+        grid = FAN_ACOUSTIC_FLOW_SECTION_GRID
+        cell_size = 2.0 * opening_radius / grid
+        cell_area = cell_size**2
+        for path_index, boot in enumerate(layout["boot_records"]):
+            angle_deg = boot["station"]["wall_angle_deg"]
+            angle = math.radians(angle_deg)
+            discharge_radius = (
+                boot["discharge_point"].x * math.cos(angle)
+                + boot["discharge_point"].y * math.sin(angle)
+            )
+            boot_radii = (
+                (discharge_radius + boot["boot_start_radius"]) / 2.0,
+                (
+                    3.0 * boot["boot_start_radius"]
+                    + boot["boot_end_radius"]
+                )
+                / 4.0,
+                (boot["boot_start_radius"] + boot["boot_end_radius"]) / 2.0,
+                (
+                    boot["boot_start_radius"]
+                    + 3.0 * boot["boot_end_radius"]
+                )
+                / 4.0,
+            )
+            gasket_face = boot["station"]["face_radius"]
+            gasket_end = gasket_face + (
+                -FAN_GASKET_THICKNESS
+                if REAR_FAN_PAD_INSIDE
+                else FAN_GASKET_THICKNESS
+            )
+            radial_samples = {
+                *boot_radii,
+                (gasket_face + gasket_end) / 2.0,
+            }
+            minimum_area = float("inf")
+            minimum_radius = None
+            radial_area_records = []
+            for radial in sorted(radial_samples):
+                free_cells = 0
+                radial_hit_counts = [0] * len(bvh_records)
+                for tangent_index in range(grid):
+                    tangent_offset = -opening_radius + cell_size * (
+                        tangent_index + 0.5
+                    )
+                    for z_index in range(grid):
+                        vertical_offset = -opening_radius + cell_size * (
+                            z_index + 0.5
+                        )
+                        if (
+                            tangent_offset**2 + vertical_offset**2
+                            > opening_radius**2
+                        ):
+                            continue
+                        segment_start = axis_point(
+                            angle_deg,
+                            radial - probe_half_span,
+                            boot["station"]["center_axis_tangent"]
+                            + tangent_offset,
+                            REAR_FAN_CENTER_Z + vertical_offset,
+                        )
+                        segment_end = axis_point(
+                            angle_deg,
+                            radial + probe_half_span,
+                            boot["station"]["center_axis_tangent"]
+                            + tangent_offset,
+                            REAR_FAN_CENTER_Z + vertical_offset,
+                        )
+                        sample_point = axis_point(
+                            angle_deg,
+                            radial,
+                            boot["station"]["center_axis_tangent"]
+                            + tangent_offset,
+                            REAR_FAN_CENTER_Z + vertical_offset,
+                        )
+                        part_hits = [
+                            point_inside_closed_bvh(
+                                tree,
+                                inverse @ sample_point,
+                            )
+                            or segment_intersects_bvh_record(
+                                segment_start,
+                                segment_end,
+                                (tree, inverse, bm),
+                                endpoint_margin=0.0,
+                            )
+                            for tree, inverse, bm in bvh_records
+                        ]
+                        for part_index, hit in enumerate(part_hits):
+                            radial_hit_counts[part_index] += int(hit)
+                        occupied = any(part_hits)
+                        if not occupied:
+                            free_cells += 1
+                free_area = free_cells * cell_area
+                radial_area_records.append(
+                    (
+                        radial,
+                        free_area,
+                        tuple(
+                            (part.name, count)
+                            for part, count in zip(bvh_parts, radial_hit_counts)
+                            if count
+                        ),
+                    )
+                )
+                if free_area < minimum_area:
+                    minimum_area = free_area
+                    minimum_radius = radial
+            inlet_minimum_areas.append(minimum_area)
+            minimum_areas[path_index] = min(
+                minimum_areas[path_index],
+                minimum_area,
+            )
+            print(
+                f"FAN_ACOUSTIC_OBLIQUE_THROAT path={path_index + 1} "
+                f"minimum_area={minimum_area:.1f}mm2 "
+                f"axis_radius={minimum_radius:.2f} grid={grid}x{grid} "
+                f"samples={tuple((round(radius, 2), round(area, 1), hits) for radius, area, hits in radial_area_records)}"
+            )
+    finally:
+        for _tree, _inverse, bm in bvh_records:
+            bm.free()
+    total_area = sum(minimum_areas)
+    imbalance = abs(minimum_areas[0] - minimum_areas[1]) / max(minimum_areas)
+    if total_area < FAN_ACOUSTIC_MIN_TOTAL_THROAT_AREA:
+        raise RuntimeError("Final acoustic geometry has insufficient total throat area")
+    if min(minimum_areas) < FAN_ACOUSTIC_MIN_PER_CAMERA_PATH_AREA:
+        raise RuntimeError("Final acoustic geometry chokes one camera path")
+    if imbalance > FAN_ACOUSTIC_MAX_PATH_IMBALANCE:
+        raise RuntimeError("Final acoustic camera paths are too imbalanced")
+    trough["measured_total_minimum_throat_area_mm2"] = total_area
+    trough["measured_path_1_minimum_area_mm2"] = minimum_areas[0]
+    trough["measured_path_2_minimum_area_mm2"] = minimum_areas[1]
+    print(
+        "FAN_ACOUSTIC_GEOMETRY_FLOW_VALIDATION PASS "
+        f"total_minimum_area={total_area:.1f}mm2 imbalance={imbalance:.3f} "
+        "claim=geometric_open_area_not_fan_curve_or_CFD"
+    )
+
+
+def validate_fan_acoustic_outlet_camera_wash(
+    cassette,
+    cameras,
+    camera_mockups,
+    obstacles=(),
+    camera_carrier=None,
+):
+    """Extract final outlet cells and ray-test their installed camera wash."""
+    if cassette is None:
+        return
+    trough = cassette["trough"]
+    if "measured_total_minimum_throat_area_mm2" not in trough:
+        raise RuntimeError(
+            "Acoustic outlet wash requires final-mesh throat validation first"
+        )
+    cameras_by_index = {camera["index"]: camera for camera in cameras}
+    grid = CAMERA_COOLING_WASH_SAMPLE_GRID
+    plume_slope = math.tan(
+        math.radians(FAN_ACOUSTIC_OUTLET_PLUME_HALF_ANGLE_DEG)
+    )
+    final_parts = (
+        cassette["trough"],
+        cassette["lid"],
+        *cassette["boot_seals"],
+    )
+    aperture_records = [object_bvh_record(part) for part in final_parts]
+    fixed_objects = [
+        *final_parts,
+        *cassette["hardware_envelopes"],
+        *(obj for obj in obstacles if obj is not None),
+    ]
+    fixed_records = [object_bvh_record(obj) for obj in fixed_objects]
+    moving_camera = adjustable_camera(cameras)
+    mockups_by_index = {
+        camera["index"]: mockup
+        for camera, mockup in zip(cameras, camera_mockups)
+    }
+    try:
+        for outlet in cassette["layout"]["outlet_records"]:
+            camera = cameras_by_index[outlet["camera_index"]]
+            nominal_center = Vector(outlet["center"])
+            direction = Vector(outlet["direction"]).normalized()
+            outlet_tangent = Vector((-direction.y, direction.x, 0.0))
+            cell_y = outlet["tangent_span"] / grid
+            cell_z = outlet["vertical_span"] / grid
+            cell_tangent_half = abs(
+                Vector((0.0, cell_y / 2.0, 0.0)).dot(outlet_tangent)
+            )
+            aperture_origins = []
+            for y_index in range(grid):
+                y_offset = outlet["tangent_span"] * (
+                    (y_index + 0.5) / grid - 0.5
+                )
+                for z_index in range(grid):
+                    z_offset = outlet["vertical_span"] * (
+                        (z_index + 0.5) / grid - 0.5
+                    )
+                    sample = nominal_center + Vector((0.0, y_offset, z_offset))
+                    # Move a fraction of a millimetre downstream from the
+                    # remeshed boundary before classifying and launching rays.
+                    sample += direction * max(
+                        2.0 * BOOLEAN_CLEANUP_DISTANCE,
+                        0.10,
+                    )
+                    if any(
+                        point_inside_closed_bvh(tree, inverse @ sample)
+                        for tree, inverse, _bm in aperture_records
+                    ):
+                        continue
+                    aperture_origins.append(sample)
+            if not aperture_origins:
+                raise RuntimeError(
+                    f"Final acoustic outlet {outlet['path_index']} has no open cells"
+                )
+            measured_aperture_area = len(aperture_origins) * cell_y * cell_z
+            assembly_yaws = (
+                adjustable_yaw_samples(include_preview=True)
+                if moving_camera is not None
+                else (0.0,)
+            )
+            records = []
+            for assembly_yaw in assembly_yaws:
+                camera_yaw = (
+                    assembly_yaw if camera_is_adjustable(camera) else 0.0
+                )
+                face = camera_rear_face_pose(camera, camera_yaw)
+                incidence = abs(direction.dot(face["normal"]))
+                posed_carrier = None
+                pose_records = []
+                pose_owned_objects = []
+                if camera_carrier is not None and moving_camera is not None:
+                    posed_carrier = posed_carrier_copy(
+                        camera_carrier,
+                        moving_camera,
+                        assembly_yaw,
+                        f"Acoustic_Outlet_Carrier_{outlet['path_index']}_"
+                        f"{assembly_yaw:+.1f}",
+                    )
+                    pose_records.append(object_bvh_record(posed_carrier))
+                    pose_owned_objects.append(posed_carrier)
+                for other_camera in cameras:
+                    if other_camera["index"] == camera["index"]:
+                        continue
+                    other_mockup = mockups_by_index.get(other_camera["index"])
+                    if other_mockup is None:
+                        continue
+                    if camera_is_adjustable(other_camera):
+                        sibling = posed_camera_copy(
+                            other_mockup,
+                            other_camera,
+                            assembly_yaw,
+                            f"Acoustic_Outlet_Sibling_Camera_"
+                            f"{other_camera['index']}_{assembly_yaw:+.1f}",
+                        )
+                        pose_owned_objects.append(sibling)
+                    else:
+                        sibling = other_mockup
+                    pose_records.append(object_bvh_record(sibling))
+                occluder_records = (*fixed_records, *pose_records)
+                washed = 0
+                minimum_axial = float("inf")
+                try:
+                    for tangent_index in range(grid):
+                        tangent_offset = face["tangent_span"] * (
+                            (tangent_index + 0.5) / grid - 0.5
+                        )
+                        for vertical_index in range(grid):
+                            vertical_offset = face["vertical_span"] * (
+                                (vertical_index + 0.5) / grid - 0.5
+                            )
+                            point = (
+                                face["center"]
+                                + face["tangent_axis"] * tangent_offset
+                                + Vector((0.0, 0.0, vertical_offset))
+                            )
+                            reached = False
+                            for origin in aperture_origins:
+                                delta = point - origin
+                                axial = delta.dot(direction)
+                                minimum_axial = min(minimum_axial, axial)
+                                if axial <= 0.0:
+                                    continue
+                                if abs(delta.dot(outlet_tangent)) > (
+                                    cell_tangent_half + axial * plume_slope
+                                ):
+                                    continue
+                                if abs(delta.z) > (
+                                    cell_z / 2.0 + axial * plume_slope
+                                ):
+                                    continue
+                                if any(
+                                    point_inside_closed_bvh(
+                                        tree,
+                                        inverse @ origin,
+                                    )
+                                    or segment_intersects_bvh_record(
+                                        origin,
+                                        point,
+                                        (tree, inverse, bm),
+                                        endpoint_margin=0.50,
+                                    )
+                                    for tree, inverse, bm in occluder_records
+                                ):
+                                    continue
+                                reached = True
+                                break
+                            if reached:
+                                washed += 1
+                finally:
+                    for _tree, _inverse, bm in pose_records:
+                        bm.free()
+                    for owned in pose_owned_objects:
+                        bpy.data.objects.remove(owned, do_unlink=True)
+                records.append(
+                    (
+                        assembly_yaw,
+                        washed / float(grid * grid),
+                        incidence,
+                        minimum_axial,
+                    )
+                )
+            worst = min(records, key=lambda record: record[1])
+            minimum_incidence = min(record[2] for record in records)
+            if min(record[3] for record in records) <= 0.0:
+                raise RuntimeError(
+                    f"Acoustic outlet {outlet['path_index']} points behind "
+                    f"camera {camera['index']} over its configured sweep"
+                )
+            if minimum_incidence < FAN_ACOUSTIC_MIN_OUTLET_TO_REAR_FACE_COSINE:
+                raise RuntimeError(
+                    f"Acoustic outlet {outlet['path_index']} grazes camera "
+                    f"{camera['index']} too obliquely: {minimum_incidence:.3f}"
+                )
+            if worst[1] < FAN_ACOUSTIC_MIN_REAR_FACE_WASH_RATIO:
+                raise RuntimeError(
+                    f"Final aperture/installed hardware leaves acoustic outlet "
+                    f"{outlet['path_index']} washing too little of camera "
+                    f"{camera['index']} at assembly yaw {worst[0]:+.2f}: "
+                    f"{worst[1]:.3f}"
+                )
+            print(
+                "FAN_ACOUSTIC_OUTLET_CAMERA_WASH "
+                f"path={outlet['path_index']} camera={camera['index']} "
+                f"final_aperture_cells={len(aperture_origins)} "
+                f"final_aperture_area={measured_aperture_area:.1f}mm2 "
+                f"minimum_unoccluded_ratio={worst[1]:.3f} "
+                f"worst_assembly_yaw={worst[0]:+.2f}deg "
+                f"minimum_incidence_cosine={minimum_incidence:.3f}"
+            )
+    finally:
+        for _tree, _inverse, bm in aperture_records:
+            bm.free()
+        for _tree, _inverse, bm in fixed_records:
+            bm.free()
+    trough["final_outlet_camera_wash_validated"] = True
+    print(
+        "FAN_ACOUSTIC_OUTLET_CAMERA_WASH PASS "
+        f"plume_half_angle={FAN_ACOUSTIC_OUTLET_PLUME_HALF_ANGLE_DEG:.1f}deg "
+        f"minimum_rear_face_ratio={FAN_ACOUSTIC_MIN_REAR_FACE_WASH_RATIO:.3f} "
+        "source=final_aperture_cells occlusion=installed_hardware"
+    )
+
+
+def validate_acoustic_cassette_removal(
+    cassette,
+    footprint,
+    cameras=(),
+    targets=(),
+):
+    if cassette is None:
+        return
+    trough = cassette["trough"]
+    acoustic_lid = cassette["lid"]
+    inner_loop = inset_footprint_loop(
+        footprint,
+        BODY_WALL_THICKNESS + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE,
+    )
+    for part in (trough, acoustic_lid, *cassette["boot_seals"]):
+        vertices = [
+            part.matrix_world @ vertex.co for vertex in part.data.vertices
+        ]
+        for vertex in vertices:
+            if not point_in_polygon((vertex.x, vertex.y), inner_loop):
+                soft_external_boot_contact = (
+                    not REAR_FAN_PAD_INSIDE
+                    and part in cassette["boot_seals"]
+                    and cassette.get("boot_stack_validated", False)
+                )
+                if not soft_external_boot_contact:
+                    raise RuntimeError(
+                        f"{part.name} leaves the lid-off service envelope"
+                    )
+            if vertex.z >= local_base_seam_z(vertex.x, vertex.y):
+                raise RuntimeError(f"{part.name} intersects the local roof seam")
+
+    removal_travel = max(
+        BASE_HEIGHT - min(vertex.co.z for vertex in trough.data.vertices) + 8.0,
+        20.0,
+    )
+    service_targets = []
+    temporary_service_targets = []
+    moving_camera = adjustable_camera(cameras) if cameras else None
+    for label, target in targets:
+        service_target = target
+        if (
+            target is not None
+            and moving_camera is not None
+            and abs(FAN_ACOUSTIC_SERVICE_YAW_DEG) > 1e-9
+        ):
+            if label == f"camera_{moving_camera['index']}":
+                service_target = posed_camera_copy(
+                    target,
+                    moving_camera,
+                    FAN_ACOUSTIC_SERVICE_YAW_DEG,
+                    "Fan_Acoustic_Service_Adjustable_Camera",
+                )
+                temporary_service_targets.append(service_target)
+            elif label == "carrier":
+                service_target = posed_carrier_copy(
+                    target,
+                    moving_camera,
+                    FAN_ACOUSTIC_SERVICE_YAW_DEG,
+                    "Fan_Acoustic_Service_Adjustable_Carrier",
+                )
+                temporary_service_targets.append(service_target)
+        service_targets.append((label, service_target))
+    remaining_targets = tuple(
+        (label, target)
+        for label, target in service_targets
+        if target is not None and target not in cassette["boot_seals"]
+    )
+    seals = tuple(cassette["boot_seals"])
+    boot_removal_targets = tuple(
+        (label, target)
+        for label, target in remaining_targets
+        if not (not REAR_FAN_PAD_INSIDE and label == "base")
+    )
+    removal_records = [
+        (
+            "lid",
+            acoustic_lid,
+            (("trough", trough),)
+            + tuple(
+                (f"boot_seal_{index}", seal)
+                for index, seal in enumerate(seals, start=1)
+            )
+            + remaining_targets,
+        ),
+        *(
+            (
+                f"boot_seal_{index}",
+                seal,
+                (("trough", trough),)
+                + tuple(
+                    (f"sibling_boot_seal_{other_index}", other_seal)
+                    for other_index, other_seal in enumerate(seals, start=1)
+                    if other_seal is not seal
+                )
+                + boot_removal_targets,
+            )
+            for index, seal in enumerate(seals, start=1)
+        ),
+        ("trough", trough, remaining_targets),
+    ]
+    step_count = max(
+        1,
+        int(math.ceil(removal_travel / ASSEMBLY_SERVICE_SWEEP_MAX_STEP)),
+    )
+    for part_label, part, part_targets in removal_records:
+        for step in range(1, step_count + 1):
+            moved = duplicate_object(
+                part,
+                f"Fan_Acoustic_{part_label}_Removal_{step}",
+            )
+            moved.location.z += removal_travel * step / step_count
+            bpy.context.view_layer.update()
+            try:
+                for target_label, target in part_targets:
+                    if not object_bounds_overlap(moved, target):
+                        continue
+                    volume = intersection_metrics(
+                        moved,
+                        target,
+                        f"fan_acoustic_{part_label}_removal_{step}_{target_label}",
+                    )[2]
+                    if volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                        raise RuntimeError(
+                            f"Acoustic {part_label} removal hits {target_label} "
+                            f"at sweep step {step}: {volume:.4f} mm3"
+                        )
+            finally:
+                bpy.data.objects.remove(moved, do_unlink=True)
+    for temporary in temporary_service_targets:
+        bpy.data.objects.remove(temporary, do_unlink=True)
+    print(
+        "FAN_ACOUSTIC_CASSETTE_REMOVAL_PATH PASS sequence="
+        "case_lid,fan_screws,fans,gaskets,acoustic_lid,boot_seals,"
+        "base_screws,trough direction="
+        f"{'peel_boot_seals_inward_then_+Z' if not REAR_FAN_PAD_INSIDE else '+Z'} "
+        f"required_adjustable_yaw={FAN_ACOUSTIC_SERVICE_YAW_DEG:+.2f}deg "
+        f"max_step={ASSEMBLY_SERVICE_SWEEP_MAX_STEP:.2f}mm"
+    )
+
+
+def add_acoustic_microphone_deflectors_to_brackets(
+    camera_brackets,
+    cameras,
+    footprint,
+):
+    """Mount each close mic deflector to its removable camera hold-down."""
+    if (
+        not FAN_ACOUSTIC_ATTENUATOR_ENABLED
+        or not CAMERA_MIC_DEFLECTORS_ENABLED
+    ):
+        if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+            print(
+                "CAMERA_MIC_DEFLECTORS disabled "
+                "acoustic_labyrinth_baffles_only=True"
+            )
+        return camera_brackets
+    stations = sorted(
+        (
+            rear_fan_station_geometry(footprint, tangent)
+            for tangent in rear_fan_center_tangents()
+        ),
+        key=lambda station: station["face_center"].y,
+    )
+    records = sorted(
+        (
+            (camera, bracket, local_point)
+            for camera, bracket, local_point in zip(
+                cameras,
+                camera_brackets,
+                CAMERA_REAR_MIC_LOCAL_CENTERS,
+            )
+        ),
+        key=lambda record: record[0]["center_xy"][1],
+    )
+    plate_z0, plate_z1 = camera_bracket_z_bounds()
+    wall = max(FAN_ACOUSTIC_WALL_THICKNESS, 4.0)
+    for station, (camera, bracket, local_point) in zip(stations, records):
+        yaw_samples = (
+            adjustable_yaw_samples(include_preview=True)
+            if camera_is_adjustable(camera)
+            else (0.0,)
+        )
+        mic_points = tuple(
+            camera_local_point_world(camera, local_point, yaw_delta)
+            for yaw_delta in yaw_samples
+        )
+        mic = sum(mic_points, Vector((0.0, 0.0, 0.0))) / len(mic_points)
+        fan_origin = station["face_center"]
+        ray = mic - fan_origin
+        length_xy = math.hypot(ray.x, ray.y)
+        if length_xy <= 1e-6:
+            raise ValueError("Fan center and microphone cannot share an XY point")
+        direction = Vector((ray.x / length_xy, ray.y / length_xy, 0.0))
+        shield_tangent = Vector((-direction.y, direction.x, 0.0))
+        center = mic - direction * CAMERA_MIC_DEFLECTOR_STANDOFF
+        tangent_projections = [
+            point.x * shield_tangent.x + point.y * shield_tangent.y
+            for point in mic_points
+        ]
+        desired_tangent = (
+            min(tangent_projections) + max(tangent_projections)
+        ) / 2.0
+        center_tangent = (
+            center.x * shield_tangent.x + center.y * shield_tangent.y
+        )
+        center += shield_tangent * (desired_tangent - center_tangent)
+        center.z = (min(point.z for point in mic_points) + max(point.z for point in mic_points)) / 2.0
+        angle = math.atan2(direction.y, direction.x)
+        width = (
+            max(tangent_projections)
+            - min(tangent_projections)
+            + 2.0 * CAMERA_MIC_NO_DIRECT_JET_RADIUS
+        )
+        height = (
+            max(point.z for point in mic_points)
+            - min(point.z for point in mic_points)
+            + 2.0 * CAMERA_MIC_NO_DIRECT_JET_RADIUS
+        )
+        top_vertices = [
+            bracket.matrix_world @ vertex.co
+            for vertex in bracket.data.vertices
+            if (bracket.matrix_world @ vertex.co).z >= plate_z0 - 0.5
+        ]
+        if not top_vertices:
+            raise RuntimeError(
+                f"Camera {camera['index']} bracket has no deflector attachment land"
+            )
+        target = min(
+            top_vertices,
+            key=lambda point: (point.x - center.x) ** 2 + (point.y - center.y) ** 2,
+        )
+        bridge_dx = target.x - center.x
+        bridge_dy = target.y - center.y
+        bridge_length = math.hypot(bridge_dx, bridge_dy)
+        if bridge_length <= wall:
+            bridge_angle = angle
+            bridge_length = wall
+        else:
+            bridge_angle = math.atan2(bridge_dy, bridge_dx)
+        bridge_normal = Vector((-math.sin(bridge_angle), math.cos(bridge_angle), 0.0))
+        for bridge_index, bridge_sign in enumerate((-1.0, 1.0), start=1):
+            bridge_offset = bridge_normal * (bridge_sign * wall * 0.45)
+            bridge = add_beveled_box(
+                f"Camera_{camera['index']}_Mic_Deflector_Top_Bridge_{bridge_index}",
+                (bridge_length + 2.0 * BOOLEAN_OVERLAP, wall, wall),
+                (
+                    (center.x + target.x) / 2.0 + bridge_offset.x,
+                    (center.y + target.y) / 2.0 + bridge_offset.y,
+                    min(max(target.z, plate_z0), plate_z1 - wall) + wall / 2.0,
+                ),
+                rotation_z=bridge_angle,
+                bevel=wall / 3.0,
+            )
+            boolean_union(
+                bracket,
+                bridge,
+                f"Camera_{camera['index']}_Mic_Deflector_Top_Bridge_{bridge_index}_Union",
+            )
+        neck_bottom = center.z + height / 2.0
+        neck_top = plate_z0 + wall
+        if neck_top <= neck_bottom + wall:
+            raise ValueError(
+                f"Camera {camera['index']} microphone is too high for its deflector bracket"
+            )
+        neck = add_beveled_box(
+            f"Camera_{camera['index']}_Mic_Deflector_Neck",
+            (
+                FAN_ACOUSTIC_BAFFLE_THICKNESS,
+                wall,
+                neck_top - neck_bottom + BOOLEAN_OVERLAP,
+            ),
+            (
+                center.x,
+                center.y,
+                (neck_bottom + neck_top) / 2.0,
+            ),
+            rotation_z=angle,
+            bevel=wall / 3.0,
+        )
+        boolean_union(
+            bracket,
+            neck,
+            f"Camera_{camera['index']}_Mic_Deflector_Neck_Union",
+        )
+        deflector = add_beveled_box(
+            f"Camera_{camera['index']}_Microphone_Airfoil_Deflector",
+            (FAN_ACOUSTIC_BAFFLE_THICKNESS, width, height),
+            tuple(center),
+            rotation_z=angle,
+            bevel=min(
+                FAN_ACOUSTIC_NOSE_RADIUS,
+                FAN_ACOUSTIC_BAFFLE_THICKNESS / 2.1,
+            ),
+        )
+        boolean_union(
+            bracket,
+            deflector,
+            f"Camera_{camera['index']}_Microphone_Airfoil_Deflector_Union",
+        )
+        bracket["microphone_deflector_standoff_mm"] = (
+            CAMERA_MIC_DEFLECTOR_STANDOFF
+        )
+        print(
+            f"CAMERA_MIC_DEFLECTOR {camera['index']}: "
+            f"standoff={CAMERA_MIC_DEFLECTOR_STANDOFF:.2f} "
+            f"size={width:.2f}x{height:.2f} bracket_mounted=True "
+            f"yaw_samples={len(yaw_samples)} root={wall:.2f} dual_gussets=True"
+        )
+    return camera_brackets
+
+
+def object_world_bounds(obj):
+    corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    return tuple(
+        (
+            min(point[axis] for point in corners),
+            max(point[axis] for point in corners),
+        )
+        for axis in range(3)
+    )
+
+
+def object_bounds_overlap(first, second, clearance=0.0):
+    first_bounds = object_world_bounds(first)
+    second_bounds = object_world_bounds(second)
+    return all(
+        first_bounds[axis][1] + clearance >= second_bounds[axis][0]
+        and second_bounds[axis][1] + clearance >= first_bounds[axis][0]
+        for axis in range(3)
+    )
+
+
+def validate_acoustic_base_post_integrity(cassette, base):
+    """Confirm late service cuts did not notch any acoustic insert post."""
+    if cassette is None:
+        return
+    layout = cassette["layout"]
+    post_top = (
+        layout["outer_bottom_z"] - FAN_ACOUSTIC_BASE_ISOLATOR_THICKNESS
+    )
+    sample_radius = (
+        FAN_ACOUSTIC_BASE_INSERT_HOLE_DIAMETER / 2.0
+        + FAN_ACOUSTIC_BASE_POST_DIAMETER / 2.0
+    ) / 2.0
+    z_samples = (
+        post_top - 0.75,
+        post_top - FAN_ACOUSTIC_BASE_INSERT_DEPTH / 2.0,
+        post_top - FAN_ACOUSTIC_BASE_INSERT_DEPTH + 0.50,
+    )
+    tree, inverse, bm = object_bvh_record(base)
+    try:
+        for post_index, (x, y) in enumerate(
+            layout["base_post_positions"],
+            start=1,
+        ):
+            for z in z_samples:
+                for angle_index in range(36):
+                    angle = 2.0 * math.pi * angle_index / 36.0
+                    point = Vector(
+                        (
+                            x + sample_radius * math.cos(angle),
+                            y + sample_radius * math.sin(angle),
+                            z,
+                        )
+                    )
+                    if not point_inside_closed_bvh(tree, inverse @ point):
+                        raise RuntimeError(
+                            f"Final service cuts notch acoustic base post "
+                            f"{post_index} at z={z:.2f}"
+                        )
+    finally:
+        bm.free()
+    print(
+        "FAN_ACOUSTIC_BASE_POST_INTEGRITY PASS "
+        f"posts={len(layout['base_post_positions'])} angular_samples=36"
+    )
+
+
+def validate_acoustic_assembly_clearances(
+    cassette,
+    base,
+    lid,
+    cameras,
+    camera_mockups,
+    camera_brackets,
+    camera_carrier,
+    camera_worm,
+    worm_bearing_caps,
+    footprint,
+):
+    if cassette is None:
+        return
+    validate_acoustic_base_post_integrity(cassette, base)
+    rigid_parts = (cassette["trough"], cassette["lid"])
+    seal_parts = tuple(cassette["boot_seals"])
+    targets = [("base", base), ("lid", lid)]
+    temporary = []
+    for camera, mockup in zip(cameras, camera_mockups):
+        if camera_is_adjustable(camera):
+            for yaw_delta in adjustable_yaw_samples(include_preview=True):
+                posed = duplicate_object(
+                    mockup,
+                    f"Acoustic_Camera_{camera['index']}_Yaw_{yaw_delta:+.1f}",
+                )
+                pivot = adjustable_camera_pivot(camera)
+                rotate_mesh_about_world_axis(
+                    posed,
+                    (pivot.x, pivot.y, 0.0),
+                    (0.0, 0.0, 1.0),
+                    yaw_delta,
+                )
+                targets.append(
+                    (f"camera_{camera['index']}_yaw_{yaw_delta:+.1f}", posed)
+                )
+                temporary.append(posed)
+        else:
+            targets.append((f"camera_{camera['index']}", mockup))
+    targets.extend(
+        (f"bracket_{index}", bracket)
+        for index, bracket in enumerate(camera_brackets, start=1)
+    )
+    if VALIDATE_TIGHTENED_BRACKET_CLEARANCES:
+        travel = camera_bracket_clamp_travel()
+        for index, bracket in enumerate(camera_brackets, start=1):
+            tightened = duplicate_object(
+                bracket,
+                f"Acoustic_Tightened_Bracket_{index}",
+            )
+            tightened.location.z -= travel
+            targets.append((f"tightened_bracket_{index}", tightened))
+            temporary.append(tightened)
+    if camera_carrier is not None:
+        moving_camera = adjustable_camera(cameras)
+        for yaw_delta in adjustable_yaw_samples(include_preview=True):
+            posed = posed_carrier_copy(
+                camera_carrier,
+                moving_camera,
+                yaw_delta,
+                f"Acoustic_Carrier_Yaw_{yaw_delta:+.1f}",
+            )
+            targets.append((f"carrier_yaw_{yaw_delta:+.1f}", posed))
+            temporary.append(posed)
+    if camera_worm is not None:
+        targets.append(("worm", camera_worm))
+    targets.extend(
+        (f"worm_cap_{index}", cap)
+        for index, cap in enumerate(worm_bearing_caps, start=1)
+    )
+    fan_keepouts = create_rear_fan_body_keepouts(footprint, force=True)
+    targets.extend(
+        (f"fan_body_{index}", keepout)
+        for index, keepout in enumerate(fan_keepouts, start=1)
+    )
+    temporary.extend(fan_keepouts)
+    try:
+        trough_lid_volume = intersection_metrics(
+            cassette["trough"],
+            cassette["lid"],
+            "fan_acoustic_trough_lid_assembled",
+        )[2]
+        print(
+            "FAN_ACOUSTIC_TROUGH_LID_CLEARANCE "
+            f"volume={trough_lid_volume:.9f}"
+        )
+        if trough_lid_volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+            raise RuntimeError(
+                "Final acoustic trough intrudes into its removable lid: "
+                f"{trough_lid_volume:.9f} mm^3"
+            )
+        for part in (*rigid_parts, *seal_parts):
+            for label, target in targets:
+                # The compliant boot seals deliberately contact the fan
+                # discharge frames; their compression is checked by their
+                # configured axial stack, not by a rigid-body intersection.
+                if part in seal_parts and (
+                    label.startswith("fan_body_")
+                    or (not REAR_FAN_PAD_INSIDE and label == "base")
+                ):
+                    if not cassette.get("boot_stack_validated", False):
+                        raise RuntimeError(
+                            "Compliant boot contact was exempted before its "
+                            "axial stack was validated"
+                        )
+                    continue
+                if not object_bounds_overlap(part, target):
+                    continue
+                volume = intersection_metrics(
+                    part,
+                    target,
+                    f"{part.name}_{label}",
+                )[2]
+                print(
+                    f"FAN_ACOUSTIC_CLEARANCE {part.name}_{label}: "
+                    f"volume={volume:.9f}"
+                )
+                if volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                    raise RuntimeError(
+                        f"{part.name} overlaps {label}: {volume:.9f} mm^3"
+                    )
+    finally:
+        for obj in temporary:
+            if obj.name in bpy.data.objects:
+                bpy.data.objects.remove(obj, do_unlink=True)
+    print("FAN_ACOUSTIC_ASSEMBLY_CLEARANCE PASS")
+
+
 def validate_rear_fan_body_clearances(
     footprint,
     cameras,
@@ -7570,6 +13137,8 @@ def validate_rear_fan_body_clearances(
     camera_brackets,
     camera_carrier=None,
     camera_worm=None,
+    worm_bearing_caps=(),
+    base=None,
 ):
     """Keep complete fan frames clear of fixed and swept internal hardware."""
     fan_keepouts = create_rear_fan_body_keepouts(footprint)
@@ -7581,7 +13150,20 @@ def validate_rear_fan_body_clearances(
     ]
     if camera_worm is not None:
         targets.append(("worm", camera_worm))
+    targets.extend(
+        (f"worm_cap_{index}", cap)
+        for index, cap in enumerate(worm_bearing_caps, start=1)
+    )
     temporary_objects = []
+    base_keepouts = (
+        create_rear_fan_body_keepouts(
+            footprint,
+            force=True,
+            preserve_contact_face=True,
+        )
+        if base is not None
+        else ()
+    )
     for index, (camera, mockup) in enumerate(
         zip(cameras, camera_mockups),
         start=1,
@@ -7617,6 +13199,19 @@ def validate_rear_fan_body_clearances(
             targets.append((f"carrier_yaw_{yaw_delta:+.1f}", posed))
             temporary_objects.append(posed)
     try:
+        if len(fan_keepouts) == 2:
+            fan_pair_overlap = intersection_metrics(
+                fan_keepouts[0],
+                fan_keepouts[1],
+                "rear_fan_1_rear_fan_2",
+            )[2]
+            if fan_pair_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                raise RuntimeError(
+                    "Narrow rear taper makes the two physical fan envelopes "
+                    f"overlap: {fan_pair_overlap:.9f} mm^3. Increase "
+                    "REAR_WIDTH_TAPER_SCALE or fan center spacing, or disable "
+                    "one/both rear fans."
+                )
         for keepout in fan_keepouts:
             fan_index = keepout["fan_index"]
             for target_name, target in targets:
@@ -7630,23 +13225,38 @@ def validate_rear_fan_body_clearances(
                         f"Rear fan {fan_index} body overlaps {target_name}: "
                         f"{volume:.9f} mm^3"
                     )
+        if base is not None:
+            for keepout in base_keepouts:
+                fan_index = keepout["fan_index"]
+                volume = intersection_metrics(
+                    keepout,
+                    base,
+                    f"rear_fan_{fan_index}_final_base_integrated_features",
+                )[2]
+                if volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                    raise RuntimeError(
+                        f"Rear fan {fan_index} body/clearance overlaps a final "
+                        f"base-integrated feature: {volume:.9f} mm^3"
+                    )
     finally:
-        for obj in (*fan_keepouts, *temporary_objects):
+        for obj in (*fan_keepouts, *base_keepouts, *temporary_objects):
             if obj.name in bpy.data.objects:
                 bpy.data.objects.remove(obj, do_unlink=True)
     print(
         "REAR_FAN_BODY_CLEARANCE PASS "
-        f"fan_size=40x40x{REAR_FAN_DEPTH:.1f}mm "
+        f"fan_size={REAR_FAN_FRAME_SIZE:.1f}x{REAR_FAN_FRAME_SIZE:.1f}x"
+        f"{REAR_FAN_DEPTH:.1f}mm "
         f"clearance={REAR_FAN_BODY_CLEARANCE:.1f}mm "
-        f"direction={REAR_FAN_AIRFLOW_DIRECTION}"
+        f"direction={REAR_FAN_AIRFLOW_DIRECTION} "
+        f"final_base_integrated_features={'checked' if base is not None else 'skipped'}"
     )
 
 
 def add_fastener_posts(base, positions):
     if not FASTENERS_ENABLED:
         return base
-    post_top = BASE_HEIGHT - FASTENER_POST_TOP_CLEARANCE
     for index, (x, y) in enumerate(positions, start=1):
+        post_top = fastener_post_top_z(x, y)
         post = add_cylinder_z(
             f"Base_Heat_Insert_Post_{index}",
             FASTENER_POST_DIAMETER / 2.0,
@@ -7656,32 +13266,37 @@ def add_fastener_posts(base, positions):
             y,
         )
         boolean_union(base, post, f"Base_Heat_Insert_Post_{index}_Union")
+        print(f"LID_POST_LOCAL_HEIGHT {index}: top_z={post_top:.2f}")
 
-    insert_cutters = [
-        add_cylinder_z(
-            f"Heat_Insert_Hole_{index}",
-            HEAT_INSERT_HOLE_DIAMETER / 2.0,
-            post_top - HEAT_INSERT_HOLE_DEPTH,
-            post_top + BOOLEAN_OVERLAP,
-            x,
-            y,
-        )
-        for index, (x, y) in enumerate(positions, start=1)
-    ]
-    boolean_difference(base, insert_cutters, "Heat_Insert_Holes")
-
-    if HEAT_INSERT_LEADIN_DEPTH > 0.0:
-        leadin_cutters = [
+    insert_cutters = []
+    for index, (x, y) in enumerate(positions, start=1):
+        post_top = fastener_post_top_z(x, y)
+        insert_cutters.append(
             add_cylinder_z(
-                f"Heat_Insert_Leadin_{index}",
-                HEAT_INSERT_LEADIN_DIAMETER / 2.0,
-                post_top - HEAT_INSERT_LEADIN_DEPTH,
-                post_top + 2.0 * BOOLEAN_OVERLAP,
+                f"Heat_Insert_Hole_{index}",
+                HEAT_INSERT_HOLE_DIAMETER / 2.0,
+                post_top - HEAT_INSERT_HOLE_DEPTH,
+                post_top + BOOLEAN_OVERLAP,
                 x,
                 y,
             )
-            for index, (x, y) in enumerate(positions, start=1)
-        ]
+        )
+    boolean_difference(base, insert_cutters, "Heat_Insert_Holes")
+
+    if HEAT_INSERT_LEADIN_DEPTH > 0.0:
+        leadin_cutters = []
+        for index, (x, y) in enumerate(positions, start=1):
+            post_top = fastener_post_top_z(x, y)
+            leadin_cutters.append(
+                add_cylinder_z(
+                    f"Heat_Insert_Leadin_{index}",
+                    HEAT_INSERT_LEADIN_DIAMETER / 2.0,
+                    post_top - HEAT_INSERT_LEADIN_DEPTH,
+                    post_top + 2.0 * BOOLEAN_OVERLAP,
+                    x,
+                    y,
+                )
+            )
         boolean_difference(base, leadin_cutters, "Heat_Insert_Leadins")
     return base
 
@@ -7983,6 +13598,133 @@ def gear_tooth_prism(
         [3, 0, 4, 7],
     ]
     return create_mesh_object(name, vertices, faces)
+
+
+def final_carrier_camera_plan_airflow_metrics(
+    carrier,
+    camera,
+    body_radial,
+    body_tangent,
+    tray_z0,
+    tray_z1,
+):
+    """Sample clear vertical area through the completed carrier mesh.
+
+    Unlike the early rectangular-vent calculation, this sees the final gear
+    lower web, hard-stop reinforcement, pivot region, and every Boolean cut.
+    """
+    grid = CAMERA_CARRIER_FINAL_AIRFLOW_GRID
+    radial_span = body_radial[1] - body_radial[0]
+    tangent_span = body_tangent[1] - body_tangent[0]
+    cell_area = radial_span * tangent_span / float(grid * grid)
+    lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
+    record = object_bvh_record(carrier)
+    free_cells = 0
+    try:
+        for radial_index in range(grid):
+            radial = body_radial[0] + radial_span * (
+                radial_index + 0.5
+            ) / grid
+            for tangent_index in range(grid):
+                tangent = body_tangent[0] + tangent_span * (
+                    tangent_index + 0.5
+                ) / grid
+                start = axis_point(
+                    camera["angle"],
+                    lens_face_radius + radial,
+                    camera["eye_tangent"] + tangent,
+                    tray_z0 - BOOLEAN_OVERLAP,
+                )
+                end = start.copy()
+                end.z = tray_z1 + BOOLEAN_OVERLAP
+                if not segment_intersects_bvh_record(
+                    start,
+                    end,
+                    record,
+                    endpoint_margin=0.0,
+                ):
+                    free_cells += 1
+    finally:
+        record[2].free()
+    open_area = free_cells * cell_area
+    return open_area, free_cells / float(grid * grid)
+
+
+def final_carrier_lateral_inlet_metrics(
+    carrier,
+    camera,
+    body_radial,
+    body_tangent,
+    tray_z0,
+    support_top,
+):
+    """Measure the final rear-facing under-camera inlet in its own plane."""
+    if not CAMERA_CARRIER_REAR_UNDERBODY_INLET_ENABLED:
+        return 0.0, 0.0
+    grid = CAMERA_CARRIER_FINAL_AIRFLOW_GRID
+    tangent_center = sum(body_tangent) / 2.0
+    tangent_min = (
+        tangent_center - CAMERA_CARRIER_REAR_UNDERBODY_INLET_WIDTH / 2.0
+    )
+    tangent_max = (
+        tangent_center + CAMERA_CARRIER_REAR_UNDERBODY_INLET_WIDTH / 2.0
+    )
+    height = support_top - tray_z0
+    radial_probe = (
+        body_radial[0]
+        - CAMERA_CARRIER_TRAY_RADIAL_MARGIN
+        + CAMERA_CARRIER_TRAY_FRAME_WIDTH / 2.0
+    )
+    cell_width = (tangent_max - tangent_min) / grid
+    cell_height = height / grid
+    record = object_bvh_record(carrier)
+    free_cells = 0
+    maximum_vertical_run = 0.0
+    probe_half_span = max(FAN_ACOUSTIC_FLOW_PROBE_THICKNESS / 2.0, 0.10)
+    try:
+        for tangent_index in range(grid):
+            tangent = tangent_min + cell_width * (tangent_index + 0.5)
+            current_run = 0
+            column_maximum = 0
+            for z_index in range(grid):
+                z = tray_z0 + cell_height * (z_index + 0.5)
+                point = axis_point(
+                    camera["angle"],
+                    camera["radial"]
+                    + CAMERA_BODY_DEPTH / 2.0
+                    + radial_probe,
+                    camera["eye_tangent"] + tangent,
+                    z,
+                )
+                start = point.copy()
+                end = point.copy()
+                angle = math.radians(camera["angle"])
+                start.x -= math.cos(angle) * probe_half_span
+                start.y -= math.sin(angle) * probe_half_span
+                end.x += math.cos(angle) * probe_half_span
+                end.y += math.sin(angle) * probe_half_span
+                blocked = point_inside_closed_bvh(
+                    record[0],
+                    record[1] @ point,
+                ) or segment_intersects_bvh_record(
+                    start,
+                    end,
+                    record,
+                    endpoint_margin=0.0,
+                )
+                if blocked:
+                    current_run = 0
+                else:
+                    free_cells += 1
+                    current_run += 1
+                    column_maximum = max(column_maximum, current_run)
+            maximum_vertical_run = max(
+                maximum_vertical_run,
+                column_maximum * cell_height,
+            )
+    finally:
+        record[2].free()
+    return free_cells * cell_width * cell_height, maximum_vertical_run
 
 
 def create_rotating_camera_carrier(camera, mechanism):
@@ -8395,6 +14137,38 @@ def create_rotating_camera_carrier(camera, mechanism):
         pivot.y,
     )
     boolean_difference(carrier, [pivot_hole], "Adjustable_Carrier_Pivot_Bore")
+    if CAMERA_CARRIER_REAR_UNDERBODY_INLET_ENABLED:
+        inlet_radial_min = (
+            body_radial[0] - CAMERA_CARRIER_TRAY_RADIAL_MARGIN
+        )
+        inlet_radial_max = (
+            inlet_radial_min + CAMERA_CARRIER_TRAY_FRAME_WIDTH
+        )
+        inlet_tangent_center = sum(body_tangent) / 2.0
+        inlet_center = axis_point(
+            camera["angle"],
+            lens_face_radius + (inlet_radial_min + inlet_radial_max) / 2.0,
+            camera["eye_tangent"] + inlet_tangent_center,
+            (tray_z0 + support_top) / 2.0,
+        )
+        inlet = add_beveled_box(
+            "Adjustable_Carrier_Rear_Underbody_Cooling_Inlet",
+            (
+                inlet_radial_max - inlet_radial_min + 2.0 * BOOLEAN_OVERLAP,
+                CAMERA_CARRIER_REAR_UNDERBODY_INLET_WIDTH,
+                support_top - tray_z0 + 2.0 * BOOLEAN_OVERLAP,
+            ),
+            tuple(inlet_center),
+            rotation_z=math.radians(camera["angle"]),
+            bevel=0.6,
+        )
+        boolean_difference(
+            carrier,
+            [inlet],
+            "Adjustable_Carrier_Rear_Underbody_Cooling_Inlet",
+            solver="MANIFOLD",
+        )
+        debug_stage("rear_underbody_cooling_inlet")
     if CAMERA_CARRIER_REMOVE_SMALL_FRAGMENTS:
         remove_small_disconnected_shells(
             carrier,
@@ -8404,6 +14178,45 @@ def create_rotating_camera_carrier(camera, mechanism):
             "Adjustable_Camera_Rotating_Carrier",
         )
     debug_stage("pivot_bore")
+    final_open_area, final_open_ratio = (
+        final_carrier_camera_plan_airflow_metrics(
+            carrier,
+            camera,
+            body_radial,
+            body_tangent,
+            tray_z0,
+            tray_z1,
+        )
+    )
+    if final_open_ratio < CAMERA_CARRIER_MIN_TRAY_OPEN_AREA_RATIO:
+        raise RuntimeError(
+            "Completed carrier gear/stop webs leave too little vertical "
+            f"cooling area: {final_open_ratio:.3f} < "
+            f"{CAMERA_CARRIER_MIN_TRAY_OPEN_AREA_RATIO:.3f}"
+        )
+    lateral_open_area, lateral_open_height = (
+        final_carrier_lateral_inlet_metrics(
+            carrier,
+            camera,
+            body_radial,
+            body_tangent,
+            tray_z0,
+            support_top,
+        )
+    )
+    if CAMERA_CARRIER_REAR_UNDERBODY_INLET_ENABLED:
+        if lateral_open_height < (
+            CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_HEIGHT
+        ):
+            raise RuntimeError(
+                "Completed carrier leaves too little lateral under-camera "
+                f"throat height: {lateral_open_height:.3f} mm"
+            )
+        if lateral_open_area < CAMERA_CARRIER_MIN_LATERAL_COOLING_THROAT_AREA:
+            raise RuntimeError(
+                "Completed carrier leaves too little lateral under-camera "
+                f"throat area: {lateral_open_area:.1f} mm2"
+            )
     carrier.name = "Adjustable_Camera_Rotating_Carrier"
     carrier["pivot_x"] = pivot.x
     carrier["pivot_y"] = pivot.y
@@ -8412,7 +14225,11 @@ def create_rotating_camera_carrier(camera, mechanism):
     carrier["yaw_range_deg"] = ADJUSTABLE_CAMERA_YAW_RANGE_DEG
     carrier["tray_vent_open_area_mm2"] = vent_open_area
     carrier["tray_vent_open_area_ratio"] = tray_open_area_ratio
+    carrier["final_camera_plan_open_area_mm2"] = final_open_area
+    carrier["final_camera_plan_open_area_ratio"] = final_open_ratio
     carrier["under_camera_air_gap_mm"] = CAMERA_FLOOR_CLEARANCE
+    carrier["lateral_under_camera_inlet_area_mm2"] = lateral_open_area
+    carrier["lateral_under_camera_inlet_height_mm"] = lateral_open_height
     carrier["rear_air_channel_width_mm"] = (
         CAMERA_CARRIER_REAR_GUIDE_CENTER_AIR_GAP
     )
@@ -8433,7 +14250,11 @@ def create_rotating_camera_carrier(camera, mechanism):
         f"camera_plan_open_ratio={tray_open_area_ratio:.3f} "
         f"conservative_reinforced_open_area={conservative_open_area:.1f}mm^2 "
         f"conservative_reinforced_open_ratio={conservative_open_ratio:.3f} "
+        f"final_mesh_open_area={final_open_area:.1f}mm^2 "
+        f"final_mesh_open_ratio={final_open_ratio:.3f} "
         f"under_camera_gap={CAMERA_FLOOR_CLEARANCE:.2f} "
+        f"lateral_inlet_area={lateral_open_area:.1f}mm^2 "
+        f"lateral_inlet_height={lateral_open_height:.2f}mm "
         f"rear_channel={CAMERA_CARRIER_REAR_GUIDE_CENTER_AIR_GAP:.2f} "
         f"side_guide_segments="
         f"{len(camera_carrier_side_guide_specs(body_radial, body_tangent))}"
@@ -8613,6 +14434,552 @@ def create_camera_worm(mechanism):
     core["hardware_reference_only"] = True
     core["procedural_axial_hand"] = axial_hand
     return core
+
+
+def worm_split_mount_geometry(mechanism):
+    worm_z = (
+        BOTTOM_THICKNESS
+        + CAMERA_WORM_FLOOR_CLEARANCE
+        + camera_worm_outer_radius()
+    )
+    shaft_angle = mechanism["shaft_angle_deg"]
+    shaft_radians = math.radians(shaft_angle)
+    direction = mechanism["shaft_direction"]
+    tangent = Vector((-math.sin(shaft_radians), math.cos(shaft_radians), 0.0))
+    seat_z = worm_z + CAMERA_WORM_CAP_SEAT_ABOVE_SHAFT
+    cap_top_z = (
+        worm_z
+        + CAMERA_WORM_SPLIT_BEARING_DIAMETER / 2.0
+        + CAMERA_WORM_CAP_TOP_CLEARANCE
+    )
+    return {
+        "worm_z": worm_z,
+        "shaft_angle": shaft_angle,
+        "direction": direction,
+        "tangent": tangent,
+        "pivot": mechanism["pivot"],
+        "worm_center": mechanism["worm_center"],
+        "seat_z": seat_z,
+        "cap_top_z": cap_top_z,
+    }
+
+
+def worm_cap_plan_half_length():
+    if CAMERA_WORM_BEARING_MOUNT_STYLE != "split_caps":
+        return CAMERA_WORM_BLOCK_LENGTH / 2.0
+    return max(
+        CAMERA_WORM_BLOCK_LENGTH / 2.0,
+        CAMERA_WORM_CAP_SCREW_AXIAL_INBOARD_OFFSET
+        + CAMERA_WORM_CAP_SCREW_AXIAL_SPACING
+        + CAMERA_WORM_CAP_EAR_DIAMETER / 2.0,
+    )
+
+
+def worm_cap_plan_half_width():
+    if CAMERA_WORM_BEARING_MOUNT_STYLE != "split_caps":
+        return CAMERA_WORM_BLOCK_WIDTH / 2.0
+    return max(
+        CAMERA_WORM_CAP_TOTAL_WIDTH / 2.0,
+        CAMERA_WORM_CAP_SCREW_SPACING / 2.0
+        + CAMERA_WORM_CAP_EAR_DIAMETER / 2.0,
+    )
+
+
+def worm_cap_screw_centers(point, mount):
+    point = Vector((point.x, point.y, 0.0))
+    pivot = Vector((mount["pivot"].x, mount["pivot"].y, 0.0))
+    side_sign = max(
+        (-1.0, 1.0),
+        key=lambda sign: (
+            point
+            + mount["tangent"]
+            * (sign * CAMERA_WORM_CAP_SCREW_SPACING / 2.0)
+            - pivot
+        ).length_squared,
+    )
+    side_center = point + mount["tangent"] * (
+        side_sign * CAMERA_WORM_CAP_SCREW_SPACING / 2.0
+    )
+    worm_center = Vector(
+        (mount["worm_center"].x, mount["worm_center"].y, 0.0)
+    )
+    outward_sign = 1.0 if (point - worm_center).dot(mount["direction"]) > 0.0 else -1.0
+    return tuple(
+        side_center
+        + mount["direction"]
+        * (
+            outward_sign
+            * (
+                CAMERA_WORM_CAP_SCREW_AXIAL_INBOARD_OFFSET
+                + index * CAMERA_WORM_CAP_SCREW_AXIAL_SPACING
+            )
+        )
+        for index in (0, 1)
+    )
+
+
+def worm_cap_key_centers(point, mount):
+    # Two tongues straddle the bearing pocket without sharing the screw axes.
+    return tuple(
+        Vector((point.x, point.y, 0.0))
+        + mount["tangent"] * (sign * CAMERA_WORM_CAP_SCREW_SPACING / 4.0)
+        for sign in (-1.0, 1.0)
+    )
+
+
+def create_adjustable_hardware_sweep_cutter(mechanism, name):
+    moving_camera = mechanism["camera"]
+    sweep_margin = 0.60
+    sector_start, sector_end, _ = adjustable_sector_local_angles(
+        moving_camera
+    )
+    sweep_start = (
+        moving_camera["angle"]
+        + sector_start
+        - ADJUSTABLE_CAMERA_YAW_RANGE_DEG
+        - 1.0
+    )
+    sweep_end = (
+        moving_camera["angle"]
+        + sector_end
+        + ADJUSTABLE_CAMERA_YAW_RANGE_DEG
+        + 1.0
+    )
+    return annular_sector_prism(
+        name,
+        mechanism["pivot"],
+        max(CAMERA_GEAR_RIM_INNER_RADIUS - 7.0 - sweep_margin, 1.0),
+        camera_sector_tip_radius() + sweep_margin,
+        sweep_start,
+        sweep_end,
+        BOTTOM_THICKNESS + CAMERA_CARRIER_BOTTOM_CLEARANCE - 0.05,
+        (
+            BOTTOM_THICKNESS
+            + CAMERA_WORM_FLOOR_CLEARANCE
+            + camera_worm_outer_radius()
+            + CAMERA_GEAR_FACE_WIDTH / 2.0
+            + sweep_margin
+        ),
+        max(
+            24,
+            int(
+                math.ceil(
+                    (sweep_end - sweep_start)
+                    / (360.0 / CAMERA_GEAR_EQUIVALENT_TEETH)
+                    * CAMERA_GEAR_SECTOR_SAMPLES_PER_TOOTH
+                )
+            ),
+        ),
+    )
+
+
+def create_adjustable_carrier_member_sweep_cutters(moving_camera, prefix):
+    """Return convex swept envelopes for tray and structural guide members."""
+    body_radial, body_tangent, body_vertical = (
+        mission1.canonical_body_bounds(CAMERA_UPSIDE_DOWN)
+    )
+    tray_z0 = BOTTOM_THICKNESS + CAMERA_CARRIER_BOTTOM_CLEARANCE
+    tray_z1 = tray_z0 + CAMERA_CARRIER_TRAY_THICKNESS
+    guide_z0 = (
+        tray_z1 - CAMERA_CARRIER_GUIDE_TRAY_EMBED
+    )
+    guide_z1 = (
+        camera_eye_center_z()
+        + body_vertical[0]
+        + CAMERA_CARRIER_GUIDE_HEIGHT
+    )
+    specs = [
+        (
+            "tray",
+            (
+                body_radial[0] - CAMERA_CARRIER_TRAY_RADIAL_MARGIN,
+                body_radial[1] + CAMERA_CARRIER_TRAY_RADIAL_MARGIN,
+            ),
+            (
+                body_tangent[0] - CAMERA_CARRIER_TRAY_TANGENTIAL_MARGIN,
+                body_tangent[1] + CAMERA_CARRIER_TRAY_TANGENTIAL_MARGIN,
+            ),
+            (tray_z0, tray_z1),
+        )
+    ]
+    for (
+        side_name,
+        segment_name,
+        guide_tangent,
+        guide_radial_min,
+        guide_radial_max,
+    ) in camera_carrier_side_guide_specs(body_radial, body_tangent):
+        specs.append(
+            (
+                f"{side_name}_{segment_name}",
+                (guide_radial_min, guide_radial_max),
+                (
+                    guide_tangent - CAMERA_CARRIER_GUIDE_THICKNESS / 2.0,
+                    guide_tangent + CAMERA_CARRIER_GUIDE_THICKNESS / 2.0,
+                ),
+                (guide_z0, guide_z1),
+            )
+        )
+    for (
+        end_name,
+        end_radial_min,
+        end_radial_max,
+        end_tangent_min,
+        end_tangent_max,
+    ) in camera_carrier_end_guide_specs(body_radial, body_tangent):
+        specs.append(
+            (
+                end_name,
+                (end_radial_min, end_radial_max),
+                (end_tangent_min, end_tangent_max),
+                (guide_z0, guide_z1),
+            )
+        )
+        if end_name == "front_stop":
+            support_top = camera_eye_center_z() + body_vertical[0]
+            specs.append(
+                (
+                    "front_stop_structural_root",
+                    (
+                        end_radial_min - CAMERA_CARRIER_FRONT_STOP_ROOT_LENGTH,
+                        end_radial_max,
+                    ),
+                    (end_tangent_min, end_tangent_max),
+                    (
+                        tray_z0 + BOOLEAN_OVERLAP,
+                        support_top - BOOLEAN_OVERLAP,
+                    ),
+                )
+            )
+    clearance = CAMERA_CARRIER_SWEEP_CUT_CLEARANCE
+    cutters = []
+    for index, (name, radial_bounds, tangent_bounds, z_bounds) in enumerate(
+        specs,
+        start=1,
+    ):
+        points = []
+        for yaw_delta in adjustable_yaw_samples():
+            points.extend(
+                adjustable_camera_pose_corners(
+                    moving_camera,
+                    (
+                        radial_bounds[0] - clearance,
+                        radial_bounds[1] + clearance,
+                    ),
+                    (
+                        tangent_bounds[0] - clearance,
+                        tangent_bounds[1] + clearance,
+                    ),
+                    yaw_delta,
+                )
+            )
+        cutters.append(
+            polygon_prism_z(
+                f"{prefix}_{index}_{name}",
+                convex_hull_2d(points),
+                z_bounds[0] - clearance,
+                z_bounds[1] + clearance,
+            )
+        )
+    return cutters
+
+
+def add_split_worm_lower_saddles(base, mechanism):
+    """Create open-top base saddles, keyed lands, and four short inserts."""
+    mount = worm_split_mount_geometry(mechanism)
+    z0 = BOTTOM_THICKNESS - BOOLEAN_OVERLAP
+    for label, point in (
+        ("Inner", mechanism["inner_block"]),
+        ("Outer", mechanism["outer_block"]),
+    ):
+        saddle = add_beveled_box(
+            f"Adjustable_Worm_{label}_Open_Lower_Saddle",
+            (
+                CAMERA_WORM_BLOCK_LENGTH,
+                CAMERA_WORM_BLOCK_WIDTH,
+                mount["seat_z"] - z0,
+            ),
+            (point.x, point.y, (z0 + mount["seat_z"]) / 2.0),
+            rotation_z=math.radians(mount["shaft_angle"]),
+            bevel=0.8,
+        )
+        boolean_union(
+            base,
+            saddle,
+            f"Adjustable_Worm_{label}_Open_Lower_Saddle_Union",
+        )
+        for ear_index, ear_center in enumerate(
+            worm_cap_screw_centers(point, mount),
+            start=1,
+        ):
+            ear = add_cylinder_z(
+                f"Adjustable_Worm_{label}_Insert_Ear_{ear_index}",
+                CAMERA_WORM_CAP_EAR_DIAMETER / 2.0,
+                z0,
+                mount["seat_z"],
+                ear_center.x,
+                ear_center.y,
+            )
+            boolean_union(
+                base,
+                ear,
+                f"Adjustable_Worm_{label}_Insert_Ear_{ear_index}_Union",
+            )
+        for key_index, key_center in enumerate(
+            worm_cap_key_centers(point, mount),
+            start=1,
+        ):
+            key = add_beveled_box(
+                f"Adjustable_Worm_{label}_Cap_Key_{key_index}",
+                (
+                    CAMERA_WORM_CAP_KEY_DEPTH,
+                    CAMERA_WORM_CAP_KEY_WIDTH,
+                    CAMERA_WORM_CAP_KEY_HEIGHT,
+                ),
+                (
+                    key_center.x,
+                    key_center.y,
+                    mount["seat_z"] + CAMERA_WORM_CAP_KEY_HEIGHT / 2.0,
+                ),
+                rotation_z=math.radians(mount["shaft_angle"]),
+                bevel=0.2,
+            )
+            boolean_union(
+                base,
+                key,
+                f"Adjustable_Worm_{label}_Cap_Key_{key_index}_Union",
+            )
+
+    insert_cutters = []
+    leadin_cutters = []
+    for label, point in (
+        ("Inner", mechanism["inner_block"]),
+        ("Outer", mechanism["outer_block"]),
+    ):
+        for screw_index, center in enumerate(
+            worm_cap_screw_centers(point, mount),
+            start=1,
+        ):
+            insert_cutters.append(
+                add_cylinder_z(
+                    f"Adjustable_Worm_{label}_Cap_Insert_{screw_index}",
+                    CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER / 2.0,
+                    mount["seat_z"] - CAMERA_WORM_CAP_INSERT_DEPTH,
+                    mount["seat_z"] + BOOLEAN_OVERLAP,
+                    center.x,
+                    center.y,
+                )
+            )
+            if CAMERA_WORM_CAP_INSERT_LEADIN_DEPTH > 0.0:
+                leadin_cutters.append(
+                    add_cylinder_z(
+                        f"Adjustable_Worm_{label}_Cap_Insert_Leadin_{screw_index}",
+                        CAMERA_WORM_CAP_INSERT_LEADIN_DIAMETER / 2.0,
+                        mount["seat_z"] - CAMERA_WORM_CAP_INSERT_LEADIN_DEPTH,
+                        mount["seat_z"] + 2.0 * BOOLEAN_OVERLAP,
+                        center.x,
+                        center.y,
+                    )
+                )
+    boolean_difference(base, insert_cutters, "Adjustable_Worm_Cap_Insert_Holes")
+    if leadin_cutters:
+        boolean_difference(
+            base,
+            leadin_cutters,
+            "Adjustable_Worm_Cap_Insert_Leadins",
+        )
+    print(
+        "ADJUSTABLE_WORM_SPLIT_SADDLES "
+        f"seat_z={mount['seat_z']:.2f} inserts=4 "
+        f"insert_depth={CAMERA_WORM_CAP_INSERT_DEPTH:.2f}"
+    )
+    return base
+
+
+def create_worm_bearing_caps(mechanism):
+    if (
+        mechanism is None
+        or CAMERA_WORM_BEARING_MOUNT_STYLE != "split_caps"
+    ):
+        return []
+    mount = worm_split_mount_geometry(mechanism)
+    caps = []
+    direction = mount["direction"]
+    shaft_tangent = mount["tangent"]
+    line_tangent = (
+        mechanism["worm_center"].x * shaft_tangent.x
+        + mechanism["worm_center"].y * shaft_tangent.y
+    )
+    bearing_radius = CAMERA_WORM_SPLIT_BEARING_DIAMETER / 2.0
+    for label, point, facing_sign in (
+        ("Inner", mechanism["inner_block"], 1.0),
+        ("Outer", mechanism["outer_block"], -1.0),
+    ):
+        cap = add_beveled_box(
+            f"Adjustable_Worm_{label}_Keyed_Bearing_Cap",
+            (
+                CAMERA_WORM_BLOCK_LENGTH,
+                CAMERA_WORM_CAP_TOTAL_WIDTH,
+                mount["cap_top_z"] - mount["seat_z"],
+            ),
+            (
+                point.x,
+                point.y,
+                (mount["seat_z"] + mount["cap_top_z"]) / 2.0,
+            ),
+            rotation_z=math.radians(mount["shaft_angle"]),
+            bevel=0.8,
+        )
+        for ear_index, ear_center in enumerate(
+            worm_cap_screw_centers(point, mount),
+            start=1,
+        ):
+            ear = add_cylinder_z(
+                f"Adjustable_Worm_{label}_Cap_Ear_{ear_index}",
+                CAMERA_WORM_CAP_EAR_DIAMETER / 2.0,
+                mount["seat_z"],
+                mount["cap_top_z"],
+                ear_center.x,
+                ear_center.y,
+            )
+            boolean_union(
+                cap,
+                ear,
+                f"Adjustable_Worm_{label}_Cap_Ear_{ear_index}_Union",
+                solver="MANIFOLD",
+            )
+        center_projection = point.x * direction.x + point.y * direction.y
+        face_projection = (
+            center_projection + facing_sign * CAMERA_WORM_BLOCK_LENGTH / 2.0
+        )
+        pocket_end = (
+            face_projection
+            - facing_sign * CAMERA_WORM_SPLIT_POCKET_WIDTH
+        )
+        pocket = cylinder_prism_axis(
+            f"Adjustable_Worm_{label}_Cap_Half_Bearing_Pocket",
+            mount["shaft_angle"],
+            min(face_projection, pocket_end) - BOOLEAN_OVERLAP,
+            max(face_projection, pocket_end) + BOOLEAN_OVERLAP,
+            bearing_radius,
+            line_tangent,
+            mount["worm_z"],
+            segments=72,
+        )
+        boolean_difference(
+            cap,
+            [pocket],
+            f"Adjustable_Worm_{label}_Cap_Half_Bearing_Pocket",
+        )
+        shaft_center_projection = (
+            point.x * direction.x + point.y * direction.y
+        )
+        shaft_groove = cylinder_prism_axis(
+            f"Adjustable_Worm_{label}_Cap_Open_Bottom_Shaft_Groove",
+            mount["shaft_angle"],
+            shaft_center_projection
+            - CAMERA_WORM_BLOCK_LENGTH / 2.0
+            - BOOLEAN_OVERLAP,
+            shaft_center_projection
+            + CAMERA_WORM_BLOCK_LENGTH / 2.0
+            + BOOLEAN_OVERLAP,
+            (
+                CAMERA_WORM_SHAFT_DIAMETER
+                + CAMERA_WORM_SHAFT_CLEARANCE
+            )
+            / 2.0,
+            line_tangent,
+            mount["worm_z"],
+            segments=72,
+        )
+        boolean_difference(
+            cap,
+            [shaft_groove],
+            f"Adjustable_Worm_{label}_Cap_Open_Bottom_Shaft_Groove",
+        )
+        screw_cutters = []
+        for screw_index, center in enumerate(
+            worm_cap_screw_centers(point, mount),
+            start=1,
+        ):
+            screw_cutters.append(
+                add_cylinder_z(
+                    f"Adjustable_Worm_{label}_Cap_Screw_{screw_index}",
+                    CAMERA_WORM_CAP_SCREW_CLEARANCE / 2.0,
+                    mount["seat_z"] - BOOLEAN_OVERLAP,
+                    mount["cap_top_z"] + BOOLEAN_OVERLAP,
+                    center.x,
+                    center.y,
+                )
+            )
+        boolean_difference(
+            cap,
+            screw_cutters,
+            f"Adjustable_Worm_{label}_Cap_Screw_Clearances",
+        )
+        key_cutters = []
+        for key_index, center in enumerate(
+            worm_cap_key_centers(point, mount),
+            start=1,
+        ):
+            key_cutters.append(
+                add_beveled_box(
+                    f"Adjustable_Worm_{label}_Cap_Key_Socket_{key_index}",
+                    (
+                        CAMERA_WORM_CAP_KEY_DEPTH
+                        + 2.0 * CAMERA_WORM_CAP_KEY_CLEARANCE,
+                        CAMERA_WORM_CAP_KEY_WIDTH
+                        + 2.0 * CAMERA_WORM_CAP_KEY_CLEARANCE,
+                        CAMERA_WORM_CAP_KEY_HEIGHT
+                        + CAMERA_WORM_CAP_KEY_CLEARANCE,
+                    ),
+                    (
+                        center.x,
+                        center.y,
+                        mount["seat_z"]
+                        + (CAMERA_WORM_CAP_KEY_HEIGHT + CAMERA_WORM_CAP_KEY_CLEARANCE)
+                        / 2.0,
+                    ),
+                    rotation_z=math.radians(mount["shaft_angle"]),
+                    bevel=0.0,
+                )
+            )
+        boolean_difference(
+            cap,
+            key_cutters,
+            f"Adjustable_Worm_{label}_Cap_Key_Sockets",
+        )
+        sweep = create_adjustable_hardware_sweep_cutter(
+            mechanism,
+            f"Adjustable_Worm_{label}_Cap_Carrier_Sweep",
+        )
+        boolean_difference(
+            cap,
+            [sweep],
+            f"Adjustable_Worm_{label}_Cap_Carrier_Sweep_Clearance",
+        )
+        member_cutters = create_adjustable_carrier_member_sweep_cutters(
+            mechanism["camera"],
+            f"Adjustable_Worm_{label}_Cap_Member_Sweep",
+        )
+        for cutter_index, cutter in enumerate(member_cutters, start=1):
+            if object_bounds_overlap(cap, cutter):
+                boolean_difference(
+                    cap,
+                    [cutter],
+                    f"Adjustable_Worm_{label}_Cap_Member_Sweep_{cutter_index}",
+                )
+            else:
+                bpy.data.objects.remove(cutter, do_unlink=True)
+        cap["bearing_mount_style"] = "split_cap"
+        cap["bearing_diameter"] = CAMERA_WORM_SPLIT_BEARING_DIAMETER
+        cap["insert_depth"] = CAMERA_WORM_CAP_INSERT_DEPTH
+        caps.append(cap)
+    print(
+        "ADJUSTABLE_WORM_SPLIT_CAPS count=2 "
+        f"top_z={mount['cap_top_z']:.2f} width={CAMERA_WORM_CAP_TOTAL_WIDTH:.2f}"
+    )
+    return caps
 
 
 def add_adjustable_camera_base_hardware(base, cameras, footprint):
@@ -8810,25 +15177,6 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
                 ),
                 cutter_index,
             )
-    thrust = add_cylinder_z(
-        "Adjustable_Carrier_Thrust_Pad",
-        CAMERA_CARRIER_THRUST_PAD_DIAMETER / 2.0,
-        BOTTOM_THICKNESS - BOOLEAN_OVERLAP,
-        BOTTOM_THICKNESS + CAMERA_CARRIER_THRUST_PAD_HEIGHT,
-        pivot.x,
-        pivot.y,
-    )
-    boolean_union(base, thrust, "Adjustable_Carrier_Thrust_Pad")
-    pivot_pin = add_cylinder_z(
-        "Adjustable_Carrier_Pivot_Pin",
-        CAMERA_CARRIER_PIVOT_PIN_DIAMETER / 2.0,
-        BOTTOM_THICKNESS - BOOLEAN_OVERLAP,
-        BOTTOM_THICKNESS + CAMERA_CARRIER_PIVOT_PIN_HEIGHT,
-        pivot.x,
-        pivot.y,
-    )
-    boolean_union(base, pivot_pin, "Adjustable_Carrier_Pivot_Pin")
-
     worm_z = (
         BOTTOM_THICKNESS
         + CAMERA_WORM_FLOOR_CLEARANCE
@@ -8840,22 +15188,25 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
         + CAMERA_WORM_BEARING_OD / 2.0
         + CAMERA_WORM_BLOCK_TOP_CLEARANCE
     )
-    for label, point in (
-        ("Inner", mechanism["inner_block"]),
-        ("Outer", mechanism["outer_block"]),
-    ):
-        block = add_beveled_box(
-            f"Adjustable_Worm_{label}_Bearing_Block",
-            (
-                CAMERA_WORM_BLOCK_LENGTH,
-                CAMERA_WORM_BLOCK_WIDTH,
-                block_z1 - block_z0,
-            ),
-            (point.x, point.y, (block_z0 + block_z1) / 2.0),
-            rotation_z=math.radians(mechanism["shaft_angle_deg"]),
-            bevel=0.8,
-        )
-        boolean_union(base, block, f"Adjustable_Worm_{label}_Bearing_Block")
+    if CAMERA_WORM_BEARING_MOUNT_STYLE == "integral":
+        for label, point in (
+            ("Inner", mechanism["inner_block"]),
+            ("Outer", mechanism["outer_block"]),
+        ):
+            block = add_beveled_box(
+                f"Adjustable_Worm_{label}_Bearing_Block",
+                (
+                    CAMERA_WORM_BLOCK_LENGTH,
+                    CAMERA_WORM_BLOCK_WIDTH,
+                    block_z1 - block_z0,
+                ),
+                (point.x, point.y, (block_z0 + block_z1) / 2.0),
+                rotation_z=math.radians(mechanism["shaft_angle_deg"]),
+                bevel=0.8,
+            )
+            boolean_union(base, block, f"Adjustable_Worm_{label}_Bearing_Block")
+    else:
+        add_split_worm_lower_saddles(base, mechanism)
 
     direction = mechanism["shaft_direction"]
     shaft_angle = mechanism["shaft_angle_deg"]
@@ -8866,6 +15217,20 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
     line_tangent = (
         wall_point.x * shaft_tangent[0] + wall_point.y * shaft_tangent[1]
     )
+    pre_port_non_manifold = non_manifold_edge_count(base)
+    if pre_port_non_manifold:
+        triangulate_mesh(base)
+        post_repair_non_manifold = non_manifold_edge_count(base)
+        print(
+            "WORM_BASE_PRE_PORT_TOPOLOGY_REPAIR "
+            f"non_manifold_edges={pre_port_non_manifold}->"
+            f"{post_repair_non_manifold}"
+        )
+        if post_repair_non_manifold:
+            raise RuntimeError(
+                "Base remains non-manifold before the functional worm-port "
+                f"Booleans: {post_repair_non_manifold} edges"
+            )
     boss = cylinder_prism_axis(
         "Adjustable_Worm_External_Port_Boss",
         shaft_angle,
@@ -8883,7 +15248,7 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
     shaft_radius = (
         CAMERA_WORM_SHAFT_DIAMETER + CAMERA_WORM_SHAFT_CLEARANCE
     ) / 2.0
-    shaft_cutter = cylinder_prism_axis(
+    shaft_cutter_args = (
         "Adjustable_Worm_Shaft_Passage",
         shaft_angle,
         inner_radial - CAMERA_WORM_BLOCK_LENGTH / 2.0 - BOOLEAN_OVERLAP,
@@ -8891,12 +15256,36 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
         shaft_radius,
         line_tangent,
         worm_z,
-        segments=72,
     )
+    if (
+        resolved_worm_shaft_passage_style() == "teardrop"
+    ):
+        shaft_cutter = teardrop_prism_axis(
+            *shaft_cutter_args,
+            roof_factor=CAMERA_WORM_TEARDROP_ROOF_FACTOR,
+        )
+    else:
+        shaft_cutter = cylinder_prism_axis(
+            *shaft_cutter_args,
+            segments=72,
+        )
     bearing_radius = (
-        CAMERA_WORM_BEARING_OD
-        + CAMERA_WORM_BEARING_POCKET_DIAMETER_ADJUSTMENT
-    ) / 2.0
+        CAMERA_WORM_SPLIT_BEARING_DIAMETER / 2.0
+        if CAMERA_WORM_BEARING_MOUNT_STYLE == "split_caps"
+        else (
+            CAMERA_WORM_BEARING_OD
+            + CAMERA_WORM_BEARING_POCKET_DIAMETER_ADJUSTMENT
+        )
+        / 2.0
+    )
+    pocket_width = (
+        CAMERA_WORM_SPLIT_POCKET_WIDTH
+        if CAMERA_WORM_BEARING_MOUNT_STYLE == "split_caps"
+        else (
+            CAMERA_WORM_BEARING_WIDTH
+            + CAMERA_WORM_BEARING_POCKET_DEPTH_CLEARANCE
+        )
+    )
     pocket_cutters = []
     for label, point, facing_sign in (
         ("Inner", mechanism["inner_block"], 1.0),
@@ -8910,10 +15299,7 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
         pocket_end = (
             face_projection
             - facing_sign
-            * (
-                CAMERA_WORM_BEARING_WIDTH
-                + CAMERA_WORM_BEARING_POCKET_DEPTH_CLEARANCE
-            )
+            * pocket_width
         )
         pocket_cutters.append(
             cylinder_prism_axis(
@@ -8934,7 +15320,111 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
         base,
         [shaft_cutter],
         "Adjustable_Worm_Shaft_Passage",
+        solver="EXACT",
     )
+    if CAMERA_WORM_WALL_BEARING_ENABLED:
+        wall_bearing_mouth = wall_radial + CAMERA_WORM_PORT_OUTSET
+        wall_bearing_outer = wall_bearing_mouth + BOOLEAN_OVERLAP
+        wall_bearing_depth = (
+            CAMERA_WORM_WALL_BEARING_WIDTH
+            + CAMERA_WORM_WALL_BEARING_POCKET_DEPTH_CLEARANCE
+        )
+        # BOOLEAN_OVERLAP extends only through the exterior mouth.  Keep the
+        # functional inner shoulder referenced to the real wall surface so
+        # the bearing/ring axial float is not overstated by the cutter margin.
+        wall_bearing_inner = wall_bearing_mouth - wall_bearing_depth
+        wall_bearing_pocket = cylinder_prism_axis(
+            "Adjustable_Worm_Wall_Bearing_Counterbore",
+            shaft_angle,
+            wall_bearing_inner,
+            wall_bearing_outer,
+            (
+                CAMERA_WORM_WALL_BEARING_OD
+                + CAMERA_WORM_WALL_BEARING_POCKET_DIAMETER_ADJUSTMENT
+            )
+            / 2.0,
+            line_tangent,
+            worm_z,
+            segments=72,
+        )
+        boolean_difference(
+            base,
+            [wall_bearing_pocket],
+            "Adjustable_Worm_Wall_Bearing_Counterbore",
+            solver="EXACT",
+        )
+        if CAMERA_WORM_WALL_BEARING_RETENTION == "internal_snap_ring":
+            groove_outer = (
+                wall_bearing_mouth
+                - CAMERA_WORM_WALL_BEARING_SNAP_RING_EDGE_SETBACK
+            )
+            groove_inner = (
+                groove_outer
+                - CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_WIDTH
+            )
+            snap_ring_groove = cylinder_prism_axis(
+                "Adjustable_Worm_Wall_Bearing_Internal_Snap_Ring_Groove",
+                shaft_angle,
+                groove_inner,
+                groove_outer,
+                CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER / 2.0,
+                line_tangent,
+                worm_z,
+                segments=72,
+            )
+            groove_core = cylinder_prism_axis(
+                "Adjustable_Worm_Wall_Bearing_Snap_Ring_Groove_Core",
+                shaft_angle,
+                groove_inner - BOOLEAN_OVERLAP,
+                groove_outer + BOOLEAN_OVERLAP,
+                (
+                    CAMERA_WORM_WALL_BEARING_OD
+                    + CAMERA_WORM_WALL_BEARING_POCKET_DIAMETER_ADJUSTMENT
+                )
+                / 2.0
+                - BOOLEAN_OVERLAP,
+                line_tangent,
+                worm_z,
+                segments=72,
+            )
+            boolean_difference(
+                snap_ring_groove,
+                [groove_core],
+                "Adjustable_Worm_Wall_Bearing_Annular_Snap_Ring_Groove_Tool",
+                solver="MANIFOLD",
+            )
+            boolean_difference(
+                base,
+                [snap_ring_groove],
+                "Adjustable_Worm_Wall_Bearing_Internal_Snap_Ring_Groove",
+                solver="EXACT",
+            )
+            bearing_outer_face = (
+                wall_bearing_inner + CAMERA_WORM_WALL_BEARING_WIDTH
+            )
+            ring_clearance = groove_inner - bearing_outer_face
+            if ring_clearance < (
+                CAMERA_WORM_WALL_BEARING_SNAP_RING_AXIAL_CLEARANCE
+            ):
+                raise RuntimeError(
+                    "Generated wall-bearing snap-ring groove lacks axial float"
+                )
+            base["wall_bearing_retention"] = "purchased_internal_snap_ring"
+            base["wall_bearing_snap_ring_nominal_bore_mm"] = 8.0
+            base["wall_bearing_snap_ring_nominal_thickness_mm"] = (
+                CAMERA_WORM_WALL_BEARING_SNAP_RING_NOMINAL_THICKNESS
+            )
+            base["wall_bearing_snap_ring_measured_axial_float_mm"] = (
+                ring_clearance
+            )
+            print(
+                "ADJUSTABLE_WORM_WALL_BEARING_RETENTION "
+                "type=purchased_internal_snap_ring nominal_bore=8.0mm "
+                f"groove={CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER:.2f}Dx"
+                f"{CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_WIDTH:.2f}W "
+                f"bearing_to_ring_float={ring_clearance:.2f}mm "
+                "verify_supplier_drawing=True"
+            )
     for index, pocket in enumerate(pocket_cutters, start=1):
         boolean_difference(
             base,
@@ -8948,6 +15438,20 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
         [hardware_gear_sweep_cutter],
         "Adjustable_Carrier_Bearing_Hardware_Full_Range_Clearance",
     )
+    if CAMERA_WORM_BEARING_MOUNT_STYLE == "split_caps":
+        hardware_member_cutters = create_adjustable_carrier_member_sweep_cutters(
+            moving_camera,
+            "Adjustable_Worm_Split_Hardware_Carrier_Sweep",
+        )
+        for index, cutter in enumerate(hardware_member_cutters, start=1):
+            boolean_difference(
+                base,
+                [cutter],
+                f"Adjustable_Worm_Split_Hardware_Member_Sweep_{index}",
+            )
+    # The stationary-hardware sweeps intentionally run through the original
+    # pivot/thrust stack.  Its final annular pad and pin are restored only
+    # after every base/service/carrier cut has completed.
     stop_pin_top = (
         BOTTOM_THICKNESS
         + CAMERA_CARRIER_BOTTOM_CLEARANCE
@@ -8987,11 +15491,19 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
     )
     print(
         "ADJUSTABLE_WORM_HARDWARE "
-        f"bearing_pocket_diameter="
-        f"{CAMERA_WORM_BEARING_OD + CAMERA_WORM_BEARING_POCKET_DIAMETER_ADJUSTMENT:.2f} "
-        f"worm_end_gap={CAMERA_WORM_BLOCK_OFFSET:.2f} "
+        f"mount_style={CAMERA_WORM_BEARING_MOUNT_STYLE} "
+        f"shaft_passage={resolved_worm_shaft_passage_style()} "
+        f"bearing_pocket_diameter={2.0 * bearing_radius:.2f} "
+        f"pocket_width={pocket_width:.2f} "
+        f"worm_endplay_range="
+        f"{2.0 * (CAMERA_WORM_BLOCK_OFFSET - CAMERA_WORM_THRUST_WASHER_THICKNESS - CAMERA_WORM_THRUST_SPACER_THICKNESS):.2f}-"
+        f"{2.0 * (CAMERA_WORM_BLOCK_OFFSET - CAMERA_WORM_THRUST_WASHER_THICKNESS - CAMERA_WORM_THRUST_SPACER_THICKNESS + max(pocket_width - CAMERA_WORM_BEARING_WIDTH, 0.0)):.2f} "
         f"thrust_washer={CAMERA_WORM_THRUST_WASHER_THICKNESS:.2f} "
+        f"thrust_spacer={CAMERA_WORM_THRUST_SPACER_THICKNESS:.2f} "
         f"axial_running_clearance={CAMERA_WORM_AXIAL_RUNNING_CLEARANCE:.2f} "
+        f"total_pocket_axial_slack="
+        f"{2.0 * max(pocket_width - CAMERA_WORM_BEARING_WIDTH, 0.0):.2f} "
+        f"wall_bearing={'enabled' if CAMERA_WORM_WALL_BEARING_ENABLED else 'disabled'} "
         "shaft_retention=4mm_collars_or_E-clips_outside_both_bearings"
     )
     print(
@@ -9000,6 +15512,76 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
         f"idealized_stop_force_at_limit="
         f"{CAMERA_WORM_MAX_INPUT_TORQUE_NMM * CAMERA_GEAR_EQUIVALENT_TEETH / CAMERA_WORM_STARTS / CAMERA_HARD_STOP_SLOT_RADIUS:.2f}N "
         "do_not_crank_against_hard_stops=True"
+    )
+    return base
+
+
+def restore_final_adjustable_pivot_thrust_stack(base, mechanism):
+    """Add the final pivot and annular washer land to a finished base."""
+    if mechanism is None:
+        return base
+    # The manifold solver needs a fully scheduled input surface.  Resolving
+    # Boolean n-gons and the two saddle/floor T-junctions here also makes this
+    # final operation insensitive to rear-taper loop triangulation.
+    triangulate_mesh(base)
+    pre_restore_non_manifold = non_manifold_edge_count(base)
+    if pre_restore_non_manifold:
+        bm = bmesh.new()
+        bm.from_mesh(base.data)
+        diagnostics = [
+            (
+                tuple(round(value, 4) for value in edge.verts[0].co),
+                tuple(round(value, 4) for value in edge.verts[1].co),
+                len(edge.link_faces),
+            )
+            for edge in bm.edges
+            if not edge.is_manifold
+        ]
+        bm.free()
+        print(
+            "PRE_PIVOT_NON_MANIFOLD_EDGE_DIAGNOSTICS "
+            f"{diagnostics[:40]}"
+        )
+        raise RuntimeError(
+            "Base must be manifold before restoring the final pivot stack; "
+            f"non_manifold_edges={pre_restore_non_manifold}"
+        )
+    pivot = mechanism["pivot"]
+    pad = add_annular_cylinder_z(
+        "Adjustable_Carrier_Final_Annular_Thrust_Pad",
+        CAMERA_CARRIER_THRUST_PAD_DIAMETER / 2.0,
+        CAMERA_CARRIER_THRUST_WASHER_ID / 2.0,
+        0.0,
+        BOTTOM_THICKNESS + CAMERA_CARRIER_THRUST_PAD_HEIGHT,
+        pivot.x,
+        pivot.y,
+    )
+    boolean_union(
+        base,
+        pad,
+        "Adjustable_Carrier_Final_Annular_Thrust_Pad_Restore",
+        solver="MANIFOLD",
+    )
+    pin = add_cylinder_z(
+        "Adjustable_Carrier_Final_Pivot_Pin",
+        CAMERA_CARRIER_PIVOT_PIN_DIAMETER / 2.0,
+        0.0,
+        BOTTOM_THICKNESS + CAMERA_CARRIER_PIVOT_PIN_HEIGHT,
+        pivot.x,
+        pivot.y,
+    )
+    boolean_union(
+        base,
+        pin,
+        "Adjustable_Carrier_Final_Pivot_Pin_Restore",
+        solver="MANIFOLD",
+    )
+    print(
+        "FINAL_ADJUSTABLE_PIVOT_THRUST_STACK "
+        f"pad={CAMERA_CARRIER_THRUST_PAD_DIAMETER:.2f}ODx"
+        f"{CAMERA_CARRIER_THRUST_WASHER_ID:.2f}ID "
+        f"pad_height={CAMERA_CARRIER_THRUST_PAD_HEIGHT:.2f} "
+        f"pivot_diameter={CAMERA_CARRIER_PIVOT_PIN_DIAMETER:.2f}"
     )
     return base
 
@@ -9538,11 +16120,52 @@ def create_adjustable_camera_hold_down(camera, post_positions):
         counterbore_cutters,
         "Adjustable_Hold_Down_Counterbores",
     )
+    pad_record = object_bvh_record(bridge)
+    pad_samples = 1
+    pad_solid_samples = int(
+        point_inside_closed_bvh(
+            pad_record[0],
+            pad_record[1] @ Vector((pivot.x, pivot.y, (pad_bottom + underside) / 2.0)),
+        )
+    )
+    try:
+        for ring_index in range(8):
+            radius = (
+                CAMERA_HOLD_DOWN_PAD_DIAMETER
+                / 2.0
+                * 0.98
+                * math.sqrt((ring_index + 0.5) / 8.0)
+            )
+            for angle_index in range(48):
+                angle = 2.0 * math.pi * angle_index / 48.0
+                point = Vector(
+                    (
+                        pivot.x + radius * math.cos(angle),
+                        pivot.y + radius * math.sin(angle),
+                        (pad_bottom + underside) / 2.0,
+                    )
+                )
+                pad_samples += 1
+                pad_solid_samples += int(
+                    point_inside_closed_bvh(
+                        pad_record[0],
+                        pad_record[1] @ point,
+                    )
+                )
+    finally:
+        pad_record[2].free()
+    final_pad_area_ratio = pad_solid_samples / pad_samples
+    if final_pad_area_ratio < CAMERA_HOLD_DOWN_MIN_FINAL_PAD_AREA_RATIO:
+        raise RuntimeError(
+            "Eye-surround/service cuts clip too much of the final adjustable "
+            f"hold-down pad: {final_pad_area_ratio:.3f}"
+        )
     bridge.name = "Adjustable_Camera_Stationary_Hold_Down"
     bridge["camera_angle_deg"] = camera["angle"]
     bridge["pivot_x"] = pivot.x
     bridge["pivot_y"] = pivot.y
     bridge["contact_pad_bottom_z"] = pad_bottom
+    bridge["final_contact_pad_area_ratio"] = final_pad_area_ratio
     bridge["low_friction_disk_diameter_mm"] = (
         CAMERA_HOLD_DOWN_PAD_DIAMETER
         - 2.0 * CAMERA_HOLD_DOWN_PAD_MATERIAL_CLEARANCE
@@ -10608,30 +17231,84 @@ def create_base(
     bracket_position_pairs,
     bottom_mount_hole_position=None,
     bottom_keystone_positions=(),
+    acoustic_layout=None,
 ):
-    outer_sections = tuple(
-        (z, scale_loop(footprint, scale))
-        for z, scale in BODY_SECTIONS
+    taper_anchor = min(effective_rear_height_taper_anchor_z(), BASE_HEIGHT)
+    mesh_break_x = height_taper_mesh_break_x()
+    lower_outer_z_values = [
+        z for z, _ in BODY_SECTIONS if z < taper_anchor - 1e-9
+    ]
+    if not lower_outer_z_values or lower_outer_z_values[0] != 0.0:
+        lower_outer_z_values.insert(0, 0.0)
+    if taper_anchor < BASE_HEIGHT - 1e-9:
+        lower_outer_z_values.append(taper_anchor)
+    raw_outer_loops = [
+        scale_loop(footprint, body_scale_at_z(z))
+        for z in lower_outer_z_values
+    ]
+    raw_outer_loops.append(
+        scale_loop(footprint, body_scale_at_z(BASE_HEIGHT))
     )
     cavity_z_values = [BOTTOM_THICKNESS]
     cavity_z_values.extend(
-        z for z, _ in BODY_SECTIONS[1:-1] if BOTTOM_THICKNESS < z < BASE_HEIGHT
+        z
+        for z in lower_outer_z_values
+        if BOTTOM_THICKNESS < z < BASE_HEIGHT
     )
-    cavity_z_values.append(BASE_HEIGHT)
-    inner_sections = []
+    cavity_z_values = sorted(set(cavity_z_values))
+    raw_inner_loops = []
     for z in cavity_z_values:
         scale = body_scale_at_z(z)
-        inner_sections.append(
-            (
-                z,
-                inset_footprint_loop(
-                    scale_loop(footprint, scale), BODY_WALL_THICKNESS
-                ),
+        raw_inner_loops.append(
+            inset_footprint_loop(
+                scale_loop(footprint, scale), BODY_WALL_THICKNESS
             )
         )
+    raw_inner_loops.append(
+        inset_footprint_loop(
+            scale_loop(footprint, body_scale_at_z(BASE_HEIGHT)),
+            BODY_WALL_THICKNESS,
+        )
+    )
+    all_loops = [*raw_outer_loops, *raw_inner_loops]
+    outer_top_index = len(raw_outer_loops) - 1
+    inner_top_index = len(all_loops) - 1
+    synchronized = synchronize_height_taper_loops(
+        all_loops,
+        mesh_break_x,
+        required_crossing_indices=(outer_top_index, inner_top_index),
+        # The outer top is the actual base/lid seam.  Using a rounded lower
+        # body section as the arc-count reference can give the independently
+        # generated lid a different vertex schedule at the taper knee.
+        reference_crossing_index=outer_top_index,
+    )
+    outer_loops = synchronized[: len(raw_outer_loops)]
+    inner_loops = synchronized[len(raw_outer_loops) :]
+    outer_sections = [
+        (z, loop)
+        for z, loop in zip(lower_outer_z_values, outer_loops[:-1])
+    ]
+    outer_top_loop = outer_loops[-1]
+    outer_sections.append(
+        (
+            tuple(local_base_seam_z(x, y) for x, y in outer_top_loop),
+            outer_top_loop,
+        )
+    )
+    inner_sections = [
+        (z, loop)
+        for z, loop in zip(cavity_z_values, inner_loops[:-1])
+    ]
+    inner_top_loop = inner_loops[-1]
+    inner_sections.append(
+        (
+            tuple(local_base_seam_z(x, y) for x, y in inner_top_loop),
+            inner_top_loop,
+        )
+    )
     base = hollow_loft_solid(
         "Veo_3_Closed_Bottom_Base",
-        outer_sections,
+        tuple(outer_sections),
         tuple(inner_sections),
     )
     add_camera_openings_and_visors(base, cameras)
@@ -10653,13 +17330,15 @@ def create_base(
             ),
         ],
     )
+    add_fan_acoustic_base_posts(base, acoustic_layout)
     add_fastener_posts(base, positions)
     add_camera_bracket_posts(base, bracket_position_pairs)
     add_bottom_mount_hole(base, bottom_mount_hole_position)
     add_bottom_keystone_mounts(base, bottom_keystone_positions)
     add_adjustable_carrier_top_loading_chimney(base, cameras)
-    # Cut plug access after all interior hardware so no post, fan pad, or worm
-    # structure can silently refill the USB/battery service corridor.
+    # When exterior USB openings are requested, cut them after all interior
+    # hardware so no post, fan pad, or worm structure can silently refill the
+    # service corridor.  The default closed-case build skips these cuts.
     add_camera_usb_access_openings(base, cameras)
     if (
         CAMERA_CARTRIDGE_WORM_ENABLED
@@ -10674,6 +17353,14 @@ def create_base(
             CAMERA_CARRIER_CHIMNEY_MAX_FRAGMENT_VOLUME,
             CAMERA_CARRIER_CHIMNEY_MAX_FRAGMENT_EXTENT,
             "Adjustable_Carrier_Final_Service_Cuts",
+        )
+    if BASE_REMOVE_SMALL_BOOLEAN_FRAGMENTS:
+        remove_small_disconnected_shells(
+            base,
+            BASE_MAX_FRAGMENT_FACES,
+            BASE_MAX_FRAGMENT_VOLUME,
+            BASE_MAX_FRAGMENT_EXTENT,
+            "Final_Base_Boolean_Cleanup",
         )
     base.name = "Veo_3_Cam_Cover_Closed_Base"
     return base
@@ -10883,13 +17570,21 @@ def add_lid_camera_bracket_reliefs(lid, cameras):
     ):
         return lid
     clearance = CAMERA_BRACKET_LID_LIP_RELIEF_CLEARANCE
-    z0 = BASE_HEIGHT - LID_LIP_DEPTH - BOOLEAN_OVERLAP
-    z1 = BASE_HEIGHT + BOOLEAN_OVERLAP
     relief_count = 0
     for camera in cameras:
         radial_bounds, tangent_bounds = (
             camera_bracket_guide_plate_local_bounds(camera)
         )
+        corner_points = [
+            axis_point(camera["angle"], radial, tangent, 0.0)
+            for radial in radial_bounds
+            for tangent in tangent_bounds
+        ]
+        seam_values = [
+            local_base_seam_z(point.x, point.y) for point in corner_points
+        ]
+        z0 = min(seam_values) - LID_LIP_DEPTH - BOOLEAN_OVERLAP
+        z1 = max(seam_values) + BOOLEAN_OVERLAP
         center = axis_point(
             camera["angle"],
             sum(radial_bounds) / 2.0,
@@ -10920,38 +17615,114 @@ def add_lid_camera_bracket_reliefs(lid, cameras):
     return lid
 
 
-def create_lid(positions, footprint, cameras):
-    outer_loop = list(footprint)
-    if LID_LIP_ENABLED:
-        lip_outer_loop = inset_footprint_loop(
-            footprint, BODY_WALL_THICKNESS + LID_LIP_CLEARANCE
+def add_lid_fastener_seating_islands(lid, positions):
+    """Add horizontal socket-head lands without deforming vertical holes."""
+    if not FASTENERS_ENABLED:
+        return lid
+    embed = min(1.0, LID_THICKNESS / 3.0)
+    for index, (x, y) in enumerate(positions, start=1):
+        seam_min, seam_max = local_disk_seam_bounds(
+            x,
+            y,
+            REAR_TAPER_SCREW_ISLAND_RADIUS + REAR_TAPER_SCREW_ISLAND_BLEND,
         )
-        lip_inner_loop = inset_footprint_loop(
-            lip_outer_loop,
-            LID_LIP_THICKNESS,
+        local_top_min = seam_min + LID_THICKNESS
+        local_top_max = seam_max + LID_THICKNESS
+        island_top = local_screw_island_top_z(x, y)
+        if local_top_max - local_top_min <= BOOLEAN_CLEANUP_DISTANCE:
+            print(
+                f"LID_SCREW_ISLAND {index}: skipped_flat_land "
+                f"top_z={local_top_max:.2f}"
+            )
+            continue
+        island = add_tapered_cylinder_z(
+            f"Lid_Screw_Seating_Island_{index}",
+            REAR_TAPER_SCREW_ISLAND_RADIUS + REAR_TAPER_SCREW_ISLAND_BLEND,
+            REAR_TAPER_SCREW_ISLAND_RADIUS,
+            local_top_min - embed,
+            island_top,
+            x,
+            y,
+        )
+        boolean_union(
+            lid,
+            island,
+            f"Lid_Screw_Seating_Island_{index}_Union",
+        )
+        print(
+            f"LID_SCREW_ISLAND {index}: seam_z={local_base_seam_z(x, y):.2f} "
+            f"top_z={island_top:.2f}"
+        )
+    return lid
+
+
+def create_lid(positions, footprint, cameras):
+    mesh_break_x = height_taper_mesh_break_x()
+    cap_center_x = (
+        mesh_break_x if mesh_break_x is not None else 0.0
+    )
+    if LID_LIP_ENABLED:
+        raw_lid_loops = [
+            list(footprint),
+            inset_footprint_loop(
+                footprint,
+                BODY_WALL_THICKNESS
+                + LID_LIP_CLEARANCE
+                + LID_LIP_MESH_APPROXIMATION_ALLOWANCE,
+            ),
+            inset_footprint_loop(
+                footprint,
+                BODY_WALL_THICKNESS
+                + LID_LIP_CLEARANCE
+                + LID_LIP_MESH_APPROXIMATION_ALLOWANCE
+                + LID_LIP_THICKNESS,
+            ),
+        ]
+        outer_loop, lip_outer_loop, lip_inner_loop = (
+            synchronize_height_taper_loops(
+                raw_lid_loops,
+                mesh_break_x,
+                required_crossing_indices=(0, 1, 2),
+            )
         )
         lid = lid_with_alignment_lip(
             "Veo_3_Flat_Removable_Lid",
             outer_loop,
             lip_outer_loop,
             lip_inner_loop,
+            cap_center_x=cap_center_x,
+            seam_z_fn=local_base_seam_z,
+            top_z_fn=local_lid_top_z,
         )
     else:
+        (outer_loop,) = synchronize_height_taper_loops(
+            [footprint],
+            mesh_break_x,
+            required_crossing_indices=(0,),
+        )
+        underside_z = tuple(local_base_seam_z(x, y) for x, y in outer_loop)
+        top_z = tuple(local_lid_top_z(x, y) for x, y in outer_loop)
         lid = loft_solid(
             "Veo_3_Flat_Removable_Lid",
-            ((BASE_HEIGHT, outer_loop), (BODY_HEIGHT, outer_loop)),
+            ((underside_z, outer_loop), (top_z, outer_loop)),
+            cap_center_x=cap_center_x,
+            cap_center_zs=(
+                local_base_seam_z(cap_center_x, 0.0),
+                local_lid_top_z(cap_center_x, 0.0),
+            ),
         )
 
     add_lid_eye_closures(lid, cameras)
     add_lid_camera_bracket_reliefs(lid, cameras)
+    add_lid_fastener_seating_islands(lid, positions)
 
     if FASTENERS_ENABLED:
         clearance_cutters = [
             add_cylinder_z(
                 f"Lid_Screw_Clearance_{index}",
                 LID_SCREW_CLEARANCE_DIAMETER / 2.0,
-                BASE_HEIGHT - LID_LIP_DEPTH - BOOLEAN_OVERLAP,
-                BODY_HEIGHT + BOOLEAN_OVERLAP,
+                local_base_seam_z(x, y) - LID_LIP_DEPTH - BOOLEAN_OVERLAP,
+                local_screw_island_top_z(x, y) + BOOLEAN_OVERLAP,
                 x,
                 y,
             )
@@ -10963,14 +17734,26 @@ def create_lid(positions, footprint, cameras):
             add_cylinder_z(
                 f"Lid_Socket_Head_Counterbore_{index}",
                 LID_SCREW_HEAD_COUNTERBORE_DIAMETER / 2.0,
-                BODY_HEIGHT - LID_SCREW_HEAD_COUNTERBORE_DEPTH,
-                BODY_HEIGHT + 2.0 * BOOLEAN_OVERLAP,
+                local_screw_island_top_z(x, y)
+                - LID_SCREW_HEAD_COUNTERBORE_DEPTH,
+                local_screw_island_top_z(x, y) + 2.0 * BOOLEAN_OVERLAP,
                 x,
                 y,
             )
             for index, (x, y) in enumerate(positions, start=1)
         ]
         boolean_difference(lid, counterbore_cutters, "Lid_Socket_Head_Counterbores")
+    if (
+        REAR_TAPER_WARN_UNSUPPORTED_LID_EXPORT
+        and _RESOLVED_REAR_ENVELOPE is not None
+        and _RESOLVED_REAR_ENVELOPE["height_reduction"] > 0.0
+        and PRINT_ORIENT_SEPARATE_STLS
+    ):
+        print(
+            "REAR_TAPER_LID_PRINT_WARNING sloped lid exterior is not globally "
+            "support-free when flipped face-down; orient on the largest flat "
+            "front land or use adaptive supports"
+        )
     lid.name = "Veo_3_Cam_Cover_Flat_Lid"
     return lid
 
@@ -10995,13 +17778,12 @@ def create_camera_mockups(cameras, force=False):
     for camera in cameras:
         lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
         if camera_is_adjustable(camera):
-            yaw_delta = ADJUSTABLE_CAMERA_PREVIEW_YAW_DEG
             lens_center = adjustable_camera_local_point(
                 camera,
                 0.0,
                 0.0,
                 camera_eye_center_z(),
-                yaw_delta,
+                0.0,
             )
             mockup = mission1.build_mission1_dummy(
                 name=f"Camera_{camera['index']}_Keepout_Mockup",
@@ -11009,9 +17791,7 @@ def create_camera_mockups(cameras, force=False):
                 upside_down=CAMERA_UPSIDE_DOWN,
             )
             mockup.location = tuple(lens_center)
-            mockup.rotation_euler.z = math.radians(
-                camera["angle"] + yaw_delta
-            )
+            mockup.rotation_euler.z = math.radians(camera["angle"])
             bpy.context.view_layer.update()
         else:
             mockup = mission1.place_canonical_dummy(
@@ -11066,7 +17846,157 @@ def create_camera_usb_access_keepout(camera, yaw_delta=None):
 def triangulate_mesh(obj) -> None:
     bm = bmesh.new()
     bm.from_mesh(obj.data)
+    # Boolean unions can retain coincident internal n-gons whose identical
+    # diagonals only become visible after triangulation.  Remove exact face
+    # duplicates first; opposite-facing pairs are both internal, while a
+    # same-facing duplicate needs only one representative.
+    face_groups = {}
+    for face in bm.faces:
+        signature = tuple(
+            sorted(
+                tuple(round(value, 7) for value in vertex.co)
+                for vertex in face.verts
+            )
+        )
+        face_groups.setdefault(signature, []).append(face)
+    duplicate_faces = []
+    for faces in face_groups.values():
+        while len(faces) >= 2:
+            first = faces.pop()
+            second = faces.pop()
+            if first.normal.dot(second.normal) < -0.99:
+                duplicate_faces.extend((first, second))
+            else:
+                duplicate_faces.append(second)
+                faces.append(first)
+    if duplicate_faces:
+        bmesh.ops.delete(bm, geom=duplicate_faces, context="FACES_ONLY")
     bmesh.ops.triangulate(bm, faces=list(bm.faces))
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    redundant_coplanar_faces = set()
+    for edge in bm.edges:
+        linked = [
+            face
+            for face in edge.link_faces
+            if face not in redundant_coplanar_faces
+        ]
+        if len(linked) <= 2:
+            continue
+        reference_normal = linked[0].normal.normalized()
+        if not all(
+            abs(reference_normal.dot(face.normal.normalized())) >= 0.999
+            for face in linked[1:]
+        ):
+            continue
+        edge_start = edge.verts[0].co
+        edge_vector = edge.verts[1].co - edge_start
+        side_groups = {-1: [], 1: []}
+        coplanar = True
+        for face in linked:
+            third = next(
+                (vertex for vertex in face.verts if vertex not in edge.verts),
+                None,
+            )
+            if third is None:
+                coplanar = False
+                break
+            signed_side = reference_normal.dot(
+                edge_vector.cross(third.co - edge_start)
+            )
+            if abs(signed_side) <= 1e-10:
+                coplanar = False
+                break
+            side_groups[1 if signed_side > 0.0 else -1].append(face)
+        if not coplanar:
+            continue
+        for faces in side_groups.values():
+            if len(faces) > 1:
+                keep = max(faces, key=lambda face: face.calc_area())
+                redundant_coplanar_faces.update(
+                    face for face in faces if face is not keep
+                )
+    if redundant_coplanar_faces:
+        bmesh.ops.delete(
+            bm,
+            geom=list(redundant_coplanar_faces),
+            context="FACES_ONLY",
+        )
+        loose_edges = [edge for edge in bm.edges if not edge.link_faces]
+        if loose_edges:
+            bmesh.ops.delete(bm, geom=loose_edges, context="EDGES")
+        loose_vertices = [vertex for vertex in bm.verts if not vertex.link_faces]
+        if loose_vertices:
+            bmesh.ops.delete(bm, geom=loose_vertices, context="VERTS")
+        print(
+            f"TRIANGULATION_COPLANAR_FACE_REPAIR {obj.name}: "
+            f"removed={len(redundant_coplanar_faces)}"
+        )
+    # Exact unions between a vertical saddle and an already-cut floor can
+    # leave a valid face ending part-way along one unsplit edge of its mate.
+    # Both surfaces occupy the same boundary, but the unequal edge schedules
+    # appear as a pair of open T-junctions after triangulation.  Split the long
+    # boundary edge at every coincident boundary vertex, then weld that new
+    # vertex to the existing endpoint.  Restricting the operation to open
+    # edges makes it a topology repair rather than a geometric simplifier.
+    t_junction_splits = 0
+    while t_junction_splits < 256:
+        boundary_edges = [
+            edge for edge in bm.edges if len(edge.link_faces) == 1
+        ]
+        boundary_vertices = {
+            vertex for edge in boundary_edges for vertex in edge.verts
+        }
+        split_target = None
+        tolerance_squared = BOOLEAN_CLEANUP_DISTANCE**2
+        for edge in boundary_edges:
+            start = edge.verts[0]
+            end = edge.verts[1]
+            edge_vector = end.co - start.co
+            edge_length_squared = edge_vector.length_squared
+            if edge_length_squared <= tolerance_squared:
+                continue
+            for vertex in boundary_vertices:
+                if vertex in edge.verts:
+                    continue
+                factor = (vertex.co - start.co).dot(
+                    edge_vector
+                ) / edge_length_squared
+                endpoint_margin = (
+                    BOOLEAN_CLEANUP_DISTANCE
+                    / math.sqrt(edge_length_squared)
+                )
+                if not endpoint_margin < factor < 1.0 - endpoint_margin:
+                    continue
+                projected = start.co + factor * edge_vector
+                if (vertex.co - projected).length_squared <= tolerance_squared:
+                    split_target = (edge, start, factor, vertex)
+                    break
+            if split_target is not None:
+                break
+        if split_target is None:
+            break
+        edge, start, factor, target_vertex = split_target
+        _, split_vertex = bmesh.utils.edge_split(edge, start, factor)
+        split_vertex.co = target_vertex.co
+        bmesh.ops.remove_doubles(
+            bm,
+            verts=[split_vertex, target_vertex],
+            dist=BOOLEAN_CLEANUP_DISTANCE,
+        )
+        t_junction_splits += 1
+    if t_junction_splits:
+        print(
+            f"TRIANGULATION_T_JUNCTION_REPAIR {obj.name}: "
+            f"splits={t_junction_splits}"
+        )
+    # A Boolean can leave a zero-length diagonal hidden inside an n-gon.  The
+    # triangulator exposes it as a single boundary edge unless it is dissolved
+    # in the same BMesh transaction.
+    bmesh.ops.dissolve_degenerate(
+        bm,
+        edges=list(bm.edges),
+        dist=BOOLEAN_CLEANUP_DISTANCE,
+    )
     bm.to_mesh(obj.data)
     bm.free()
     obj.data.update()
@@ -11100,6 +18030,11 @@ def connected_shell_count(obj) -> int:
 
 
 def validate_object(obj) -> None:
+    unapplied_modifiers = tuple(modifier.name for modifier in obj.modifiers)
+    if unapplied_modifiers:
+        raise RuntimeError(
+            f"{obj.name} retains unapplied modifiers: {unapplied_modifiers}"
+        )
     non_manifold = non_manifold_edge_count(obj)
     shells = connected_shell_count(obj)
     dimensions = tuple(round(value, 3) for value in obj.dimensions)
@@ -11109,6 +18044,26 @@ def validate_object(obj) -> None:
         f"non_manifold_edges={non_manifold} connected_shells={shells}"
     )
     if non_manifold:
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        diagnostics = [
+            (
+                tuple(round(value, 5) for value in edge.verts[0].co),
+                tuple(round(value, 5) for value in edge.verts[1].co),
+                len(edge.link_faces),
+                tuple(
+                    tuple(round(value, 5) for value in face.normal)
+                    for face in edge.link_faces
+                ),
+            )
+            for edge in bm.edges
+            if not edge.is_manifold
+        ]
+        bm.free()
+        print(
+            f"NON_MANIFOLD_EDGE_DIAGNOSTICS {obj.name}: "
+            f"{diagnostics[:20]}"
+        )
         raise RuntimeError(f"{obj.name} has {non_manifold} non-manifold edges")
     if shells != 1:
         bm = bmesh.new()
@@ -11153,6 +18108,614 @@ def validate_object(obj) -> None:
         raise RuntimeError(f"{obj.name} has {shells} connected shells")
 
 
+def validate_final_worm_hardware_cavities(base, mechanism):
+    """Probe the final base against every purchased wall/shaft envelope."""
+    if not CAMERA_CARTRIDGE_WORM_ENABLED or mechanism is None:
+        return
+    direction = mechanism["shaft_direction"]
+    shaft_angle = mechanism["shaft_angle_deg"]
+    shaft_radians = math.radians(shaft_angle)
+    shaft_tangent = (-math.sin(shaft_radians), math.cos(shaft_radians))
+    wall_point = mechanism["wall_point"]
+    wall_radial = wall_point.x * direction.x + wall_point.y * direction.y
+    line_tangent = (
+        wall_point.x * shaft_tangent[0]
+        + wall_point.y * shaft_tangent[1]
+    )
+    worm_z = (
+        BOTTOM_THICKNESS
+        + CAMERA_WORM_FLOOR_CLEARANCE
+        + camera_worm_outer_radius()
+    )
+    inner_point = mechanism["inner_block"]
+    inner_radial = inner_point.x * direction.x + inner_point.y * direction.y
+    shaft_probe = cylinder_prism_axis(
+        "Final_Worm_Purchased_Shaft_Cavity_Probe",
+        shaft_angle,
+        inner_radial - CAMERA_WORM_BLOCK_LENGTH / 2.0,
+        wall_radial + CAMERA_WORM_PORT_OUTSET,
+        (CAMERA_WORM_SHAFT_DIAMETER + CAMERA_WORM_SHAFT_CLEARANCE) / 2.0,
+        line_tangent,
+        worm_z,
+        segments=72,
+    )
+    probes = [("shaft", shaft_probe)]
+    if CAMERA_WORM_WALL_BEARING_ENABLED:
+        wall_bearing_mouth = wall_radial + CAMERA_WORM_PORT_OUTSET
+        wall_bearing_inner = wall_bearing_mouth - (
+            CAMERA_WORM_WALL_BEARING_WIDTH
+            + CAMERA_WORM_WALL_BEARING_POCKET_DEPTH_CLEARANCE
+        )
+        pocket_radius = (
+            CAMERA_WORM_WALL_BEARING_OD
+            + CAMERA_WORM_WALL_BEARING_POCKET_DIAMETER_ADJUSTMENT
+        ) / 2.0
+        bearing_probe = cylinder_prism_axis(
+            "Final_Worm_Wall_Bearing_Cavity_Probe",
+            shaft_angle,
+            wall_bearing_inner,
+            wall_bearing_mouth,
+            pocket_radius,
+            line_tangent,
+            worm_z,
+            segments=72,
+        )
+        probes.append(("wall_bearing", bearing_probe))
+        if CAMERA_WORM_WALL_BEARING_RETENTION == "internal_snap_ring":
+            groove_outer = (
+                wall_bearing_mouth
+                - CAMERA_WORM_WALL_BEARING_SNAP_RING_EDGE_SETBACK
+            )
+            groove_inner = (
+                groove_outer
+                - CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_WIDTH
+            )
+            groove_probe = cylinder_prism_axis(
+                "Final_Worm_Snap_Ring_Groove_Cavity_Probe",
+                shaft_angle,
+                groove_inner,
+                groove_outer,
+                CAMERA_WORM_WALL_BEARING_SNAP_RING_GROOVE_DIAMETER / 2.0,
+                line_tangent,
+                worm_z,
+                segments=72,
+            )
+            groove_core = cylinder_prism_axis(
+                "Final_Worm_Snap_Ring_Groove_Cavity_Probe_Core",
+                shaft_angle,
+                groove_inner - BOOLEAN_OVERLAP,
+                groove_outer + BOOLEAN_OVERLAP,
+                pocket_radius,
+                line_tangent,
+                worm_z,
+                segments=72,
+            )
+            boolean_difference(
+                groove_probe,
+                [groove_core],
+                "Final_Worm_Snap_Ring_Groove_Annular_Probe",
+                solver="EXACT",
+            )
+            probes.append(("snap_ring_groove", groove_probe))
+    residuals = {}
+    try:
+        for label, probe in probes:
+            residuals[label] = intersection_metrics(
+                probe,
+                base,
+                f"final_worm_{label}_cavity_residual",
+            )[2]
+    finally:
+        for _label, probe in probes:
+            if probe.name in bpy.data.objects:
+                bpy.data.objects.remove(probe, do_unlink=True)
+    tolerance = CAMERA_WORM_FINAL_CAVITY_RESIDUAL_VOLUME_TOLERANCE
+    failures = {
+        label: volume
+        for label, volume in residuals.items()
+        if volume > tolerance
+    }
+    if failures:
+        raise RuntimeError(
+            "Final base obstructs worm hardware cavities: "
+            f"{failures} mm3 (tolerance={tolerance:.4f})"
+        )
+    print(
+        "FINAL_WORM_HARDWARE_CAVITIES PASS "
+        + " ".join(
+            f"{label}_residual={volume:.9f}mm3"
+            for label, volume in residuals.items()
+        )
+        + f" tolerance={tolerance:.4f}mm3"
+    )
+
+
+def validate_final_bottom_mount_nut_holder(base, position):
+    """Confirm the structural nut boss survived its union into the base."""
+    if (
+        not BOTTOM_MOUNT_HOLE_ENABLED
+        or not BOTTOM_MOUNT_NUT_HOLDER_ENABLED
+        or position is None
+    ):
+        return
+    x, y = position
+    pocket_corner_radius = (
+        bottom_mount_nut_pocket_across_flats() / math.sqrt(3.0)
+    )
+    boss_radius = BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0
+    sample_radius = (pocket_corner_radius + boss_radius) / 2.0
+    sample_z = (BOTTOM_THICKNESS + bottom_mount_nut_holder_top_z()) / 2.0
+    record = object_bvh_record(base)
+    solid_samples = 0
+    try:
+        for index in range(BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT):
+            angle = (
+                2.0
+                * math.pi
+                * index
+                / BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT
+            )
+            point = Vector(
+                (
+                    x + sample_radius * math.cos(angle),
+                    y + sample_radius * math.sin(angle),
+                    sample_z,
+                )
+            )
+            solid_samples += int(
+                point_inside_closed_bvh(record[0], record[1] @ point)
+            )
+    finally:
+        record[2].free()
+    solid_ratio = solid_samples / BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT
+    if solid_ratio < BOTTOM_MOUNT_NUT_FINAL_BOSS_MIN_SOLID_RATIO:
+        raise RuntimeError(
+            "Final base is missing the captive-nut structural boss: "
+            f"solid_samples={solid_samples}/"
+            f"{BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT}"
+        )
+    print(
+        "FINAL_BOTTOM_MOUNT_NUT_HOLDER PASS "
+        f"solid_samples={solid_samples}/"
+        f"{BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT} "
+        f"sample_radius={sample_radius:.2f}mm sample_z={sample_z:.2f}mm"
+    )
+
+
+def validate_split_worm_caps(
+    caps,
+    mechanism,
+    footprint,
+    camera_carrier=None,
+    camera_mockups=(),
+    camera_brackets=(),
+    camera_worm=None,
+    base=None,
+):
+    if not CAMERA_CARTRIDGE_WORM_ENABLED:
+        if caps:
+            raise RuntimeError("Disabled camera cartridge unexpectedly created worm caps")
+        return
+    if CAMERA_WORM_BEARING_MOUNT_STYLE != "split_caps":
+        if caps:
+            raise RuntimeError("Integral worm mount unexpectedly created split caps")
+        return
+    if mechanism is None or len(caps) != 2:
+        raise RuntimeError("Split worm mount requires exactly two keyed caps")
+    mount = worm_split_mount_geometry(mechanism)
+    insert_bottom = mount["seat_z"] - CAMERA_WORM_CAP_INSERT_DEPTH
+    if insert_bottom <= BOTTOM_THICKNESS:
+        raise RuntimeError(
+            "Worm-cap heat inserts break into the enclosure floor; raise the "
+            "cap seat or shorten CAMERA_WORM_CAP_INSERT_DEPTH"
+        )
+    inner_loop = inset_footprint_loop(footprint, BODY_WALL_THICKNESS)
+    for cap in caps:
+        for vertex in cap.data.vertices:
+            point = cap.matrix_world @ vertex.co
+            if not point_in_polygon((point.x, point.y), inner_loop):
+                raise RuntimeError(
+                    f"The full {cap.name} footprint leaves the inner enclosure"
+                )
+            if point.z + CAMERA_WORM_CAP_TOP_CLEARANCE >= local_base_seam_z(
+                point.x,
+                point.y,
+            ):
+                raise RuntimeError(
+                    f"The full {cap.name} footprint lacks lid-off service height"
+                )
+    for label, point in (
+        ("inner", mechanism["inner_block"]),
+        ("outer", mechanism["outer_block"]),
+    ):
+        screw_centers = worm_cap_screw_centers(point, mount)
+        for center in screw_centers:
+            if not point_in_polygon((center.x, center.y), inner_loop):
+                raise RuntimeError(
+                    f"The {label} worm-cap screw ear leaves the inner footprint"
+                )
+        local_roof = min(
+            local_base_seam_z(center.x, center.y) for center in screw_centers
+        )
+        if mount["cap_top_z"] + CAMERA_WORM_CAP_EAR_DIAMETER / 2.0 >= local_roof:
+            raise RuntimeError(
+                f"The {label} worm cap lacks a vertical lid-off removal path"
+            )
+    if camera_carrier is not None:
+        moving_camera = mechanism["camera"]
+        for yaw_delta in adjustable_yaw_samples(include_preview=True):
+            posed = posed_carrier_copy(
+                camera_carrier,
+                moving_camera,
+                yaw_delta,
+                f"Worm_Cap_Carrier_Clearance_{yaw_delta:+.1f}",
+            )
+            try:
+                for index, cap in enumerate(caps, start=1):
+                    if not object_bounds_overlap(cap, posed):
+                        continue
+                    volume = intersection_metrics(
+                        cap,
+                        posed,
+                        f"worm_cap_{index}_carrier_yaw_{yaw_delta:+.1f}",
+                    )[2]
+                    if volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                        raise RuntimeError(
+                            f"Worm cap {index} overlaps the carrier at yaw "
+                            f"{yaw_delta:+.1f}: {volume:.9f} mm^3"
+                        )
+            finally:
+                bpy.data.objects.remove(posed, do_unlink=True)
+    # Model the real shaft and two bearing envelopes which remain installed as
+    # each open-bottom cap lifts.  External collars/E-clips are removed first
+    # in the documented service sequence.
+    direction = mount["direction"]
+    tangent = mount["tangent"]
+    line_tangent = (
+        mechanism["worm_center"].x * tangent.x
+        + mechanism["worm_center"].y * tangent.y
+    )
+    inner_projection = (
+        mechanism["inner_block"].x * direction.x
+        + mechanism["inner_block"].y * direction.y
+    )
+    wall_projection = (
+        mechanism["wall_point"].x * direction.x
+        + mechanism["wall_point"].y * direction.y
+    )
+    shaft_envelope = cylinder_prism_axis(
+        "Worm_Cap_Service_Shaft_Envelope",
+        mount["shaft_angle"],
+        min(inner_projection - CAMERA_WORM_BLOCK_LENGTH / 2.0, wall_projection)
+        - BOOLEAN_OVERLAP,
+        max(
+            inner_projection - CAMERA_WORM_BLOCK_LENGTH / 2.0,
+            wall_projection + CAMERA_WORM_PORT_OUTSET,
+        )
+        + BOOLEAN_OVERLAP,
+        CAMERA_WORM_SHAFT_DIAMETER / 2.0,
+        line_tangent,
+        mount["worm_z"],
+        segments=48,
+    )
+    service_hardware = [shaft_envelope]
+    for bearing_index, (block_center, facing_sign) in enumerate(
+        (
+            (mechanism["inner_block"], 1.0),
+            (mechanism["outer_block"], -1.0),
+        ),
+        start=1,
+    ):
+        center_projection = (
+            block_center.x * direction.x + block_center.y * direction.y
+        )
+        face_projection = (
+            center_projection
+            + facing_sign * CAMERA_WORM_BLOCK_LENGTH / 2.0
+        )
+        bearing_end = (
+            face_projection - facing_sign * CAMERA_WORM_BEARING_WIDTH
+        )
+        service_hardware.append(
+            cylinder_prism_axis(
+                f"Worm_Cap_Service_Bearing_{bearing_index}_Envelope",
+                mount["shaft_angle"],
+                min(face_projection, bearing_end),
+                max(face_projection, bearing_end),
+                CAMERA_WORM_BEARING_OD / 2.0,
+                line_tangent,
+                mount["worm_z"],
+                segments=48,
+            )
+        )
+    installed_targets = [
+        ("base", base),
+        *(
+            (f"camera_{index}", mockup)
+            for index, mockup in enumerate(camera_mockups, start=1)
+        ),
+        *(
+            (f"bracket_{index}", bracket)
+            for index, bracket in enumerate(camera_brackets, start=1)
+        ),
+    ]
+    if camera_worm is not None:
+        installed_targets.append(("worm", camera_worm))
+    installed_targets.extend(
+        ("shaft" if index == 0 else f"bearing_{index}", target)
+        for index, target in enumerate(service_hardware)
+    )
+    if VALIDATE_TIGHTENED_BRACKET_CLEARANCES:
+        travel = camera_bracket_clamp_travel()
+        for index, bracket in enumerate(camera_brackets, start=1):
+            tightened = duplicate_object(
+                bracket,
+                f"Worm_Cap_Tightened_Bracket_{index}",
+            )
+            tightened.location.z -= travel
+            installed_targets.append((f"tightened_bracket_{index}", tightened))
+    temporary_targets = [
+        *service_hardware,
+        *(
+            target
+            for label, target in installed_targets
+            if label.startswith("tightened_bracket_")
+        ),
+    ]
+    try:
+        for cap_index, cap in enumerate(caps, start=1):
+            for target_label, target in installed_targets:
+                if not object_bounds_overlap(cap, target):
+                    continue
+                volume = intersection_metrics(
+                    cap,
+                    target,
+                    f"worm_cap_{cap_index}_{target_label}",
+                )[2]
+                if volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                    raise RuntimeError(
+                        f"Worm cap {cap_index} overlaps {target_label}: "
+                        f"{volume:.9f} mm^3"
+                    )
+        pair_volume = intersection_metrics(
+            caps[0],
+            caps[1],
+            "worm_cap_inner_outer",
+        )[2]
+        if pair_volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+            raise RuntimeError("The two installed worm caps overlap")
+
+        # Defined service sequence: remove the camera hold-down and rotating
+        # carrier, then lift either cap vertically after removing its screws.
+        # The complete cap mesh, including ears and keys, is swept rather than
+        # checking screw centers alone.
+        removal_targets = [
+            (label, target)
+            for label, target in installed_targets
+            if label != "base"
+            and not label.startswith("camera_")
+            and not label.startswith("bracket_")
+            and not label.startswith("tightened_bracket_")
+        ]
+        # Base clearance is continuous by construction: every cap vertex was
+        # checked inside the vertical inner footprint and below its lowest
+        # local tapered roof.  Do not approximate that proven vertical shaft
+        # with coarse collision steps.  Dense stepping is retained only while
+        # the cap can share a Z range with discrete installed hardware.
+        travel = max(BASE_HEIGHT - mount["seat_z"] + 8.0, 20.0)
+        smallest_cap_service_clearance = min(
+            value
+            for value in (
+                CAMERA_WORM_CAP_KEY_CLEARANCE,
+                CAMERA_WORM_CAP_TOP_CLEARANCE,
+                CAMERA_CARRIER_SWEEP_CUT_CLEARANCE,
+            )
+            if value > 1e-6
+        )
+        cap_service_step = min(
+            ASSEMBLY_SERVICE_SWEEP_MAX_STEP,
+            smallest_cap_service_clearance / 2.0,
+        )
+        for cap_index, cap in enumerate(caps, start=1):
+            cap_removal_targets = [
+                *removal_targets,
+                *(
+                    (f"sibling_cap_{other_index}", other_cap)
+                    for other_index, other_cap in enumerate(caps, start=1)
+                    if other_cap is not cap
+                ),
+            ]
+            cap_bottom = object_world_bounds(cap)[2][0]
+            highest_target = max(
+                object_world_bounds(target)[2][1]
+                for _label, target in cap_removal_targets
+            )
+            collision_relevant_travel = min(
+                travel,
+                max(highest_target - cap_bottom + cap_service_step, 0.0),
+            )
+            step_count = max(
+                1,
+                int(math.ceil(collision_relevant_travel / cap_service_step)),
+            )
+            for step in range(1, step_count + 1):
+                moved = duplicate_object(
+                    cap,
+                    f"Worm_Cap_{cap_index}_Removal_{step}",
+                )
+                moved.location.z += collision_relevant_travel * step / step_count
+                try:
+                    for target_label, target in cap_removal_targets:
+                        if not object_bounds_overlap(moved, target):
+                            continue
+                        volume = intersection_metrics(
+                            moved,
+                            target,
+                            f"worm_cap_{cap_index}_removal_{step}_{target_label}",
+                        )[2]
+                        if volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                            raise RuntimeError(
+                                f"Worm cap {cap_index} removal hits "
+                                f"{target_label} at step {step}"
+                            )
+                finally:
+                    bpy.data.objects.remove(moved, do_unlink=True)
+    finally:
+        for target in temporary_targets:
+            if target.name in bpy.data.objects:
+                bpy.data.objects.remove(target, do_unlink=True)
+    lower_root_web = (
+        mount["worm_z"]
+        - CAMERA_WORM_SPLIT_BEARING_DIAMETER / 2.0
+        - BOTTOM_THICKNESS
+    )
+    upper_bearing_web = (
+        mount["cap_top_z"]
+        - mount["worm_z"]
+        - CAMERA_WORM_SPLIT_BEARING_DIAMETER / 2.0
+    )
+    if lower_root_web < CAMERA_WORM_CAP_LAND_WIDTH:
+        raise RuntimeError("Worm lower saddle root is too thin after its pocket")
+    if upper_bearing_web < CAMERA_WORM_CAP_TOP_CLEARANCE - 1e-6:
+        raise RuntimeError("Worm cap bearing roof is thinner than configured")
+    # Probe the completed Boolean meshes at the loaded bearing centerline.
+    # This catches a later carrier-sweep/key relief that analytical dimensions
+    # alone would miss while retaining a concise, printer-independent web
+    # requirement.
+    direction = mount["direction"]
+    tangent = mount["tangent"]
+    line_tangent = (
+        mechanism["worm_center"].x * tangent.x
+        + mechanism["worm_center"].y * tangent.y
+    )
+    bearing_radius = CAMERA_WORM_SPLIT_BEARING_DIAMETER / 2.0
+    cap_probe_z = (
+        mount["worm_z"] + bearing_radius + upper_bearing_web / 2.0
+    )
+    saddle_probe_z = BOTTOM_THICKNESS + lower_root_web / 2.0
+    cap_records = (
+        (caps[0], mechanism["inner_block"], 1.0),
+        (caps[1], mechanism["outer_block"], -1.0),
+    )
+    base_record = object_bvh_record(base) if base is not None else None
+    try:
+        for cap_index, (cap, block_center, facing_sign) in enumerate(
+            cap_records,
+            start=1,
+        ):
+            center_projection = (
+                block_center.x * direction.x
+                + block_center.y * direction.y
+            )
+            face_projection = (
+                center_projection
+                + facing_sign * CAMERA_WORM_BLOCK_LENGTH / 2.0
+            )
+            pocket_end = (
+                face_projection
+                - facing_sign * CAMERA_WORM_SPLIT_POCKET_WIDTH
+            )
+            cap_record = object_bvh_record(cap)
+            try:
+                for axial_fraction in (0.20, 0.50, 0.80):
+                    axial = (
+                        face_projection
+                        + (pocket_end - face_projection) * axial_fraction
+                    )
+                    for tangent_offset in (-2.0, -1.0, 0.0, 1.0, 2.0):
+                        plan_point = (
+                            direction * axial
+                            + tangent * (line_tangent + tangent_offset)
+                        )
+                        cap_point = Vector(
+                            (plan_point.x, plan_point.y, cap_probe_z)
+                        )
+                        if not point_inside_closed_bvh(
+                            cap_record[0],
+                            cap_record[1] @ cap_point,
+                        ):
+                            raise RuntimeError(
+                                f"Final worm cap {cap_index} loses its bearing "
+                                "roof/load spread after Boolean clearances"
+                            )
+                        if base_record is not None:
+                            saddle_point = Vector(
+                                (plan_point.x, plan_point.y, saddle_probe_z)
+                            )
+                            if not point_inside_closed_bvh(
+                                base_record[0],
+                                base_record[1] @ saddle_point,
+                            ):
+                                raise RuntimeError(
+                                    f"Final worm saddle {cap_index} loses its "
+                                    "lower bearing web after Boolean clearances"
+                                )
+
+                # Probe the finished cap's continuous roof bridge from the
+                # bearing block to both screw ears, plus the annular material
+                # surrounding each screw passage.  These samples sit above the
+                # key sockets so they measure the actual upper load path.
+                bridge_z = (mount["seat_z"] + mount["cap_top_z"]) / 2.0
+                block_center_vector = Vector(
+                    (block_center.x, block_center.y, 0.0)
+                )
+                ear_probe_radius = (
+                    CAMERA_WORM_CAP_SCREW_CLEARANCE / 2.0
+                    + CAMERA_WORM_CAP_EAR_DIAMETER / 2.0
+                ) / 2.0
+                for screw_center in worm_cap_screw_centers(
+                    block_center,
+                    mount,
+                ):
+                    bridge_delta = screw_center - block_center_vector
+                    for fraction in (0.25, 0.50, 0.72):
+                        bridge_plan = block_center_vector + bridge_delta * fraction
+                        bridge_point = Vector(
+                            (bridge_plan.x, bridge_plan.y, bridge_z)
+                        )
+                        if not point_inside_closed_bvh(
+                            cap_record[0],
+                            cap_record[1] @ bridge_point,
+                        ):
+                            raise RuntimeError(
+                                f"Final worm cap {cap_index} loses a "
+                                "bearing-to-screw-ear bridge"
+                            )
+                    for angle_index in range(12):
+                        angle = 2.0 * math.pi * angle_index / 12.0
+                        ear_point = Vector(
+                            (
+                                screw_center.x
+                                + ear_probe_radius * math.cos(angle),
+                                screw_center.y
+                                + ear_probe_radius * math.sin(angle),
+                                bridge_z,
+                            )
+                        )
+                        if not point_inside_closed_bvh(
+                            cap_record[0],
+                            cap_record[1] @ ear_point,
+                        ):
+                            raise RuntimeError(
+                                f"Final worm cap {cap_index} loses screw-ear web"
+                            )
+            finally:
+                cap_record[2].free()
+    finally:
+        if base_record is not None:
+            base_record[2].free()
+    print(
+        "ADJUSTABLE_WORM_SPLIT_CAP_VALIDATION PASS "
+        f"insert_bottom_z={insert_bottom:.2f} cap_top_z={mount['cap_top_z']:.2f} "
+        f"lower_root_web={lower_root_web:.2f} upper_bearing_web={upper_bearing_web:.2f} "
+        "final_mesh_web_samples=98 "
+        "assembly=insert bearings/worm/shaft,set_endplay,install_keyed_caps; "
+        "service=remove_camera_hold_down_and_carrier_then_lift_caps "
+        f"max_step={cap_service_step:.2f}mm "
+        "base_path=analytic_vertical_inner_footprint_and_local_roof"
+    )
+
+
 def duplicate_object(obj, name: str):
     duplicate = obj.copy()
     duplicate.data = obj.data.copy()
@@ -11161,7 +18724,12 @@ def duplicate_object(obj, name: str):
     return duplicate
 
 
-def intersection_metrics(first, second, label: str):
+def intersection_metrics(
+    first,
+    second,
+    label: str,
+    contact_surface_fn=None,
+):
     first_copy = duplicate_object(first, label + "_A")
     second_copy = duplicate_object(second, label + "_B")
     select_only(first_copy)
@@ -11177,6 +18745,51 @@ def intersection_metrics(first, second, label: str):
     vertices = len(bm.verts)
     volume = abs(bm.calc_volume(signed=True)) if bm.faces else 0.0
     if bm.verts:
+        if contact_surface_fn is not None and bm.faces:
+            remaining_faces = set(bm.faces)
+            all_components_on_surface = True
+            maximum_deviation = 0.0
+            while remaining_faces:
+                component_faces = {remaining_faces.pop()}
+                stack = list(component_faces)
+                while stack:
+                    face = stack.pop()
+                    for edge in face.edges:
+                        for linked in edge.link_faces:
+                            if linked in remaining_faces:
+                                remaining_faces.remove(linked)
+                                component_faces.add(linked)
+                                stack.append(linked)
+                component_vertices = {
+                    vertex
+                    for face in component_faces
+                    for vertex in face.verts
+                }
+                component_deviation = max(
+                    abs(
+                        (first_copy.matrix_world @ vertex.co).z
+                        - contact_surface_fn(
+                            (first_copy.matrix_world @ vertex.co).x,
+                            (first_copy.matrix_world @ vertex.co).y,
+                        )
+                    )
+                    for vertex in component_vertices
+                )
+                maximum_deviation = max(
+                    maximum_deviation,
+                    component_deviation,
+                )
+                if component_deviation > ASSEMBLY_COPLANAR_CONTACT_TOLERANCE:
+                    all_components_on_surface = False
+                    break
+            if all_components_on_surface:
+                if volume > 0.0:
+                    print(
+                        f"ANALYTIC_SEAM_CONTACT_IGNORED {label}: "
+                        f"maximum_deviation={maximum_deviation:.9f} "
+                        f"raw_volume={volume:.9f}"
+                    )
+                volume = 0.0
         bounds = [
             (
                 min(vertex.co[axis] for vertex in bm.verts),
@@ -11185,6 +18798,51 @@ def intersection_metrics(first, second, label: str):
             for axis in range(3)
         ]
         extents = tuple(high - low for low, high in bounds)
+        if (
+            label == "fan_acoustic_trough_lid_assembled"
+            and volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE
+        ):
+            world_bounds = tuple(
+                (
+                    min(
+                        (first_copy.matrix_world @ vertex.co)[axis]
+                        for vertex in bm.verts
+                    ),
+                    max(
+                        (first_copy.matrix_world @ vertex.co)[axis]
+                        for vertex in bm.verts
+                    ),
+                )
+                for axis in range(3)
+            )
+            print(
+                "FAN_ACOUSTIC_TROUGH_LID_INTERSECTION_BOUNDS "
+                f"world_bounds={tuple(tuple(round(value, 3) for value in pair) for pair in world_bounds)} "
+                f"extents={tuple(round(value, 3) for value in extents)}"
+            )
+        if (
+            label in {"camera_1_bracket_1", "camera_2_bracket_2"}
+            and volume > CAMERA_BRACKET_REAR_CONTACT_VOLUME_TOLERANCE
+        ):
+            contact_world_bounds = tuple(
+                (
+                    min(
+                        (first_copy.matrix_world @ vertex.co)[axis]
+                        for vertex in bm.verts
+                    ),
+                    max(
+                        (first_copy.matrix_world @ vertex.co)[axis]
+                        for vertex in bm.verts
+                    ),
+                )
+                for axis in range(3)
+            )
+            print(
+                f"CAMERA_BRACKET_CONTACT_INTERSECTION_BOUNDS {label}: "
+                f"world_bounds={tuple(tuple(round(value, 3) for value in pair) for pair in contact_world_bounds)} "
+                f"extents={tuple(round(value, 3) for value in extents)} "
+                f"volume={volume:.6f}"
+            )
         if min(extents) <= ASSEMBLY_COPLANAR_CONTACT_TOLERANCE:
             if volume > 0.0:
                 print(
@@ -11290,7 +18948,15 @@ def validate_camera_usb_access_clearances(
         )
         for yaw_delta in yaw_samples:
             keepout = create_camera_usb_access_keepout(camera, yaw_delta)
-            pairs = [("base", base)]
+            # A sealed exterior intentionally occupies the outward tail of
+            # this corridor.  Continue checking the internal cable envelope
+            # against brackets, cameras, and every carrier pose, but require
+            # base clearance only when an outside-in case opening is enabled.
+            pairs = (
+                [("base", base)]
+                if CAMERA_USB_CASE_OPENINGS_ENABLED
+                else []
+            )
             pairs.extend(
                 (f"bracket_{bracket_index}", bracket)
                 for bracket_index, bracket in enumerate(
@@ -11363,7 +19029,10 @@ def validate_camera_usb_access_clearances(
             bpy.data.objects.remove(keepout, do_unlink=True)
             for temporary in temporary_objects:
                 bpy.data.objects.remove(temporary, do_unlink=True)
-    print("USB_ACCESS_CLEARANCE PASS")
+    print(
+        "USB_ACCESS_CLEARANCE PASS "
+        f"case_openings={CAMERA_USB_CASE_OPENINGS_ENABLED}"
+    )
 
 
 def validate_camera_installation_paths(
@@ -11396,10 +19065,15 @@ def validate_camera_installation_paths(
         maximum_carrier_volume = 0.0
         posed_carrier = None
         if camera_is_adjustable(camera) and camera_carrier is not None:
+            # Camera mockups remain in their nominal manufactured pose until
+            # all installation checks finish; the optional preview yaw is
+            # applied only at the end of the build.  Keep this fit pair in one
+            # coordinate frame, then validate every posed pair separately in
+            # validate_adjustable_camera_range().
             posed_carrier = posed_carrier_copy(
                 camera_carrier,
                 camera,
-                ADJUSTABLE_CAMERA_PREVIEW_YAW_DEG,
+                0.0,
                 f"Camera_{index}_Installation_Carrier",
             )
             fit_probe = duplicate_object(
@@ -11582,6 +19256,293 @@ def posed_carrier_copy(carrier, camera, yaw_delta, name):
     return posed
 
 
+def posed_camera_copy(mockup, camera, yaw_delta, name):
+    """Duplicate and yaw an installed adjustable-camera body envelope."""
+    posed = duplicate_object(mockup, name)
+    pivot = adjustable_camera_pivot(camera)
+    rotate_mesh_about_world_axis(
+        posed,
+        (pivot.x, pivot.y, 0.0),
+        (0.0, 0.0, 1.0),
+        yaw_delta,
+    )
+    return posed
+
+
+def cut_final_carrier_sweep_from_base(
+    base,
+    carrier,
+    cameras,
+    protected_keepouts=(),
+):
+    """Use the final post-Boolean carrier as the authoritative relief tool.
+
+    Analytical member boxes remain useful for early layout, but the gear web,
+    gussets, and rounded guide roots can extend beyond those boxes.  Cutting
+    every final 1-degree pose prevents the manufactured base from depending on
+    an approximation that the later solid intersection validator can reject.
+    """
+    if not CAMERA_CARTRIDGE_WORM_ENABLED or carrier is None:
+        return base
+    camera = adjustable_camera(cameras)
+    relief_components = []
+    for pose_index, yaw_delta in enumerate(
+        adjustable_yaw_samples(include_preview=True),
+        start=1,
+    ):
+        posed = posed_carrier_copy(
+            carrier,
+            camera,
+            yaw_delta,
+            f"Final_Carrier_Base_Probe_{pose_index}",
+        )
+        base_copy = duplicate_object(base, f"Final_Carrier_Base_Probe_Base_{pose_index}")
+        select_only(base_copy)
+        modifier = base_copy.modifiers.new(
+            f"Final_Carrier_Base_Probe_{pose_index}",
+            "BOOLEAN",
+        )
+        modifier.operation = "INTERSECT"
+        modifier.object = posed
+        if hasattr(modifier, "solver"):
+            modifier.solver = BOOLEAN_SOLVER
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+        if base_copy.data.vertices:
+            bm = bmesh.new()
+            bm.from_mesh(base_copy.data)
+            overlap_volume = abs(bm.calc_volume(signed=True)) if bm.faces else 0.0
+            if overlap_volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                # Preserve disconnected interference islands.  A former
+                # global convex hull joined every pose and could erase a
+                # stationary insert ear or hard-stop pin between two genuine
+                # contact patches.
+                remaining_faces = set(bm.faces)
+                component_index = 0
+                while remaining_faces:
+                    component_index += 1
+                    seed = remaining_faces.pop()
+                    component_faces = {seed}
+                    stack = [seed]
+                    while stack:
+                        face = stack.pop()
+                        for edge in face.edges:
+                            for linked in edge.link_faces:
+                                if linked in remaining_faces:
+                                    remaining_faces.remove(linked)
+                                    component_faces.add(linked)
+                                    stack.append(linked)
+                    component_vertices = {
+                        vertex
+                        for face in component_faces
+                        for vertex in face.verts
+                    }
+                    world_points = [
+                        base_copy.matrix_world @ vertex.co
+                        for vertex in component_vertices
+                    ]
+                    plan_loop = convex_hull_2d(
+                        tuple((point.x, point.y) for point in world_points)
+                    )
+                    if len(plan_loop) >= 3:
+                        relief_components.append(
+                            (
+                                pose_index,
+                                component_index,
+                                plan_loop,
+                                min(point.z for point in world_points),
+                                max(point.z for point in world_points),
+                            )
+                        )
+            bm.free()
+        bpy.data.objects.remove(base_copy, do_unlink=True)
+        bpy.data.objects.remove(posed, do_unlink=True)
+    clearance = CAMERA_CARRIER_SWEEP_CUT_CLEARANCE
+    for relief_index, (
+        pose_index,
+        component_index,
+        plan_loop,
+        relief_z_min,
+        relief_z_max,
+    ) in enumerate(relief_components, start=1):
+        expanded_points = [
+            (x + dx, y + dy)
+            for x, y in plan_loop
+            for dx in (-clearance, clearance)
+            for dy in (-clearance, clearance)
+        ]
+        expanded_loop = convex_hull_2d(expanded_points)
+        for keepout in protected_keepouts:
+            kind, label, geometry = keepout
+            if kind == "circle":
+                center, radius = geometry
+                overlaps = point_in_polygon(center, expanded_loop) or (
+                    polygon_boundary_distance(center, expanded_loop) < radius
+                )
+            elif kind == "polygon":
+                overlaps = convex_polygons_overlap(expanded_loop, geometry)
+            else:
+                raise ValueError(f"Unknown adaptive-relief keepout {kind!r}")
+            if overlaps:
+                raise RuntimeError(
+                    "Adaptive carrier relief would weaken protected base "
+                    f"feature {label}; adjust the carrier/mechanism layout"
+                )
+        relief = polygon_prism_z(
+            f"Final_Carrier_Base_Adaptive_Relief_{relief_index}",
+            expanded_loop,
+            max(relief_z_min - clearance, BOTTOM_THICKNESS + 0.2),
+            relief_z_max + clearance,
+        )
+        boolean_difference(
+            base,
+            [relief],
+            f"Final_Carrier_Base_Adaptive_Relief_Pose_{pose_index}_"
+            f"Component_{component_index}",
+        )
+    cleanup_mesh(base)
+    recalc_normals(base)
+    print(
+        "FINAL_CARRIER_BASE_RELIEF "
+        f"poses={len(adjustable_yaw_samples(include_preview=True))} "
+        f"localized_components={len(relief_components)} "
+        f"adaptive_cut={'yes' if relief_components else 'no'} "
+        f"yaw_step={ADJUSTABLE_CAMERA_SWEEP_STEP_DEG:.2f}"
+    )
+    return base
+
+
+def validate_final_adjustable_base_feature_integrity(base, mechanism):
+    """Probe stationary load paths after all adaptive carrier relief cuts."""
+    if not CAMERA_CARTRIDGE_WORM_ENABLED or mechanism is None:
+        return
+    record = object_bvh_record(base)
+    tested = 0
+
+    def is_solid(point):
+        nonlocal tested
+        tested += 1
+        local_point = record[1] @ Vector(point)
+        return point_inside_closed_bvh(
+            record[0],
+            local_point,
+        ) or point_inside_bvh_parity(record[0], local_point)
+
+    def require_solid(label, points):
+        for point in points:
+            if not is_solid(point):
+                raise RuntimeError(
+                    f"Final carrier relief removed the {label} load path at "
+                    f"({point[0]:.3f},{point[1]:.3f},{point[2]:.3f})"
+                )
+
+    def require_minimum_solid(label, points, minimum_count):
+        solid_count = sum(1 for point in points if is_solid(point))
+        if solid_count < minimum_count:
+            raise RuntimeError(
+                f"Final carrier relief leaves only {solid_count}/{len(points)} "
+                f"solid samples around the {label}; need {minimum_count}"
+            )
+
+    try:
+        stop_top = (
+            BOTTOM_THICKNESS
+            + CAMERA_CARRIER_BOTTOM_CLEARANCE
+            + CAMERA_CARRIER_TRAY_THICKNESS
+            + CAMERA_HARD_STOP_SLOT_REINFORCEMENT_EXTRA_HEIGHT
+            - 0.05
+        )
+        stop_x, stop_y = mechanism["hard_stop_pin_position"]
+        stop_points = []
+        for z in (
+            BOTTOM_THICKNESS + 0.35,
+            (BOTTOM_THICKNESS + stop_top) / 2.0,
+            stop_top - 0.30,
+        ):
+            stop_points.append((stop_x, stop_y, z))
+            for index in range(8):
+                angle = 2.0 * math.pi * index / 8.0
+                radius = CAMERA_HARD_STOP_PIN_DIAMETER * 0.25
+                stop_points.append(
+                    (
+                        stop_x + radius * math.cos(angle),
+                        stop_y + radius * math.sin(angle),
+                        z,
+                    )
+                )
+        require_solid("hard-stop pin", stop_points)
+
+        pivot = mechanism["pivot"]
+        pivot_top = BOTTOM_THICKNESS + CAMERA_CARRIER_PIVOT_PIN_HEIGHT
+        pivot_points = []
+        for z in (
+            BOTTOM_THICKNESS + 0.35,
+            (BOTTOM_THICKNESS + pivot_top) / 2.0,
+            pivot_top - 0.30,
+        ):
+            pivot_points.append((pivot.x, pivot.y, z))
+            for index in range(8):
+                angle = 2.0 * math.pi * index / 8.0
+                radius = CAMERA_CARRIER_PIVOT_PIN_DIAMETER * 0.25
+                pivot_points.append(
+                    (
+                        pivot.x + radius * math.cos(angle),
+                        pivot.y + radius * math.sin(angle),
+                        z,
+                    )
+                )
+        require_solid("pivot pin", pivot_points)
+
+        if CAMERA_WORM_BEARING_MOUNT_STYLE == "split_caps":
+            mount = worm_split_mount_geometry(mechanism)
+            insert_radius = CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER / 2.0
+            ear_radius = CAMERA_WORM_CAP_EAR_DIAMETER / 2.0
+            probe_radius = (insert_radius + ear_radius) / 2.0
+            probe_z = mount["seat_z"] - CAMERA_WORM_CAP_INSERT_DEPTH / 2.0
+            for saddle_label, center in (
+                ("inner", mechanism["inner_block"]),
+                ("outer", mechanism["outer_block"]),
+            ):
+                for ear_center in worm_cap_screw_centers(center, mount):
+                    ear_points = []
+                    for index in range(12):
+                        angle = 2.0 * math.pi * index / 12.0
+                        ear_points.append(
+                            (
+                                ear_center.x + probe_radius * math.cos(angle),
+                                ear_center.y + probe_radius * math.sin(angle),
+                                probe_z,
+                            )
+                        )
+                    require_minimum_solid(
+                        f"{saddle_label} insert ear annulus",
+                        ear_points,
+                        9,
+                    )
+                    bridge_delta = Vector(
+                        (center.x - ear_center.x, center.y - ear_center.y, 0.0)
+                    )
+                    bridge_length = bridge_delta.length
+                    bridge_direction = bridge_delta.normalized()
+                    bridge_points = []
+                    for distance in (
+                        insert_radius + 0.50,
+                        bridge_length * 0.50,
+                    ):
+                        bridge = ear_center + bridge_direction * distance
+                        bridge_points.append((bridge.x, bridge.y, probe_z))
+                    require_solid(
+                        f"{saddle_label} insert-ear bridge",
+                        bridge_points,
+                    )
+    finally:
+        record[2].free()
+    base["final_adjustable_stationary_feature_probes"] = tested
+    print(
+        "FINAL_ADJUSTABLE_BASE_FEATURE_INTEGRITY PASS "
+        f"solid_samples={tested} features=hard_stop,pivot,insert_ears,ear_bridges"
+    )
+
+
 def validate_adjustable_camera_range(
     cameras,
     footprint,
@@ -11590,6 +19551,7 @@ def validate_adjustable_camera_range(
     worm,
     camera_mockups,
     camera_brackets,
+    worm_bearing_caps=(),
 ):
     if not CAMERA_CARTRIDGE_WORM_ENABLED:
         return
@@ -11603,6 +19565,12 @@ def validate_adjustable_camera_range(
     fixed_camera_index = cameras.index(fixed_camera)
     fixed_mockup = (
         camera_mockups[fixed_camera_index]
+        if len(camera_mockups) == len(cameras)
+        else None
+    )
+    moving_camera_index = cameras.index(camera)
+    moving_mockup = (
+        camera_mockups[moving_camera_index]
         if len(camera_mockups) == len(cameras)
         else None
     )
@@ -11788,8 +19756,42 @@ def validate_adjustable_camera_range(
             f"adjustable_sector_worm_yaw_{yaw_delta:+.1f}",
         )[2]
         gear_mesh_overlap = max(gear_mesh_overlap, pose_gear_overlap)
+        posed_camera = None
+        if moving_mockup is not None:
+            posed_camera = duplicate_object(
+                moving_mockup,
+                f"Adjustable_Camera_Hardware_Clearance_{yaw_delta:+.1f}",
+            )
+            rotate_mesh_about_world_axis(
+                posed_camera,
+                (pivot.x, pivot.y, 0.0),
+                (0.0, 0.0, 1.0),
+                yaw_delta,
+            )
+            for hardware_name, hardware in (
+                ("worm", worm),
+                *tuple(
+                    (f"worm_cap_{index}", cap)
+                    for index, cap in enumerate(worm_bearing_caps, start=1)
+                ),
+            ):
+                hardware_overlap = intersection_metrics(
+                    posed_camera,
+                    hardware,
+                    f"adjustable_camera_yaw_{yaw_delta:+.1f}_{hardware_name}",
+                )[2]
+                if hardware_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                    bpy.data.objects.remove(posed_camera, do_unlink=True)
+                    bpy.data.objects.remove(posed_carrier, do_unlink=True)
+                    bpy.data.objects.remove(posed_worm, do_unlink=True)
+                    raise RuntimeError(
+                        f"Adjustable camera overlaps {hardware_name} at yaw "
+                        f"{yaw_delta:+.1f}: {hardware_overlap:.9f} mm^3"
+                    )
         bpy.data.objects.remove(posed_carrier, do_unlink=True)
         bpy.data.objects.remove(posed_worm, do_unlink=True)
+        if posed_camera is not None:
+            bpy.data.objects.remove(posed_camera, do_unlink=True)
         print(
             f"ADJUSTABLE_CARRIER_BASE_CLEARANCE yaw={yaw_delta:+.1f} "
             f"overlap={pose_overlap:.9f}"
@@ -11885,7 +19887,14 @@ def validate_assembly_clearances(base, lid, camera_brackets, camera_mockups):
             )
         )
     for label, first, second in pairs:
-        vertices, faces, volume = intersection_metrics(first, second, label)
+        vertices, faces, volume = intersection_metrics(
+            first,
+            second,
+            label,
+            contact_surface_fn=(
+                local_base_seam_z if label == "base_lid" else None
+            ),
+        )
         print(
             f"ASSEMBLY_CLEARANCE {label}: vertices={vertices} faces={faces} "
             f"volume={volume:.9f}"
@@ -12046,12 +20055,25 @@ def export_stl(path: Path, objects) -> Path:
     return path
 
 
-def export_single_stl(path: Path, obj, print_face_down=False) -> Path:
+def export_single_stl(
+    path: Path,
+    obj,
+    print_face_down=False,
+    print_axis_to_z=False,
+) -> Path:
     if not NORMALIZE_SEPARATE_STLS:
         return export_stl(path, [obj])
     original_matrix = obj.matrix_world.copy()
     if PRINT_ORIENT_SEPARATE_STLS and print_face_down:
         obj.matrix_world = Matrix.Rotation(math.pi, 4, "X") @ original_matrix
+        bpy.context.view_layer.update()
+    elif PRINT_ORIENT_SEPARATE_STLS and print_axis_to_z:
+        angle = math.radians(float(obj["print_axis_angle_deg"]))
+        assembled_axis = Vector((math.cos(angle), math.sin(angle), 0.0))
+        rotation = assembled_axis.rotation_difference(
+            Vector((0.0, 0.0, 1.0))
+        ).to_matrix().to_4x4()
+        obj.matrix_world = rotation @ original_matrix
         bpy.context.view_layer.update()
     corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
     center_x = (min(point.x for point in corners) + max(point.x for point in corners)) / 2.0
@@ -12125,6 +20147,9 @@ def apply_final_visibility(
     camera_brackets,
     camera_carrier=None,
     camera_worm=None,
+    worm_bearing_caps=(),
+    acoustic_cassette=None,
+    fan_gaskets=(),
 ) -> None:
     base.hide_set(not SHOW_MAIN_BODY_AFTER_BUILD)
     base.hide_render = not SHOW_MAIN_BODY_AFTER_BUILD
@@ -12139,16 +20164,49 @@ def apply_final_visibility(
     if camera_worm is not None:
         camera_worm.hide_set(not SHOW_PURCHASED_WORM_REFERENCE_AFTER_BUILD)
         camera_worm.hide_render = not SHOW_PURCHASED_WORM_REFERENCE_AFTER_BUILD
+    for cap in worm_bearing_caps:
+        cap.hide_set(not SHOW_CAMERA_WORM_BEARING_CAPS_AFTER_BUILD)
+        cap.hide_render = not SHOW_CAMERA_WORM_BEARING_CAPS_AFTER_BUILD
+    if acoustic_cassette is not None:
+        acoustic_cassette["trough"].hide_set(
+            not SHOW_FAN_ACOUSTIC_CASSETTE_AFTER_BUILD
+        )
+        acoustic_cassette["trough"].hide_render = (
+            not SHOW_FAN_ACOUSTIC_CASSETTE_AFTER_BUILD
+        )
+        acoustic_cassette["lid"].hide_set(
+            not SHOW_FAN_ACOUSTIC_LID_AFTER_BUILD
+        )
+        acoustic_cassette["lid"].hide_render = (
+            not SHOW_FAN_ACOUSTIC_LID_AFTER_BUILD
+        )
+        for seal in acoustic_cassette["boot_seals"]:
+            seal.hide_set(not SHOW_FAN_ACOUSTIC_BOOT_SEALS_AFTER_BUILD)
+            seal.hide_render = not SHOW_FAN_ACOUSTIC_BOOT_SEALS_AFTER_BUILD
+    for gasket in fan_gaskets:
+        gasket.hide_set(not SHOW_FAN_VIBRATION_GASKETS_AFTER_BUILD)
+        gasket.hide_render = not SHOW_FAN_VIBRATION_GASKETS_AFTER_BUILD
     print(
         "FINAL_VISIBILITY "
         f"main_body={SHOW_MAIN_BODY_AFTER_BUILD} top={SHOW_TOP_AFTER_BUILD}"
         f" camera_brackets={SHOW_CAMERA_BRACKETS_AFTER_BUILD}"
         f" camera_cartridge={SHOW_CAMERA_CARTRIDGE_AFTER_BUILD}"
         f" worm_reference={SHOW_PURCHASED_WORM_REFERENCE_AFTER_BUILD}"
+        f" worm_caps={SHOW_CAMERA_WORM_BEARING_CAPS_AFTER_BUILD}"
+        f" acoustic_trough={SHOW_FAN_ACOUSTIC_CASSETTE_AFTER_BUILD}"
+        f" acoustic_lid={SHOW_FAN_ACOUSTIC_LID_AFTER_BUILD}"
+        f" acoustic_boot_seals={SHOW_FAN_ACOUSTIC_BOOT_SEALS_AFTER_BUILD}"
+        f" fan_gaskets={SHOW_FAN_VIBRATION_GASKETS_AFTER_BUILD}"
     )
 
 
-def apply_adjustable_preview_pose(camera_carrier, camera_worm, mechanism):
+def apply_adjustable_preview_pose(
+    camera_carrier,
+    camera_worm,
+    mechanism,
+    cameras=(),
+    camera_mockups=(),
+):
     """Pose generated moving parts after validation/export for Blender view."""
     if (
         camera_carrier is None
@@ -12182,6 +20240,16 @@ def apply_adjustable_preview_pose(camera_carrier, camera_worm, mechanism):
         mechanism["shaft_direction"],
         worm_rotation_deg,
     )
+    if len(cameras) == len(camera_mockups):
+        for camera, mockup in zip(cameras, camera_mockups):
+            if not camera_is_adjustable(camera):
+                continue
+            rotate_mesh_about_world_axis(
+                mockup,
+                (pivot.x, pivot.y, 0.0),
+                (0.0, 0.0, 1.0),
+                yaw_delta,
+            )
     print(
         "ADJUSTABLE_PREVIEW_POSE "
         f"camera_yaw={yaw_delta:+.2f} worm_rotation={worm_rotation_deg:+.2f}"
@@ -12189,8 +20257,9 @@ def apply_adjustable_preview_pose(camera_carrier, camera_worm, mechanism):
 
 
 def build_original_style_cover():
-    global _RESOLVED_CAMERA_LENS_FACE_OUTSET
+    global _RESOLVED_CAMERA_LENS_FACE_OUTSET, _RESOLVED_REAR_ENVELOPE
     _RESOLVED_CAMERA_LENS_FACE_OUTSET = None
+    _RESOLVED_REAR_ENVELOPE = None
     validate_config()
     if CLEAR_SCENE:
         clear_scene()
@@ -12227,16 +20296,96 @@ def build_original_style_cover():
             "CAMERA_CARTRIDGE_SHELL_EXPANSION "
             f"radial={CAMERA_CARTRIDGE_SHELL_EXPANSION:.2f}"
         )
+    footprint, mechanism = resolve_rear_envelope_converged(
+        footprint,
+        cameras,
+    )
+    validate_stationary_worm_hardware_clearance(cameras, mechanism)
     refresh_camera_eye_recesses(cameras, footprint)
     validate_camera_lens_protrusion(cameras)
-    mechanism = adjustable_mechanism_layout(cameras, footprint)
-    positions = resolve_fastener_post_positions(cameras, footprint, mechanism)
+    # With the optional labyrinth installed, the fans no longer discharge
+    # directly at the cameras; its final outlet geometry is validated after
+    # the cassette mesh exists.
+    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        validate_forced_air_camera_wash(footprint, cameras)
+    automatic_post_targets = FASTENER_POST_TARGETS_XY
+    if (
+        REAR_FANS_ENABLED
+        and FASTENER_POST_PLACEMENT == "auto"
+        and REAR_FAN_AUTO_LID_POST_MAX_X is not None
+    ):
+        resolved_post_max_x = REAR_FAN_AUTO_LID_POST_MAX_X
+        if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+            # Keep the two mid-rear lid posts fully ahead of the cassette's
+            # open front edge.  A fixed X clamp is insufficient when fan
+            # angle, pad side, inlet depth, or plenum depth changes; derive
+            # the service-safe limit from the same boot geometry used by the
+            # acoustic layout.  The later post solver may still move a target
+            # farther forward to avoid camera hardware.
+            boot_end_x = []
+            for tangent in rear_fan_center_tangents():
+                station = rear_fan_station_geometry(footprint, tangent)
+                inner_wall_radius = radial_surface_distance(
+                    station["wall_angle_deg"],
+                    station["center_axis_tangent"],
+                    inset_footprint_loop(footprint, BODY_WALL_THICKNESS),
+                )
+                if REAR_FAN_PAD_INSIDE:
+                    boot_start_radius = (
+                        station["face_radius"]
+                        - REAR_FAN_DEPTH
+                        - FAN_ACOUSTIC_FAN_GAP
+                    )
+                else:
+                    boot_start_radius = (
+                        inner_wall_radius
+                        - REAR_FAN_DEPTH
+                        - FAN_ACOUSTIC_FAN_GAP
+                    )
+                boot_end = axis_point(
+                    station["wall_angle_deg"],
+                    boot_start_radius - FAN_ACOUSTIC_DIVIDED_INLET_DEPTH,
+                    station["center_axis_tangent"],
+                    REAR_FAN_CENTER_Z,
+                )
+                boot_end_x.append(boot_end.x)
+            acoustic_front_x = min(boot_end_x) - FAN_ACOUSTIC_PLENUM_DEPTH
+            acoustic_post_max_x = acoustic_front_x - (
+                FASTENER_POST_DIAMETER / 2.0
+                + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE
+                + FAN_ACOUSTIC_REMESH_VOXEL_SIZE
+            )
+            resolved_post_max_x = min(
+                resolved_post_max_x,
+                acoustic_post_max_x,
+            )
+        automatic_post_targets = tuple(
+            (
+                min(x, resolved_post_max_x),
+                y,
+            )
+            for x, y in FASTENER_POST_TARGETS_XY
+        )
+        print(
+            "REAR_FAN_LID_POST_TARGETS "
+            f"configured_max_x={REAR_FAN_AUTO_LID_POST_MAX_X:.2f} "
+            f"resolved_max_x={resolved_post_max_x:.2f} "
+            f"targets={automatic_post_targets}"
+        )
+    positions = resolve_fastener_post_positions(
+        cameras,
+        footprint,
+        mechanism,
+        automatic_post_targets,
+    )
+    validate_rear_taper_layout(footprint, positions, cameras)
     bracket_position_pairs = resolve_camera_bracket_post_positions(
         cameras,
         footprint,
         positions,
         mechanism,
     )
+    protect_rear_taper_for_resolved_bracket_posts(bracket_position_pairs)
     bottom_mount_hole_position = resolve_bottom_mount_hole_position(
         cameras,
         footprint,
@@ -12250,6 +20399,60 @@ def build_original_style_cover():
         bracket_position_pairs,
         bottom_mount_hole_position,
     )
+    acoustic_case_post_keepouts = (
+        *(
+            (x, y, FASTENER_POST_DIAMETER / 2.0)
+            for x, y in positions
+        ),
+        *(
+            (x, y, CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0)
+            for pair in bracket_position_pairs
+            for x, y in pair
+        ),
+    )
+    acoustic_base_hardware_keepouts = [
+        *(
+            ("circle", (x, y), radius)
+            for x, y, radius in acoustic_case_post_keepouts
+        ),
+    ]
+    if bottom_mount_hole_position is not None:
+        acoustic_base_hardware_keepouts.append(
+            (
+                "circle",
+                bottom_mount_hole_position,
+                bottom_mount_feature_radius(),
+            )
+        )
+    if bottom_keystone_positions:
+        socket_x, socket_y = bottom_keystone_socket_plan_dimensions()
+        keystone_x = max(
+            BOTTOM_KEYSTONE_INTERNAL_BODY_X,
+            BOTTOM_KEYSTONE_FACE_POCKET_X,
+            BOTTOM_KEYSTONE_CUTOUT_X,
+            socket_x,
+        )
+        keystone_y = max(
+            BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+            BOTTOM_KEYSTONE_FACE_POCKET_Y,
+            BOTTOM_KEYSTONE_CUTOUT_Y,
+            socket_y,
+        )
+        acoustic_base_hardware_keepouts.extend(
+            (
+                "rectangle",
+                position,
+                keystone_x,
+                keystone_y,
+            )
+            for position in bottom_keystone_positions
+        )
+    acoustic_layout = resolve_fan_acoustic_layout(
+        footprint,
+        cameras,
+        acoustic_case_post_keepouts,
+        tuple(acoustic_base_hardware_keepouts),
+    )
     base = create_base(
         positions,
         cameras,
@@ -12257,11 +20460,18 @@ def build_original_style_cover():
         bracket_position_pairs,
         bottom_mount_hole_position,
         bottom_keystone_positions,
+        acoustic_layout,
     )
     lid = create_lid(positions, footprint, cameras)
     camera_brackets = create_camera_brackets(cameras, bracket_position_pairs)
+    add_acoustic_microphone_deflectors_to_brackets(
+        camera_brackets,
+        cameras,
+        footprint,
+    )
     camera_carrier = None
     camera_worm = None
+    worm_bearing_caps = []
     moving_camera = adjustable_camera(cameras)
     if moving_camera is not None:
         camera_carrier = create_rotating_camera_carrier(
@@ -12269,6 +20479,164 @@ def build_original_style_cover():
             mechanism,
         )
         camera_worm = create_camera_worm(mechanism)
+        worm_bearing_caps = create_worm_bearing_caps(mechanism)
+        protected_relief_keepouts = []
+        protection_clearance = 1.0
+        protected_relief_keepouts.extend(
+            (
+                "circle",
+                f"lid_post_{index}",
+                (
+                    position,
+                    FASTENER_POST_DIAMETER / 2.0 + protection_clearance,
+                ),
+            )
+            for index, position in enumerate(positions, start=1)
+        )
+        protected_relief_keepouts.extend(
+            (
+                "circle",
+                f"camera_bracket_post_{pair_index}_{post_index}",
+                (
+                    position,
+                    CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0
+                    + protection_clearance,
+                ),
+            )
+            for pair_index, pair in enumerate(bracket_position_pairs, start=1)
+            for post_index, position in enumerate(pair, start=1)
+        )
+        fixed_camera = next(
+            (camera for camera in cameras if not camera_is_adjustable(camera)),
+            None,
+        )
+        if fixed_camera is not None and CAMERA_CRADLES_ENABLED:
+            cradle_clearance = max(
+                CAMERA_CRADLE_SIDE_CLEARANCE
+                + CAMERA_CRADLE_SIDE_GUIDE_THICKNESS,
+                CAMERA_CRADLE_REAR_CLEARANCE
+                + CAMERA_CRADLE_REAR_GUIDE_THICKNESS,
+                CAMERA_FRONT_STOP_SIDE_WIDTH,
+            ) + protection_clearance
+            protected_relief_keepouts.append(
+                (
+                    "polygon",
+                    f"fixed_camera_{fixed_camera['index']}_cradle_and_stops",
+                    tuple(camera_xy_corners(fixed_camera, cradle_clearance)),
+                )
+            )
+        if bottom_mount_hole_position is not None:
+            protected_relief_keepouts.append(
+                (
+                    "circle",
+                    "bottom_captive_nut_holder",
+                    (
+                        bottom_mount_hole_position,
+                        bottom_mount_feature_radius() + protection_clearance,
+                    ),
+                )
+            )
+        if bottom_keystone_positions:
+            socket_x, socket_y = bottom_keystone_socket_plan_dimensions()
+            keystone_x = max(
+                BOTTOM_KEYSTONE_INTERNAL_BODY_X,
+                BOTTOM_KEYSTONE_FACE_POCKET_X,
+                BOTTOM_KEYSTONE_CUTOUT_X,
+                socket_x,
+            )
+            keystone_y = max(
+                BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+                BOTTOM_KEYSTONE_FACE_POCKET_Y,
+                BOTTOM_KEYSTONE_CUTOUT_Y,
+                socket_y,
+            )
+            protected_relief_keepouts.extend(
+                (
+                    "polygon",
+                    f"keystone_socket_{index}",
+                    axis_aligned_rectangle_corners(
+                        position,
+                        keystone_x,
+                        keystone_y,
+                        protection_clearance,
+                    ),
+                )
+                for index, position in enumerate(
+                    bottom_keystone_positions,
+                    start=1,
+                )
+            )
+        if CAMERA_WORM_WALL_BEARING_ENABLED:
+            protected_relief_keepouts.append(
+                (
+                    "circle",
+                    "wall_bearing_snap_ring_boss",
+                    (
+                        tuple(mechanism["wall_point"][:2]),
+                        CAMERA_WORM_PORT_BOSS_RADIUS + protection_clearance,
+                    ),
+                )
+            )
+        if REAR_FANS_ENABLED:
+            for fan_index, tangent_offset in enumerate(
+                rear_fan_center_tangents(),
+                start=1,
+            ):
+                station = rear_fan_station_geometry(footprint, tangent_offset)
+                angle = math.radians(station["wall_angle_deg"])
+                direction = Vector((math.cos(angle), math.sin(angle), 0.0))
+                tangent = Vector((-math.sin(angle), math.cos(angle), 0.0))
+                center = Vector(station["face_center"]) - direction * (
+                    REAR_FAN_DEPTH / 2.0
+                )
+                half_depth = (
+                    REAR_FAN_DEPTH + 2.0 * BODY_WALL_THICKNESS
+                ) / 2.0 + protection_clearance
+                half_width = REAR_FAN_PAD_SIZE / 2.0 + protection_clearance
+                fan_loop = tuple(
+                    (
+                        center.x
+                        + radial_sign * half_depth * direction.x
+                        + tangent_sign * half_width * tangent.x,
+                        center.y
+                        + radial_sign * half_depth * direction.y
+                        + tangent_sign * half_width * tangent.y,
+                    )
+                    for radial_sign, tangent_sign in (
+                        (-1.0, -1.0),
+                        (1.0, -1.0),
+                        (1.0, 1.0),
+                        (-1.0, 1.0),
+                    )
+                )
+                protected_relief_keepouts.append(
+                    ("polygon", f"rear_fan_structure_{fan_index}", fan_loop)
+                )
+        cut_final_carrier_sweep_from_base(
+            base,
+            camera_carrier,
+            cameras,
+            tuple(protected_relief_keepouts),
+        )
+        restore_final_adjustable_pivot_thrust_stack(base, mechanism)
+        validate_final_adjustable_base_feature_integrity(base, mechanism)
+    fan_gaskets = create_fan_vibration_gaskets(footprint)
+    acoustic_cassette = create_fan_acoustic_cassette(
+        footprint,
+        cameras,
+        base,
+        acoustic_layout,
+    )
+    acoustic_rigid_parts = (
+        (acoustic_cassette["trough"], acoustic_cassette["lid"])
+        if acoustic_cassette is not None
+        else ()
+    )
+    acoustic_boot_seals = (
+        tuple(acoustic_cassette["boot_seals"])
+        if acoustic_cassette is not None
+        else ()
+    )
     validate_camera_bracket_containment(camera_brackets, footprint)
     assign_material(base, "Veo_Base_Material", COVER_COLOR)
     assign_material(lid, "Veo_Lid_Material", LID_COLOR)
@@ -12290,6 +20658,31 @@ def build_original_style_cover():
             "Camera_Worm_Material",
             CAMERA_WORM_COLOR,
         )
+    for cap in worm_bearing_caps:
+        assign_material(
+            cap,
+            "Camera_Worm_Bearing_Cap_Material",
+            CAMERA_WORM_CAP_COLOR,
+        )
+    for gasket in fan_gaskets:
+        assign_material(
+            gasket,
+            "Fan_Vibration_Gasket_Material",
+            FAN_GASKET_COLOR,
+        )
+    if acoustic_cassette is not None:
+        for part in acoustic_rigid_parts:
+            assign_material(
+                part,
+                "Fan_Acoustic_Cassette_Material",
+                FAN_ACOUSTIC_COLOR,
+            )
+        for seal in acoustic_boot_seals:
+            assign_material(
+                seal,
+                "Fan_Acoustic_Boot_Seal_Material",
+                FAN_GASKET_COLOR,
+            )
     if TRIANGULATE_BASE_IN_SCENE:
         triangulate_mesh(base)
     else:
@@ -12297,9 +20690,18 @@ def build_original_style_cover():
     triangulate_mesh(lid)
     for bracket in camera_brackets:
         triangulate_mesh(bracket)
-    for moving_part in (camera_carrier, camera_worm):
-        if moving_part is not None:
+    for moving_part in (
+        camera_carrier,
+        camera_worm,
+        *worm_bearing_caps,
+        *fan_gaskets,
+        *acoustic_rigid_parts,
+        *acoustic_boot_seals,
+    ):
+        if moving_part is not None and moving_part not in acoustic_rigid_parts:
             triangulate_mesh(moving_part)
+    if acoustic_rigid_parts:
+        print("FAN_ACOUSTIC_TRIANGULATION deferred_to_STL_exporter")
     camera_mockups = create_camera_mockups(
         cameras,
         force=(
@@ -12307,15 +20709,98 @@ def build_original_style_cover():
             or VALIDATE_CAMERA_USB_ACCESS
             or VALIDATE_CAMERA_INSTALLATION_PATH
             or VALIDATE_REAR_FAN_BODY_CLEARANCE
+            or FAN_ACOUSTIC_ATTENUATOR_ENABLED
         ),
     )
     validate_object(base)
+    validate_final_worm_hardware_cavities(base, mechanism)
+    validate_final_bottom_mount_nut_holder(base, bottom_mount_hole_position)
     validate_object(lid)
     for bracket in camera_brackets:
         validate_object(bracket)
-    for moving_part in (camera_carrier, camera_worm):
+    for moving_part in (
+        camera_carrier,
+        camera_worm,
+        *worm_bearing_caps,
+        *fan_gaskets,
+        *acoustic_rigid_parts,
+        *acoustic_boot_seals,
+    ):
         if moving_part is not None:
             validate_object(moving_part)
+    validate_acoustic_lid_counterbore_floors(acoustic_cassette)
+    validate_acoustic_boot_seal_stack(acoustic_cassette)
+    validate_acoustic_hardware_envelopes(acoustic_cassette, base, lid)
+    validate_split_worm_caps(
+        worm_bearing_caps,
+        mechanism,
+        footprint,
+        camera_carrier,
+        camera_mockups,
+        camera_brackets,
+        camera_worm,
+        base,
+    )
+    validate_fan_acoustic_line_of_sight(acoustic_cassette, cameras)
+    validate_fan_acoustic_flow_sections(acoustic_cassette, fan_gaskets)
+    validate_fan_acoustic_outlet_camera_wash(
+        acoustic_cassette,
+        cameras,
+        camera_mockups,
+        obstacles=(
+            base,
+            lid,
+            *camera_brackets,
+            camera_worm,
+            *worm_bearing_caps,
+        ),
+        camera_carrier=camera_carrier,
+    )
+    validate_final_forced_air_camera_wash(
+        footprint,
+        cameras,
+        camera_mockups,
+        base,
+        lid,
+        camera_brackets,
+        camera_carrier,
+        camera_worm,
+        worm_bearing_caps,
+    )
+    validate_acoustic_cassette_removal(
+        acoustic_cassette,
+        footprint,
+        cameras,
+        targets=(
+            ("base", base),
+            *(
+                (f"camera_{index}", mockup)
+                for index, mockup in enumerate(camera_mockups, start=1)
+            ),
+            *(
+                (f"bracket_{index}", bracket)
+                for index, bracket in enumerate(camera_brackets, start=1)
+            ),
+            ("carrier", camera_carrier),
+            ("worm", camera_worm),
+            *(
+                (f"worm_cap_{index}", cap)
+                for index, cap in enumerate(worm_bearing_caps, start=1)
+            ),
+        ),
+    )
+    validate_acoustic_assembly_clearances(
+        acoustic_cassette,
+        base,
+        lid,
+        cameras,
+        camera_mockups,
+        camera_brackets,
+        camera_carrier,
+        camera_worm,
+        worm_bearing_caps,
+        footprint,
+    )
     validate_adjustable_camera_range(
         cameras,
         footprint,
@@ -12324,6 +20809,7 @@ def build_original_style_cover():
         camera_worm,
         camera_mockups,
         camera_brackets,
+        worm_bearing_caps,
     )
     validate_assembly_clearances(base, lid, camera_brackets, camera_mockups)
     validate_adjustable_carrier_installation_path(
@@ -12351,6 +20837,8 @@ def build_original_style_cover():
         camera_brackets,
         camera_carrier,
         camera_worm,
+        worm_bearing_caps,
+        base,
     )
     if EXPORT_STL:
         directory = output_directory()
@@ -12359,7 +20847,10 @@ def build_original_style_cover():
             export_single_stl(
                 directory / LID_STL_NAME,
                 lid,
-                print_face_down=True,
+                print_face_down=(
+                    _RESOLVED_REAR_ENVELOPE is None
+                    or _RESOLVED_REAR_ENVELOPE["height_reduction"] <= 0.0
+                ),
             )
             if EXPORT_CAMERA_BRACKET_STLS and len(camera_brackets) == 2:
                 export_single_stl(
@@ -12376,6 +20867,49 @@ def build_original_style_cover():
                 export_single_stl(
                     directory / CAMERA_CARRIER_STL_NAME,
                     camera_carrier,
+                )
+            if len(worm_bearing_caps) == 2:
+                export_single_stl(
+                    directory / CAMERA_WORM_INNER_CAP_STL_NAME,
+                    worm_bearing_caps[0],
+                    print_face_down=True,
+                )
+                export_single_stl(
+                    directory / CAMERA_WORM_OUTER_CAP_STL_NAME,
+                    worm_bearing_caps[1],
+                    print_face_down=True,
+                )
+            if acoustic_cassette is not None:
+                export_single_stl(
+                    directory / FAN_ACOUSTIC_CASSETTE_STL_NAME,
+                    acoustic_cassette["trough"],
+                )
+                export_single_stl(
+                    directory / FAN_ACOUSTIC_LID_STL_NAME,
+                    acoustic_cassette["lid"],
+                    print_face_down=True,
+                )
+                if len(acoustic_boot_seals) == 2:
+                    export_single_stl(
+                        directory / FAN_ACOUSTIC_BOOT_SEAL_1_STL_NAME,
+                        acoustic_boot_seals[0],
+                        print_axis_to_z=True,
+                    )
+                    export_single_stl(
+                        directory / FAN_ACOUSTIC_BOOT_SEAL_2_STL_NAME,
+                        acoustic_boot_seals[1],
+                        print_axis_to_z=True,
+                    )
+            if len(fan_gaskets) == 2:
+                export_single_stl(
+                    directory / FAN_GASKET_1_STL_NAME,
+                    fan_gaskets[0],
+                    print_axis_to_z=True,
+                )
+                export_single_stl(
+                    directory / FAN_GASKET_2_STL_NAME,
+                    fan_gaskets[1],
+                    print_axis_to_z=True,
                 )
             if (
                 camera_worm is not None
@@ -12405,9 +20939,19 @@ def build_original_style_cover():
                         )
                         else []
                     ),
+                    *worm_bearing_caps,
+                    *fan_gaskets,
+                    *acoustic_rigid_parts,
+                    *acoustic_boot_seals,
                 ],
             )
-    apply_adjustable_preview_pose(camera_carrier, camera_worm, mechanism)
+    apply_adjustable_preview_pose(
+        camera_carrier,
+        camera_worm,
+        mechanism,
+        cameras,
+        camera_mockups,
+    )
     if not PREVIEW_SHOW_CAMERA_MOCKUPS:
         for mockup in camera_mockups:
             bpy.data.objects.remove(mockup, do_unlink=True)
@@ -12419,6 +20963,9 @@ def build_original_style_cover():
         camera_brackets,
         camera_carrier,
         camera_worm,
+        worm_bearing_caps,
+        acoustic_cassette,
+        fan_gaskets,
     )
     return base, lid
 
