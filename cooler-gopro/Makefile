@@ -33,16 +33,46 @@ STL_FILES := \
 	$(FAN_CASE_STLS) \
 	$(VEO_COVER_STLS)
 
-.DEFAULT_GOAL := all
+.DEFAULT_GOAL := print_targets
 .DELETE_ON_ERROR:
 
 .PHONY: \
-	all \
+	all print_targets \
 	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-case veo-cover \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-dual-fan clean-fan-case clean-veo-cover
 
 all: $(STL_FILES)
+
+print_targets:
+	@printf '%s\n' \
+		"Available make targets (run 'make <target>'):" \
+		'' \
+		'STL Builds' \
+		'----------' \
+		'all                       Build all STL files.' \
+		'flat-fan-cover            Build the flat fan cover STL.' \
+		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
+		'horn                      Build the parametric horn STL.' \
+		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
+		'dual-fan                  Build the parametric dual-fan STL.' \
+		'fan-case                  Build the fan case, back, and insert STLs.' \
+		'veo-cover                 Build all VEO 3 camera-cover component STLs.' \
+		'' \
+		'Cleanup' \
+		'-------' \
+		'clean                     Remove all generated STL files.' \
+		'clean-flat-fan-cover      Remove the flat fan cover STL.' \
+		'clean-wrapping-fan-cover  Remove the wrapping fan cover STL.' \
+		'clean-horn                Remove the parametric horn STL.' \
+		'clean-mission1-dummy      Remove the Mission 1 dummy STL.' \
+		'clean-dual-fan            Remove the dual-fan STL.' \
+		'clean-fan-case            Remove all fan-case STLs.' \
+		'clean-veo-cover           Remove all VEO 3 camera-cover STLs.' \
+		'' \
+		'Meta' \
+		'----' \
+		'print_targets             Show this help text.'
 
 flat-fan-cover: $(FLAT_FAN_COVER_STLS)
 wrapping-fan-cover: $(WRAPPING_FAN_COVER_STLS)
