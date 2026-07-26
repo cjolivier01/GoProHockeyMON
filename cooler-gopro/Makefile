@@ -58,10 +58,7 @@ STL_FILES := \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover clean-dim-pdf
 
-# The Hockeymom generator intentionally exports a configuration-dependent
-# manifest.  Its phony target therefore performs one authoritative run instead
-# of letting absent optional parts or stale files masquerade as current output.
-all: $(STL_FILES) hockeymom-cover
+all: $(STL_FILES) $(HOCKEYMOM_COVER_STLS)
 
 print_targets:
 	@printf '%s\n' \
@@ -145,10 +142,16 @@ $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py
 	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
 		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_gopro_fan_case']()"
 
-hockeymom-cover: hockeymom_3_cam_cover_original_style_blender.py gopro_mission1_dummy_blender.py
+# Grouped targets tell make that one Blender run creates every default
+# Hockeymom component.  This keeps direct component targets useful and avoids
+# rebuilding an unchanged cover every time `make all` is run.  Artifacts behind
+# explicit opt-in export switches remain outside this group.
+$(HOCKEYMOM_COVER_STLS) &: hockeymom_3_cam_cover_original_style_blender.py gopro_mission1_dummy_blender.py
 	$(RM) $(HOCKEYMOM_COVER_STLS) $(HOCKEYMOM_OPTIONAL_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
 		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_original_style_cover']()"
+
+hockeymom-cover: $(HOCKEYMOM_COVER_STLS)
 
 clean: clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover clean-dim-pdf
