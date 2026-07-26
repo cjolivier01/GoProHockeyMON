@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Generate CAD-style configuration drawings for the Veo dual-camera cover.
+"""Generate CAD-style configuration drawings for the Hockeymom dual-camera cover.
 
-The script reads scalar defaults from ``veo_3_cam_cover_original_style_blender.py``
+The script reads scalar defaults from ``hockeymom_3_cam_cover_original_style_blender.py``
 without importing Blender, so the labels track the current generator.  The
 drawings are explanatory, not manufacturing drawings; geometry is schematic
 and explicitly marked NTS (not to scale).
 
 Run with a Python that has matplotlib, for example::
 
-    /home/colivier/miniforge3/bin/python generate_veo_config_dimension_pdf.py
+    /home/colivier/miniforge3/bin/python generate_hockeymom_config_dimension_pdf.py
 """
 
 from __future__ import annotations
@@ -26,10 +26,15 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Polygon, Rectangle, Wedge
 
 
-HERE = Path(__file__).resolve().parent
-MODEL_SOURCE = HERE / "veo_3_cam_cover_original_style_blender.py"
+# Preserve the invocation path instead of resolving a workspace symlink.  This
+# keeps the generated PDF beside the script name the user actually ran (for
+# example, in the Blender project directory) while still reading the colocated
+# current generator through that same workspace view.
+HERE = Path(__file__).absolute().parent
+MODEL_SOURCE = HERE / "hockeymom_3_cam_cover_original_style_blender.py"
 CAMERA_SOURCE = HERE / "gopro_mission1_dummy_blender.py"
-OUTPUT_PDF = HERE / "veo_3_cam_cover_configuration_dimensions.pdf"
+OUTPUT_PDF = HERE / "hockeymom_3_cam_cover_configuration_dimensions.pdf"
+TOTAL_SHEETS = 15
 
 # Matplotlib warns when an equal-aspect schematic asks it to preserve both a
 # fixed view window and a fixed panel rectangle.  It safely expands the view;
@@ -122,6 +127,22 @@ def deg(name: str, fallback, decimals=1):
     return f"{num(val(name, fallback), decimals)} deg"
 
 
+def direct_purchased_wheel_drive() -> bool:
+    return val(
+        "CAMERA_IDLER_SECTOR_DRIVE_STYLE",
+        "purchased_wheel_direct",
+    ) == "purchased_wheel_direct"
+
+
+def idler_sector_mesh_clearance() -> float:
+    name = (
+        "CAMERA_IDLER_DIRECT_SECTOR_MESH_CENTER_CLEARANCE"
+        if direct_purchased_wheel_drive()
+        else "CAMERA_IDLER_SECTOR_MESH_CENTER_CLEARANCE"
+    )
+    return float(val(name, 0.52 if direct_purchased_wheel_drive() else 0.30))
+
+
 SOURCE_HASH = hashlib.sha256(MODEL_SOURCE.read_bytes()).hexdigest()[:12]
 GENERATED = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -150,11 +171,11 @@ def new_sheet(number: int, title: str, subtitle: str = ""):
                              fill=False, edgecolor=INK, lw=0.9))
     fig.add_artist(Rectangle((0.045, 0.035), 0.91, 0.055, transform=fig.transFigure,
                              facecolor=LIGHT, edgecolor=INK, lw=0.8))
-    fig.text(0.058, 0.058, "VEO DUAL-CAMERA ENCLOSURE", fontsize=7.7, weight="bold")
+    fig.text(0.058, 0.058, "HOCKEYMOM DUAL-CAMERA ENCLOSURE", fontsize=7.7, weight="bold")
     fig.text(0.294, 0.058, "CONFIGURATION DIMENSION GUIDE", fontsize=7.7)
     fig.text(0.557, 0.058, f"SOURCE {SOURCE_HASH}", fontsize=7.3)
     fig.text(0.735, 0.058, f"UTC {GENERATED}", fontsize=7.3)
-    fig.text(0.858, 0.058, f"SHEET {number:02d}/12", fontsize=7.7, weight="bold")
+    fig.text(0.858, 0.058, f"SHEET {number:02d}/{TOTAL_SHEETS:02d}", fontsize=7.7, weight="bold")
     fig.text(0.058, 0.0425, "ALL DIMENSIONS mm | NTS | CONFIGURED VALUES; SOLVERS MAY CLAMP REQUESTS",
              fontsize=6.5, color=GRAY)
     return fig
@@ -277,7 +298,7 @@ def rotated_rect(cx, cy, length, width, angle_deg):
 
 def page_cover(pdf):
     fig = new_sheet(1, "CONFIGURATION DIMENSION GUIDE",
-                    "Parametric Veo-style enclosure for two GoPro MISSION 1 cameras")
+                    "Parametric Hockeymom-style enclosure for two GoPro MISSION 1 cameras")
     ax = fig.add_axes([0.075, 0.18, 0.55, 0.67])
     ax.axis("off")
     setup(ax, -145, 145, -115, 115)
@@ -312,20 +333,24 @@ def page_cover(pdf):
         ("04", "Vertical camera packaging & airflow"),
         ("05", "Lid, four posts & M3 hardware"),
         ("06", "Cradle and removable brackets"),
-        ("07", "Worm cartridge, yaw & split caps"),
-        ("08", "Rear fan stations & alignment"),
-        ("09", "Baffled acoustic cassette & microphone"),
-        ("10", "Bottom 1/4-inch captive-nut mount"),
-        ("11", "Bottom keystone snap sockets"),
-        ("12", "Major parameter quick reference"),
+        ("07", "Purchased worm & horizontal journals"),
+        ("08", ("Direct purchased-wheel" if direct_purchased_wheel_drive() else
+                "Legacy coaxial-pinion") + " drivetrain & centers"),
+        ("09", "Vertical journals & support-free assembly"),
+        ("10", "Carrier guide & yaw-safe eye guard"),
+        ("11", "Rear fan stations & alignment"),
+        ("12", "Baffled acoustic cassette & microphone"),
+        ("13", "Bottom 1/4-inch captive-nut mount"),
+        ("14", "Bottom keystone snap sockets"),
+        ("15", "Major parameter quick reference"),
     ]
     y = 0.775
     for number, title in sections:
         fig.text(0.658, y, number, fontsize=8, color=WHITE, weight="bold",
                  bbox=dict(boxstyle="round,pad=0.25", fc=BLUE, ec=BLUE))
         fig.text(0.700, y, title, fontsize=8.2, color=INK)
-        y -= 0.047
-    note_box(fig, [0.65, 0.15, 0.275, 0.105], "HOW TO USE",
+        y -= 0.041
+    note_box(fig, [0.65, 0.105, 0.275, 0.085], "HOW TO USE",
              ["Names match the Python configuration block.",
               "Blue = dimension; orange = optical/critical.",
               "Values are defaults read at PDF generation time."], BLUE)
@@ -444,27 +469,46 @@ def page_optics(pdf):
     leader(ax2,(ow/2-5,oh/2-3),(45,28),f"corner R{num(val('EYE_OPENING_CORNER_RADIUS',10),1)}",PURPLE)
     setup(ax2,-55,58,-43,47)
 
-    ax3 = panel(fig, [0.065, 0.195, 0.49, 0.225], "FORWARD PLACEMENT / EYE THROAT", "SECTION")
-    bezel = float(val("EYE_BEZEL_DEPTH",5.0)); recess = float(val("EYE_FACE_RECESS_MAX_DEPTH",14.0))
-    ax3.add_patch(Rectangle((-35,-18),70,8,facecolor="#cce0ec",edgecolor=BLUE,lw=1.2))
-    ax3.add_patch(Rectangle((-17,-10),34,21,facecolor=WHITE,edgecolor=ORANGE,lw=1.2))
-    ax3.add_patch(FancyBboxPatch((-24,8),48,27,boxstyle="round,pad=0,rounding_size=4",
-                                 facecolor="#d7dde2",edgecolor=INK,lw=1.0))
-    ax3.add_patch(Rectangle((-15,-4),30,16,facecolor=ORANGE,edgecolor=INK,lw=0.8))
-    dim_v(ax3,-18,-10,-43,-35,f"BEZEL DEPTH {num(bezel,1)}")
-    dim_v(ax3,-10,8,39,24,f"RECESS <= {num(recess,1)}",PURPLE)
-    dim_v(ax3,-4,-10,21,17,f"LENS OUTSET\nmaximize",ORANGE)
-    leader(ax3,(0,-5),(-31,31),f"minimum manual outset = {mm('CAMERA_LENS_FACE_MIN_OUTSET',0.5)}",ORANGE)
-    leader(ax3,(22,12),(48,27),f"opening clearance = {mm('CAMERA_LENS_OPENING_CLEARANCE',0.5)}",BLUE)
-    setup(ax3,-55,70,-25,42)
+    ax3 = panel(fig, [0.065, 0.195, 0.49, 0.225], "SHALLOW RIM + PRINTABLE REAR TRANSITION", "LOWER-EYE SECTION")
+    bezel = float(val("EYE_BEZEL_DEPTH", 5.0))
+    recess = float(val("EYE_FACE_RECESS_MAX_DEPTH", 18.0))
+    relief = float(val("EYE_ADJUSTABLE_BODY_RELIEF_DEPTH", 3.0))
+    retained_lip = float(val("EYE_FRONT_STRUCTURAL_RIM_DEPTH", 2.0))
+    root_land = float(val("EYE_REAR_RELIEF_ROOT_LAND", 0.50))
+    ramp_angle = float(val("EYE_REAR_RELIEF_PRINT_ANGLE_DEG", 45.0))
+    ramp_run = (((bh - oh) / 2.0) - root_land) / math.tan(math.radians(ramp_angle))
+    root_depth = bezel - retained_lip - ramp_run
+    eye_advance = float(val("ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET", 1.75))
+    # The drawing is deliberately exaggerated: 14 plot units show the 2 mm
+    # front rim and 22 show the 3 mm transition so both are legible in print.
+    ax3.add_patch(Rectangle((5, -13), 14, 13, facecolor="#cce0ec", edgecolor=BLUE, lw=1.2))
+    ax3.add_patch(Polygon([(-17, -2), (5, -13), (5, 0), (-17, 0)], closed=True,
+                          facecolor="#dcebdc", edgecolor=GREEN, lw=1.2))
+    ax3.plot([-17, 19], [0, 0], color=ORANGE, lw=1.35)
+    ax3.add_patch(FancyBboxPatch((-50, 6), 31, 26, boxstyle="round,pad=0,rounding_size=3",
+                                 facecolor="#d7dde2", edgecolor=INK, lw=1.0))
+    ax3.add_patch(Rectangle((-19, 12), 46, 14, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+    ax3.plot([19, 19], [-16, 36], color=BLUE, lw=0.8, ls="--")
+    dim_h(ax3, -17, 5, -18, -13, f"RAMP RUN {num(ramp_run,1)}", GREEN)
+    dim_h(ax3, 5, 19, -27, -13, f"FRONT RIM {num(retained_lip,1)}")
+    leader(ax3, (-17, -1), (-48, -8),
+           f"root land / depth\n{num(root_land,2)} / {num(root_depth,2)}", GREEN)
+    leader(ax3, (-5, -6), (-51, 2), f"print ramp {num(ramp_angle,1)} deg\nrear body relief {num(relief,1)}", GREEN)
+    leader(ax3, (27, 19), (43, 30), "lens face projects\nbeyond shallow eye", ORANGE)
+    leader(ax3, (19, 3), (36, -6), f"nominal bezel depth {num(bezel,1)}\nlocalized recess <= {num(recess,1)}", BLUE)
+    setup(ax3, -58, 68, -31, 41)
 
     note_box(fig,[0.58,0.195,0.355,0.225],"PLACEMENT RULES",
              [f"CAMERA_FORWARD_PLACEMENT_MODE = {val('CAMERA_FORWARD_PLACEMENT_MODE','maximize')!r}",
-              f"minimum yaw-sweep protrusion = {mm('CAMERA_LENS_MIN_SWEEP_EYE_FACE_PROTRUSION',8)}",
-              f"body-to-body clearance = {mm('CAMERA_BODY_MUTUAL_CLEARANCE',1)}",
-              f"nose shell clearance = {mm('CAMERA_NOSE_SHELL_CLEARANCE',1.5)}",
-              "Lens is pushed forward until a measured envelope or",
-              "printable front-stop/shell constraint becomes active."],ORANGE)
+              f"fixed independent advance = {val('CAMERA_FIXED_INDEPENDENT_FORWARD_ADVANCE_ENABLED',True)} (needs recess + fixed relief)",
+              f"adjustable eye advance = {num(eye_advance,2)} mm",
+              f"rear eye relief / retained rim = {num(relief,1)} / {num(retained_lip,1)} mm",
+              f"rear root land / depth = {num(root_land,2)} / {num(root_depth,2)} mm",
+              f"actual printable ramp angle = {num(ramp_angle,1)} deg",
+              f"floor-rooted recess web width = {mm('EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH',6)}",
+              f"configured minimum yaw-sweep protrusion = {mm('CAMERA_LENS_MIN_SWEEP_EYE_FACE_PROTRUSION',7.2)}",
+              "Actual solved protrusions are printed by each Blender build.",
+              "No deep throat or floating recess-anchor bars are generated."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -583,6 +627,8 @@ def page_lid(pdf):
               f"edge clearance = {mm('FASTENER_POST_EDGE_CLEARANCE',2)}",
               f"camera clearance = {mm('FASTENER_POST_CAMERA_CLEARANCE',10)}",
               f"post top clearance = {mm('FASTENER_POST_TOP_CLEARANCE',0.20,2)}",
+              f"hold-down/lid pocket clearance = {mm('CAMERA_BRACKET_LID_LIP_RELIEF_CLEARANCE',0.50,2)}",
+              f"minimum pocket-to-lid web = {mm('CAMERA_HOLD_DOWN_LID_RELIEF_MIN_UNDERSIDE_WEB',0.15,2)}",
               "Rear taper uses local post heights and flat screw islands."],PURPLE)
     pdf.savefig(fig); plt.close(fig)
 
@@ -596,6 +642,9 @@ def page_retention(pdf):
                                 facecolor="#e1e5e8",edgecolor=INK,lw=1.1))
     guide_t=float(val("CAMERA_CRADLE_SIDE_GUIDE_THICKNESS",7)); guide_l=float(val("CAMERA_CRADLE_SIDE_GUIDE_RADIAL_LENGTH",8))
     ax.add_patch(Rectangle((-bw/2-guide_t,-bd/2),guide_t,guide_l,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+    datum_w=float(val("CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH",8)); datum_plot_depth=3.5
+    ax.add_patch(Rectangle((-bw/2+9,-bd/2-datum_plot_depth),datum_w,datum_plot_depth,
+                           facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
     rear_t=float(val("CAMERA_CRADLE_REAR_GUIDE_THICKNESS",7)); rear_w=float(val("CAMERA_CRADLE_REAR_GUIDE_TANGENTIAL_WIDTH",50)); air=float(val("CAMERA_CRADLE_REAR_GUIDE_CENTER_AIR_GAP",18))
     seg=(rear_w-air)/2
     for sign in (-1,1):
@@ -606,6 +655,8 @@ def page_retention(pdf):
     dim_h(ax,-rear_w/2,rear_w/2,-bd/2-14,-bd/2,f"REAR GUIDE TOTAL {num(rear_w,1)}")
     dim_v(ax,-bd/2,-bd/2+guide_l,-bw/2-guide_t-8,-bw/2-guide_t,f"SIDE LENGTH {num(guide_l,1)}")
     leader(ax,(-bw/2-guide_t/2,-bd/2+4),(-63,20),f"side guide {num(guide_t,1)} thick x {mm('CAMERA_CRADLE_SIDE_GUIDE_HEIGHT',12)} high",BLUE)
+    leader(ax,(-bw/2+9+datum_w/2,-bd/2-datum_plot_depth/2),(-56,-31),
+           "floor-rooted front datum\n(no suspended eye pads)",ORANGE)
     setup(ax,-72,72,-40,46)
 
     ax2=panel(fig,[0.57,0.43,0.365,0.44],"UPPER CLAMP + L LOCATORS","EXPLODED")
@@ -643,6 +694,7 @@ def page_retention(pdf):
 
     note_box(fig,[0.57,0.18,0.365,0.18],"FIT / STRENGTH DEFAULTS",
              [f"cradle side clearance = {mm('CAMERA_CRADLE_SIDE_CLEARANCE',0,1)} (snug)",
+              f"front datum = {val('CAMERA_FRONT_STOP_STYLE','floor_rooted')!r}; {mm('CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH',8)} wide x {mm('CAMERA_FRONT_STOP_FLOOR_DATUM_HEIGHT_ABOVE_CAMERA_BOTTOM',12)} high",
               f"upper locator clearance = {mm('CAMERA_BRACKET_USB_SIDE_LOCATOR_CLEARANCE',0.10,2)}",
               f"guide plate overhang = {mm('CAMERA_BRACKET_GUIDE_PLATE_OVERHANG',2)}",
               f"arm width / plate embed = {mm('CAMERA_BRACKET_ARM_WIDTH',10)} / {mm('CAMERA_BRACKET_ARM_PLATE_EMBED',7)}",
@@ -651,66 +703,336 @@ def page_retention(pdf):
 
 
 def page_worm(pdf):
-    fig=new_sheet(7,"WORM-DRIVEN CAMERA CARTRIDGE",
-                  "One camera rotates on an under-body pivot; a self-locking module-0.5 worm/sector pair controls yaw")
-    ax=panel(fig,[0.065,0.42,0.52,0.45],"PIVOT, YAW SWEEP & GEAR SECTOR","TOP")
-    yaw=float(val("ADJUSTABLE_CAMERA_YAW_RANGE_DEG",10)); pr=float(val("ADJUSTABLE_CAMERA_PIVOT_RADIAL",-22)); pt=float(val("ADJUSTABLE_CAMERA_PIVOT_TANGENTIAL",-10))
-    pivot=(-pr*0.9,pt*0.9)
-    for angle,color,alpha in ((-yaw,GRAY,0.12),(0,BLUE,0.22),(yaw,GRAY,0.12)):
-        poly=rotated_rect(0,0,48,72,angle)
-        ax.add_patch(Polygon(poly,closed=True,facecolor=color,alpha=alpha,edgecolor=color,lw=1.0))
-    ax.add_patch(Circle(pivot,float(val("CAMERA_CARRIER_PIVOT_PIN_DIAMETER",8))/2,
-                        facecolor=WHITE,edgecolor=PURPLE,lw=1.4))
-    ax.add_patch(Wedge(pivot,47,90,150,width=5,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.1))
-    ax.add_patch(Rectangle((pivot[0]+42,pivot[1]-10),20,7,facecolor="#d8b66a",edgecolor=INK,lw=1.0))
-    for angle in (-yaw,yaw):
-        rad=math.radians(90+angle)
-        ax.plot([pivot[0],pivot[0]+55*math.cos(rad)],[pivot[1],pivot[1]+55*math.sin(rad)],color=ORANGE,lw=0.9,ls="--")
-    ax.add_patch(Arc(pivot,72,72,theta1=90-yaw,theta2=90+yaw,edgecolor=ORANGE,lw=1.2))
-    ax.text(pivot[0],pivot[1]+40,f"+/- {num(yaw,1)} deg",ha="center",color=ORANGE,fontsize=8,weight="bold")
-    dim_h(ax,0,pivot[0],-50,-36,f"PIVOT RADIAL {num(pr,1)}",PURPLE)
-    dim_v(ax,0,pivot[1],-39,0,f"TANGENTIAL {num(pt,1)}",PURPLE)
-    leader(ax,(pivot[0]-16,pivot[1]+39),(-46,47),f"gear sector 90-150 deg\ncontact 120 deg",ORANGE)
-    leader(ax,(pivot[0]+50,pivot[1]-7),(74,-36),f"worm length {mm('CAMERA_WORM_LENGTH',20)}",ORANGE)
-    setup(ax,-60,100,-62,78)
+    fig=new_sheet(7,"PURCHASED WORM & HORIZONTAL PRINTED JOURNALS",
+                  "The measured 3.81 mm stainless worm shaft runs in calibrated, lightly frictional 4.24 mm printed journals at both split saddles and the wall passage")
+    shaft=float(val("CAMERA_WORM_SHAFT_DIAMETER",4.0))
+    module=float(val("CAMERA_GEAR_MODULE",0.5))
+    diameter_quotient=float(val("CAMERA_WORM_DIAMETER_QUOTIENT",18.0))
+    worm_od=(diameter_quotient+2.0)*module
+    hub_od=float(val("CAMERA_WORM_PLAIN_HUB_DIAMETER",10.0))
+    total=float(val("CAMERA_WORM_LENGTH",20.0))
+    threaded=float(val("CAMERA_WORM_THREADED_LENGTH",15.0))
+    hub=float(val("CAMERA_WORM_PLAIN_HUB_LENGTH",5.0))
+    bore=float(val("CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER",4.24))
+    max_clear=float(val("CAMERA_WORM_PLAIN_BUSHING_MAX_DIAMETRAL_CLEARANCE",0.40))
 
-    ax2=panel(fig,[0.61,0.47,0.325,0.40],"SPLIT BEARING CAP","SHAFT SECTION")
-    shaft=float(val("CAMERA_WORM_SHAFT_DIAMETER",4)); bearing=float(val("CAMERA_WORM_BEARING_OD",8)); bw=float(val("CAMERA_WORM_BEARING_WIDTH",3)); capw=float(val("CAMERA_WORM_CAP_TOTAL_WIDTH",26)); screwsp=float(val("CAMERA_WORM_CAP_SCREW_SPACING",16))
-    ax2.add_patch(Rectangle((-capw/2,-8),capw,16,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.2))
-    ax2.add_patch(Circle((0,0),bearing/2,facecolor="#d8b66a",edgecolor=INK,lw=0.9))
-    ax2.add_patch(Circle((0,0),shaft/2,facecolor=WHITE,edgecolor=INK,lw=0.8))
-    ax2.plot([-capw/2,capw/2],[0,0],color=RED,lw=1.0,ls="--")
+    ax=panel(fig,[0.065,0.48,0.55,0.39],"PURCHASED 1-START WORM ON STAINLESS SHAFT","SIDE")
+    ax.add_patch(Rectangle((-24,-shaft/2),72,shaft,facecolor="#9ba6ae",edgecolor=INK,lw=0.8))
+    ax.add_patch(Rectangle((0,-worm_od/2),threaded,worm_od,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.2))
+    ax.add_patch(Rectangle((threaded,-hub_od/2),hub,hub_od,facecolor="#d8b66a",edgecolor=ORANGE,lw=1.2))
+    for x in [i*1.5 for i in range(11)]:
+        ax.plot([x-1.2,x+1.2],[-worm_od/2,worm_od/2],color=ORANGE,lw=0.65)
+    centerline(ax,(-30,0),(53,0))
+    dim_h(ax,0,total,14,worm_od/2,f"OVERALL {num(total,1)}")
+    dim_h(ax,0,threaded,10,worm_od/2,f"THREADED {num(threaded,1)}",ORANGE)
+    dim_h(ax,threaded,total,-11,-worm_od/2,f"PLAIN HUB {num(hub,1)}",PURPLE)
+    dim_v(ax,-worm_od/2,worm_od/2,-8,0,f"OD {num(worm_od,1)}",ORANGE)
+    dim_v(ax,-shaft/2,shaft/2,43,48,f"SHAFT dia {num(shaft,1)}",BLUE)
+    leader(ax,(17.5,0),(38,8),f"plain / set-screw hub dia {num(hub_od,1)}\ntoward enclosure wall",PURPLE)
+    setup(ax,-34,58,-max(17,hub_od/2+8),max(22,hub_od/2+12))
+
+    ax2=panel(fig,[0.64,0.48,0.295,0.39],"SPLIT PRINTED JOURNAL","END SECTION")
+    capw=float(val("CAMERA_WORM_CAP_TOTAL_WIDTH",26)); screwsp=float(val("CAMERA_WORM_CAP_SCREW_SPACING",16))
+    ax2.add_patch(FancyBboxPatch((-capw/2,0),capw,10,boxstyle="round,pad=0,rounding_size=1.2",
+                                 facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.1))
+    ax2.add_patch(FancyBboxPatch((-capw/2,-10),capw,10,boxstyle="round,pad=0,rounding_size=1.2",
+                                 facecolor="#cce0ec",edgecolor=BLUE,lw=1.1))
+    ax2.add_patch(Circle((0,0),bore/2,facecolor=WHITE,edgecolor=RED,lw=1.1))
+    ax2.add_patch(Circle((0,0),shaft/2,facecolor="#9ba6ae",edgecolor=INK,lw=0.7))
     for x in (-screwsp/2,screwsp/2):
-        ax2.add_patch(Circle((x,0),1.7,facecolor=WHITE,edgecolor=PURPLE,lw=0.9))
-    dim_h(ax2,-capw/2,capw/2,-14,-8,f"CAP WIDTH {num(capw,1)}")
-    dim_h(ax2,-screwsp/2,screwsp/2,14,8,f"M3 SPACING {num(screwsp,1)}",PURPLE)
-    leader(ax2,(0,bearing/2),(16,8),f"bearing dia {num(bearing,1)} x {num(bw,1)}",ORANGE)
-    leader(ax2,(0,-shaft/2),(18,-8),f"shaft dia {num(shaft,1)} + {mm('CAMERA_WORM_SHAFT_CLEARANCE',0.30,2)}",BLUE)
-    setup(ax2,-24,30,-20,21)
+        ax2.add_patch(Circle((x,5.2),1.7,facecolor=WHITE,edgecolor=PURPLE,lw=0.9))
+    dim_h(ax2,-capw/2,capw/2,-16,-10,f"CAP WIDTH {num(capw,1)}")
+    dim_h(ax2,-screwsp/2,screwsp/2,15,10,f"M3 SPACING {num(screwsp,1)}",PURPLE)
+    leader(ax2,(bore/2,0),(25,-4),f"PRINTED BORE dia {num(bore,2)}",RED,"right")
+    leader(ax2,(shaft/2,0),(25,5),f"4 mm rod in {num(bore,2)} bore\n{num(bore-shaft,2)} diametral play",BLUE,"right")
+    setup(ax2,-22,30,-22,22)
 
-    note_box(fig,[0.065,0.18,0.25,0.17],"CARRIER",
-             [f"tray thickness = {mm('CAMERA_CARRIER_TRAY_THICKNESS',3.2)}",
-              f"tray margins = {mm('CAMERA_CARRIER_TRAY_RADIAL_MARGIN',5)} radial/tangential",
-              f"pivot pin dia / clearance = {mm('CAMERA_CARRIER_PIVOT_PIN_DIAMETER',8)} / {mm('CAMERA_CARRIER_PIVOT_CLEARANCE',0.25,2)}",
-              f"sweep clearance = {mm('ADJUSTABLE_CAMERA_SWEEP_CLEARANCE',1.5)}"],BLUE)
-    note_box(fig,[0.335,0.18,0.25,0.17],"GEARING",
-             [f"module = {num(val('CAMERA_GEAR_MODULE',0.5),2)}",
-              f"equivalent teeth = {num(val('CAMERA_GEAR_EQUIVALENT_TEETH',170),0)}",
-              f"rim inner radius = {mm('CAMERA_GEAR_RIM_INNER_RADIUS',37.5)}",
-              f"face width / backlash = {mm('CAMERA_GEAR_FACE_WIDTH',3.6)} / {mm('CAMERA_GEAR_BACKLASH',0.12,2)}",
-              f"worm starts = {num(val('CAMERA_WORM_STARTS',1),0)}"],ORANGE)
-    note_box(fig,[0.61,0.18,0.325,0.22],"REMOVABLE CAP / INSERTS",
-             [f"mount style = {val('CAMERA_WORM_BEARING_MOUNT_STYLE','split_caps')!r}",
-              f"bearing pocket dia = {mm('CAMERA_WORM_SPLIT_BEARING_DIAMETER',8.15,2)}",
-              f"insert pilot = {mm('CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER',4)} x {mm('CAMERA_WORM_CAP_INSERT_DEPTH',5.5)} deep",
-              f"M3 clearance = {mm('CAMERA_WORM_CAP_SCREW_CLEARANCE',3.4)}",
-              "Caps install after the shaft/bearing, avoiding print supports",
-              "inside the worm passage and bearing-holder holes."],PURPLE)
+    ax3=panel(fig,[0.065,0.18,0.55,0.22],"THREE HORIZONTAL SUPPORT STATIONS","SCHEMATIC PLAN")
+    ax3.plot([-70,72],[0,0],color=GRAY,lw=4.0,solid_capstyle="round")
+    for x,label in ((-42,"INNER SPLIT SUPPORT"),(8,"OUTER SPLIT SUPPORT"),(58,"WALL PASSAGE")):
+        ax3.add_patch(Rectangle((x-5,-10),10,20,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+        ax3.add_patch(Circle((x,0),3.0,facecolor=WHITE,edgecolor=RED,lw=1.0))
+        ax3.text(x,-17,label,ha="center",va="top",fontsize=6.7,color=INK,weight="bold")
+    ax3.add_patch(Rectangle((-17,-7),20,14,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
+    dim_h(ax3,-17,3,13,7,f"WORM {num(total,1)}",ORANGE)
+    leader(ax3,(58,3),(73,13),f"same dia {num(bore,2)} close-fit bore",RED,"right")
+    setup(ax3,-78,78,-27,27)
+
+    note_box(fig,[0.64,0.18,0.295,0.22],"DEFAULT + FIT TUNING",
+             [f"CAMERA_WORM_BEARINGS_ENABLED = {val('CAMERA_WORM_BEARINGS_ENABLED',False)}",
+              f"plain journal bore = {num(bore,2)} mm",
+              "Default intent: perceptible drag; shaft should not freewheel",
+              f"Close-fit validator: bore - rod <= {num(max_clear,2)} mm",
+              "Measure rod; use smallest 4.20-4.40 coupon that turns.",
+              "Hand line-ream hard-seated caps if needed; never power-drill.",
+              "Mark caps; reinstall over shaft; alternate M3 screws only snug.",
+              "Verify/deburr metal worm bore; set measured endplay with shims.",
+              f"Min bearing/key roof = {mm('CAMERA_WORM_CAP_MIN_BEARING_ROOF',1.5)} / {mm('CAMERA_WORM_CAP_MIN_KEY_ROOF',1.5)}",
+              f"Insert pilot = {mm('CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER',4)} x {mm('CAMERA_WORM_CAP_INSERT_DEPTH',5.5)} deep."],PURPLE)
+    pdf.savefig(fig); plt.close(fig)
+
+
+def page_idler_gears(pdf):
+    direct=direct_purchased_wheel_drive()
+    drive_name=("DIRECT PURCHASED-WHEEL" if direct else "LEGACY COAXIAL-PINION")
+    subtitle=(
+        "The lowered purchased 30T worm wheel meshes directly with both the horizontal worm and the cartridge's 170T-equivalent sector"
+        if direct else
+        "Horizontal purchased worm drives a vertical purchased wheel; a coaxial printed spur pinion then drives the 170T-equivalent sector"
+    )
+    fig=new_sheet(8,f"{drive_name} TWO-MESH DRIVETRAIN",subtitle)
+    module=float(val("CAMERA_GEAR_MODULE",0.5)); sector_teeth=float(val("CAMERA_GEAR_EQUIVALENT_TEETH",170))
+    pinion_teeth=float(val("CAMERA_IDLER_PINION_TEETH",30)); wheel_teeth=float(val("CAMERA_IDLER_TEETH",30))
+    sector_r=module*sector_teeth/2; pinion_r=module*pinion_teeth/2
+    wheel_r=module*wheel_teeth/2; worm_r=float(val("CAMERA_WORM_DIAMETER_QUOTIENT",18))*module/2
+    drive_r=wheel_r if direct else pinion_r
+    sector_clearance=idler_sector_mesh_clearance()
+    sector_cd=sector_r+drive_r+sector_clearance
+    worm_cd=wheel_r+worm_r+float(val("CAMERA_WORM_IDLER_MESH_CENTER_CLEARANCE",0.28))
+
+    ax=panel(fig,[0.065,0.40,0.56,0.47],"PITCH CENTERS & POWER FLOW","TOP / PLAN")
+    # Match the model: pivot, vertical wheel, and horizontal-worm pitch center
+    # are collinear along gear_direction; the worm shaft runs on the
+    # perpendicular tangent through that final center.
+    pivot=(-26,-18); idler=(pivot[0]+sector_cd,pivot[1]); worm=(idler[0]+worm_cd,idler[1])
+    ax.add_patch(Wedge(pivot,sector_r+1,105,255,width=6,facecolor="#cce0ec",edgecolor=BLUE,lw=1.2))
+    ax.add_patch(Circle(pivot,2.2,facecolor=WHITE,edgecolor=PURPLE,lw=1.0))
+    ax.add_patch(Circle(idler,drive_r,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.2))
+    if not direct:
+        ax.add_patch(Circle(idler,wheel_r-1.2,facecolor="#d8b66a",edgecolor=INK,lw=0.8,ls="--"))
+    ax.add_patch(Circle(worm,worm_r,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
+    ax.plot([worm[0],worm[0]],[worm[1]-30,worm[1]+30],color=GRAY,lw=3.0)
+    centerline(ax,(pivot[0],pivot[1]),(idler[0],idler[1]))
+    centerline(ax,(idler[0],idler[1]),(worm[0],worm[1]))
+    sector_drive_label="WHEEL" if direct else "PINION"
+    dim_h(ax,pivot[0],idler[0],-43,pivot[1],f"{sector_drive_label}-SECTOR CENTER DISTANCE = {num(sector_cd,2)}",BLUE)
+    dim_h(ax,idler[0],worm[0],-39,idler[1],f"WORM-WHEEL C.D. {num(worm_cd,2)}",ORANGE)
+    leader(ax,pivot,(-63,28),f"170T-eq sector\npitch R {num(sector_r,1)}",BLUE)
+    idler_note=(
+        "LOWERED PURCHASED 30T WHEEL\nDIRECTLY DRIVES SECTOR"
+        if direct else
+        "PURCHASED WHEEL + PRINTED PINION\nCOAXIAL ON VERTICAL SHAFT"
+    )
+    leader(ax,idler,(34,-35),idler_note,PURPLE)
+    leader(ax,worm,(64,34),"horizontal worm axis\n(plan projection)",ORANGE)
+    ax.add_patch(FancyArrowPatch((worm[0]-2,-9),(idler[0]+7,-9),arrowstyle="-|>",mutation_scale=10,color=GREEN,lw=1.2))
+    ax.add_patch(FancyArrowPatch((idler[0]-7,-9),(pivot[0]+18,-9),arrowstyle="-|>",mutation_scale=10,color=GREEN,lw=1.2))
+    setup(ax,-78,82,-52,48)
+
+    ax2=panel(fig,[0.65,0.52,0.285,0.35],"PURCHASED WORM WHEEL","ELEVATION")
+    wheel_od=float(val("CAMERA_IDLER_OUTER_DIAMETER",16)); wheel_h=float(val("CAMERA_IDLER_TOTAL_HEIGHT",12)); tooth_h=float(val("CAMERA_IDLER_TOOTH_FACE_HEIGHT",6)); hub_h=float(val("CAMERA_IDLER_HUB_HEIGHT",6))
+    ax2.add_patch(Rectangle((-wheel_od/2,0),wheel_od,tooth_h,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.2,hatch="///"))
+    ax2.add_patch(Rectangle((-5,tooth_h),10,hub_h,facecolor="#d8b66a",edgecolor=INK,lw=1.0))
+    dim_h(ax2,-wheel_od/2,wheel_od/2,-4,0,f"OD {num(wheel_od,1)}",ORANGE)
+    dim_v(ax2,0,wheel_h,12,wheel_od/2,f"OVERALL {num(wheel_h,1)}",BLUE)
+    dim_v(ax2,0,tooth_h,-12,-wheel_od/2,f"TEETH {num(tooth_h,1)}",ORANGE)
+    ax2.text(0,15.8,f"30T, m{num(module,1)} | 4 mm bore | 10 mm hub",
+             ha="center",va="center",fontsize=7.0,color=PURPLE,
+             bbox=dict(boxstyle="round,pad=0.18",fc=WHITE,ec=PURPLE,lw=0.55))
+    setup(ax2,-18,25,-7,19)
+
+    if direct:
+        ax3=panel(fig,[0.65,0.20,0.285,0.25],"DIRECT FACE ALIGNMENT","SECTION")
+        bottom=float(val("BOTTOM_THICKNESS",3.2)); floor_clear=float(val("CAMERA_WORM_FLOOR_CLEARANCE",1.40))
+        worm_outer=(float(val("CAMERA_WORM_DIAMETER_QUOTIENT",18))+2.0)*module/2.0
+        mesh_z=bottom+floor_clear+worm_outer
+        sector_face=float(val("CAMERA_GEAR_FACE_WIDTH",3.6)); tooth_h=float(val("CAMERA_IDLER_TOOTH_FACE_HEIGHT",6.0))
+        sector_z0=mesh_z-sector_face/2; tooth_z0=mesh_z-tooth_h/2
+        ax3.add_patch(Rectangle((-8,tooth_z0),16,tooth_h,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.1,hatch="///"))
+        ax3.add_patch(Rectangle((8.5,sector_z0),8,sector_face,facecolor="#cce0ec",edgecolor=BLUE,lw=1.1))
+        centerline(ax3,(-13,mesh_z),(21,mesh_z))
+        dim_v(ax3,tooth_z0,tooth_z0+tooth_h,-14,-8,f"WHEEL BAND {num(tooth_h,1)}",ORANGE)
+        dim_v(ax3,sector_z0,sector_z0+sector_face,21,16.5,f"SECTOR {num(sector_face,1)}",BLUE)
+        leader(ax3,(0,mesh_z),(14,16),f"common center Z {num(mesh_z,2)}",PURPLE)
+        setup(ax3,-19,25,3.5,18)
+    else:
+        ax3=panel(fig,[0.65,0.20,0.285,0.25],"PRINTED COAXIAL PINION","TOP")
+        pinion_od=module*(pinion_teeth+2); d_bore=float(val("CAMERA_IDLER_PINION_SHAFT_BORE_DIAMETER",4.25)); flat=float(val("CAMERA_IDLER_PINION_SHAFT_FLAT_DEPTH",0.45))
+        ax3.add_patch(Circle((0,0),pinion_od/2,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.2))
+        ax3.add_patch(Circle((0,0),d_bore/2,facecolor=WHITE,edgecolor=INK,lw=0.8))
+        ax3.add_patch(Rectangle((d_bore/2-flat,-d_bore/2),flat,d_bore,facecolor="#f3c7aa",edgecolor=RED,lw=0.8))
+        dim_h(ax3,-pinion_od/2,pinion_od/2,-12,-pinion_od/2,f"TIP OD {num(pinion_od,1)}",ORANGE)
+        leader(ax3,(d_bore/2-flat/2,0),(14,5),f"D-bore dia {num(d_bore,2)}\nflat depth {num(flat,2)}",RED)
+        leader(ax3,(-3,5),(-14,12),f"printed {num(pinion_teeth,0)}T m{num(module,1)}",PURPLE)
+        setup(ax3,-19,25,-16,17)
+
+    note_box(fig,[0.065,0.18,0.27,0.15],"CENTER-DISTANCE FORMULAS",
+             [f"worm-wheel = {num(worm_r,1)} + {num(wheel_r,1)} + {mm('CAMERA_WORM_IDLER_MESH_CENTER_CLEARANCE',0.28,2)} = {num(worm_cd,2)}",
+              f"{sector_drive_label.lower()}-sector = {num(drive_r,1)} + {num(sector_r,1)} + {num(sector_clearance,2)} mm = {num(sector_cd,2)}",
+              "Dimensions are pitch-center distances."],BLUE)
+    ratio_lines=(
+        [f"drive style = {val('CAMERA_IDLER_SECTOR_DRIVE_STYLE','purchased_wheel_direct')}",
+         f"1-start worm -> purchased {num(wheel_teeth,0)}T wheel -> {num(sector_teeth,0)}T sector",
+         "Overall nominal ratio remains 170:1.",
+         "Prototype: hand-test the worm-wheel tooth helix against the spur sector."]
+        if direct else
+        [f"1-start worm -> {num(wheel_teeth,0)}T wheel -> {num(pinion_teeth,0)}T pinion -> {num(sector_teeth,0)}T sector",
+         "30T wheel and 30T pinion are locked coaxially.",
+         "Overall nominal ratio remains 170:1.",
+         "File a matching 0.45 mm shallow flat on the 4 mm shaft."]
+    )
+    note_box(fig,[0.355,0.18,0.27,0.15],"RATIO / PHYSICAL FIT",ratio_lines,ORANGE)
+    pdf.savefig(fig); plt.close(fig)
+
+
+def page_idler_assembly(pdf):
+    direct=direct_purchased_wheel_drive()
+    fig=new_sheet(9,"VERTICAL IDLER JOURNALS & SUPPORT-FREE ASSEMBLY",
+                  "The lowered direct-drive wheel is installed with the shaft before the removable two-arm M3 upper cap; a clamp collar retains the stack" if direct else
+                  "A blind lower printed journal and removable two-arm M3 upper cap support the 4 mm vertical shaft; a clamp collar retains it")
+    bore=float(val("CAMERA_IDLER_SHAFT_RUNNING_BORE_DIAMETER",4.24)); shaft=float(val("CAMERA_IDLER_SHAFT_DIAMETER",4.0))
+    wheel_h=float(val("CAMERA_IDLER_TOTAL_HEIGHT",12)); pinion_h=float(val("CAMERA_IDLER_PINION_FACE_WIDTH",3.6)); cap_t=float(val("CAMERA_IDLER_CAP_THICKNESS",4)); collar_h=float(val("CAMERA_IDLER_SHAFT_TOP_COLLAR_HEIGHT",4))
+    lower_gap=float(val("CAMERA_IDLER_LOWER_BUSHING_WHEEL_CLEARANCE",0.15)); wheel_gap=float(val("CAMERA_IDLER_PINION_WHEEL_GAP",0.15)); cap_gap=float(val("CAMERA_IDLER_CAP_WHEEL_CLEARANCE",0.40)); collar_gap=float(val("CAMERA_IDLER_SHAFT_TOP_COLLAR_CLEARANCE",0.15))
+    bottom=float(val("BOTTOM_THICKNESS",3.2)); floor_clear=float(val("CAMERA_IDLER_SHAFT_FLOOR_CLEARANCE",0.40))
+    module=float(val("CAMERA_GEAR_MODULE",0.5)); worm_floor=float(val("CAMERA_WORM_FLOOR_CLEARANCE",1.40))
+    worm_outer=(float(val("CAMERA_WORM_DIAMETER_QUOTIENT",18))+2.0)*module/2.0
+    mesh_z=bottom+worm_floor+worm_outer
+    tooth_h=float(val("CAMERA_IDLER_TOOTH_FACE_HEIGHT",6.0)); hub_h=float(val("CAMERA_IDLER_HUB_HEIGHT",6.0))
+    tooth_at_bottom=val("CAMERA_IDLER_TOOTH_BAND_POSITION","bottom")=="bottom"
+    pinion_z0=mesh_z-pinion_h/2.0; pinion_z1=pinion_z0+pinion_h
+    if direct:
+        tooth_z0=mesh_z-tooth_h/2.0; tooth_z1=tooth_z0+tooth_h
+        wheel_z0=tooth_z0 if tooth_at_bottom else tooth_z1-wheel_h
+    else:
+        wheel_z0=pinion_z1+wheel_gap
+        tooth_z0=wheel_z0 if tooth_at_bottom else wheel_z0+wheel_h-tooth_h
+        tooth_z1=tooth_z0+tooth_h
+    wheel_z1=wheel_z0+wheel_h
+    lower_rotating_z=wheel_z0 if direct else pinion_z0-float(val("CAMERA_IDLER_PINION_HUB_EXTENSION",0.5))
+    lower_support_top=lower_rotating_z-lower_gap
+    cap_z0=wheel_z1+cap_gap; cap_z1=cap_z0+cap_t
+    collar_z0=cap_z1+collar_gap; collar_z1=collar_z0+collar_h
+
+    ax=panel(fig,[0.065,0.39,0.45,0.48],"VERTICAL SHAFT STACK","SECTION")
+    ax.add_patch(Rectangle((-34,0),68,bottom,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+    ax.add_patch(Rectangle((-5,bottom),10,lower_support_top-bottom,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+    ax.add_patch(Rectangle((-bore/2,floor_clear),bore,max(lower_support_top-floor_clear,0.01),
+                           facecolor=WHITE,edgecolor=RED,lw=0.8))
+    ax.add_patch(Rectangle((-shaft/2,floor_clear),shaft,collar_z1-floor_clear,facecolor="#9ba6ae",edgecolor=INK,lw=0.7))
+    if not direct:
+        ax.add_patch(Rectangle((-8,pinion_z0),16,pinion_h,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
+    # Draw the purchased wheel as a narrow hub plus its wider tooth band so
+    # the direct-drive lowering and common sector/worm centerline are visible.
+    ax.add_patch(Rectangle((-5,wheel_z0),10,wheel_h,facecolor="#d8b66a",edgecolor=INK,lw=1.0))
+    ax.add_patch(Rectangle((-8,tooth_z0),16,tooth_h,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0,hatch="///"))
+    ax.add_patch(Rectangle((-17,cap_z0),34,cap_t,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
+    ax.add_patch(Rectangle((-bore/2,cap_z0),bore,cap_t,facecolor=WHITE,edgecolor=RED,lw=0.8))
+    ax.add_patch(Rectangle((-4,collar_z0),8,collar_h,facecolor="#d8b66a",edgecolor=INK,lw=1.0))
+    dim_v(ax,floor_clear,lower_support_top,28,5,f"BLIND BORE dia {num(bore,2)}",RED)
+    if not direct:
+        dim_v(ax,pinion_z0,pinion_z1,-25,-8,f"PINION {num(pinion_h,1)}",ORANGE)
+    dim_v(ax,wheel_z0,wheel_z1,25,8,f"WHEEL {num(wheel_h,1)}",PURPLE)
+    dim_v(ax,cap_z0,cap_z1,-25,-17,f"CAP {num(cap_t,1)}",ORANGE)
+    dim_v(ax,collar_z0,collar_z1,15,4,f"COLLAR {num(collar_h,1)}",PURPLE)
+    leader(ax,(0,(floor_clear+lower_support_top)/2),(-29,14),f"4 mm shaft in {num(bore,2)} printed journal",RED)
+    leader(ax,(8,wheel_z0),(43,7),f"lower thrust gap {num(lower_gap,2)}",GREEN,"right")
+    if direct:
+        centerline(ax,(-12,mesh_z),(18,mesh_z))
+        leader(ax,(8,mesh_z),(43,14),f"worm + sector center Z {num(mesh_z,2)}",GREEN,"right")
+    else:
+        leader(ax,(8,wheel_z0-0.08),(43,18),f"wheel/pinion gap {num(wheel_gap,2)}",GREEN,"right")
+    setup(ax,-42,47,-1,max(collar_z1+4,33))
+
+    ax2=panel(fig,[0.54,0.48,0.395,0.39],"REMOVABLE TWO-ARM UPPER CAP","TOP")
+    offset=float(val("CAMERA_IDLER_CAP_POST_TANGENTIAL_OFFSET",14)); post_d=float(val("CAMERA_IDLER_CAP_POST_DIAMETER",10)); capw=float(val("CAMERA_IDLER_CAP_WIDTH",12)); armw=float(val("CAMERA_IDLER_CAP_ARM_WIDTH",6))
+    ax2.add_patch(Circle((0,0),capw/2,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.1))
+    for sign in (-1,1):
+        ax2.add_patch(Rectangle((-armw/2,min(0,sign*offset)),armw,offset,facecolor="#f3c7aa",edgecolor=ORANGE,lw=0.9))
+        ax2.add_patch(Circle((0,sign*offset),post_d/2,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
+        ax2.add_patch(Circle((0,sign*offset),float(val("CAMERA_IDLER_CAP_SCREW_CLEARANCE",3.4))/2,facecolor=WHITE,edgecolor=PURPLE,lw=0.8))
+    ax2.add_patch(Circle((0,0),bore/2,facecolor=WHITE,edgecolor=RED,lw=1.0))
+    dim_v(ax2,-offset,offset,13,post_d/2,f"POST CENTERS {num(2*offset,1)}",PURPLE)
+    dim_h(ax2,-armw/2,armw/2,-6,-8,f"ARM {num(armw,1)}",ORANGE)
+    leader(ax2,(0,offset),(18,18),f"M3 clearance {mm('CAMERA_IDLER_CAP_SCREW_CLEARANCE',3.4)}\nhead sink dia {mm('CAMERA_IDLER_CAP_SCREW_HEAD_DIAMETER',6.5)}",PURPLE)
+    leader(ax2,(0,0),(-17,3),f"upper journal dia {num(bore,2)}",RED,"right")
+    setup(ax2,-25,34,-24,26)
+
+    note_box(fig,[0.54,0.30,0.395,0.12],"FIXED POSTS / INSERTS",
+             [f"post OD = {mm('CAMERA_IDLER_CAP_POST_DIAMETER',10)}; insert pilot = {mm('CAMERA_IDLER_CAP_INSERT_HOLE_DIAMETER',4)} x {mm('CAMERA_IDLER_CAP_INSERT_DEPTH',5.5)} deep",
+              f"blind-journal floor land above enclosure underside = {num(floor_clear,2)} mm",
+              f"cap thickness = {num(cap_t,1)}; head sink = dia {mm('CAMERA_IDLER_CAP_SCREW_HEAD_DIAMETER',6.5)} x {mm('CAMERA_IDLER_CAP_SCREW_HEAD_DEPTH',2.4)} deep",
+              f"wheel / tooth band Z = {num(wheel_z0,2)}-{num(wheel_z1,2)} / {num(tooth_z0,2)}-{num(tooth_z1,2)}",
+              (f"direct root bridge >= {mm('CAMERA_IDLER_DIRECT_SECTOR_ROOT_BRIDGE_MIN_HEIGHT',3.20,2)} high x {mm('CAMERA_IDLER_DIRECT_SECTOR_RIM_MIN_RADIAL_WIDTH',3.00,2)} radial; pocket {mm('CAMERA_IDLER_DIRECT_LOWER_WHEEL_POCKET_CLEARANCE',0.15,2)} / floor land {mm('CAMERA_IDLER_DIRECT_LOWER_WHEEL_POCKET_MIN_ROOT_LAND',0.55,2)}" if direct else
+               "legacy printed pinion sits above the carrier under-web"),
+              f"top clamp collar = dia {mm('CAMERA_IDLER_SHAFT_TOP_COLLAR_DIAMETER',8)} x {num(collar_h,1)} high; cap clearance {num(collar_gap,2)}"],PURPLE)
+
+    ax3=panel(fig,[0.065,0.12,0.87,0.15],"LID-OFF SUPPORT-FREE ASSEMBLY / REVERSE FOR SERVICE","ASSEMBLY")
+    preassemble=("purchased wheel on bare\n4 mm shaft; no pinion" if direct else
+                 "printed pinion + purchased\nwheel on bare 4 mm shaft")
+    steps=[
+        ("1","WORM FIRST","install worm/shaft and\ntwo split journal caps"),
+        ("2","CARRIER","reverse path: upright at 72/12 mm;\n30 deg at 12/8, 15 deg at 5, seat"),
+        ("3","PREASSEMBLE",preassemble),
+        ("4","LOWER / MESH","stack into blind journal; turn\nworm/carrier to phase teeth"),
+        ("5","RETAIN","M3 upper cap + top collar;\nhold-down, camera + lid"),
+    ]
+    for i,(number,verb,detail) in enumerate(steps):
+        x=-92+i*46
+        ax3.add_patch(FancyBboxPatch((x,-12),39,24,boxstyle="round,pad=0.4,rounding_size=2",
+                                     facecolor=LIGHT,edgecolor=BLUE,lw=0.9))
+        ax3.text(x+4,5,number,ha="center",va="center",fontsize=9,weight="bold",color=WHITE,
+                 bbox=dict(boxstyle="circle,pad=0.25",fc=BLUE,ec=BLUE))
+        ax3.text(x+10,6,verb,fontsize=7.4,weight="bold",color=BLUE,va="center")
+        ax3.text(x+4,-1,detail,fontsize=6.2,color=INK,va="top")
+        if i<4:
+            ax3.add_patch(FancyArrowPatch((x+39,0),(x+45,0),arrowstyle="-|>",mutation_scale=8,color=GREEN,lw=1.0))
+    setup(ax3,-98,138,-17,17)
+    pdf.savefig(fig); plt.close(fig)
+
+
+def page_carrier_guard(pdf):
+    fig=new_sheet(10,"ROTATING CARRIER GUIDE & YAW-SAFE EYE GUARD",
+                  "The final 14 mm carrier guides and compact front datum remain behind the assembled eye-rim guard through the full yaw sweep")
+    guide_h=float(val("CAMERA_CARRIER_GUIDE_HEIGHT",14)); guide_t=float(val("CAMERA_CARRIER_GUIDE_THICKNESS",5)); front_w=float(val("CAMERA_CARRIER_FRONT_STOP_WIDTH",14)); margin=float(val("CAMERA_CARRIER_FRONT_STOP_EYE_GUARD_MARGIN",0.35)); yaw=float(val("ADJUSTABLE_CAMERA_YAW_RANGE_DEG",10))
+    ax=panel(fig,[0.065,0.43,0.45,0.44],"GUIDE HEIGHT & CAMERA DATUM","SIDE")
+    ax.add_patch(Rectangle((-44,0),88,3.2,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+    ax.add_patch(Rectangle((-38,3.2),76,3.2,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
+    ax.add_patch(FancyBboxPatch((-35,6.4),70,51,boxstyle="round,pad=0,rounding_size=4",facecolor="#e1e5e8",edgecolor=INK,lw=1.0))
+    for x in (-40,35):
+        ax.add_patch(Rectangle((x,6.4),guide_t,guide_h,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.1))
+    dim_v(ax,6.4,6.4+guide_h,-49,-40,f"FINAL GUIDE {num(guide_h,1)}",ORANGE)
+    dim_h(ax,35,35+guide_t,1,6.4,f"THICK {num(guide_t,1)}",ORANGE)
+    leader(ax,(-37.5,20),(-54,42),"guide top stops below\nexterior eye guard band",BLUE)
+    leader(ax,(0,6.4),(31,-5),f"tray {mm('CAMERA_CARRIER_TRAY_THICKNESS',3.2)} thick",PURPLE)
+    setup(ax,-60,62,-9,68)
+
+    ax2=panel(fig,[0.54,0.43,0.395,0.44],"FRONT DATUM VS. EYE-RIM GUARD","NORMAL / SECTION")
+    opening=float(val("EYE_OPENING_WIDTH",58)); guard=float(val("EYE_APERTURE_GUARD_BAND_OFFSET",0.75)); keep=float(val("EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN",0.35))
+    ax2.add_patch(FancyBboxPatch((-32,-25),64,50,boxstyle="round,pad=0,rounding_size=11",facecolor="#cce0ec",edgecolor=BLUE,lw=1.2))
+    ax2.add_patch(FancyBboxPatch((-opening/2,-23),opening,46,boxstyle="round,pad=0,rounding_size=10",facecolor=WHITE,edgecolor=ORANGE,lw=1.2))
+    ax2.add_patch(FancyBboxPatch((-opening/2-guard,-23-guard),opening+2*guard,46+2*guard,boxstyle="round,pad=0,rounding_size=10.5",facecolor="none",edgecolor=RED,lw=1.0,ls="--"))
+    ax2.add_patch(Rectangle((-front_w/2,-21),front_w,5,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
+    dim_h(ax2,-front_w/2,front_w/2,-31,-21,f"FRONT DATUM WIDTH {num(front_w,1)}",ORANGE)
+    dim_v(ax2,-23-guard,-23,39,32,f"GUARD OFFSET {num(guard,2)}",RED)
+    leader(ax2,(front_w/2,-18),(40,-12),f"yaw-safe margin >= {num(margin,2)}",GREEN,"right")
+    leader(ax2,(-29,-10),(-43,11),f"internal cutter keep-out {num(keep,2)}",RED)
+    setup(ax2,-48,50,-38,38)
+
+    ax3=panel(fig,[0.065,0.15,0.57,0.20],"FRONT DATUM THROUGH FULL YAW","TOP / PLAN")
+    for angle,color,alpha in ((-yaw,GRAY,0.14),(0,ORANGE,0.22),(yaw,GRAY,0.14)):
+        ax3.add_patch(Polygon(rotated_rect(0,0,45,72,angle),closed=True,facecolor=color,alpha=alpha,edgecolor=color,lw=0.9))
+        rad=math.radians(angle)
+        cx=-22*math.cos(rad); cy=-22*math.sin(rad)
+        ax3.add_patch(Rectangle((cx-front_w/2,cy-2.5),front_w,5,angle=angle,rotation_point="center",facecolor="#f3c7aa",edgecolor=ORANGE,lw=0.8))
+    ax3.plot([-31,-31],[-48,48],color=RED,lw=2.0,ls="--")
+    ax3.text(-34,42,"EYE-RIM GUARD LIMIT",rotation=90,va="top",ha="right",color=RED,fontsize=7,weight="bold")
+    ax3.add_patch(Arc((0,0),58,58,theta1=180-yaw,theta2=180+yaw,edgecolor=ORANGE,lw=1.1))
+    ax3.text(-15,31,f"+/- {num(yaw,1)} deg sweep",color=ORANGE,fontsize=7.5,weight="bold")
+    leader(ax3,(-22,0),(30,-35),"front datum is solved on flat body land\nand checked at every yaw sample",GREEN)
+    setup(ax3,-48,55,-52,52)
+
+    note_box(fig,[0.66,0.15,0.275,0.20],"GUARD / CHIMNEY LIMITS",
+             [f"front-stop eye-guard margin = {num(margin,2)} mm",
+              f"eye aperture guard-band offset = {num(guard,2)} mm",
+              f"internal cutter keep-out = {num(keep,2)} mm",
+              f"chimney wall guard = {mm('CAMERA_CARRIER_TOP_LOADING_CHIMNEY_WALL_GUARD',0.60,2)}",
+              f"sweep-cut clearance = {mm('CAMERA_CARRIER_SWEEP_CUT_CLEARANCE',0.30,2)}",
+              "Final mesh validation rejects any guard-band breach."],GREEN)
     pdf.savefig(fig); plt.close(fig)
 
 
 def page_fans(pdf):
-    fig=new_sheet(8,"REAR 40 mm FAN STATIONS",
+    fig=new_sheet(11,"REAR 40 mm FAN STATIONS",
                   "Two Noctua-style fans seat on 45 x 45 flats; each station may follow its rear-wall tangent")
     ax=panel(fig,[0.065,0.40,0.52,0.47],"PAD, OPENING & MOUNT PATTERN","REAR ELEVATION")
     pad=float(val("REAR_FAN_PAD_SIZE",45)); offset=float(val("REAR_FAN_CENTERLINE_OFFSET",50)); z=float(val("REAR_FAN_CENTER_Z",35)); spacing=float(val("REAR_FAN_MOUNT_SPACING",32)); opening=float(val("REAR_FAN_AIR_OPENING_DIAMETER",36))
@@ -763,7 +1085,7 @@ def page_fans(pdf):
 
 
 def page_acoustic(pdf):
-    fig=new_sheet(9,"OPTIONAL BAFFLED ACOUSTIC CASSETTE",
+    fig=new_sheet(12,"OPTIONAL BAFFLED ACOUSTIC CASSETTE",
                   "A removable tortuous-path cassette blocks direct fan-to-microphone line of sight; no separate microphone blocker is used")
     ax=panel(fig,[0.065,0.40,0.57,0.47],"DIVIDED INLETS, PLENUM, BAFFLES & OUTLETS","FLOW PLAN")
     # rear is right; cameras/front at left
@@ -828,7 +1150,7 @@ def page_acoustic(pdf):
 
 
 def page_nut(pdf):
-    fig=new_sheet(10,"BOTTOM 1/4-INCH CAPTIVE-NUT MOUNT",
+    fig=new_sheet(13,"BOTTOM 1/4-INCH CAPTIVE-NUT MOUNT",
                   "A press-fit 1/4-20 hex nut loads from inside; six flexible ramped lips retain it after insertion")
     ax=panel(fig,[0.065,0.43,0.47,0.44],"AUTO-RESOLVED FLOOR LOCATION","BOTTOM / PLAN")
     depth=float(val("BODY_DEPTH",233.661)); width=float(val("BODY_WIDTH",180)); frac=float(val("BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION",0.5))
@@ -881,7 +1203,7 @@ def page_nut(pdf):
 
 
 def page_keystone(pdf):
-    fig=new_sheet(11,"BOTTOM KEYSTONE SNAP SOCKETS",
+    fig=new_sheet(14,"BOTTOM KEYSTONE SNAP SOCKETS",
                   "Three cartridges install from inside and finish flush with the exterior bottom face")
     ax=panel(fig,[0.065,0.43,0.47,0.44],"THREE-SOCKET CORNER CLUSTER","BOTTOM / PLAN")
     depth=190; width=145; outline=soft_triangle(depth,width,0.75,0.55)
@@ -931,8 +1253,22 @@ def page_keystone(pdf):
 
 
 def page_index(pdf):
-    fig=new_sheet(12,"MAJOR PARAMETER QUICK REFERENCE",
-                  "Edit the CONFIG block near the top of veo_3_cam_cover_original_style_blender.py; dimensions are millimeters")
+    fig=new_sheet(15,"MAJOR PARAMETER QUICK REFERENCE",
+                  "Edit the CONFIG block near the top of hockeymom_3_cam_cover_original_style_blender.py; dimensions are millimeters")
+    gear_module=float(val("CAMERA_GEAR_MODULE",0.5))
+    direct=direct_purchased_wheel_drive()
+    sector_radius=float(val("CAMERA_GEAR_EQUIVALENT_TEETH",170))*gear_module/2
+    pinion_radius=float(val("CAMERA_IDLER_PINION_TEETH",30))*gear_module/2
+    wheel_radius=float(val("CAMERA_IDLER_TEETH",30))*gear_module/2
+    worm_radius=float(val("CAMERA_WORM_DIAMETER_QUOTIENT",18))*gear_module/2
+    sector_center_distance=(
+        sector_radius+(wheel_radius if direct else pinion_radius)
+        +idler_sector_mesh_clearance()
+    )
+    worm_center_distance=(
+        wheel_radius+worm_radius
+        +float(val("CAMERA_WORM_IDLER_MESH_CENTER_CLEARANCE",0.28))
+    )
     groups=[
         ("SHELL / TAPER",[
             ("BODY_WIDTH / BODY_DEPTH",f"{num(val('BODY_WIDTH',180),1)} / {num(val('BODY_DEPTH',233.661),3)}"),
@@ -946,9 +1282,9 @@ def page_index(pdf):
             ("CAMERA_HALF_ANGLE_DEG",num(val('CAMERA_HALF_ANGLE_DEG',35),1)),
             ("EYE_OPENING_WIDTH / HEIGHT",f"{num(val('EYE_OPENING_WIDTH',58),1)} / {num(val('EYE_OPENING_HEIGHT',46),1)}"),
             ("EYE_BEZEL_WIDTH / HEIGHT / DEPTH",f"{num(val('EYE_BEZEL_WIDTH',64),1)} / {num(val('EYE_BEZEL_HEIGHT',52),1)} / {num(val('EYE_BEZEL_DEPTH',5),1)}"),
-            ("CAMERA_FORWARD_PLACEMENT_MODE",str(val('CAMERA_FORWARD_PLACEMENT_MODE','maximize'))),
-            ("CAMERA_FLOOR_CLEARANCE",num(val('CAMERA_FLOOR_CLEARANCE',4.5),1)),
-            ("CAMERA_BODY_MUTUAL_CLEARANCE",num(val('CAMERA_BODY_MUTUAL_CLEARANCE',1),1)),
+            ("FORWARD MODE / FIXED INDEP. / ADJ. OFFSET",f"{val('CAMERA_FORWARD_PLACEMENT_MODE','maximize')} / {val('CAMERA_FIXED_INDEPENDENT_FORWARD_ADVANCE_ENABLED',True)} / {num(val('ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET',1.7),2)}"),
+            ("EYE REAR RELIEF / RETAINED LIP",f"{num(val('EYE_ADJUSTABLE_BODY_RELIEF_DEPTH',2),1)} / {num(val('EYE_BEZEL_DEPTH',5)-val('EYE_ADJUSTABLE_BODY_RELIEF_DEPTH',2),1)}"),
+            ("FLOOR GAP / EYE WEB / FRONT DATUM",f"{num(val('CAMERA_FLOOR_CLEARANCE',4.5),1)} / {num(val('EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH',6),1)} / {num(val('CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH',8),1)}"),
         ]),
         ("LID / RETENTION",[
             ("LID_THICKNESS",num(val('LID_THICKNESS',4.653),3)),
@@ -958,13 +1294,16 @@ def page_index(pdf):
             ("LID_SCREW_CLEARANCE_DIAMETER",num(val('LID_SCREW_CLEARANCE_DIAMETER',3.4),1)),
             ("LID_SCREW_HEAD_COUNTERBORE_*",f"dia {num(val('LID_SCREW_HEAD_COUNTERBORE_DIAMETER',6.2),1)} x {num(val('LID_SCREW_HEAD_COUNTERBORE_DEPTH',3.3),1)} deep"),
         ]),
-        ("WORM CARTRIDGE",[
+        ("DRIVETRAIN / CARRIER",[
             ("CAMERA_CARTRIDGE_WORM_ENABLED",str(val('CAMERA_CARTRIDGE_WORM_ENABLED',True))),
-            ("ADJUSTABLE_CAMERA_INDEX / YAW_RANGE_DEG",f"{num(val('ADJUSTABLE_CAMERA_INDEX',2),0)} / +/-{num(val('ADJUSTABLE_CAMERA_YAW_RANGE_DEG',10),1)}"),
-            ("ADJUSTABLE_CAMERA_PIVOT_RADIAL / TANGENTIAL",f"{num(val('ADJUSTABLE_CAMERA_PIVOT_RADIAL',-22),1)} / {num(val('ADJUSTABLE_CAMERA_PIVOT_TANGENTIAL',-10),1)}"),
-            ("CAMERA_GEAR_MODULE / EQUIVALENT_TEETH",f"{num(val('CAMERA_GEAR_MODULE',.5),2)} / {num(val('CAMERA_GEAR_EQUIVALENT_TEETH',170),0)}"),
-            ("CAMERA_WORM_LENGTH / SHAFT_DIAMETER",f"{num(val('CAMERA_WORM_LENGTH',20),1)} / {num(val('CAMERA_WORM_SHAFT_DIAMETER',4),1)}"),
-            ("CAMERA_WORM_BEARING_MOUNT_STYLE",str(val('CAMERA_WORM_BEARING_MOUNT_STYLE','split_caps'))),
+            ("IDLER SECTOR DRIVE STYLE",str(val('CAMERA_IDLER_SECTOR_DRIVE_STYLE','purchased_wheel_direct')).replace('_',' ')),
+            ("WORM OD / L / THREAD / HUB",f"{num(val('CAMERA_WORM_PLAIN_HUB_DIAMETER',10),1)} / {num(val('CAMERA_WORM_LENGTH',20),1)} / {num(val('CAMERA_WORM_THREADED_LENGTH',15),1)} / {num(val('CAMERA_WORM_PLAIN_HUB_LENGTH',5),1)}"),
+            ("H / V JOURNAL BORES",f"{num(val('CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER',4.24),2)} / {num(val('CAMERA_IDLER_SHAFT_RUNNING_BORE_DIAMETER',4.24),2)}"),
+            (f"WORM-WHEEL / {'WHEEL' if direct else 'PINION'}-SECTOR C.D.",f"{num(worm_center_distance,2)} / {num(sector_center_distance,2)}"),
+            (("STAGES: START / WHEEL / SECTOR" if direct else "STAGES: START / WHEEL / PINION / SECTOR"),
+             (f"{num(val('CAMERA_WORM_STARTS',1),0)} / {num(val('CAMERA_IDLER_TEETH',30),0)} / {num(val('CAMERA_GEAR_EQUIVALENT_TEETH',170),0)}" if direct else
+              f"{num(val('CAMERA_WORM_STARTS',1),0)} / {num(val('CAMERA_IDLER_TEETH',30),0)} / {num(val('CAMERA_IDLER_PINION_TEETH',30),0)} / {num(val('CAMERA_GEAR_EQUIVALENT_TEETH',170),0)}")),
+            ("GUIDE H / EYE-GUARD MARGIN",f"{num(val('CAMERA_CARRIER_GUIDE_HEIGHT',14),1)} / {num(val('CAMERA_CARRIER_FRONT_STOP_EYE_GUARD_MARGIN',0.35),2)}"),
         ]),
         ("FANS / ACOUSTICS",[
             ("REAR_FAN_PAD_SIZE / FRAME_SIZE",f"{num(val('REAR_FAN_PAD_SIZE',45),1)} / {num(val('REAR_FAN_FRAME_SIZE',40),1)}"),
@@ -1003,32 +1342,35 @@ def page_index(pdf):
         ("CAMERA_BRACKETS_ENABLED",val("CAMERA_BRACKETS_ENABLED",True)),
         ("CAMERA_USB_CASE_OPENINGS_ENABLED",val("CAMERA_USB_CASE_OPENINGS_ENABLED",False)),
         ("REAR_FANS_ENABLED",val("REAR_FANS_ENABLED",True)),
-        ("CAMERA_MIC_DEFLECTORS_ENABLED",val("CAMERA_MIC_DEFLECTORS_ENABLED",False)),
+        ("CAMERA_WORM_BEARINGS_ENABLED",val("CAMERA_WORM_BEARINGS_ENABLED",False)),
+        ("CAMERA_IDLER_BEARINGS_ENABLED",val("CAMERA_IDLER_BEARINGS_ENABLED",False)),
+        ("EYE_RECESS_BASE_SUPPORTED_WEB_ENABLED",val("EYE_RECESS_BASE_SUPPORTED_WEB_ENABLED",True)),
         ("BOTTOM_MOUNT_NUT_HOLDER_ENABLED",val("BOTTOM_MOUNT_NUT_HOLDER_ENABLED",True)),
         ("BOTTOM_KEYSTONES_ENABLED",val("BOTTOM_KEYSTONES_ENABLED",True)),
     ]
     switch_positions = [
-        (0.065, 0.145), (0.285, 0.145), (0.505, 0.145), (0.725, 0.145),
-        (0.065, 0.108), (0.285, 0.108), (0.505, 0.108), (0.725, 0.108),
+        (0.055, 0.145), (0.235, 0.145), (0.415, 0.145), (0.595, 0.145), (0.775, 0.145),
+        (0.055, 0.108), (0.235, 0.108), (0.415, 0.108), (0.595, 0.108), (0.775, 0.108),
     ]
     for (name,state),(x,y) in zip(switches,switch_positions):
         color=GREEN if state else GRAY
         fig.text(x,y,"ON" if state else "OFF",fontsize=6.7,weight="bold",color=WHITE,
                  bbox=dict(boxstyle="round,pad=0.22",fc=color,ec=color))
-        fig.text(x+0.034,y,name,fontsize=5.7,color=INK)
+        fig.text(x+0.032,y,name,fontsize=4.9,color=INK)
     pdf.savefig(fig); plt.close(fig)
 
 
 def main():
     with PdfPages(OUTPUT_PDF, metadata={
-        "Title":"Veo Dual-Camera Enclosure Configuration Dimension Guide",
-        "Author":"Generated from veo_3_cam_cover_original_style_blender.py",
+        "Title":"Hockeymom Dual-Camera Enclosure Configuration Dimension Guide",
+        "Author":"Generated from hockeymom_3_cam_cover_original_style_blender.py",
         "Subject":"Parametric configuration engineering diagrams",
-        "Keywords":"Veo GoPro MISSION 1 CAD dimensions configuration",
+        "Keywords":"Hockeymom GoPro MISSION 1 CAD dimensions configuration",
     }) as pdf:
         for build_page in (
             page_cover,page_body,page_optics,page_vertical,page_lid,page_retention,
-            page_worm,page_fans,page_acoustic,page_nut,page_keystone,page_index,
+            page_worm,page_idler_gears,page_idler_assembly,page_carrier_guard,
+            page_fans,page_acoustic,page_nut,page_keystone,page_index,
         ):
             build_page(pdf)
     print(f"Wrote {OUTPUT_PDF}")

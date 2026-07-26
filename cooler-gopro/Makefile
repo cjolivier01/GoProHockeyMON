@@ -1,5 +1,8 @@
 BLENDER ?= $(shell command -v blender 2>/dev/null || command -v /home/colivier/Apps/Blender/blender 2>/dev/null || printf '%s' blender)
 BLENDER_FLAGS ?= --background --factory-startup
+PDF_PYTHON ?= $(shell command -v /home/colivier/miniforge3/bin/python 2>/dev/null || command -v python3 2>/dev/null || printf '%s' python3)
+
+DIMENSION_PDF := hockeymom_3_cam_cover_configuration_dimensions.pdf
 
 FLAT_FAN_COVER_STLS := flat-fan-cover.stl
 WRAPPING_FAN_COVER_STLS := wrapping-fan-cover.stl
@@ -10,19 +13,33 @@ FAN_CASE_STLS := \
 	gopro_fan_case_parametric.stl \
 	gopro_fan_case_back.stl \
 	gopro_fan_case_insert.stl
-VEO_COVER_STLS := \
-	veo_3_cam_cover_original_style_base.stl \
-	veo_3_cam_cover_original_style_lid.stl \
-	veo_3_cam_cover_camera_bracket_1.stl \
-	veo_3_cam_cover_camera_bracket_2.stl \
-	veo_3_cam_cover_rotating_camera_cartridge.stl \
-	veo_3_cam_cover_worm_inner_bearing_cap.stl \
-	veo_3_cam_cover_worm_outer_bearing_cap.stl \
-	veo_3_cam_cover_fan_acoustic_trough.stl \
-	veo_3_cam_cover_fan_acoustic_lid.stl \
-	veo_3_cam_cover_fan_acoustic_boot_seal_1.stl \
-	veo_3_cam_cover_fan_acoustic_boot_seal_2.stl \
-	veo_3_cam_cover_original_style.stl
+HOCKEYMOM_COVER_STLS := \
+	hockeymom_3_cam_cover_original_style_base.stl \
+	hockeymom_3_cam_cover_original_style_lid.stl \
+	hockeymom_3_cam_cover_camera_bracket_1.stl \
+	hockeymom_3_cam_cover_camera_bracket_2.stl \
+	hockeymom_3_cam_cover_rotating_camera_cartridge.stl \
+	hockeymom_3_cam_cover_idler_shaft_cap.stl \
+	hockeymom_3_cam_cover_worm_inner_bearing_cap.stl \
+	hockeymom_3_cam_cover_worm_outer_bearing_cap.stl \
+	hockeymom_3_cam_cover_fan_acoustic_trough.stl \
+	hockeymom_3_cam_cover_fan_acoustic_lid.stl \
+	hockeymom_3_cam_cover_fan_acoustic_boot_seal_1.stl \
+	hockeymom_3_cam_cover_fan_acoustic_boot_seal_2.stl
+
+# These are emitted only when their corresponding reference/service export
+# switches are enabled.  Keep them out of the grouped build prerequisites,
+# but include them in cleanup so stale optional artifacts cannot survive a
+# configuration change.
+HOCKEYMOM_OPTIONAL_STLS := \
+	hockeymom_3_cam_cover_ASSEMBLY_REFERENCE_NOT_FOR_PRINT.stl \
+	hockeymom_3_cam_cover_cartridge_removable_front_stop.stl \
+	hockeymom_3_cam_cover_purchased_worm_reference.stl \
+	hockeymom_3_cam_cover_purchased_worm_wheel_reference.stl \
+	hockeymom_3_cam_cover_purchased_4mm_idler_shaft_reference.stl \
+	hockeymom_3_cam_cover_idler_spur_pinion.stl \
+	hockeymom_3_cam_cover_fan_gasket_1.stl \
+	hockeymom_3_cam_cover_fan_gasket_2.stl
 
 STL_FILES := \
 	$(FLAT_FAN_COVER_STLS) \
@@ -30,19 +47,21 @@ STL_FILES := \
 	$(HORN_STLS) \
 	$(MISSION1_DUMMY_STLS) \
 	$(DUAL_FAN_STLS) \
-	$(FAN_CASE_STLS) \
-	$(VEO_COVER_STLS)
+	$(FAN_CASE_STLS)
 
 .DEFAULT_GOAL := print_targets
 .DELETE_ON_ERROR:
 
 .PHONY: \
-	all print_targets \
-	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-case veo-cover \
+	all print_targets dim-pdf \
+	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-case hockeymom-cover \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-case clean-veo-cover
+	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover clean-dim-pdf
 
-all: $(STL_FILES)
+# The Hockeymom generator intentionally exports a configuration-dependent
+# manifest.  Its phony target therefore performs one authoritative run instead
+# of letting absent optional parts or stale files masquerade as current output.
+all: $(STL_FILES) hockeymom-cover
 
 print_targets:
 	@printf '%s\n' \
@@ -57,18 +76,23 @@ print_targets:
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
 		'dual-fan                  Build the parametric dual-fan STL.' \
 		'fan-case                  Build the fan case, back, and insert STLs.' \
-		'veo-cover                 Build all VEO 3 camera-cover component STLs.' \
+		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
+		'' \
+		'Documentation' \
+		'-------------' \
+		'dim-pdf                   Build the HOCKEYMOM 3 configuration dimension PDF.' \
 		'' \
 		'Cleanup' \
 		'-------' \
-		'clean                     Remove all generated STL files.' \
+		'clean                     Remove all generated STL and dimension-PDF files.' \
 		'clean-flat-fan-cover      Remove the flat fan cover STL.' \
 		'clean-wrapping-fan-cover  Remove the wrapping fan cover STL.' \
 		'clean-horn                Remove the parametric horn STL.' \
 		'clean-mission1-dummy      Remove the Mission 1 dummy STL.' \
 		'clean-dual-fan            Remove the dual-fan STL.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
-		'clean-veo-cover           Remove all VEO 3 camera-cover STLs.' \
+		'clean-hockeymom-cover     Remove all HOCKEYMOM 3 camera-cover STLs.' \
+		'clean-dim-pdf             Remove the HOCKEYMOM 3 configuration dimension PDF.' \
 		'' \
 		'Meta' \
 		'----' \
@@ -80,7 +104,11 @@ horn: $(HORN_STLS)
 mission1-dummy: $(MISSION1_DUMMY_STLS)
 dual-fan: $(DUAL_FAN_STLS)
 fan-case: $(FAN_CASE_STLS)
-veo-cover: $(VEO_COVER_STLS)
+dim-pdf: $(DIMENSION_PDF)
+
+$(DIMENSION_PDF): generate_hockeymom_config_dimension_pdf.py \
+	hockeymom_3_cam_cover_original_style_blender.py gopro_mission1_dummy_blender.py
+	$(PDF_PYTHON) $<
 
 # Load a generator without triggering its __main__ block, build its selected
 # object, and export that selection. These two scripts intentionally do not
@@ -117,12 +145,13 @@ $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py
 	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
 		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_gopro_fan_case']()"
 
-$(VEO_COVER_STLS) &: veo_3_cam_cover_original_style_blender.py gopro_mission1_dummy_blender.py
+hockeymom-cover: hockeymom_3_cam_cover_original_style_blender.py gopro_mission1_dummy_blender.py
+	$(RM) $(HOCKEYMOM_COVER_STLS) $(HOCKEYMOM_OPTIONAL_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
 		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_original_style_cover']()"
 
 clean: clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-case clean-veo-cover
+	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover clean-dim-pdf
 
 clean-flat-fan-cover:
 	$(RM) $(FLAT_FAN_COVER_STLS)
@@ -142,5 +171,8 @@ clean-dual-fan:
 clean-fan-case:
 	$(RM) $(FAN_CASE_STLS)
 
-clean-veo-cover:
-	$(RM) $(VEO_COVER_STLS)
+clean-hockeymom-cover:
+	$(RM) $(HOCKEYMOM_COVER_STLS) $(HOCKEYMOM_OPTIONAL_STLS)
+
+clean-dim-pdf:
+	$(RM) $(DIMENSION_PDF)
