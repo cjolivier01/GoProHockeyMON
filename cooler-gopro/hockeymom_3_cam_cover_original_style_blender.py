@@ -292,20 +292,12 @@ CAMERA_UPSIDE_DOWN = False
 # None derives the eye height from the measured camera bottom and configured
 # airflow gap.  Set a number only to override that automatic vertical datum.
 EYE_CENTER_Z = None
-EYE_OPENING_WIDTH = 58.0
-EYE_OPENING_HEIGHT = 46.0
-EYE_OPENING_CORNER_RADIUS = 10.0
-EYE_CUTTER_INWARD_EXTRA = 5.0
-EYE_CUTTER_OUTWARD_EXTENSION = 25.0
-# The large extension above is needed by the localized outer-hull recess.
-# The actual nominal aperture stops just past its own recessed eye face; a
-# long outward prism can cross the neighboring close-angle surround and make
-# small triangular punctures there.
-EYE_OPENING_CUTTER_OUTWARD_EXTRA = 0.75
+EYE_MOUTH_CUTTER_INWARD_EXTRA = 5.0
+EYE_MOUTH_CUTTER_OUTWARD_EXTENSION = 25.0
 
 # Top-loading split eyes.  The base opening becomes a U-slot from the optical
-# centerline to the rim; keyed inserts descending from the lid restore the
-# upper rounded aperture and raised-surround face when the lid is installed.
+# centerline to the mouth; keyed inserts descending from the lid restore the
+# upper rounded aperture when the lid is installed.
 EYE_TOP_LOADING_ENABLED = True
 EYE_TOP_LOADING_SLOT_WIDTH = 44.0
 EYE_TOP_LOADING_SLOT_BOTTOM_OFFSET_Z = 0.0
@@ -315,107 +307,44 @@ EYE_LID_CLOSURE_PLATE_EMBED = 2.5
 EYE_LID_CLOSURE_BACKING_THICKNESS = 1.8
 EYE_LID_CLOSURE_BACKING_SIDE_OVERLAP = 3.0
 EYE_LID_CLOSURE_APERTURE_CLEARANCE = 0.20
-# Final assembled regression guard: sample a dense loop just outside the
-# nominal eye aperture at two surround depths.  This catches small triangular
-# Boolean punctures around the lower nose and split-lid boundary.
-EYE_APERTURE_GUARD_BAND_OFFSET = 0.75
-EYE_APERTURE_GUARD_BAND_SAMPLES = 160
-# The yawing camera body needs a shallow pocket behind the bezel; otherwise
+# The yawing camera body needs a shallow pocket behind the eye mouth; otherwise
 # its lower/front corner catches the inner eye wall at a range endpoint.  The
-# pocket remains behind the continuous EYE_FRONT_STRUCTURAL_RIM_DEPTH and
+# pocket remains behind the continuous EYE_FRONT_DATUM_DEPTH and
 # avoids the former through-cut triangular punctures.
 EYE_ADJUSTABLE_BODY_RELIEF_ENABLED = True
-# The fixed camera also needs the rear ramp removed from its body envelope;
+# The fixed camera also needs the inner mouth region removed from its envelope;
 # compact front-stop pads are added afterward as its only radial contacts.
 EYE_FIXED_BODY_RELIEF_ENABLED = True
-# Clear through the complete printable rear ramp and stop exactly at the back
-# of the retained 2 mm front rim: 5 mm total - 2 mm front = 3 mm relief.
+# Retain a 2 mm front-datum offset after the 3 mm internal body relief.
 EYE_ADJUSTABLE_BODY_RELIEF_DEPTH = 3.0
-EYE_ADJUSTABLE_BODY_RELIEF_MIN_FRONT_LIP = 2.0
+EYE_ADJUSTABLE_BODY_RELIEF_MIN_FRONT_DATUM = 2.0
 EYE_ADJUSTABLE_BODY_RELIEF_INWARD_EXTENT = 5.0
 EYE_ADJUSTABLE_BODY_RELIEF_CLEARANCE = 0.35
-# Advance only the adjustable eye surround relative to its camera.  This clears
-# the last body/inner-lip contact while keeping the camera/cartridge at the
+# Advance only the adjustable eye mouth relative to its camera.  This clears
+# the last body/contact-plane interference while keeping the camera/cartridge at the
 # closest mutual-non-overlap radius and over 7.2 mm through the eye at yaw.
 ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET = 1.75
-# Sample both guard loops inside the retained front lip.  These fractions are
-# measured from the recessed exterior eye face through
-# EYE_FRONT_STRUCTURAL_RIM_DEPTH, not through the relieved rear throat.
-EYE_APERTURE_GUARD_FRONT_DEPTH_FRACTION = 0.20
-EYE_APERTURE_GUARD_BACK_DEPTH_FRACTION = 0.50
-# Later internal carrier/chimney cutters are clipped away from the complete
-# exterior bezel volume by this small numerical/structural margin.
-EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN = 0.35
-# Blender's exact Boolean solver can expose a very small boundary loop in the
-# curved adjustable-eye flare when later, distant bottom hardware is added.
-# Repair is deliberately bounded to tiny loops inside that eye volume; larger
-# or misplaced topology defects still stop the build.
-EYE_BOOLEAN_SLIVER_REPAIR_ENABLED = True
-EYE_BOOLEAN_SLIVER_REPAIR_MAX_COMPONENTS = 4
-EYE_BOOLEAN_SLIVER_REPAIR_MAX_EXTENT = 3.0
-EYE_BOOLEAN_SLIVER_REPAIR_MAX_PERIMETER = 12.0
-# Place the tiny triangle-fan center slightly toward the exterior.  This
-# follows the curved flare instead of spanning it with an inward planar chord
-# that can graze the rotating carrier at its yaw endpoint.
-EYE_BOOLEAN_SLIVER_REPAIR_PATCH_OUTSET = 0.35
 # When the optional protruding eyelids are enabled, two short root ribs make
 # each split-off center visor monolithic with its lid closure.  The ribs stay
 # inside the removable tongue width, so they pass through the base U-slot.
 EYE_LID_VISOR_ROOT_RIB_WIDTH = 3.0
 EYE_LID_VISOR_ROOT_RIB_EDGE_INSET = 0.35
 
-# Raised surround around each opening.
-EYE_BEZEL_WIDTH = 64.0
-EYE_BEZEL_HEIGHT = 52.0
-EYE_BEZEL_CORNER_RADIUS = 14.5
-EYE_FACE_INSET = 1.0
-# EYE_BEZEL_DEPTH = 9.0
-EYE_BEZEL_DEPTH = 5.0
-# Keep only this shallow continuous rim immediately behind the visible eye
-# face.  The remaining nominal bezel depth is opened into a printable ramp,
-# so it does not leave the former unsupported U-shaped shelf inside the case.
-EYE_FRONT_STRUCTURAL_RIM_DEPTH = 2.0
-EYE_SUPPORT_FRIENDLY_REAR_RELIEF_ENABLED = True
-# One extrusion-width ring land at the rear end prevents a zero-thickness
-# Boolean edge while remaining far too small to recreate the old support
-# shelf.  Any nominal depth left after the 45-degree ramp becomes a short,
-# automatically resolved root depth with the same small cross section.
-EYE_REAR_RELIEF_ROOT_LAND = 0.50
-# Angle of the lower rear-relief ramp above the build plate when the base is
-# printed on its bottom.  The radial run accounts for the finite root land, so
-# the actual outer ramp—not a zero-thickness theoretical edge—has this angle.
-EYE_REAR_RELIEF_PRINT_ANGLE_DEG = 45.0
-EYE_FACE_RECESS_ENABLED = True
-EYE_FACE_RECESS_BORDER_OVERLAP = 1.0
-# Do not bridge a recessed eye face back to the convex hull with four
-# horizontal corner bars.  Those legacy "recess anchors" are trapped-support
-# shelves when the enclosure is printed on its bottom and are not acceptable
-# camera datums.  The eye surround must instead remain joined through the
-# support-friendly shell/surround transition and the bottom-supported base.
-EYE_RECESS_CORNER_ANCHORS_ENABLED = False
-# A recessed eye can otherwise become a separate shell because the convex
-# enclosure wall sits several millimetres in front of it.  Join it with one
-# continuous vertical web rising from the enclosure floor on the camera's
-# short-body side.  Unlike the old four horizontal bars, this wall has no
-# trapped underside, remains outside the optical aperture and camera body,
-# and cannot establish the camera's fore/aft position.
-EYE_RECESS_BASE_SUPPORTED_WEB_ENABLED = True
-EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH = 6.0
-EYE_RECESS_BASE_SUPPORTED_WEB_APERTURE_LAND = 0.25
-EYE_RECESS_BASE_SUPPORTED_WEB_EDGE_RADIUS = 0.8
-# Includes the final bracket and cartridge shell-clearance expansions.  The
-# flared outside mouth below keeps this structural hull growth out of the FOV.
-# Structural/recess guard.  Sixteen millimetres covers both supported camera
+# The eye mouth is a direct opening through the enclosure.  There is no
+# annular ring; camera retention comes from independent fixed/cartridge
+# datums, while the lid-owned upper closure and optional eyelid visor remain.
+EYE_MOUTH_WIDTH = 64.0
+EYE_MOUTH_HEIGHT = 52.0
+EYE_MOUTH_CORNER_RADIUS = 14.5
+EYE_MOUTH_FACE_INSET = 1.0
+EYE_MOUTH_RECESS_DEPTH = 5.0
+# Abstract contact plane used by the independent camera front datums.  It does
+# not generate material around the eye mouth.
+EYE_FRONT_DATUM_DEPTH = 2.0
+# Structural/recess guard.  Eighteen millimetres covers both supported camera
 # rolls after cartridge shell expansion (the upside-down default resolves to
 # about 15.05 mm) without changing the normal-roll geometry.
-EYE_FACE_RECESS_MAX_DEPTH = 18.0
-# When a low-mounted cartridge sweep pushes the convex outer hull forward,
-# flare the outside of the localized eye recess instead of leaving a deep,
-# straight-walled tunnel around the lens.  The narrow end remains overlapped
-# by the 64 mm eye surround; only unsupported shell in front of it is removed.
-EYE_FACE_RECESS_OUTER_FLARE_ENABLED = False
-EYE_FACE_RECESS_OUTER_FLARE_ANGLE_DEG = 38.0
-EYE_FACE_RECESS_OUTER_FLARE_MAX_PER_SIDE = 10.0
+EYE_MOUTH_MAX_RECESS_DEPTH = 18.0
 
 
 # The eyelid is a tapered wedge whose lower/front edge overhangs the eye.
@@ -438,7 +367,7 @@ VISOR_AUTO_CLEAR_CAMERA = True
 VISOR_CAMERA_VERTICAL_CLEARANCE = 0.50
 VISOR_CAMERA_BODY_RADIAL_CLEARANCE = 0.30
 # Keep the camera-cleared visor shallow enough not to cross the neighboring
-# close-angle bezel or the lid's descending alignment lip.  In split-eye mode
+# close-angle eye mouth or the lid's descending alignment lip.  In split-eye mode
 # it still overlaps the keyed tongue through the configured root ribs.
 VISOR_LID_SAFE_MAX_BACK_INSET = 1.50
 
@@ -464,8 +393,6 @@ CAMERA_LENS_FACE_MIN_OUTSET = 0.5
 # solve; it no longer needlessly holds the fixed lens back.
 CAMERA_FIXED_INDEPENDENT_FORWARD_ADVANCE_ENABLED = True
 CAMERA_LENS_OPENING_CLEARANCE = 0.5
-CAMERA_LENS_HOUSING_OTHER_EYE_CLEARANCE = 0.5
-CAMERA_OPPOSITE_EYE_SURROUND_CLEARANCE = 0.25
 # The rotating camera's lens moves slightly fore/aft as it yaws about its
 # under-body pivot.  Reject configurations that pull it back into the eye
 # throat anywhere in the usable sweep.
@@ -547,22 +474,19 @@ CAMERA_CARRIER_CAMERA_CLEARANCE = 0.0
 # intentional floor-pad contact from real lateral interference.  This is only
 # a numerical probe; it does not add physical clearance to the printed cradle.
 CAMERA_CARRIER_FIT_PROBE_LIFT = 0.20
-# Stop below the exterior eye guard band throughout yaw.  Fourteen millimetres
-# still gives a stout 5 mm-thick locator while avoiding the former 23 mm-high
-# corner contact that produced the tiny triangular eyelet punctures.
+# Fourteen millimetres gives a stout 5 mm-thick locator without obstructing the
+# direct eye mouth or recreating the former high corner contact.
 CAMERA_CARRIER_GUIDE_HEIGHT = 14.0
 CAMERA_CARRIER_GUIDE_THICKNESS = 5.0
 CAMERA_CARRIER_GUIDE_TRAY_EMBED = 0.80
 CAMERA_CARRIER_FRONT_STOP_WIDTH = 14.0
-# Keep the complete yawed front datum beyond the structural eye-rim guard.
-# This is additional to the guard-band offset and adaptive-relief clearance;
-# increase it if a coarse printer leaves the stop too close to the bezel.
-CAMERA_CARRIER_FRONT_STOP_EYE_GUARD_MARGIN = 0.35
+# Keep the complete yawed front datum behind the open eye-mouth plane.
+CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN = 0.35
 CAMERA_CARRIER_FRONT_STOP_ROOT_LENGTH = 4.0
 CAMERA_CARRIER_FRONT_STOP_ROOT_RAIL_WIDTH = 8.0
 # The complete front datum/root is a small service module.  Removing two M3
 # screws lets the otherwise monolithic tray/gear cartridge lift straight out
-# through the lid-off chimney without enlarging or puncturing the eye lip.
+# through the lid-off chimney without enlarging the direct eye mouth.
 CAMERA_CARRIER_REMOVABLE_FRONT_STOP_ENABLED = False
 CAMERA_CARRIER_FRONT_STOP_INTERFACE_CLEARANCE = 0.15
 CAMERA_CARRIER_FRONT_STOP_SCREW_SPACING = 8.0
@@ -600,11 +524,8 @@ CAMERA_CARRIER_SWEEP_CUT_CLEARANCE = 0.30
 CAMERA_CARRIER_TOP_LOADING_CHIMNEY_ENABLED = True
 CAMERA_CARRIER_TOP_LOADING_CHIMNEY_CLEARANCE = 3.0
 # Keep the cartridge installation/cooling chimney inside the enclosure cavity.
-# Without this guard, its wide full-yaw plan can punch through an eye surround.
 CAMERA_CARRIER_TOP_LOADING_CHIMNEY_WALL_GUARD = 0.60
-# A chimney cut can leave a tiny closed remnant of the pre-cut eye surround
-# on the mirrored layout.  Remove only bounded, explicitly small fragments;
-# a larger disconnected shell is treated as a geometry error.
+# Optional bounded cleanup for tiny disconnected Boolean fragments.
 CAMERA_CARRIER_CHIMNEY_REMOVE_SMALL_FRAGMENTS = False
 CAMERA_CARRIER_CHIMNEY_MAX_FRAGMENT_FACES = 128
 # Face count alone is not a safe proxy for physical size.  Cleanup is allowed
@@ -1051,6 +972,24 @@ CAMERA_FRONT_STOP_PROJECTION = 0.6
 CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH = 8.0
 CAMERA_FRONT_STOP_FLOOR_DATUM_HEIGHT_ABOVE_CAMERA_BOTTOM = 12.0
 CAMERA_FRONT_STOP_FLOOR_DATUM_EDGE_RADIUS = 0.8
+# Carry the lower datum all the way into the solid front shell instead of
+# leaving a projection-thick floor tab.  The remaining exterior skin hides the
+# union while providing a deep, monolithic root into the enclosure wall.
+CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN = 0.8
+CAMERA_FRONT_STOP_LOWER_MIN_RADIAL_THICKNESS = 4.0
+# A second fixed-camera datum near the top arrests fore/aft rocking.  Its
+# camera-contact face is intentionally small for airflow; the underside runs
+# back to the front wall at a support-free print angle.  "auto" selects the
+# flat camera-face side with enough room outside the direct eye mouth.
+CAMERA_FRONT_STOP_UPPER_ENABLED = True
+CAMERA_FRONT_STOP_UPPER_SIDE = "auto"  # "auto", "tangent_min", "tangent_max"
+CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH = 3.5
+CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT = 3.5
+CAMERA_FRONT_STOP_UPPER_BODY_TOP_INSET = 5.0
+CAMERA_FRONT_STOP_UPPER_MOUTH_LAND = 0.5
+# Underside angle above the horizontal build plate.  Higher values are more
+# self-supporting but need a longer downward return to reach the shell wall.
+CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG = 45.0
 CAMERA_FRONT_STOP_SIDE_WIDTH = 3.5
 CAMERA_FRONT_STOP_SIDE_HEIGHT = 8.0
 CAMERA_FRONT_STOP_RIM_WIDTH = 10.0
@@ -1134,7 +1073,7 @@ CAMERA_BRACKET_GUIDE_PLATE_OVERHANG = 2.0
 # With two ordinary fixed brackets, retain the original global allowance their
 # broad roofs require.  The cartridge-driven footprint already includes its
 # fixed hold-down and leaves enough room for the one remaining fixed bracket,
-# so a separate with-cartridge value avoids redundantly deep eye surrounds.
+# so a separate with-cartridge value avoids redundant front-shell growth.
 CAMERA_BRACKET_SHELL_EXPANSION = 1.25
 CAMERA_BRACKET_SHELL_EXPANSION_WITH_CARTRIDGE = 0.0
 CAMERA_BRACKET_LID_POST_CLEARANCE = 1.0
@@ -1274,7 +1213,7 @@ REAR_FAN_AIRFLOW_DIRECTION = "intake"
 VALIDATE_REAR_FAN_BODY_CLEARANCE = True
 REAR_FAN_CUTTER_INWARD_EXTENSION = 8.0
 REAR_FAN_MIN_WEB = 2.0
-# Treat the two lens/eye annuli as the primary front exhausts.  These limits
+# Treat the two lens/mouth gaps as the primary front exhausts.  These limits
 # preserve a rear-fan -> camera body -> eye-opening flow path without adding
 # rain/debris-facing perforations to the removable lid.
 CAMERA_COOLING_MIN_EXHAUST_TO_FAN_AREA_RATIO = 0.75
@@ -1580,8 +1519,8 @@ def camera_theoretical_lens_face_outset() -> float:
     body_radial = mission1.canonical_body_bounds(CAMERA_UPSIDE_DOWN)[0]
     return (
         -body_radial[1]
-        - EYE_FACE_INSET
-        - EYE_FRONT_STRUCTURAL_RIM_DEPTH
+        - EYE_MOUTH_FACE_INSET
+        - EYE_FRONT_DATUM_DEPTH
         - CAMERA_FRONT_STOP_PROJECTION
     )
 
@@ -1595,46 +1534,29 @@ def camera_lens_face_outset_for(camera) -> float:
     )
 
 
-def eye_front_structural_rim_backplane_from_surface(surface: float) -> float:
-    """Rear contact plane of the shallow, continuous exterior eye rim."""
+def eye_front_datum_plane_from_surface(surface: float) -> float:
+    """Abstract radial plane used by the independent camera front datums."""
     return (
         surface
-        - EYE_FACE_INSET
-        - EYE_FRONT_STRUCTURAL_RIM_DEPTH
+        - EYE_MOUTH_FACE_INSET
+        - EYE_FRONT_DATUM_DEPTH
     )
 
 
-def eye_front_structural_rim_backplane(camera) -> float:
-    return eye_front_structural_rim_backplane_from_surface(camera["surface"])
-
-
-def eye_rear_relief_radial_run() -> float:
-    """Radial run needed for the lower eye ramp at the configured print angle."""
-    lower_eye_land = (EYE_BEZEL_HEIGHT - EYE_OPENING_HEIGHT) / 2.0
-    printable_rise = lower_eye_land - EYE_REAR_RELIEF_ROOT_LAND
-    tangent = math.tan(math.radians(EYE_REAR_RELIEF_PRINT_ANGLE_DEG))
-    return printable_rise / tangent
-
-
-def eye_rear_relief_root_depth() -> float:
-    """Short straight root left after fitting the angled ramp in bezel depth."""
-    return (
-        EYE_BEZEL_DEPTH
-        - EYE_FRONT_STRUCTURAL_RIM_DEPTH
-        - eye_rear_relief_radial_run()
-    )
+def eye_front_datum_plane(camera) -> float:
+    return eye_front_datum_plane_from_surface(camera["surface"])
 
 
 def camera_front_stop_projection() -> float:
-    """Gap from the shallow front-rim backplane to the front-body plane."""
+    """Gap from the configured datum plane to the front-body plane."""
     body_radial = mission1.canonical_body_bounds(CAMERA_UPSIDE_DOWN)[0]
-    return -EYE_FACE_INSET - EYE_FRONT_STRUCTURAL_RIM_DEPTH - (
+    return -EYE_MOUTH_FACE_INSET - EYE_FRONT_DATUM_DEPTH - (
         camera_lens_face_outset() + body_radial[1]
     )
 
 
 def camera_front_stop_projection_for(camera) -> float:
-    """Actual fixed-camera gap from front body plane to retained eye rim."""
+    """Actual fixed-camera gap from front body plane to its datum plane."""
     body_radial = mission1.canonical_body_bounds(CAMERA_UPSIDE_DOWN)[0]
     lens_outset = (
         camera_lens_face_outset_for(camera)
@@ -1644,7 +1566,7 @@ def camera_front_stop_projection_for(camera) -> float:
             camera_lens_face_outset(),
         )
     )
-    return -EYE_FACE_INSET - EYE_FRONT_STRUCTURAL_RIM_DEPTH - (
+    return -EYE_MOUTH_FACE_INSET - EYE_FRONT_DATUM_DEPTH - (
         lens_outset + body_radial[1]
     )
 
@@ -1662,8 +1584,8 @@ def camera_front_stop_specs():
         body_vertical[0] + mission1.BODY_CORNER_RADIUS,
         body_vertical[1] - mission1.BODY_CORNER_RADIUS,
     )
-    eye_half_width = EYE_OPENING_WIDTH / 2.0
-    eye_half_height = EYE_OPENING_HEIGHT / 2.0
+    eye_half_width = EYE_MOUTH_WIDTH / 2.0
+    eye_half_height = EYE_MOUTH_HEIGHT / 2.0
     land = CAMERA_FRONT_STOP_WALL_LAND
 
     negative_side_room = -eye_half_width - land - flat_tangent[0]
@@ -1711,7 +1633,7 @@ def camera_front_stop_specs():
         rim_tangent_min < flat_tangent[0] - 1e-6
         or rim_tangent_max > flat_tangent[1] + 1e-6
     ):
-        raise ValueError("Camera front rim stop exceeds the flat body face")
+        raise ValueError("Camera front stop exceeds the flat body face")
 
     side_tangent = (tangent_min + tangent_max) / 2.0
     rim_vertical = (rim_min + rim_max) / 2.0
@@ -1888,30 +1810,29 @@ def resolved_visor_z(value: float) -> float:
     return resolved
 
 
-def eye_opening_cutter_radial_bounds(camera):
+def eye_mouth_cutter_radial_bounds(camera):
     surface = camera["surface"]
     return (
         surface
         - BODY_WALL_THICKNESS
-        - EYE_BEZEL_DEPTH
-        - EYE_FACE_INSET
-        - EYE_CUTTER_INWARD_EXTRA,
-        surface + EYE_CUTTER_OUTWARD_EXTENSION,
+        - EYE_MOUTH_RECESS_DEPTH
+        - EYE_MOUTH_FACE_INSET
+        - EYE_MOUTH_CUTTER_INWARD_EXTRA,
+        surface + EYE_MOUTH_CUTTER_OUTWARD_EXTENSION,
     )
 
 
 def eye_lid_closure_radial_bounds(camera):
     """Return central tongue and inside backing-flange radial bounds."""
-    # Key the removable upper eye closure directly behind the new shallow
-    # front rim.  Using the old full-depth throat plane recreated the same
-    # deep unsupported shelf in the lid-owned half of the eye.
-    rim_backplane = eye_front_structural_rim_backplane(camera)
+    # Key the removable upper eye closure directly behind the abstract front
+    # datum plane, without adding annular material around the mouth.
+    rim_backplane = eye_front_datum_plane(camera)
     backing_max = rim_backplane - EYE_LID_CLOSURE_RADIAL_CLEARANCE
     backing_min = backing_max - EYE_LID_CLOSURE_BACKING_THICKNESS
     main_min = backing_max - BOOLEAN_OVERLAP
     main_max = (
         camera["surface"]
-        - EYE_FACE_INSET
+        - EYE_MOUTH_FACE_INSET
         - EYE_LID_CLOSURE_RADIAL_CLEARANCE
     )
     if main_max <= main_min:
@@ -2083,7 +2004,7 @@ def camera_carrier_end_guide_specs(body_radial, body_tangent):
     # Put the front datum on the broad flat body land beyond the lens/eye
     # housing, not at the battery-side corner where the protruding lens lives.
     lens_side_keepout = max(
-        EYE_OPENING_WIDTH / 2.0 + CAMERA_FRONT_STOP_WALL_LAND,
+        EYE_MOUTH_WIDTH / 2.0 + CAMERA_FRONT_STOP_WALL_LAND,
         mission1.LENS_SHOULDER_WIDTH / 2.0
         + CAMERA_LENS_OPENING_CLEARANCE,
     )
@@ -2111,10 +2032,9 @@ def camera_carrier_end_guide_specs(body_radial, body_tangent):
             - CAMERA_CARRIER_SWEEP_CUT_CLEARANCE,
         )
         guard_tangent = (
-            EYE_OPENING_WIDTH / 2.0
-            + EYE_APERTURE_GUARD_BAND_OFFSET
+            EYE_MOUTH_WIDTH / 2.0
             + CAMERA_CARRIER_SWEEP_CUT_CLEARANCE
-            + CAMERA_CARRIER_FRONT_STOP_EYE_GUARD_MARGIN
+            + CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN
         )
         negative_inner_limits = []
         positive_inner_limits = []
@@ -2266,9 +2186,9 @@ def forced_airflow_path_metrics():
         - (REAR_FAN_HUB_DIAMETER / 2.0) ** 2
     )
     eye_area = rounded_rectangle_area(
-        EYE_OPENING_WIDTH,
-        EYE_OPENING_HEIGHT,
-        EYE_OPENING_CORNER_RADIUS,
+        EYE_MOUTH_WIDTH,
+        EYE_MOUTH_HEIGHT,
+        EYE_MOUTH_CORNER_RADIUS,
     )
     lens_area = rounded_rectangle_area(
         mission1.LENS_FACE_WIDTH,
@@ -2277,8 +2197,8 @@ def forced_airflow_path_metrics():
     )
     exhaust_area = 2.0 * max(eye_area - lens_area, 0.0)
     minimum_edge_gap = min(
-        (EYE_OPENING_WIDTH - mission1.LENS_FACE_WIDTH) / 2.0,
-        (EYE_OPENING_HEIGHT - mission1.LENS_FACE_HEIGHT) / 2.0,
+        (EYE_MOUTH_WIDTH - mission1.LENS_FACE_WIDTH) / 2.0,
+        (EYE_MOUTH_HEIGHT - mission1.LENS_FACE_HEIGHT) / 2.0,
     )
     return (
         fan_open_area,
@@ -2818,8 +2738,6 @@ def validate_config() -> None:
         "ASSEMBLY_SERVICE_SWEEP_MAX_STEP": ASSEMBLY_SERVICE_SWEEP_MAX_STEP,
         "REAR_WIDTH_TAPER_SCALE": REAR_WIDTH_TAPER_SCALE,
         "REAR_HEIGHT_TAPER_ANCHOR_Z": REAR_HEIGHT_TAPER_ANCHOR_Z,
-        "EYE_OPENING_WIDTH": EYE_OPENING_WIDTH,
-        "EYE_OPENING_HEIGHT": EYE_OPENING_HEIGHT,
         "EYE_TOP_LOADING_SLOT_WIDTH": EYE_TOP_LOADING_SLOT_WIDTH,
         "EYE_LID_CLOSURE_PLATE_EMBED": EYE_LID_CLOSURE_PLATE_EMBED,
         "EYE_LID_CLOSURE_BACKING_THICKNESS": (
@@ -2828,21 +2746,17 @@ def validate_config() -> None:
         "EYE_LID_CLOSURE_BACKING_SIDE_OVERLAP": (
             EYE_LID_CLOSURE_BACKING_SIDE_OVERLAP
         ),
-        "EYE_BEZEL_WIDTH": EYE_BEZEL_WIDTH,
-        "EYE_BEZEL_HEIGHT": EYE_BEZEL_HEIGHT,
-        "EYE_BEZEL_DEPTH": EYE_BEZEL_DEPTH,
-        "EYE_FRONT_STRUCTURAL_RIM_DEPTH": (
-            EYE_FRONT_STRUCTURAL_RIM_DEPTH
+        "EYE_MOUTH_WIDTH": EYE_MOUTH_WIDTH,
+        "EYE_MOUTH_HEIGHT": EYE_MOUTH_HEIGHT,
+        "EYE_MOUTH_RECESS_DEPTH": EYE_MOUTH_RECESS_DEPTH,
+        "EYE_FRONT_DATUM_DEPTH": (
+            EYE_FRONT_DATUM_DEPTH
         ),
-        "EYE_REAR_RELIEF_PRINT_ANGLE_DEG": (
-            EYE_REAR_RELIEF_PRINT_ANGLE_DEG
-        ),
-        "EYE_REAR_RELIEF_ROOT_LAND": EYE_REAR_RELIEF_ROOT_LAND,
         "EYE_ADJUSTABLE_BODY_RELIEF_DEPTH": (
             EYE_ADJUSTABLE_BODY_RELIEF_DEPTH
         ),
-        "EYE_ADJUSTABLE_BODY_RELIEF_MIN_FRONT_LIP": (
-            EYE_ADJUSTABLE_BODY_RELIEF_MIN_FRONT_LIP
+        "EYE_ADJUSTABLE_BODY_RELIEF_MIN_FRONT_DATUM": (
+            EYE_ADJUSTABLE_BODY_RELIEF_MIN_FRONT_DATUM
         ),
         "EYE_ADJUSTABLE_BODY_RELIEF_INWARD_EXTENT": (
             EYE_ADJUSTABLE_BODY_RELIEF_INWARD_EXTENT
@@ -2850,16 +2764,7 @@ def validate_config() -> None:
         "EYE_ADJUSTABLE_BODY_RELIEF_CLEARANCE": (
             EYE_ADJUSTABLE_BODY_RELIEF_CLEARANCE
         ),
-        "EYE_FACE_RECESS_MAX_DEPTH": EYE_FACE_RECESS_MAX_DEPTH,
-        "EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH": (
-            EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH
-        ),
-        "EYE_RECESS_BASE_SUPPORTED_WEB_EDGE_RADIUS": (
-            EYE_RECESS_BASE_SUPPORTED_WEB_EDGE_RADIUS
-        ),
-        "EYE_FACE_RECESS_OUTER_FLARE_MAX_PER_SIDE": (
-            EYE_FACE_RECESS_OUTER_FLARE_MAX_PER_SIDE
-        ),
+        "EYE_MOUTH_MAX_RECESS_DEPTH": EYE_MOUTH_MAX_RECESS_DEPTH,
         "VISOR_BACK_WIDTH": VISOR_BACK_WIDTH,
         "VISOR_FRONT_WIDTH": VISOR_FRONT_WIDTH,
         "CAMERA_BODY_ONLY_WIDTH": CAMERA_BODY_ONLY_WIDTH,
@@ -2924,6 +2829,21 @@ def validate_config() -> None:
         ),
         "CAMERA_FRONT_STOP_FLOOR_DATUM_EDGE_RADIUS": (
             CAMERA_FRONT_STOP_FLOOR_DATUM_EDGE_RADIUS
+        ),
+        "CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN": (
+            CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN
+        ),
+        "CAMERA_FRONT_STOP_LOWER_MIN_RADIAL_THICKNESS": (
+            CAMERA_FRONT_STOP_LOWER_MIN_RADIAL_THICKNESS
+        ),
+        "CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH": (
+            CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH
+        ),
+        "CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT": (
+            CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT
+        ),
+        "CAMERA_FRONT_STOP_UPPER_BODY_TOP_INSET": (
+            CAMERA_FRONT_STOP_UPPER_BODY_TOP_INSET
         ),
         "CAMERA_FRONT_STOP_SIDE_WIDTH": CAMERA_FRONT_STOP_SIDE_WIDTH,
         "CAMERA_FRONT_STOP_SIDE_HEIGHT": CAMERA_FRONT_STOP_SIDE_HEIGHT,
@@ -3079,8 +2999,8 @@ def validate_config() -> None:
         "CAMERA_CARRIER_GUIDE_TRAY_EMBED": (
             CAMERA_CARRIER_GUIDE_TRAY_EMBED
         ),
-        "CAMERA_CARRIER_FRONT_STOP_EYE_GUARD_MARGIN": (
-            CAMERA_CARRIER_FRONT_STOP_EYE_GUARD_MARGIN
+        "CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN": (
+            CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN
         ),
         "CAMERA_CARRIER_FRONT_STOP_ROOT_LENGTH": (
             CAMERA_CARRIER_FRONT_STOP_ROOT_LENGTH
@@ -4301,12 +4221,6 @@ def validate_config() -> None:
         "CAMERA_BODY_MUTUAL_CLEARANCE": CAMERA_BODY_MUTUAL_CLEARANCE,
         "CAMERA_LENS_FACE_MIN_OUTSET": CAMERA_LENS_FACE_MIN_OUTSET,
         "CAMERA_LENS_OPENING_CLEARANCE": CAMERA_LENS_OPENING_CLEARANCE,
-        "CAMERA_LENS_HOUSING_OTHER_EYE_CLEARANCE": (
-            CAMERA_LENS_HOUSING_OTHER_EYE_CLEARANCE
-        ),
-        "CAMERA_OPPOSITE_EYE_SURROUND_CLEARANCE": (
-            CAMERA_OPPOSITE_EYE_SURROUND_CLEARANCE
-        ),
         "CAMERA_LENS_MIN_SWEEP_EYE_FACE_PROTRUSION": (
             CAMERA_LENS_MIN_SWEEP_EYE_FACE_PROTRUSION
         ),
@@ -4376,12 +4290,11 @@ def validate_config() -> None:
             CAMERA_USB_ACCESS_VERTICAL_CLEARANCE
         ),
         "CAMERA_FRONT_STOP_WALL_LAND": CAMERA_FRONT_STOP_WALL_LAND,
-        "CAMERA_FRONT_STOP_EDGE_RADIUS": CAMERA_FRONT_STOP_EDGE_RADIUS,
-        "EYE_CUTTER_INWARD_EXTRA": EYE_CUTTER_INWARD_EXTRA,
-        "EYE_FACE_RECESS_BORDER_OVERLAP": EYE_FACE_RECESS_BORDER_OVERLAP,
-        "EYE_RECESS_BASE_SUPPORTED_WEB_APERTURE_LAND": (
-            EYE_RECESS_BASE_SUPPORTED_WEB_APERTURE_LAND
+        "CAMERA_FRONT_STOP_UPPER_MOUTH_LAND": (
+            CAMERA_FRONT_STOP_UPPER_MOUTH_LAND
         ),
+        "CAMERA_FRONT_STOP_EDGE_RADIUS": CAMERA_FRONT_STOP_EDGE_RADIUS,
+        "EYE_MOUTH_CUTTER_INWARD_EXTRA": EYE_MOUTH_CUTTER_INWARD_EXTRA,
         "EYE_LID_CLOSURE_FIT_CLEARANCE": EYE_LID_CLOSURE_FIT_CLEARANCE,
         "EYE_LID_CLOSURE_RADIAL_CLEARANCE": (
             EYE_LID_CLOSURE_RADIAL_CLEARANCE
@@ -4681,7 +4594,7 @@ def validate_config() -> None:
             )
         print(
             "FORCED_AIR_COOLING_PATH "
-            "direction=rear_fans_to_camera_bodies_to_eye_annuli "
+            "direction=rear_fans_to_camera_bodies_to_eye_mouth_gaps "
             f"fan_gross_open_area={fan_open_area:.1f}mm^2 "
             f"fan_hub_adjusted_open_area={fan_effective_open_area:.1f}mm^2 "
             f"eye_exhaust_area={eye_exhaust_area:.1f}mm^2 "
@@ -4709,8 +4622,8 @@ def validate_config() -> None:
         )
     required_installation_travel = (
         resolved_lens_outset
-        + EYE_FACE_INSET
-        + EYE_FRONT_STRUCTURAL_RIM_DEPTH
+        + EYE_MOUTH_FACE_INSET
+        + EYE_FRONT_DATUM_DEPTH
         + CAMERA_INSTALLATION_LENS_RETRACTION_CLEARANCE
     )
     if (
@@ -4730,7 +4643,7 @@ def validate_config() -> None:
             raise ValueError(
                 "EYE_TOP_LOADING_SLOT_WIDTH does not clear the lens housing"
             )
-        if EYE_TOP_LOADING_SLOT_WIDTH >= EYE_BEZEL_WIDTH:
+        if EYE_TOP_LOADING_SLOT_WIDTH >= EYE_MOUTH_WIDTH:
             raise ValueError(
                 "EYE_TOP_LOADING_SLOT_WIDTH must leave base-side eye structure"
             )
@@ -4789,6 +4702,25 @@ def validate_config() -> None:
             raise RuntimeError("Maximized front-stop/outset calculation disagrees")
         if CAMERA_FRONT_STOP_STYLE == "legacy_wall_pads":
             camera_front_stop_specs()
+        if CAMERA_FRONT_STOP_UPPER_SIDE not in {
+            "auto",
+            "tangent_min",
+            "tangent_max",
+        }:
+            raise ValueError(
+                "CAMERA_FRONT_STOP_UPPER_SIDE must be auto, tangent_min, or "
+                "tangent_max"
+            )
+        if not 45.0 <= CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG <= 70.0:
+            raise ValueError(
+                "CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG must be in "
+                "[45, 70] degrees"
+            )
+        if CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN >= BODY_WALL_THICKNESS:
+            raise ValueError(
+                "CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN must remain below "
+                "BODY_WALL_THICKNESS so the stops join the shell"
+            )
     if CAMERA_NOSE_SHELL_CLEARANCE < 0.0:
         raise ValueError("CAMERA_NOSE_SHELL_CLEARANCE cannot be negative")
     if CAMERA_NOSE_CONTACT_TOLERANCE <= 0.0:
@@ -4805,76 +4737,24 @@ def validate_config() -> None:
         raise ValueError("Camera fit envelope cannot be smaller than its bare body")
     if CAMERA_AZIMUTHS_DEG is None and not 0.0 < CAMERA_HALF_ANGLE_DEG < 90.0:
         raise ValueError("CAMERA_HALF_ANGLE_DEG must be between 0 and 90 degrees")
-    if EYE_OPENING_WIDTH >= EYE_BEZEL_WIDTH or EYE_OPENING_HEIGHT >= EYE_BEZEL_HEIGHT:
-        raise ValueError("Eye openings must fit inside the bezels")
-    if EYE_APERTURE_GUARD_BAND_OFFSET <= EYE_LID_CLOSURE_APERTURE_CLEARANCE:
+    if EYE_FRONT_DATUM_DEPTH > EYE_MOUTH_RECESS_DEPTH:
         raise ValueError(
-            "EYE_APERTURE_GUARD_BAND_OFFSET must lie outside the lid aperture"
+            "EYE_FRONT_DATUM_DEPTH cannot exceed EYE_MOUTH_RECESS_DEPTH"
         )
-    if (
-        not isinstance(EYE_APERTURE_GUARD_BAND_SAMPLES, int)
-        or isinstance(EYE_APERTURE_GUARD_BAND_SAMPLES, bool)
-        or EYE_APERTURE_GUARD_BAND_SAMPLES < 32
-    ):
-        raise ValueError("EYE_APERTURE_GUARD_BAND_SAMPLES must be an integer >= 32")
-    if EYE_OPENING_WIDTH + 2.0 * EYE_APERTURE_GUARD_BAND_OFFSET >= EYE_BEZEL_WIDTH:
-        raise ValueError("Eye aperture guard band leaves the raised surround width")
-    if EYE_OPENING_HEIGHT + 2.0 * EYE_APERTURE_GUARD_BAND_OFFSET >= EYE_BEZEL_HEIGHT:
-        raise ValueError("Eye aperture guard band leaves the raised surround height")
-    if not (
-        0.0
-        < EYE_APERTURE_GUARD_FRONT_DEPTH_FRACTION
-        < EYE_APERTURE_GUARD_BACK_DEPTH_FRACTION
-        < 1.0
-    ):
-        raise ValueError(
-            "Eye aperture guard depth fractions must increase within (0, 1)"
-        )
-    if EYE_FRONT_STRUCTURAL_RIM_DEPTH > EYE_BEZEL_DEPTH:
-        raise ValueError(
-            "EYE_FRONT_STRUCTURAL_RIM_DEPTH cannot exceed EYE_BEZEL_DEPTH"
-        )
-    if not 30.0 <= EYE_REAR_RELIEF_PRINT_ANGLE_DEG <= 70.0:
-        raise ValueError(
-            "EYE_REAR_RELIEF_PRINT_ANGLE_DEG must be in [30, 70] degrees"
-        )
-    if EYE_REAR_RELIEF_ROOT_LAND >= min(
-        (EYE_BEZEL_WIDTH - EYE_OPENING_WIDTH) / 2.0,
-        (EYE_BEZEL_HEIGHT - EYE_OPENING_HEIGHT) / 2.0,
-    ):
-        raise ValueError(
-            "EYE_REAR_RELIEF_ROOT_LAND must remain smaller than the eye land"
-        )
-    if (
-        EYE_SUPPORT_FRIENDLY_REAR_RELIEF_ENABLED
-        and eye_rear_relief_root_depth() < -CAMERA_NOSE_CONTACT_TOLERANCE
-    ):
-        raise ValueError(
-            "The configured eye ramp needs more depth than EYE_BEZEL_DEPTH "
-            "leaves behind EYE_FRONT_STRUCTURAL_RIM_DEPTH"
-        )
-    retained_eye_lip_depth = EYE_FRONT_STRUCTURAL_RIM_DEPTH
+    retained_eye_datum_depth = EYE_FRONT_DATUM_DEPTH
     if EYE_ADJUSTABLE_BODY_RELIEF_ENABLED or EYE_FIXED_BODY_RELIEF_ENABLED:
-        retained_eye_lip_depth = min(
-            retained_eye_lip_depth,
-            EYE_BEZEL_DEPTH - EYE_ADJUSTABLE_BODY_RELIEF_DEPTH,
+        retained_eye_datum_depth = min(
+            retained_eye_datum_depth,
+            EYE_MOUTH_RECESS_DEPTH - EYE_ADJUSTABLE_BODY_RELIEF_DEPTH,
         )
-        if retained_eye_lip_depth < (
-            EYE_ADJUSTABLE_BODY_RELIEF_MIN_FRONT_LIP
+        if retained_eye_datum_depth < (
+            EYE_ADJUSTABLE_BODY_RELIEF_MIN_FRONT_DATUM
             - CAMERA_NOSE_CONTACT_TOLERANCE
         ):
             raise ValueError(
                 "Adjustable eye-body relief leaves less than the configured "
-                "minimum exterior structural lip"
+                "minimum front-datum depth"
             )
-    if (
-        EYE_APERTURE_GUARD_BACK_DEPTH_FRACTION
-        * EYE_FRONT_STRUCTURAL_RIM_DEPTH
-        >= retained_eye_lip_depth - CAMERA_NOSE_CONTACT_TOLERANCE
-    ):
-        raise ValueError(
-            "Rear eye-aperture guard sample leaves the retained front lip"
-        )
     if (
         not math.isfinite(ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET)
         or ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET < 0.0
@@ -4883,56 +4763,21 @@ def validate_config() -> None:
             "Adjustable eye forward-clearance offset must be finite and "
             "nonnegative"
         )
-    if EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN <= 0.0:
-        raise ValueError("EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN must be positive")
     if (
-        not isinstance(EYE_BOOLEAN_SLIVER_REPAIR_MAX_COMPONENTS, int)
-        or isinstance(EYE_BOOLEAN_SLIVER_REPAIR_MAX_COMPONENTS, bool)
-        or EYE_BOOLEAN_SLIVER_REPAIR_MAX_COMPONENTS < 1
+        EYE_MOUTH_WIDTH <= mission1.LENS_FACE_WIDTH
+        or EYE_MOUTH_HEIGHT <= mission1.LENS_FACE_HEIGHT
     ):
-        raise ValueError(
-            "EYE_BOOLEAN_SLIVER_REPAIR_MAX_COMPONENTS must be a positive integer"
-        )
-    if (
-        EYE_BOOLEAN_SLIVER_REPAIR_MAX_EXTENT <= 0.0
-        or EYE_BOOLEAN_SLIVER_REPAIR_MAX_PERIMETER <= 0.0
-    ):
-        raise ValueError("Eye Boolean-sliver repair limits must be positive")
-    if not 0.0 <= EYE_BOOLEAN_SLIVER_REPAIR_PATCH_OUTSET <= (
-        EYE_BOOLEAN_SLIVER_REPAIR_MAX_EXTENT
-    ):
-        raise ValueError(
-            "Eye Boolean-sliver patch outset must be nonnegative and no "
-            "larger than the repair extent"
-        )
-    if EYE_FACE_RECESS_ENABLED and (
-        EYE_BEZEL_WIDTH - 2.0 * EYE_FACE_RECESS_BORDER_OVERLAP
-        <= EYE_OPENING_WIDTH
-        or EYE_BEZEL_HEIGHT - 2.0 * EYE_FACE_RECESS_BORDER_OVERLAP
-        <= EYE_OPENING_HEIGHT
-    ):
-        raise ValueError(
-            "Eye-face recess must leave an overlap ring outside the eye opening"
-        )
-    if not 0.0 <= EYE_FACE_RECESS_OUTER_FLARE_ANGLE_DEG < 80.0:
-        raise ValueError(
-            "EYE_FACE_RECESS_OUTER_FLARE_ANGLE_DEG must be in [0, 80)"
-        )
-    if (
-        EYE_OPENING_WIDTH <= mission1.LENS_FACE_WIDTH
-        or EYE_OPENING_HEIGHT <= mission1.LENS_FACE_HEIGHT
-    ):
-        raise ValueError("Eye openings must clear the MISSION 1 lens housing")
+        raise ValueError("Eye mouths must clear the MISSION 1 lens housing")
     required_lens_edge_clearance = CAMERA_LENS_OPENING_CLEARANCE
     if REAR_FANS_ENABLED:
         required_lens_edge_clearance = max(
             required_lens_edge_clearance,
             CAMERA_COOLING_MIN_EYE_EDGE_GAP,
         )
-    opening_width = EYE_OPENING_WIDTH - 2.0 * required_lens_edge_clearance
-    opening_height = EYE_OPENING_HEIGHT - 2.0 * required_lens_edge_clearance
+    opening_width = EYE_MOUTH_WIDTH - 2.0 * required_lens_edge_clearance
+    opening_height = EYE_MOUTH_HEIGHT - 2.0 * required_lens_edge_clearance
     opening_radius = max(
-        EYE_OPENING_CORNER_RADIUS - required_lens_edge_clearance,
+        EYE_MOUTH_CORNER_RADIUS - required_lens_edge_clearance,
         0.0,
     )
     lens_points = rounded_rectangle_loop(
@@ -4953,8 +4798,8 @@ def validate_config() -> None:
             "Eye opening corner geometry does not clear the lens housing by "
             "CAMERA_LENS_OPENING_CLEARANCE"
         )
-    if eye_center_z - EYE_BEZEL_HEIGHT / 2.0 < 0.0:
-        raise ValueError("Eye bezel extends below the cover")
+    if eye_center_z - EYE_MOUTH_HEIGHT / 2.0 < 0.0:
+        raise ValueError("Eye mouth extends below the cover")
     if CAMERA_CRADLES_ENABLED:
         body_radial, body_tangent, body_vertical = (
             mission1.canonical_body_bounds(CAMERA_UPSIDE_DOWN)
@@ -5336,9 +5181,9 @@ def validate_config() -> None:
             raise ValueError("Carrier tray must fully root the guide thickness")
         if CAMERA_CARRIER_GUIDE_TRAY_EMBED >= CAMERA_CARRIER_TRAY_THICKNESS:
             raise ValueError("Carrier guide embed consumes the complete tray")
-        if CAMERA_CARRIER_FRONT_STOP_EYE_GUARD_MARGIN < 0.0:
+        if CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN < 0.0:
             raise ValueError(
-                "Carrier front-stop eye-guard margin cannot be negative"
+                "Carrier front-stop eye-mouth margin cannot be negative"
             )
         if CAMERA_CARRIER_REMOVABLE_FRONT_STOP_ENABLED:
             front_stop_positive = {
@@ -7816,6 +7661,40 @@ def axis_point(angle_deg: float, radial: float, tangent: float, z: float):
     return normal * radial + side * tangent + Vector((0.0, 0.0, z))
 
 
+def axis_profile_prism(
+    name: str,
+    angle_deg: float,
+    radial_z_profile,
+    tangent_min: float,
+    tangent_max: float,
+):
+    """Extrude a closed radial/Z profile through a local tangential width."""
+    profile = tuple(radial_z_profile)
+    if len(profile) < 3 or tangent_max <= tangent_min:
+        raise ValueError(f"{name} requires a valid profile and positive width")
+    vertices = [
+        tuple(axis_point(angle_deg, radial, tangent, z))
+        for tangent in (tangent_min, tangent_max)
+        for radial, z in profile
+    ]
+    count = len(profile)
+    faces = [
+        tuple(range(count - 1, -1, -1)),
+        tuple(range(count, 2 * count)),
+    ]
+    for index in range(count):
+        next_index = (index + 1) % count
+        faces.append(
+            (
+                index,
+                next_index,
+                count + next_index,
+                count + index,
+            )
+        )
+    return create_mesh_object(name, vertices, faces)
+
+
 def add_side_locator_gusset(
     name: str,
     angle_deg: float,
@@ -9593,9 +9472,9 @@ def camera_requirements_fit_eye_halfplanes(cameras) -> bool:
         own_points = requirement_points[
             index * points_per_camera : (index + 1) * points_per_camera
         ]
-        # A fixed camera receives a local recessed-eye/body relief after the
-        # shared shell solve, so its front body corners may sit behind the
-        # retained shallow rim rather than behind the unrecessed outer plane.
+        # A fixed camera receives a local mouth/body relief after the shared
+        # shell solve, so its front body corners may sit ahead of the shared
+        # outer half-plane while remaining inside the direct opening.
         # Its points still enlarge the solved hull below; only this global
         # half-plane rejection is bypassed for that localized condition.
         if not camera.get("independent_forward_relief", False):
@@ -9610,103 +9489,6 @@ def camera_requirements_fit_eye_halfplanes(cameras) -> bool:
                     + CAMERA_NOSE_CONTACT_TOLERANCE
                 ):
                     return False
-    # Each lens housing is allowed through its own opening, but not through the
-    # solid surround belonging to the opposite angled eye.  This constraint is
-    # what makes maximum forward placement angle-dependent.
-    housing_clearance = CAMERA_LENS_HOUSING_OTHER_EYE_CLEARANCE
-    housing_radial = (
-        mission1.LENS_SHOULDER_Y - mission1.LENS_FACE_Y - housing_clearance,
-        housing_clearance,
-    )
-    housing_tangent = (
-        -mission1.LENS_FACE_WIDTH / 2.0 - housing_clearance,
-        mission1.LENS_FACE_WIDTH / 2.0 + housing_clearance,
-    )
-    for index, camera in enumerate(cameras):
-        opposite = cameras[1 - index]
-        opposite_angle = math.radians(opposite["angle"])
-        lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
-        for radial in housing_radial:
-            for tangent in housing_tangent:
-                point = axis_point(
-                    camera["angle"],
-                    lens_face_radius + radial,
-                    camera["eye_tangent"] + tangent,
-                    0.0,
-                )
-                projection = (
-                    point.x * math.cos(opposite_angle)
-                    + point.y * math.sin(opposite_angle)
-                )
-                if (
-                    projection
-                    > opposite["required_surface"]
-                    + CAMERA_NOSE_CONTACT_TOLERANCE
-                ):
-                    return False
-    # The opposite eye surround is localized rather than a global halfplane.
-    # Check the actual rounded main-body outline only where it passes through
-    # that solid ring; points far outside the bezel remain in the open cavity.
-    body_radial, body_tangent, _ = mission1.canonical_body_bounds(
-        CAMERA_UPSIDE_DOWN
-    )
-    body_radial_center = sum(body_radial) / 2.0
-    body_tangent_center = sum(body_tangent) / 2.0
-    body_outline = rounded_rectangle_loop(
-        mission1.BODY_WIDTH,
-        mission1.BODY_DEPTH,
-        mission1.BODY_CORNER_RADIUS,
-    )
-    ring_clearance = CAMERA_OPPOSITE_EYE_SURROUND_CLEARANCE
-    ring_tangent_min = EYE_OPENING_WIDTH / 2.0 - ring_clearance
-    ring_tangent_max = EYE_BEZEL_WIDTH / 2.0 + ring_clearance
-    for index, camera in enumerate(cameras):
-        opposite = cameras[1 - index]
-        opposite_angle = math.radians(opposite["angle"])
-        opposite_normal = (
-            math.cos(opposite_angle),
-            math.sin(opposite_angle),
-        )
-        opposite_tangent = (
-            -math.sin(opposite_angle),
-            math.cos(opposite_angle),
-        )
-        opposite_front_rim_backplane = (
-            opposite["required_surface"]
-            - EYE_FACE_INSET
-            - EYE_FRONT_STRUCTURAL_RIM_DEPTH
-        )
-        lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
-        for tangent_delta, radial_delta in body_outline:
-            point = axis_point(
-                camera["angle"],
-                lens_face_radius + body_radial_center + radial_delta,
-                camera["eye_tangent"]
-                + body_tangent_center
-                + tangent_delta,
-                0.0,
-            )
-            tangent_projection = (
-                point.x * opposite_tangent[0]
-                + point.y * opposite_tangent[1]
-            )
-            if not (
-                ring_tangent_min
-                <= abs(tangent_projection)
-                <= ring_tangent_max
-            ):
-                continue
-            radial_projection = (
-                point.x * opposite_normal[0]
-                + point.y * opposite_normal[1]
-            )
-            if (
-                radial_projection
-                > opposite_front_rim_backplane
-                - ring_clearance
-                + CAMERA_NOSE_CONTACT_TOLERANCE
-            ):
-                return False
     return True
 
 
@@ -9747,7 +9529,7 @@ def minimum_nonoverlap_camera_radius() -> float:
 
 def fixed_camera_independent_forward_relief_available() -> bool:
     """Whether the shell has both local features needed for extra advance."""
-    return EYE_FACE_RECESS_ENABLED and EYE_FIXED_BODY_RELIEF_ENABLED
+    return EYE_FIXED_BODY_RELIEF_ENABLED
 
 
 def advance_fixed_cameras_independently(cameras, common_lens_outset: float):
@@ -9848,7 +9630,7 @@ def camera_nose_requirement_points(cameras):
             - target_lens_outset
         )
         camera["required_surface"] = required_surface
-        eye_half_width = EYE_BEZEL_WIDTH / 2.0 + CAMERA_NOSE_SHELL_CLEARANCE
+        eye_half_width = EYE_MOUTH_WIDTH / 2.0 + CAMERA_NOSE_SHELL_CLEARANCE
         points.append(
             tuple(
                 axis_point(
@@ -9902,7 +9684,7 @@ def build_camera_driven_footprint(cameras):
                 ):
                     raise ValueError(
                         "A camera exceeds its own eye-face/body constraint. "
-                        "Reduce eye/bezel width or shell clearance."
+                        "Reduce eye-mouth width or shell clearance."
                     )
     # Keep the actual hull vertices.  Uniform perimeter resampling can bridge
     # across a required corner and silently shave away configured clearance.
@@ -10051,7 +9833,7 @@ def finalize_camera_driven_layout(cameras):
     """Build the shell footprint and refresh all eye-derived camera values."""
     if not camera_requirements_fit_eye_halfplanes(cameras):
         raise ValueError(
-            "Minimum-spacing cameras do not fit the configured eye surrounds "
+            "Minimum-spacing cameras do not fit the configured shell "
             "at this lens outset"
         )
     footprint = build_camera_driven_footprint(cameras)
@@ -10061,19 +9843,19 @@ def finalize_camera_driven_layout(cameras):
         if camera_is_adjustable(camera):
             surface += ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET
         recess_depth = max(raw_surface - surface, 0.0)
-        if recess_depth > EYE_FACE_RECESS_MAX_DEPTH:
+        if recess_depth > EYE_MOUTH_MAX_RECESS_DEPTH:
             raise ValueError(
-                f"Camera {camera['index']} needs {recess_depth:.2f} mm eye-face "
-                "recess, exceeding EYE_FACE_RECESS_MAX_DEPTH"
+                f"Camera {camera['index']} needs {recess_depth:.2f} mm eye-mouth "
+                "recess, exceeding EYE_MOUTH_MAX_RECESS_DEPTH"
             )
         camera["surface"] = surface
         camera["raw_surface"] = raw_surface
-        camera["eye_face_recess_depth"] = recess_depth
+        camera["eye_mouth_recess_depth"] = recess_depth
         camera["eye_inner_wall"] = (
-            surface - EYE_FACE_INSET - EYE_BEZEL_DEPTH
+            surface - EYE_MOUTH_FACE_INSET - EYE_MOUTH_RECESS_DEPTH
         )
-        camera["eye_front_rim_backplane"] = (
-            eye_front_structural_rim_backplane(camera)
+        camera["eye_front_datum_plane"] = (
+            eye_front_datum_plane(camera)
         )
         camera["lens_face_outset"] = camera_lens_face_outset_for(camera)
     return cameras, footprint
@@ -10167,7 +9949,7 @@ def resolve_camera_layout():
         lens_outset = camera_lens_face_outset()
         for index, angle in enumerate(camera_azimuths(), start=1):
             surface = radial_surface_distance(angle, 0.0, footprint)
-            eye_inner_wall = surface - EYE_FACE_INSET - EYE_BEZEL_DEPTH
+            eye_inner_wall = surface - EYE_MOUTH_FACE_INSET - EYE_MOUTH_RECESS_DEPTH
             radial = (
                 surface
                 + lens_outset
@@ -10188,10 +9970,10 @@ def resolve_camera_layout():
                     "eye_tangent": 0.0,
                     "surface": surface,
                     "raw_surface": surface,
-                    "eye_face_recess_depth": 0.0,
+                    "eye_mouth_recess_depth": 0.0,
                     "eye_inner_wall": eye_inner_wall,
-                    "eye_front_rim_backplane": (
-                        eye_front_structural_rim_backplane_from_surface(surface)
+                    "eye_front_datum_plane": (
+                        eye_front_datum_plane_from_surface(surface)
                     ),
                     "lens_face_outset": lens_outset,
                     "center_xy": (center.x, center.y),
@@ -10256,18 +10038,16 @@ def refresh_camera_eye_recesses(cameras, footprint):
             footprint,
         )
         recess_depth = max(raw_surface - camera["surface"], 0.0)
-        if (
-            EYE_FACE_RECESS_ENABLED
-            and recess_depth
-            > EYE_FACE_RECESS_MAX_DEPTH + CAMERA_NOSE_CONTACT_TOLERANCE
+        if recess_depth > (
+            EYE_MOUTH_MAX_RECESS_DEPTH + CAMERA_NOSE_CONTACT_TOLERANCE
         ):
             raise ValueError(
                 f"Camera {camera['index']} needs {recess_depth:.2f} mm "
-                "final eye-face recess after shell expansion, exceeding "
-                "EYE_FACE_RECESS_MAX_DEPTH"
+                "final eye-mouth recess after shell expansion, exceeding "
+                "EYE_MOUTH_MAX_RECESS_DEPTH"
             )
         camera["raw_surface"] = raw_surface
-        camera["eye_face_recess_depth"] = recess_depth
+        camera["eye_mouth_recess_depth"] = recess_depth
 
 
 def validate_rear_taper_layout(footprint, lid_post_positions, cameras) -> None:
@@ -10369,11 +10149,11 @@ def validate_camera_lens_protrusion(cameras):
         # Derive this per eye.  The fixed eye uses the maximum structural-rim
         # stop plane while the adjustable eye retains only its own yaw offset.
         expected_nominal = (
-            camera_lens_face_outset_for(camera) + EYE_FACE_INSET
+            camera_lens_face_outset_for(camera) + EYE_MOUTH_FACE_INSET
         )
         eye_angle = math.radians(camera["angle"])
         eye_normal = (math.cos(eye_angle), math.sin(eye_angle))
-        eye_face = camera["surface"] - EYE_FACE_INSET
+        eye_face = camera["surface"] - EYE_MOUTH_FACE_INSET
         yaw_samples = (
             adjustable_yaw_samples()
             if camera_is_adjustable(camera)
@@ -11596,79 +11376,44 @@ def boolean_difference(base, tools, label="Cut", solver=None):
 
 
 def add_camera_openings_and_visors(base, cameras, footprint):
-    # A shallow bezel should move the camera and eye face forward even when a
-    # distant camera-body corner still defines the convex outer footprint.
-    # Recess only the localized eye patch, leaving the rest of the hull free to
-    # wrap around both close-spaced cameras.
-    if EYE_FACE_RECESS_ENABLED:
-        recess_width = EYE_BEZEL_WIDTH - 2.0 * EYE_FACE_RECESS_BORDER_OVERLAP
-        recess_height = EYE_BEZEL_HEIGHT - 2.0 * EYE_FACE_RECESS_BORDER_OVERLAP
-        recess_radius = max(
-            EYE_BEZEL_CORNER_RADIUS - EYE_FACE_RECESS_BORDER_OVERLAP,
-            0.0,
-        )
+    """Cut the direct eye mouths and add only the optional eyelid visors.
+
+    The former annular eye feature, recessed transition, rear shelf/ramp, and
+    support webs are deliberately absent.  Each mouth is cut in its own
+    Boolean stage because the close-angle cutters overlap inside the case.
+    """
+    del footprint  # Kept in the signature for the base-construction API.
+    if VISORS_ENABLED:
         for camera in cameras:
-            recess_depth = camera.get("eye_face_recess_depth", 0.0)
-            if recess_depth <= CAMERA_NOSE_CONTACT_TOLERANCE:
-                continue
-            surface = camera["surface"]
-            cutter = rounded_rectangle_prism_axis(
-                f"Eye_{camera['index']}_Localized_Face_Recess",
-                camera["angle"],
-                surface
-                - EYE_FACE_INSET
-                - EYE_BEZEL_DEPTH
-                - BOOLEAN_OVERLAP,
-                camera["raw_surface"] + EYE_CUTTER_OUTWARD_EXTENSION,
-                recess_width,
-                recess_height,
-                recess_radius,
-                camera_eye_center_z(),
-                center_tangent=camera["eye_tangent"],
-            )
-            boolean_difference(
+            boolean_union(
                 base,
-                [cutter],
-                f"Eye_{camera['index']}_Localized_Face_Recess_Cut",
+                visor_wedge(
+                    f"Eye_{camera['index']}_Eyelid_Visor",
+                    camera["angle"],
+                    camera["surface"],
+                    center_tangent=camera["eye_tangent"],
+                ),
+                f"Eye_{camera['index']}_Visor_Union",
             )
-            print(
-                f"EYE_FACE_RECESS {camera['index']}: depth={recess_depth:.2f}"
-            )
-    add_camera_outer_recess_flares(base, cameras)
-    add_camera_surrounds_and_visors(base, cameras)
-    # Keep the two cutters in separate Boolean stages because close camera
-    # angles can make their tool volumes overlap inside the body.
     for camera in cameras:
         index = camera["index"]
-        angle = camera["angle"]
-        surface = camera["surface"]
-        tangent = camera["eye_tangent"]
-        opening_tools = [
-            rounded_rectangle_prism_axis(
-                f"Eye_{index}_Opening",
-                angle,
-                surface
-                - BODY_WALL_THICKNESS
-                - EYE_BEZEL_DEPTH
-                - EYE_FACE_INSET
-                - EYE_CUTTER_INWARD_EXTRA,
-                surface + EYE_OPENING_CUTTER_OUTWARD_EXTRA,
-                EYE_OPENING_WIDTH,
-                EYE_OPENING_HEIGHT,
-                EYE_OPENING_CORNER_RADIUS,
-                camera_eye_center_z(),
-                center_tangent=tangent,
-            )
-        ]
-        # The nominal 58x46 aperture already clears the complete lens-face
-        # loop at every validated yaw.  Earlier yawed throat cutters extended
-        # through the exterior and nicked the lower surround/nose into small
-        # triangular holes.  Keep all adjustable relief behind this nominal
-        # aperture; the carrier/base solid sweep checks still protect motion.
-        boolean_difference(
-            base,
-            opening_tools,
-            f"Camera_Opening_{index}",
+        radial_min, radial_max = eye_mouth_cutter_radial_bounds(camera)
+        mouth = rounded_rectangle_prism_axis(
+            f"Eye_{index}_Direct_Mouth",
+            camera["angle"],
+            radial_min,
+            radial_max,
+            EYE_MOUTH_WIDTH,
+            EYE_MOUTH_HEIGHT,
+            EYE_MOUTH_CORNER_RADIUS,
+            camera_eye_center_z(),
+            center_tangent=camera["eye_tangent"],
+        )
+        boolean_difference(base, [mouth], f"Eye_{index}_Direct_Mouth_Cut")
+        print(
+            f"EYE_DIRECT_MOUTH {index}: size="
+            f"({EYE_MOUTH_WIDTH:.2f},{EYE_MOUTH_HEIGHT:.2f}) "
+            f"radial=({radial_min:.2f},{radial_max:.2f})"
         )
     eye_stage_non_manifold = non_manifold_edge_count(base)
     if eye_stage_non_manifold:
@@ -11679,289 +11424,6 @@ def add_camera_openings_and_visors(base, cameras, footprint):
         )
     add_camera_eye_body_reliefs(base, cameras, "Base")
     add_camera_top_loading_slots(base, cameras)
-    # Attach each recessed U-shaped surround before later interior hardware is
-    # added.  The web is vertical and floor-rooted, so it prints without the
-    # old trapped corner-anchor supports.
-    add_eye_recess_base_supported_webs(base, cameras, footprint)
-    return base
-
-
-def add_camera_outer_recess_flares(base, cameras):
-    """Open the final outer hull without re-cutting the empty eye throats."""
-    if not (
-        EYE_FACE_RECESS_ENABLED
-        and EYE_FACE_RECESS_OUTER_FLARE_ENABLED
-    ):
-        return base
-    recess_width = EYE_BEZEL_WIDTH - 2.0 * EYE_FACE_RECESS_BORDER_OVERLAP
-    recess_height = EYE_BEZEL_HEIGHT - 2.0 * EYE_FACE_RECESS_BORDER_OVERLAP
-    recess_radius = max(
-        EYE_BEZEL_CORNER_RADIUS - EYE_FACE_RECESS_BORDER_OVERLAP,
-        0.0,
-    )
-    for camera in cameras:
-        recess_depth = camera.get("eye_face_recess_depth", 0.0)
-        if recess_depth <= CAMERA_NOSE_CONTACT_TOLERANCE:
-            continue
-        flare_start = camera["surface"] - EYE_FACE_INSET + BOOLEAN_OVERLAP
-        flare_end = camera["raw_surface"] + BOOLEAN_OVERLAP
-        flare_depth = max(flare_end - flare_start, 0.0)
-        flare = min(
-            flare_depth
-            * math.tan(math.radians(EYE_FACE_RECESS_OUTER_FLARE_ANGLE_DEG)),
-            EYE_FACE_RECESS_OUTER_FLARE_MAX_PER_SIDE,
-        )
-        if flare <= CAMERA_NOSE_CONTACT_TOLERANCE:
-            continue
-        flare_shell = rounded_rectangle_flare_shell_axis(
-            f"Eye_{camera['index']}_Outer_Face_Recess_Flare",
-            camera["angle"],
-            flare_start,
-            flare_end,
-            recess_width,
-            recess_height,
-            recess_radius,
-            recess_width + 2.0 * flare,
-            recess_height + 2.0 * flare,
-            recess_radius + flare,
-            camera_eye_center_z(),
-            center_tangent=camera["eye_tangent"],
-        )
-        boolean_difference(
-            base,
-            [flare_shell],
-            f"Eye_{camera['index']}_Outer_Face_Recess_Flare_Cut",
-        )
-        print(
-            f"EYE_FACE_RECESS_FLARE {camera['index']}: "
-            f"depth={flare_depth:.2f} per_side={flare:.2f}"
-        )
-    return base
-
-
-def add_eye_recess_base_supported_webs(base, cameras, footprint):
-    """Join recessed eye islands to the floor without horizontal shelves."""
-    if not (
-        EYE_FACE_RECESS_ENABLED
-        and EYE_RECESS_BASE_SUPPORTED_WEB_ENABLED
-    ):
-        return base
-    for camera in cameras:
-        if camera.get("eye_face_recess_depth", 0.0) <= (
-            CAMERA_NOSE_CONTACT_TOLERANCE
-        ):
-            continue
-        # The Mission 1 lens is offset toward one side of its body.  The
-        # opposite (short-body) side leaves a clear lane for a structural wall
-        # just outside the eye aperture.  Mirror that choice when upside down.
-        web_side = -1.0 if CAMERA_UPSIDE_DOWN else 1.0
-        web_inner_edge = (
-            EYE_OPENING_WIDTH / 2.0
-            + EYE_RECESS_BASE_SUPPORTED_WEB_APERTURE_LAND
-        )
-        web_tangent = web_side * (
-            web_inner_edge + EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH / 2.0
-        )
-        web_z0 = BOTTOM_THICKNESS - BOOLEAN_OVERLAP
-        web_z1 = (
-            eye_top_loading_slot_bottom_z()
-            if EYE_TOP_LOADING_ENABLED
-            else BASE_HEIGHT
-        )
-        web_axis_tangent = camera["eye_tangent"] + web_tangent
-        sample_z = {
-            BOTTOM_THICKNESS,
-            web_z1,
-            *(
-                z
-                for z, _ in BODY_SECTIONS
-                if BOTTOM_THICKNESS < z < web_z1
-            ),
-        }
-        local_inner_wall_radii = []
-        for z in sorted(sample_z):
-            scale = body_scale_at_z(z)
-            local_inner_loop = inset_footprint_loop(
-                scale_loop(footprint, scale),
-                BODY_WALL_THICKNESS,
-            )
-            local_inner_wall_radii.append(
-                radial_surface_distance(
-                    camera["angle"],
-                    web_axis_tangent,
-                    local_inner_loop,
-                )
-            )
-        web_outer_radius = min(local_inner_wall_radii) + BOOLEAN_OVERLAP
-        web_inner_radius = (
-            camera["surface"]
-            - EYE_FACE_INSET
-            - max(
-                EYE_BEZEL_DEPTH,
-                EYE_FRONT_STRUCTURAL_RIM_DEPTH
-                + eye_rear_relief_radial_run(),
-            )
-            - BOOLEAN_OVERLAP
-        )
-        if web_outer_radius <= web_inner_radius:
-            raise ValueError(
-                f"Eye {camera['index']} recess web has no radial span to "
-                "the local inner enclosure wall"
-            )
-        camera["eye_recess_web_outer_radius"] = web_outer_radius
-        web = rounded_rectangle_prism_axis(
-            f"Eye_{camera['index']}_Base_Supported_Recess_Web",
-            camera["angle"],
-            web_inner_radius,
-            web_outer_radius,
-            EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH,
-            web_z1 - web_z0,
-            min(
-                EYE_RECESS_BASE_SUPPORTED_WEB_EDGE_RADIUS,
-                EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH / 2.0,
-                (web_z1 - web_z0) / 2.0,
-            ),
-            (web_z0 + web_z1) / 2.0,
-            center_tangent=web_axis_tangent,
-        )
-        boolean_union(
-            base,
-            web,
-            f"Eye_{camera['index']}_Base_Supported_Recess_Web_Union",
-        )
-        print(
-            f"EYE_RECESS_BASE_SUPPORTED_WEB {camera['index']}: "
-            f"side={'positive' if web_side > 0.0 else 'negative'} "
-            f"width={EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH:.2f} "
-            f"radial=({web_inner_radius:.2f},{web_outer_radius:.2f}) "
-            f"z=({web_z0:.2f},{web_z1:.2f})"
-        )
-    return base
-
-
-def add_camera_surrounds_and_visors(base, cameras):
-    """Add structural bezels after every intersecting shell cut."""
-    for camera in cameras:
-        index = camera["index"]
-        angle = camera["angle"]
-        surface = camera["surface"]
-        tangent = camera["eye_tangent"]
-        outer_face = surface - EYE_FACE_INSET
-        rim_backplane = eye_front_structural_rim_backplane(camera)
-        if EYE_SUPPORT_FRIENDLY_REAR_RELIEF_ENABLED:
-            ramp_backplane = rim_backplane - eye_rear_relief_radial_run()
-            root_backplane = outer_face - EYE_BEZEL_DEPTH
-            root_section = (
-                EYE_OPENING_WIDTH + 2.0 * EYE_REAR_RELIEF_ROOT_LAND,
-                EYE_OPENING_HEIGHT + 2.0 * EYE_REAR_RELIEF_ROOT_LAND,
-                EYE_OPENING_CORNER_RADIUS + EYE_REAR_RELIEF_ROOT_LAND,
-            )
-            sections = [(root_backplane, *root_section)]
-            if ramp_backplane > root_backplane + CAMERA_NOSE_CONTACT_TOLERANCE:
-                sections.append((ramp_backplane, *root_section))
-            sections.extend(
-                (
-                    (
-                        rim_backplane,
-                        EYE_BEZEL_WIDTH,
-                        EYE_BEZEL_HEIGHT,
-                        EYE_BEZEL_CORNER_RADIUS,
-                    ),
-                    (
-                        outer_face,
-                        EYE_BEZEL_WIDTH,
-                        EYE_BEZEL_HEIGHT,
-                        EYE_BEZEL_CORNER_RADIUS,
-                    ),
-                )
-            )
-            bezel = rounded_rectangle_loft_axis(
-                f"Eye_{index}_Support_Friendly_Surround",
-                angle,
-                sections,
-                camera_eye_center_z(),
-                center_tangent=tangent,
-            )
-            print(
-                f"EYE_SUPPORT_FRIENDLY_REAR_RELIEF {index}: "
-                f"front_rim_depth={EYE_FRONT_STRUCTURAL_RIM_DEPTH:.2f} "
-                f"ramp_run={eye_rear_relief_radial_run():.2f} "
-                f"root_depth={eye_rear_relief_root_depth():.2f} "
-                f"print_angle={EYE_REAR_RELIEF_PRINT_ANGLE_DEG:.1f}"
-            )
-        else:
-            ramp_backplane = surface - EYE_FACE_INSET - EYE_BEZEL_DEPTH
-            bezel = rounded_rectangle_prism_axis(
-                f"Eye_{index}_Raised_Surround",
-                angle,
-                ramp_backplane,
-                outer_face,
-                EYE_BEZEL_WIDTH,
-                EYE_BEZEL_HEIGHT,
-                EYE_BEZEL_CORNER_RADIUS,
-                camera_eye_center_z(),
-                center_tangent=tangent,
-            )
-        boolean_union(base, bezel, f"Eye_{index}_Surround_Union")
-        if (
-            EYE_RECESS_CORNER_ANCHORS_ENABLED
-            and camera.get("eye_face_recess_depth", 0.0) > (
-            CAMERA_NOSE_CONTACT_TOLERANCE
-            )
-        ):
-            anchor_vertical = EYE_BEZEL_HEIGHT / 2.0 - 4.5
-            for anchor_index, (tangent_sign, vertical_sign) in enumerate(
-                (
-                    (-1.0, -1.0),
-                    (-1.0, 1.0),
-                    (1.0, -1.0),
-                    (1.0, 1.0),
-                ),
-                start=1,
-            ):
-                anchor_width = 5.0 if vertical_sign > 0.0 else 8.0
-                anchor_tangent = (
-                    EYE_BEZEL_WIDTH / 2.0
-                    - anchor_width / 2.0
-                    - 0.25
-                )
-                anchor = rounded_rectangle_prism_axis(
-                    f"Eye_{index}_Recess_Anchor_{anchor_index}",
-                    angle,
-                    surface
-                    - EYE_FACE_INSET
-                    - max(
-                        EYE_BEZEL_DEPTH,
-                        EYE_FRONT_STRUCTURAL_RIM_DEPTH
-                        + eye_rear_relief_radial_run(),
-                    )
-                    - BOOLEAN_OVERLAP,
-                    camera["raw_surface"] + BOOLEAN_OVERLAP,
-                    anchor_width,
-                    8.0,
-                    2.0,
-                    camera_eye_center_z()
-                    + vertical_sign * anchor_vertical,
-                    center_tangent=(
-                        tangent + tangent_sign * anchor_tangent
-                    ),
-                )
-                boolean_union(
-                    base,
-                    anchor,
-                    f"Eye_{index}_Recess_Anchor_{anchor_index}_Union",
-                )
-        if VISORS_ENABLED:
-            boolean_union(
-                base,
-                visor_wedge(
-                    f"Eye_{index}_Eyelid_Visor",
-                    angle,
-                    surface,
-                    center_tangent=tangent,
-                ),
-                f"Eye_{index}_Visor_Union",
-            )
     return base
 
 
@@ -11974,7 +11436,7 @@ def add_camera_top_loading_slots(base, cameras):
         slot = eye_axis_box(
             f"Eye_{index}_Top_Loading_U_Slot",
             camera,
-            eye_opening_cutter_radial_bounds(camera),
+            eye_mouth_cutter_radial_bounds(camera),
             EYE_TOP_LOADING_SLOT_WIDTH,
             slot_bottom,
             BASE_HEIGHT + BOOLEAN_OVERLAP,
@@ -11984,7 +11446,7 @@ def add_camera_top_loading_slots(base, cameras):
             [slot],
             f"Eye_{index}_Top_Loading_U_Slot_Cut",
         )
-        if camera.get("eye_face_recess_depth", 0.0) > (
+        if camera.get("eye_mouth_recess_depth", 0.0) > (
             CAMERA_NOSE_CONTACT_TOLERANCE
         ):
             _, backing_radial = eye_lid_closure_radial_bounds(camera)
@@ -12016,115 +11478,8 @@ def add_camera_top_loading_slots(base, cameras):
     return base
 
 
-def protect_eye_surrounds_from_internal_cutter(cutter, cameras, label):
-    """Clip a late internal cutter away from both exterior bezel volumes."""
-    margin = EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN
-    keepouts = []
-    for camera in cameras:
-        surface = camera["surface"]
-        keepouts.append(
-            rounded_rectangle_prism_axis(
-                f"{label}_Eye_{camera['index']}_Surround_Keepout",
-                camera["angle"],
-                surface - EYE_FACE_INSET - EYE_BEZEL_DEPTH - margin,
-                surface - EYE_FACE_INSET + margin,
-                EYE_BEZEL_WIDTH + 2.0 * margin,
-                EYE_BEZEL_HEIGHT + 2.0 * margin,
-                EYE_BEZEL_CORNER_RADIUS + margin,
-                camera_eye_center_z(),
-                center_tangent=camera["eye_tangent"],
-            )
-        )
-    boolean_difference(cutter, keepouts, f"{label}_Eye_Surround_Protection")
-    return cutter
-
-
-def protect_eye_front_lips_from_internal_cutter(
-    cutter,
-    cameras,
-    label,
-    exclude_camera_index=None,
-    protect_recess_webs=True,
-):
-    """Clip a cutter away from only the retained exterior eye-lip depth."""
-    margin = EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN
-    keepouts = []
-    for camera in cameras:
-        if camera["index"] == exclude_camera_index:
-            continue
-        keepouts.append(
-            rounded_rectangle_prism_axis(
-                f"{label}_Eye_{camera['index']}_Front_Lip_Keepout",
-                camera["angle"],
-                eye_front_structural_rim_backplane(camera) - margin,
-                camera["surface"] - EYE_FACE_INSET + margin,
-                EYE_BEZEL_WIDTH + 2.0 * margin,
-                EYE_BEZEL_HEIGHT + 2.0 * margin,
-                EYE_BEZEL_CORNER_RADIUS + margin,
-                camera_eye_center_z(),
-                center_tangent=camera["eye_tangent"],
-            )
-        )
-        if (
-            protect_recess_webs
-            and EYE_FACE_RECESS_ENABLED
-            and EYE_RECESS_BASE_SUPPORTED_WEB_ENABLED
-            and camera.get("eye_face_recess_depth", 0.0) > (
-                CAMERA_NOSE_CONTACT_TOLERANCE
-            )
-        ):
-            web_side = -1.0 if CAMERA_UPSIDE_DOWN else 1.0
-            web_inner_edge = (
-                EYE_OPENING_WIDTH / 2.0
-                + EYE_RECESS_BASE_SUPPORTED_WEB_APERTURE_LAND
-            )
-            web_tangent = web_side * (
-                web_inner_edge
-                + EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH / 2.0
-            )
-            web_z0 = BOTTOM_THICKNESS - BOOLEAN_OVERLAP
-            web_z1 = (
-                eye_top_loading_slot_bottom_z()
-                if EYE_TOP_LOADING_ENABLED
-                else BASE_HEIGHT
-            )
-            keepouts.append(
-                rounded_rectangle_prism_axis(
-                    f"{label}_Eye_{camera['index']}_Base_Web_Keepout",
-                    camera["angle"],
-                    camera["surface"]
-                    - EYE_FACE_INSET
-                    - max(
-                        EYE_BEZEL_DEPTH,
-                        EYE_FRONT_STRUCTURAL_RIM_DEPTH
-                        + eye_rear_relief_radial_run(),
-                    )
-                    - margin,
-                    camera.get(
-                        "eye_recess_web_outer_radius",
-                        camera["raw_surface"],
-                    )
-                    + margin,
-                    EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH + 2.0 * margin,
-                    web_z1 - web_z0 + 2.0 * margin,
-                    EYE_RECESS_BASE_SUPPORTED_WEB_EDGE_RADIUS + margin,
-                    (web_z0 + web_z1) / 2.0,
-                    center_tangent=(
-                        camera["eye_tangent"] + web_tangent
-                    ),
-                )
-            )
-    if keepouts:
-        boolean_difference(
-            cutter,
-            keepouts,
-            f"{label}_Eye_Front_Lip_Protection",
-        )
-    return cutter
-
-
 def add_camera_eye_body_reliefs(part, cameras, owner_label):
-    """Pocket rear ramps around each body while preserving the front rims."""
+    """Clear inner mouth material around the installed camera envelopes."""
     body_radial, body_tangent, body_vertical = mission1.canonical_body_bounds(
         CAMERA_UPSIDE_DOWN
     )
@@ -12164,9 +11519,8 @@ def add_camera_eye_body_reliefs(part, cameras, owner_label):
             if top_loading_fixed_base:
                 # The camera rises vertically after the lid and bracket are
                 # removed.  Clear its complete reference envelope—not only
-                # the installed main body—from the rear ramp along that path.
-                # The radial slab below still stops at the back of the 2 mm
-                # front rim, so the visible eye remains continuous.
+                # the installed main body—along that path.  The radial slab
+                # remains behind the independent front-datum plane.
                 sweep_points = camera_envelope_xy_corners_at_yaw(
                     camera,
                     0.0,
@@ -12197,22 +11551,21 @@ def add_camera_eye_body_reliefs(part, cameras, owner_label):
             relief_z_min,
             relief_z_max,
         )
-        # Bound the body envelope to the open rear ramp.  Use a square slab:
+        # Bound the body envelope to the inner mouth region.  Use a square slab:
         # a rounded slab clips its cutter at the eye corners and leaves a thin,
-        # full-height strip of the off-center GoPro body inside the ramp.  The
+        # full-height strip of the off-center GoPro body in the shell.  The
         # body sweep itself supplies the exact tangential and vertical bounds.
-        # The continuous front rim remains intact; fixed-camera contact pads
-        # are added afterward.
+        # Fixed-camera contact pads are added afterward.
         eye_slab = rounded_rectangle_prism_axis(
-            f"{owner_label}_{relief_label}_Eye_Rear_Ramp_Slab",
+            f"{owner_label}_{relief_label}_Eye_Inner_Mouth_Slab",
             camera["angle"],
             camera["eye_inner_wall"]
             - EYE_ADJUSTABLE_BODY_RELIEF_INWARD_EXTENT
             - BOOLEAN_OVERLAP,
             camera["eye_inner_wall"]
             + EYE_ADJUSTABLE_BODY_RELIEF_DEPTH,
-            EYE_BEZEL_WIDTH + 2.0 * (clearance + BOOLEAN_OVERLAP),
-            EYE_BEZEL_HEIGHT + 2.0 * (clearance + BOOLEAN_OVERLAP),
+            EYE_MOUTH_WIDTH + 2.0 * (clearance + BOOLEAN_OVERLAP),
+            EYE_MOUTH_HEIGHT + 2.0 * (clearance + BOOLEAN_OVERLAP),
             0.0,
             camera_eye_center_z(),
             center_tangent=camera["eye_tangent"],
@@ -12253,8 +11606,8 @@ def add_camera_eye_body_reliefs(part, cameras, owner_label):
                 - BOOLEAN_OVERLAP,
                 eye_camera["eye_inner_wall"]
                 + EYE_ADJUSTABLE_BODY_RELIEF_DEPTH,
-                EYE_BEZEL_WIDTH + 2.0 * (clearance + BOOLEAN_OVERLAP),
-                EYE_BEZEL_HEIGHT + 2.0 * (clearance + BOOLEAN_OVERLAP),
+                EYE_MOUTH_WIDTH + 2.0 * (clearance + BOOLEAN_OVERLAP),
+                EYE_MOUTH_HEIGHT + 2.0 * (clearance + BOOLEAN_OVERLAP),
                 0.0,
                 camera_eye_center_z(),
                 center_tangent=eye_camera["eye_tangent"],
@@ -12278,24 +11631,105 @@ def add_camera_eye_body_reliefs(part, cameras, owner_label):
                 cross_eye_reliefs += 1
             else:
                 bpy.data.objects.remove(cross_sweep, do_unlink=True)
-        retained_front_lip = min(
-            EYE_FRONT_STRUCTURAL_RIM_DEPTH,
-            EYE_BEZEL_DEPTH - EYE_ADJUSTABLE_BODY_RELIEF_DEPTH,
+        retained_front_datum = min(
+            EYE_FRONT_DATUM_DEPTH,
+            EYE_MOUTH_RECESS_DEPTH - EYE_ADJUSTABLE_BODY_RELIEF_DEPTH,
         )
         print(
             "CAMERA_EYE_BODY_RELIEF "
             f"owner={owner_label} camera={camera['index']} "
             f"kind={relief_label.lower()} "
             f"rear_depth={EYE_ADJUSTABLE_BODY_RELIEF_DEPTH:.2f} "
-            f"retained_front_lip={retained_front_lip:.2f} "
+            f"retained_front_datum={retained_front_datum:.2f} "
             f"cross_eye_reliefs={cross_eye_reliefs} "
             f"yaw={yaw_label}"
         )
     return part
 
 
-def add_camera_front_stops(base, cameras):
-    """Add a printable fixed-camera forward datum outside the lens path."""
+def camera_front_stop_tangent_bounds(
+    body_tangent,
+    width,
+    mouth_land,
+    requested_side="auto",
+):
+    """Choose a flat front-face strip outside the direct eye mouth."""
+    flat_min = body_tangent[0] + mission1.BODY_CORNER_RADIUS
+    flat_max = body_tangent[1] - mission1.BODY_CORNER_RADIUS
+    mouth_half_width = EYE_MOUTH_WIDTH / 2.0
+    candidates = {
+        "tangent_min": (
+            -mouth_half_width - mouth_land - width,
+            -mouth_half_width - mouth_land,
+        ),
+        "tangent_max": (
+            mouth_half_width + mouth_land,
+            mouth_half_width + mouth_land + width,
+        ),
+    }
+    feasible = {
+        side: bounds
+        for side, bounds in candidates.items()
+        if bounds[0] >= flat_min - 1e-6 and bounds[1] <= flat_max + 1e-6
+    }
+    if requested_side == "auto":
+        if not feasible:
+            raise ValueError(
+                "No flat fixed-camera front-face strip remains outside the "
+                "direct eye mouth"
+            )
+        requested_side = max(
+            feasible,
+            key=lambda side: (
+                candidates[side][0] - flat_min
+                if side == "tangent_min"
+                else flat_max - candidates[side][1]
+            ),
+        )
+    if requested_side not in feasible:
+        raise ValueError(
+            f"Requested front-stop side {requested_side!r} does not fit the "
+            "flat camera front face outside EYE_MOUTH_WIDTH"
+        )
+    return requested_side, feasible[requested_side]
+
+
+def camera_front_stop_shell_root_radius(
+    footprint,
+    camera,
+    tangent_bounds,
+    z_bounds,
+):
+    """Return a root plane buried in the local solid exterior shell."""
+    sample_z = {
+        z_bounds[0],
+        z_bounds[1],
+        *(
+            z
+            for z, _scale in BODY_SECTIONS
+            if z_bounds[0] < z < z_bounds[1]
+        ),
+    }
+    tangent_min, tangent_max = tangent_bounds
+    sample_tangents = (
+        tangent_min,
+        (tangent_min + tangent_max) / 2.0,
+        tangent_max,
+    )
+    outer_surfaces = [
+        radial_surface_distance(
+            camera["angle"],
+            camera["eye_tangent"] + tangent,
+            scale_loop(footprint, body_scale_at_z(z)),
+        )
+        for z in sorted(sample_z)
+        for tangent in sample_tangents
+    ]
+    return min(outer_surfaces) - CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN
+
+
+def add_camera_front_stops(base, cameras, footprint):
+    """Add strong, support-free fixed-camera forward datums."""
     if not CAMERA_FRONT_STOPS_ENABLED:
         return base
     body_radial = mission1.canonical_body_bounds(CAMERA_UPSIDE_DOWN)[0]
@@ -12309,7 +11743,7 @@ def add_camera_front_stops(base, cameras):
             continue
         lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
         body_front = lens_face_radius + body_radial[1]
-        wall_contact = eye_front_structural_rim_backplane(camera)
+        wall_contact = eye_front_datum_plane(camera)
         projection = wall_contact - body_front
         if projection < (
             CAMERA_FRONT_STOP_PROJECTION
@@ -12324,47 +11758,46 @@ def add_camera_front_stops(base, cameras):
             _, body_tangent, body_vertical = mission1.canonical_body_bounds(
                 CAMERA_UPSIDE_DOWN
             )
-            flat_tangent_min = (
-                body_tangent[0] + mission1.BODY_CORNER_RADIUS
+            selected_side, (tangent_min, tangent_max) = (
+                camera_front_stop_tangent_bounds(
+                    body_tangent,
+                    CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH,
+                    CAMERA_FRONT_STOP_WALL_LAND,
+                    (
+                        "tangent_max"
+                        if CAMERA_UPSIDE_DOWN
+                        else "tangent_min"
+                    ),
+                )
             )
-            flat_tangent_max = (
-                body_tangent[1] - mission1.BODY_CORNER_RADIUS
-            )
-            if CAMERA_UPSIDE_DOWN:
-                tangent_min = (
-                    EYE_OPENING_WIDTH / 2.0
-                    + CAMERA_FRONT_STOP_WALL_LAND
-                )
-                tangent_max = (
-                    tangent_min + CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH
-                )
-            else:
-                tangent_max = (
-                    -EYE_OPENING_WIDTH / 2.0
-                    - CAMERA_FRONT_STOP_WALL_LAND
-                )
-                tangent_min = (
-                    tangent_max - CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH
-                )
-            if (
-                tangent_min < flat_tangent_min - 1e-6
-                or tangent_max > flat_tangent_max + 1e-6
-            ):
-                raise ValueError(
-                    "Floor-rooted camera front datum does not fit the flat "
-                    "body face outside the eye aperture"
-                )
             support_top = camera_eye_center_z() + body_vertical[0]
             datum_z0 = BOTTOM_THICKNESS - BOOLEAN_OVERLAP
             datum_z1 = (
                 support_top
                 + CAMERA_FRONT_STOP_FLOOR_DATUM_HEIGHT_ABOVE_CAMERA_BOTTOM
             )
+            shell_root = camera_front_stop_shell_root_radius(
+                footprint,
+                camera,
+                (tangent_min, tangent_max),
+                (datum_z0, datum_z1),
+            )
+            lower_radial_thickness = shell_root - body_front
+            if lower_radial_thickness < (
+                CAMERA_FRONT_STOP_LOWER_MIN_RADIAL_THICKNESS
+                - CAMERA_FRONT_STOP_CONTACT_TOLERANCE
+            ):
+                raise ValueError(
+                    f"Fixed camera {camera['index']} lower front datum has "
+                    f"only {lower_radial_thickness:.2f} mm radial thickness; "
+                    "reduce CAMERA_FRONT_STOP_LOWER_MIN_RADIAL_THICKNESS or "
+                    "move the eye/camera datum inward"
+                )
             datum = rounded_rectangle_prism_axis(
                 f"Camera_{camera['index']}_Floor_Rooted_Front_Datum",
                 camera["angle"],
                 body_front,
-                wall_contact + BOOLEAN_OVERLAP,
+                shell_root,
                 CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH,
                 datum_z1 - datum_z0,
                 min(
@@ -12384,6 +11817,105 @@ def add_camera_front_stops(base, cameras):
                 f"Camera_{camera['index']}_Floor_Rooted_Front_Datum_Union",
             )
             stop_count = 1
+            if CAMERA_FRONT_STOP_UPPER_ENABLED:
+                upper_side, (upper_tangent_min, upper_tangent_max) = (
+                    camera_front_stop_tangent_bounds(
+                        body_tangent,
+                        CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH,
+                        CAMERA_FRONT_STOP_UPPER_MOUTH_LAND,
+                        CAMERA_FRONT_STOP_UPPER_SIDE,
+                    )
+                )
+                flat_vertical_min = (
+                    camera_eye_center_z()
+                    + body_vertical[0]
+                    + mission1.BODY_CORNER_RADIUS
+                )
+                flat_vertical_max = (
+                    camera_eye_center_z()
+                    + body_vertical[1]
+                    - mission1.BODY_CORNER_RADIUS
+                )
+                contact_z1 = min(
+                    camera_eye_center_z()
+                    + body_vertical[1]
+                    - CAMERA_FRONT_STOP_UPPER_BODY_TOP_INSET,
+                    flat_vertical_max,
+                )
+                contact_z0 = (
+                    contact_z1 - CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT
+                )
+                if contact_z0 < flat_vertical_min - 1e-6:
+                    raise ValueError(
+                        "Upper fixed-camera front stop does not fit the flat "
+                        "vertical portion of the camera face"
+                    )
+                print_angle = math.radians(
+                    CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG
+                )
+                shell_root = camera_front_stop_shell_root_radius(
+                    footprint,
+                    camera,
+                    (upper_tangent_min, upper_tangent_max),
+                    (contact_z0, contact_z1),
+                )
+                radial_span = shell_root - body_front
+                gusset_root_z = contact_z0 - radial_span * math.tan(
+                    print_angle
+                )
+                # Re-evaluate the curved bottom/body section over the complete
+                # gusset height, then derive the exact configured print slope.
+                shell_root = camera_front_stop_shell_root_radius(
+                    footprint,
+                    camera,
+                    (upper_tangent_min, upper_tangent_max),
+                    (gusset_root_z, contact_z1),
+                )
+                radial_span = shell_root - body_front
+                gusset_root_z = contact_z0 - radial_span * math.tan(
+                    print_angle
+                )
+                if gusset_root_z <= BOTTOM_THICKNESS:
+                    raise ValueError(
+                        "Upper fixed-camera front-stop gusset reaches the "
+                        "enclosure floor; decrease its print angle, decrease "
+                        "CAMERA_FRONT_STOP_UPPER_BODY_TOP_INSET, or move the "
+                        "camera contact higher"
+                    )
+                upper_stop = axis_profile_prism(
+                    f"Camera_{camera['index']}_Upper_Anti_Tilt_Front_Stop",
+                    camera["angle"],
+                    (
+                        (body_front, contact_z0),
+                        (body_front, contact_z1),
+                        (shell_root, contact_z1),
+                        (shell_root, gusset_root_z),
+                    ),
+                    camera["eye_tangent"] + upper_tangent_min,
+                    camera["eye_tangent"] + upper_tangent_max,
+                )
+                boolean_union(
+                    base,
+                    upper_stop,
+                    f"Camera_{camera['index']}_Upper_Anti_Tilt_Stop_Union",
+                )
+                stop_count += 1
+                print(
+                    "CAMERA_UPPER_ANTI_TILT_STOP "
+                    f"camera={camera['index']} side={upper_side} "
+                    f"contact=({CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH:.2f}x"
+                    f"{CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT:.2f}) "
+                    f"radial_span={radial_span:.2f} "
+                    f"gusset_z=({gusset_root_z:.2f},{contact_z1:.2f}) "
+                    f"print_angle="
+                    f"{CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG:.1f}"
+                )
+            print(
+                "CAMERA_LOWER_FRONT_DATUM_REINFORCEMENT "
+                f"camera={camera['index']} side={selected_side} "
+                f"radial_thickness={lower_radial_thickness:.2f} "
+                f"shell_skin={CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN:.2f}"
+            )
         else:
             for label, tangent, vertical, width, height in specs:
                 stop = rounded_rectangle_prism_axis(
@@ -18858,11 +18390,6 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
             ),
         ),
     )
-    protect_eye_surrounds_from_internal_cutter(
-        gear_sweep_cutter,
-        cameras,
-        "Adjustable_Carrier_Gear_Sweep",
-    )
     hardware_gear_sweep_cutter = duplicate_object(
         gear_sweep_cutter,
         "Adjustable_Carrier_Bearing_Hardware_Full_Range_Clearance",
@@ -18920,11 +18447,6 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
             convex_hull_2d(sweep_points),
             z_bounds[0] - guide_clearance,
             z_bounds[1] + guide_clearance,
-        )
-        protect_eye_surrounds_from_internal_cutter(
-            cutter,
-            cameras,
-            f"Adjustable_Carrier_{member_name}_Sweep",
         )
         # Apply each already-unified swept prism separately.  Joining dozens
         # of overlapping pose boxes into one self-intersecting cutter can make
@@ -19060,19 +18582,13 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
     if pre_port_non_manifold:
         triangulate_mesh(base)
         post_triangulation_non_manifold = non_manifold_edge_count(base)
-        bounded_eye_repairs = 0
-        if post_triangulation_non_manifold:
-            bounded_eye_repairs = repair_adjustable_eye_boolean_slivers(
-                base,
-                mechanism["camera"],
-            )
         post_repair_non_manifold = non_manifold_edge_count(base)
         print(
             "WORM_BASE_PRE_PORT_TOPOLOGY_REPAIR "
             f"non_manifold_edges={pre_port_non_manifold}->"
             f"{post_triangulation_non_manifold}->"
             f"{post_repair_non_manifold} "
-            f"bounded_eye_repairs={bounded_eye_repairs}"
+            "direct_eye_mouths=True"
         )
         if post_repair_non_manifold:
             print(
@@ -19295,11 +18811,6 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
             "Adjustable_Worm_Split_Hardware_Carrier_Sweep",
         )
         for index, cutter in enumerate(hardware_member_cutters, start=1):
-            protect_eye_surrounds_from_internal_cutter(
-                cutter,
-                cameras,
-                f"Adjustable_Worm_Split_Hardware_Sweep_{index}",
-            )
             boolean_difference(
                 base,
                 [cutter],
@@ -19382,7 +18893,6 @@ def restore_final_adjustable_pivot_thrust_stack(base, mechanism):
     # Boolean n-gons and the two saddle/floor T-junctions here also makes this
     # final operation insensitive to rear-taper loop triangulation.
     triangulate_mesh(base)
-    repair_adjustable_eye_boolean_slivers(base, mechanism["camera"])
     pre_restore_non_manifold = non_manifold_edge_count(base)
     if pre_restore_non_manifold:
         bm = bmesh.new()
@@ -19927,24 +19437,24 @@ def create_adjustable_camera_hold_down(camera, post_positions):
     )
     boolean_union(bridge, pad, "Adjustable_Hold_Down_Pivot_Pad")
     # The pivot is deliberately near the camera's front plane.  Relieve the
-    # outward cap of the center plate around the raised eye surround while
-    # retaining the smaller contact pad, which ends just inside this cutter.
+    # outward cap of the center plate at the direct eye mouth while retaining
+    # the smaller contact pad, which ends just inside this cutter.
     eye_clearance = CAMERA_BRACKET_WALL_CLEARANCE
-    surround_cutter = rounded_rectangle_prism_axis(
-        "Adjustable_Hold_Down_Eye_Surround_Clearance",
+    mouth_cutter = rounded_rectangle_prism_axis(
+        "Adjustable_Hold_Down_Eye_Mouth_Clearance",
         camera["angle"],
         camera["eye_inner_wall"] - eye_clearance,
-        camera["raw_surface"] + EYE_CUTTER_OUTWARD_EXTENSION,
-        EYE_BEZEL_WIDTH + 2.0 * eye_clearance,
-        EYE_BEZEL_HEIGHT + 2.0 * eye_clearance,
-        EYE_BEZEL_CORNER_RADIUS + eye_clearance,
+        camera["raw_surface"] + EYE_MOUTH_CUTTER_OUTWARD_EXTENSION,
+        EYE_MOUTH_WIDTH + 2.0 * eye_clearance,
+        EYE_MOUTH_HEIGHT + 2.0 * eye_clearance,
+        EYE_MOUTH_CORNER_RADIUS + eye_clearance,
         camera_eye_center_z(),
         center_tangent=camera["eye_tangent"],
     )
     boolean_difference(
         bridge,
-        [surround_cutter],
-        "Adjustable_Hold_Down_Eye_Surround_Clearance",
+        [mouth_cutter],
+        "Adjustable_Hold_Down_Eye_Mouth_Clearance",
     )
     clearance_cutters = []
     counterbore_cutters = []
@@ -20016,7 +19526,7 @@ def create_adjustable_camera_hold_down(camera, post_positions):
     final_pad_area_ratio = pad_solid_samples / pad_samples
     if final_pad_area_ratio < CAMERA_HOLD_DOWN_MIN_FINAL_PAD_AREA_RATIO:
         raise RuntimeError(
-            "Eye-surround/service cuts clip too much of the final adjustable "
+            "Eye-mouth/service cuts clip too much of the final adjustable "
             f"hold-down pad: {final_pad_area_ratio:.3f}"
         )
     bridge.name = "Adjustable_Camera_Stationary_Hold_Down"
@@ -21080,72 +20590,6 @@ def add_adjustable_carrier_top_loading_chimney(base, cameras, footprint):
         "Adjustable_Carrier_Top_Loading_Interior_Only",
         solver="EXACT",
     )
-    protect_eye_surrounds_from_internal_cutter(
-        chimney,
-        cameras,
-        "Adjustable_Carrier_Top_Loading_Chimney",
-    )
-    if (
-        EYE_FACE_RECESS_ENABLED
-        and EYE_RECESS_BASE_SUPPORTED_WEB_ENABLED
-    ):
-        web_keepouts = []
-        for eye_camera in cameras:
-            if eye_camera.get("eye_face_recess_depth", 0.0) <= (
-                CAMERA_NOSE_CONTACT_TOLERANCE
-            ):
-                continue
-            web_side = -1.0 if CAMERA_UPSIDE_DOWN else 1.0
-            web_inner_edge = (
-                EYE_OPENING_WIDTH / 2.0
-                + EYE_RECESS_BASE_SUPPORTED_WEB_APERTURE_LAND
-            )
-            web_tangent = web_side * (
-                web_inner_edge
-                + EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH / 2.0
-            )
-            web_z0 = BOTTOM_THICKNESS - BOOLEAN_OVERLAP
-            web_z1 = (
-                eye_top_loading_slot_bottom_z()
-                if EYE_TOP_LOADING_ENABLED
-                else BASE_HEIGHT
-            )
-            web_keepouts.append(
-                rounded_rectangle_prism_axis(
-                    f"Eye_{eye_camera['index']}_Chimney_Web_Keepout",
-                    eye_camera["angle"],
-                    eye_camera["surface"]
-                    - EYE_FACE_INSET
-                    - max(
-                        EYE_BEZEL_DEPTH,
-                        EYE_FRONT_STRUCTURAL_RIM_DEPTH
-                        + eye_rear_relief_radial_run(),
-                    )
-                    - EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN,
-                    eye_camera.get(
-                        "eye_recess_web_outer_radius",
-                        eye_camera["raw_surface"],
-                    )
-                    + EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN,
-                    EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH
-                    + 2.0 * EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN,
-                    web_z1
-                    - web_z0
-                    + 2.0 * EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN,
-                    EYE_RECESS_BASE_SUPPORTED_WEB_EDGE_RADIUS
-                    + EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN,
-                    (web_z0 + web_z1) / 2.0,
-                    center_tangent=(
-                        eye_camera["eye_tangent"] + web_tangent
-                    ),
-                )
-            )
-        if web_keepouts:
-            boolean_difference(
-                chimney,
-                web_keepouts,
-                "Adjustable_Carrier_Chimney_Base_Web_Protection",
-            )
     boolean_difference(
         base,
         [chimney],
@@ -21286,7 +20730,7 @@ def create_base(
         tuple(inner_sections),
     )
     add_camera_openings_and_visors(base, cameras, footprint)
-    add_camera_front_stops(base, cameras)
+    add_camera_front_stops(base, cameras, footprint)
     add_camera_cradles(base, cameras)
     add_adjustable_camera_base_hardware(base, cameras, footprint)
     add_rear_fan_mounts(
@@ -21319,7 +20763,7 @@ def create_base(
         and CAMERA_CARRIER_CHIMNEY_REMOVE_SMALL_FRAGMENTS
     ):
         # On the opposite cartridge hand, the final USB service cut can isolate
-        # one more bounded eye-surround remnant after the chimney cleanup.  Use
+        # one more bounded shell remnant after the chimney cleanup.  Use
         # the same strict size ceiling; a structural split still raises.
         remove_small_disconnected_shells(
             base,
@@ -21378,14 +20822,18 @@ def add_lid_eye_closures(lid, cameras):
             solver="MANIFOLD",
         )
         aperture_clearance = EYE_LID_CLOSURE_APERTURE_CLEARANCE
+        # Restore only shell outside the same direct mouth cut in the base.
+        aperture_width = EYE_MOUTH_WIDTH
+        aperture_height = EYE_MOUTH_HEIGHT
+        aperture_radius = EYE_MOUTH_CORNER_RADIUS
         aperture = rounded_rectangle_prism_axis(
             f"Lid_Eye_{index}_Restored_Upper_Aperture",
             camera["angle"],
             backing_radial[0] - BOOLEAN_OVERLAP,
             main_radial[1] + BOOLEAN_OVERLAP,
-            EYE_OPENING_WIDTH + 2.0 * aperture_clearance,
-            EYE_OPENING_HEIGHT + 2.0 * aperture_clearance,
-            EYE_OPENING_CORNER_RADIUS + aperture_clearance,
+            aperture_width + 2.0 * aperture_clearance,
+            aperture_height + 2.0 * aperture_clearance,
+            aperture_radius + aperture_clearance,
             camera_eye_center_z(),
             center_tangent=camera["eye_tangent"],
         )
@@ -21404,7 +20852,7 @@ def add_lid_eye_closures(lid, cameras):
             visor_clip = eye_axis_box(
                 f"Lid_Eye_{index}_Visor_Slot_Clip",
                 camera,
-                eye_opening_cutter_radial_bounds(camera),
+                eye_mouth_cutter_radial_bounds(camera),
                 main_width,
                 z0,
                 BASE_HEIGHT + BOOLEAN_OVERLAP,
@@ -21434,7 +20882,7 @@ def add_lid_eye_closures(lid, cameras):
             ) - BOOLEAN_OVERLAP
             rib_z1 = (
                 camera_eye_center_z()
-                + EYE_OPENING_HEIGHT / 2.0
+                + aperture_height / 2.0
                 + EYE_LID_CLOSURE_APERTURE_CLEARANCE
                 + BOOLEAN_OVERLAP
             )
@@ -21977,183 +21425,6 @@ def triangulate_mesh(obj) -> None:
     obj.data.update()
 
 
-def repair_adjustable_eye_boolean_slivers(base, camera) -> int:
-    """Close only tiny Boolean boundary loops inside the adjustable eye.
-
-    The late captive-nut and imported-keystone exact Booleans can re-triangulate
-    a remote curved eye face and expose a sub-millimetric sliver.  This repair
-    is intentionally not a general "make manifold" operation: every open-edge
-    component must be a short closed loop, stay within strict size limits, and
-    lie inside the adjustable eye/outer-flare envelope.
-    """
-    if not EYE_BOOLEAN_SLIVER_REPAIR_ENABLED:
-        return 0
-    bm = bmesh.new()
-    bm.from_mesh(base.data)
-    boundary_edges = [edge for edge in bm.edges if len(edge.link_faces) == 1]
-    invalid_edges = [edge for edge in bm.edges if len(edge.link_faces) != 2]
-    if not invalid_edges:
-        bm.free()
-        return 0
-    if len(boundary_edges) != len(invalid_edges):
-        bm.free()
-        raise RuntimeError(
-            "Adjustable-eye sliver repair found non-boundary non-manifold edges"
-        )
-
-    remaining = set(boundary_edges)
-    components = []
-    while remaining:
-        seed = remaining.pop()
-        component = {seed}
-        stack = [seed]
-        while stack:
-            edge = stack.pop()
-            for vertex in edge.verts:
-                for linked in vertex.link_edges:
-                    if linked in remaining:
-                        remaining.remove(linked)
-                        component.add(linked)
-                        stack.append(linked)
-        components.append(component)
-    if len(components) > EYE_BOOLEAN_SLIVER_REPAIR_MAX_COMPONENTS:
-        bm.free()
-        raise RuntimeError(
-            "Too many adjustable-eye Boolean boundary components for bounded "
-            f"repair: {len(components)}"
-        )
-
-    angle = math.radians(camera["angle"])
-    direction = Vector((math.cos(angle), math.sin(angle), 0.0))
-    tangent = Vector((-math.sin(angle), math.cos(angle), 0.0))
-    repaired = []
-    for component_index, component in enumerate(components, start=1):
-        vertices = {vertex for edge in component for vertex in edge.verts}
-        if any(
-            sum(1 for edge in vertex.link_edges if edge in component) != 2
-            for vertex in vertices
-        ):
-            bm.free()
-            raise RuntimeError(
-                "Adjustable-eye Boolean sliver is not a closed boundary loop"
-            )
-        points = [base.matrix_world @ vertex.co for vertex in vertices]
-        extents = tuple(
-            max(point[axis] for point in points)
-            - min(point[axis] for point in points)
-            for axis in range(3)
-        )
-        perimeter = sum(
-            (
-                base.matrix_world @ edge.verts[0].co
-                - base.matrix_world @ edge.verts[1].co
-            ).length
-            for edge in component
-        )
-        center = sum(points, Vector((0.0, 0.0, 0.0))) / len(points)
-        radial = center.dot(direction)
-        eye_tangent = center.dot(tangent) - camera["eye_tangent"]
-        eye_vertical = center.z - camera_eye_center_z()
-        margin = EYE_BOOLEAN_SLIVER_REPAIR_MAX_EXTENT
-        inside_eye_envelope = (
-            camera["eye_inner_wall"] - margin
-            <= radial
-            <= camera["raw_surface"] + margin
-            and abs(eye_tangent) <= EYE_BEZEL_WIDTH / 2.0 + margin
-            and abs(eye_vertical) <= EYE_BEZEL_HEIGHT / 2.0 + margin
-        )
-        if (
-            max(extents) > EYE_BOOLEAN_SLIVER_REPAIR_MAX_EXTENT
-            or perimeter > EYE_BOOLEAN_SLIVER_REPAIR_MAX_PERIMETER
-            or not inside_eye_envelope
-        ):
-            bm.free()
-            raise RuntimeError(
-                "Non-manifold boundary is outside the bounded adjustable-eye "
-                f"sliver repair: component={component_index} "
-                f"extent={tuple(round(value, 3) for value in extents)} "
-                f"perimeter={perimeter:.3f} radial={radial:.3f} "
-                f"tangent={eye_tangent:.3f} vertical={eye_vertical:.3f}"
-            )
-        seed = next(iter(component))
-        ordered_vertices = [seed.verts[0], seed.verts[1]]
-        used_edges = {seed}
-        current = seed.verts[1]
-        while len(used_edges) < len(component):
-            candidates = [
-                edge
-                for edge in current.link_edges
-                if edge in component and edge not in used_edges
-            ]
-            if len(candidates) != 1:
-                bm.free()
-                raise RuntimeError(
-                    "Could not order adjustable-eye Boolean boundary loop"
-                )
-            edge = candidates[0]
-            used_edges.add(edge)
-            current = edge.other_vert(current)
-            if len(used_edges) < len(component):
-                ordered_vertices.append(current)
-        if current is not ordered_vertices[0]:
-            bm.free()
-            raise RuntimeError(
-                "Adjustable-eye Boolean boundary did not close during patching"
-            )
-        normal_matrix = base.matrix_world.to_3x3().inverted().transposed()
-        boundary_faces = {
-            face for edge in component for face in edge.link_faces
-        }
-        patch_normal = sum(
-            (
-                (normal_matrix @ face.normal).normalized()
-                for face in boundary_faces
-            ),
-            Vector((0.0, 0.0, 0.0)),
-        )
-        if patch_normal.length <= 1e-9:
-            bm.free()
-            raise RuntimeError(
-                "Adjustable-eye Boolean boundary has no usable surface normal"
-            )
-        patch_normal.normalize()
-        if patch_normal.dot(direction) < 0.0:
-            patch_normal.negate()
-        center_world = center + (
-            patch_normal * EYE_BOOLEAN_SLIVER_REPAIR_PATCH_OUTSET
-        )
-        center_vertex = bm.verts.new(
-            base.matrix_world.inverted() @ center_world
-        )
-        faces = []
-        for vertex_index, vertex in enumerate(ordered_vertices):
-            next_vertex = ordered_vertices[
-                (vertex_index + 1) % len(ordered_vertices)
-            ]
-            faces.append(bm.faces.new((vertex, next_vertex, center_vertex)))
-        repaired.append((len(component), extents, perimeter, patch_normal))
-
-    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
-    bm.to_mesh(base.data)
-    bm.free()
-    base.data.update()
-    cleanup_mesh(base)
-    recalc_normals(base)
-    remaining_count = non_manifold_edge_count(base)
-    if remaining_count:
-        raise RuntimeError(
-            "Adjustable-eye Boolean sliver repair did not restore a manifold "
-            f"base: non_manifold_edges={remaining_count}"
-        )
-    print(
-        "ADJUSTABLE_EYE_BOOLEAN_SLIVER_REPAIR "
-        f"components={len(repaired)} "
-        f"patch_outset={EYE_BOOLEAN_SLIVER_REPAIR_PATCH_OUTSET:.2f} "
-        f"records={tuple((edges, tuple(round(value, 3) for value in extents), round(perimeter, 3), tuple(round(value, 3) for value in normal)) for edges, extents, perimeter, normal in repaired)}"
-    )
-    return len(repaired)
-
-
 def non_manifold_edge_count(obj) -> int:
     bm = bmesh.new()
     bm.from_mesh(obj.data)
@@ -22408,94 +21679,6 @@ def validate_final_worm_hardware_cavities(base, mechanism):
             for label, volume in residuals.items()
         )
         + f" tolerance={tolerance:.4f}mm3"
-    )
-
-
-def validate_assembled_eye_aperture_guard_band(base, lid, cameras):
-    """Require continuous base-or-lid material around both final eye mouths."""
-    offset = EYE_APERTURE_GUARD_BAND_OFFSET
-    guard_loop = resample_closed_loop(
-        rounded_rectangle_loop(
-            EYE_OPENING_WIDTH + 2.0 * offset,
-            EYE_OPENING_HEIGHT + 2.0 * offset,
-            EYE_OPENING_CORNER_RADIUS + offset,
-        ),
-        EYE_APERTURE_GUARD_BAND_SAMPLES,
-    )
-    # Probe two locations through the continuous shallow front rim.  The
-    # support-friendly region behind it is deliberately open and therefore is
-    # not expected to contain a second, recessed U-shaped guard band.
-    depth_fractions = (
-        EYE_APERTURE_GUARD_FRONT_DEPTH_FRACTION,
-        EYE_APERTURE_GUARD_BACK_DEPTH_FRACTION,
-    )
-    slot_owned_half_width = (
-        EYE_TOP_LOADING_SLOT_WIDTH
-        - 2.0 * EYE_LID_CLOSURE_FIT_CLEARANCE
-    ) / 2.0
-    slot_bottom_local = EYE_TOP_LOADING_SLOT_BOTTOM_OFFSET_Z
-    base_record = object_bvh_record(base)
-    lid_record = object_bvh_record(lid)
-    base_samples = 0
-    lid_samples = 0
-    try:
-        for camera in cameras:
-            for depth_fraction in depth_fractions:
-                radial = (
-                    camera["surface"]
-                    - EYE_FACE_INSET
-                    - EYE_FRONT_STRUCTURAL_RIM_DEPTH * depth_fraction
-                )
-                for sample_index, (tangent, vertical) in enumerate(
-                    guard_loop,
-                    start=1,
-                ):
-                    point = axis_point(
-                        camera["angle"],
-                        radial,
-                        camera["eye_tangent"] + tangent,
-                        camera_eye_center_z() + vertical,
-                    )
-                    lid_owned = (
-                        EYE_TOP_LOADING_ENABLED
-                        and vertical > slot_bottom_local + 0.10
-                        and abs(tangent)
-                        < slot_owned_half_width - EYE_LID_CLOSURE_FIT_CLEARANCE
-                    )
-                    base_present = point_inside_closed_bvh(
-                        base_record[0],
-                        base_record[1] @ point,
-                    )
-                    lid_present = point_inside_closed_bvh(
-                        lid_record[0],
-                        lid_record[1] @ point,
-                    )
-                    if not (base_present or lid_present):
-                        raise RuntimeError(
-                            f"Eye {camera['index']} assembled aperture guard band "
-                            "has no base-or-lid material at sample "
-                            f"{sample_index}, depth={depth_fraction:.2f}, "
-                            f"local=({tangent:.3f},{vertical:.3f}); "
-                            f"expected_owner={'lid' if lid_owned else 'base'}"
-                        )
-                    if base_present:
-                        base_samples += 1
-                    if lid_present:
-                        lid_samples += 1
-    finally:
-        base_record[2].free()
-        lid_record[2].free()
-    if base_samples == 0:
-        raise RuntimeError("Eye aperture guard did not exercise the base boundary")
-    if EYE_TOP_LOADING_ENABLED and lid_samples == 0:
-        raise RuntimeError("Eye aperture guard did not exercise the lid-owned boundary")
-    base["assembled_eye_guard_band_samples"] = base_samples + lid_samples
-    lid["assembled_eye_guard_band_samples"] = lid_samples
-    print(
-        "ASSEMBLED_EYE_APERTURE_GUARD_BAND PASS "
-        f"eyes={len(cameras)} offset={offset:.2f} "
-        f"base_samples={base_samples} lid_samples={lid_samples} "
-        f"radial_depths={depth_fractions}"
     )
 
 
@@ -24026,17 +23209,6 @@ def cut_final_carrier_sweep_from_base(
             yaw_delta,
             f"Final_Carrier_Base_Probe_{pose_index}",
         )
-        # Remove the protected exterior eye-lip volume from the posed carrier
-        # before discovering its connected overlap islands.  Clipping only
-        # the later convex relief prisms is too late: a tiny carrier/lip
-        # overlap can seed an island whose convex hull crosses the retained
-        # lip and leaves a non-manifold sliver after subtraction.
-        protect_eye_front_lips_from_internal_cutter(
-            posed,
-            cameras,
-            f"Final_Carrier_Base_Probe_{pose_index}",
-            protect_recess_webs=False,
-        )
         base_copy = duplicate_object(base, f"Final_Carrier_Base_Probe_Base_{pose_index}")
         select_only(base_copy)
         modifier = base_copy.modifiers.new(
@@ -24133,11 +23305,6 @@ def cut_final_carrier_sweep_from_base(
             expanded_loop,
             max(relief_z_min - clearance, BOTTOM_THICKNESS + 0.2),
             relief_z_max + clearance,
-        )
-        protect_eye_front_lips_from_internal_cutter(
-            relief,
-            cameras,
-            f"Final_Carrier_Base_Adaptive_Relief_{relief_index}",
         )
         if relief.data.vertices:
             boolean_difference(
@@ -24709,10 +23876,10 @@ def validate_adjustable_camera_range(
             required_lens_edge_clearance,
             CAMERA_COOLING_MIN_EYE_EDGE_GAP,
         )
-    opening_width = EYE_OPENING_WIDTH - 2.0 * required_lens_edge_clearance
-    opening_height = EYE_OPENING_HEIGHT - 2.0 * required_lens_edge_clearance
+    opening_width = EYE_MOUTH_WIDTH - 2.0 * required_lens_edge_clearance
+    opening_height = EYE_MOUTH_HEIGHT - 2.0 * required_lens_edge_clearance
     opening_radius = max(
-        EYE_OPENING_CORNER_RADIUS - required_lens_edge_clearance,
+        EYE_MOUTH_CORNER_RADIUS - required_lens_edge_clearance,
         0.0,
     )
     nominal_angle = math.radians(camera["angle"])
@@ -26162,7 +25329,6 @@ def build_original_style_cover():
     validate_final_worm_hardware_cavities(base, mechanism)
     validate_final_bottom_mount_nut_holder(base, bottom_mount_hole_position)
     validate_object(lid)
-    validate_assembled_eye_aperture_guard_band(base, lid, cameras)
     for bracket in camera_brackets:
         validate_object(bracket)
     for moving_part in (

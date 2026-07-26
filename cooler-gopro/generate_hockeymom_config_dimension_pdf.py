@@ -304,7 +304,7 @@ def page_cover(pdf):
     setup(ax, -145, 145, -115, 115)
     outline = soft_triangle(220, 175, 0.75, 0.55)
     ax.add_patch(Polygon(outline, closed=True, facecolor="#e8f2f8", edgecolor=BLUE, lw=2.0))
-    # Eye surrounds and axes at the camera-side nose.
+    # Direct eye mouths and axes at the camera-side nose.
     for sign in (-1, 1):
         cy = sign * 31
         ax.add_patch(FancyBboxPatch((-126, cy - 24), 17, 48,
@@ -337,7 +337,7 @@ def page_cover(pdf):
         ("08", ("Direct purchased-wheel" if direct_purchased_wheel_drive() else
                 "Legacy coaxial-pinion") + " drivetrain & centers"),
         ("09", "Vertical journals & support-free assembly"),
-        ("10", "Carrier guide & yaw-safe eye guard"),
+        ("10", "Carrier guide & open eye mouth"),
         ("11", "Rear fan stations & alignment"),
         ("12", "Baffled acoustic cassette & microphone"),
         ("13", "Bottom 1/4-inch captive-nut mount"),
@@ -450,65 +450,55 @@ def page_optics(pdf):
     centerline(ax, (-95, 0), (112, 0))
     setup(ax, -100, 115, -92, 92)
 
-    ax2 = panel(fig, [0.58, 0.48, 0.355, 0.39], "OPENING + RAISED SURROUND", "NORMAL TO EYE")
-    ow = float(val("EYE_OPENING_WIDTH", 58.0)); oh = float(val("EYE_OPENING_HEIGHT", 46.0))
-    bw = float(val("EYE_BEZEL_WIDTH", 64.0)); bh = float(val("EYE_BEZEL_HEIGHT", 52.0))
-    ax2.add_patch(FancyBboxPatch((-bw/2,-bh/2), bw,bh,
-                                 boxstyle=f"round,pad=0,rounding_size={val('EYE_BEZEL_CORNER_RADIUS',14.5)}",
-                                 facecolor="#cce0ec", edgecolor=BLUE, lw=1.4))
-    ax2.add_patch(FancyBboxPatch((-ow/2,-oh/2), ow,oh,
-                                 boxstyle=f"round,pad=0,rounding_size={val('EYE_OPENING_CORNER_RADIUS',10)}",
-                                 facecolor=WHITE, edgecolor=ORANGE, lw=1.5))
+    ax2 = panel(
+        fig,
+        [0.58, 0.48, 0.355, 0.39],
+        "DIRECT OPEN EYE MOUTH",
+        "NORMAL TO EYE",
+    )
+    mw = float(val("EYE_MOUTH_WIDTH", 64.0)); mh = float(val("EYE_MOUTH_HEIGHT", 52.0))
+    ax2.add_patch(FancyBboxPatch((-mw/2,-mh/2), mw,mh,
+                                 boxstyle=f"round,pad=0,rounding_size={val('EYE_MOUTH_CORNER_RADIUS',14.5)}",
+                                 facecolor=WHITE, edgecolor=BLUE, lw=1.6))
     slot = float(val("EYE_TOP_LOADING_SLOT_WIDTH",44.0))
-    ax2.add_patch(Rectangle((-slot/2,0),slot,bh/2+10,facecolor="#fff5ea",edgecolor=ORANGE,lw=0.8,ls="--"))
-    dim_h(ax2,-ow/2,ow/2,-bh/2-11,-oh/2,f"OPENING {num(ow,1)}")
-    dim_v(ax2,-oh/2,oh/2,bw/2+11,ow/2,f"OPENING {num(oh,1)}")
-    dim_h(ax2,-bw/2,bw/2,bh/2+6,bh/2,f"BEZEL {num(bw,1)}")
-    dim_v(ax2,-bh/2,bh/2,-bw/2-14,-bw/2,f"BEZEL {num(bh,1)}")
+    ax2.add_patch(Rectangle((-slot/2,0),slot,mh/2+10,facecolor="#fff5ea",edgecolor=ORANGE,lw=0.8,ls="--"))
+    dim_h(ax2,-mw/2,mw/2,mh/2+7,mh/2,f"MOUTH WIDTH {num(mw,1)}")
+    dim_v(ax2,-mh/2,mh/2,-mw/2-14,-mw/2,f"MOUTH HEIGHT {num(mh,1)}")
     dim_h(ax2,-slot/2,slot/2,8,0,f"TOP SLOT {num(slot,1)}",ORANGE)
-    leader(ax2,(ow/2-5,oh/2-3),(45,28),f"corner R{num(val('EYE_OPENING_CORNER_RADIUS',10),1)}",PURPLE)
+    leader(ax2,(mw/2-6,mh/2-5),(45,28),f"mouth corner R{num(val('EYE_MOUTH_CORNER_RADIUS',14.5),1)}",PURPLE)
     setup(ax2,-55,58,-43,47)
 
-    ax3 = panel(fig, [0.065, 0.195, 0.49, 0.225], "SHALLOW RIM + PRINTABLE REAR TRANSITION", "LOWER-EYE SECTION")
-    bezel = float(val("EYE_BEZEL_DEPTH", 5.0))
-    recess = float(val("EYE_FACE_RECESS_MAX_DEPTH", 18.0))
+    ax3 = panel(
+        fig,
+        [0.065, 0.195, 0.49, 0.225],
+        "NO ANNULAR RING / DIRECT SHELL MOUTH",
+        "LOWER-EYE SECTION",
+    )
+    recess = float(val("EYE_MOUTH_MAX_RECESS_DEPTH", 18.0))
     relief = float(val("EYE_ADJUSTABLE_BODY_RELIEF_DEPTH", 3.0))
-    retained_lip = float(val("EYE_FRONT_STRUCTURAL_RIM_DEPTH", 2.0))
-    root_land = float(val("EYE_REAR_RELIEF_ROOT_LAND", 0.50))
-    ramp_angle = float(val("EYE_REAR_RELIEF_PRINT_ANGLE_DEG", 45.0))
-    ramp_run = (((bh - oh) / 2.0) - root_land) / math.tan(math.radians(ramp_angle))
-    root_depth = bezel - retained_lip - ramp_run
+    datum_depth = float(val("EYE_FRONT_DATUM_DEPTH", 2.0))
     eye_advance = float(val("ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET", 1.75))
-    # The drawing is deliberately exaggerated: 14 plot units show the 2 mm
-    # front rim and 22 show the 3 mm transition so both are legible in print.
-    ax3.add_patch(Rectangle((5, -13), 14, 13, facecolor="#cce0ec", edgecolor=BLUE, lw=1.2))
-    ax3.add_patch(Polygon([(-17, -2), (5, -13), (5, 0), (-17, 0)], closed=True,
-                          facecolor="#dcebdc", edgecolor=GREEN, lw=1.2))
-    ax3.plot([-17, 19], [0, 0], color=ORANGE, lw=1.35)
     ax3.add_patch(FancyBboxPatch((-50, 6), 31, 26, boxstyle="round,pad=0,rounding_size=3",
                                  facecolor="#d7dde2", edgecolor=INK, lw=1.0))
     ax3.add_patch(Rectangle((-19, 12), 46, 14, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
     ax3.plot([19, 19], [-16, 36], color=BLUE, lw=0.8, ls="--")
-    dim_h(ax3, -17, 5, -18, -13, f"RAMP RUN {num(ramp_run,1)}", GREEN)
-    dim_h(ax3, 5, 19, -27, -13, f"FRONT RIM {num(retained_lip,1)}")
-    leader(ax3, (-17, -1), (-48, -8),
-           f"root land / depth\n{num(root_land,2)} / {num(root_depth,2)}", GREEN)
-    leader(ax3, (-5, -6), (-51, 2), f"print ramp {num(ramp_angle,1)} deg\nrear body relief {num(relief,1)}", GREEN)
-    leader(ax3, (27, 19), (43, 30), "lens face projects\nbeyond shallow eye", ORANGE)
-    leader(ax3, (19, 3), (36, -6), f"nominal bezel depth {num(bezel,1)}\nlocalized recess <= {num(recess,1)}", BLUE)
+    ax3.add_patch(Rectangle((19, -15), 8, 10, facecolor="#cce0ec", edgecolor=BLUE, lw=1.2))
+    ax3.plot([19, 19], [-5, 5], color=WHITE, lw=4.0)
+    leader(ax3, (19, 0), (-49, -10), "mouth cutter passes directly\nthrough the enclosure shell", BLUE)
+    leader(ax3, (27, 19), (43, 30), "lens face projects into\nunobstructed eye mouth", ORANGE)
+    leader(ax3, (-5, 8), (-50, 1), "camera location retained by\nindependent shell-rooted datums", GREEN)
     setup(ax3, -58, 68, -31, 41)
 
     note_box(fig,[0.58,0.195,0.355,0.225],"PLACEMENT RULES",
              [f"CAMERA_FORWARD_PLACEMENT_MODE = {val('CAMERA_FORWARD_PLACEMENT_MODE','maximize')!r}",
-              f"fixed independent advance = {val('CAMERA_FIXED_INDEPENDENT_FORWARD_ADVANCE_ENABLED',True)} (needs recess + fixed relief)",
+              f"fixed independent advance = {val('CAMERA_FIXED_INDEPENDENT_FORWARD_ADVANCE_ENABLED',True)}",
               f"adjustable eye advance = {num(eye_advance,2)} mm",
-              f"rear eye relief / retained rim = {num(relief,1)} / {num(retained_lip,1)} mm",
-              f"rear root land / depth = {num(root_land,2)} / {num(root_depth,2)} mm",
-              f"actual printable ramp angle = {num(ramp_angle,1)} deg",
-              f"floor-rooted recess web width = {mm('EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH',6)}",
+              f"body-relief depth / datum depth = {num(relief,1)} / {num(datum_depth,1)} mm",
+              f"maximum solved mouth recess = {num(recess,1)} mm",
+              "No ring, rear shelf/ramp, recess island, or support web is generated.",
               f"configured minimum yaw-sweep protrusion = {mm('CAMERA_LENS_MIN_SWEEP_EYE_FACE_PROTRUSION',7.2)}",
               "Actual solved protrusions are printed by each Blender build.",
-              "No deep throat or floating recess-anchor bars are generated."],ORANGE)
+              "Top-loading closure, visor, and camera datums remain generated."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -560,7 +550,7 @@ def page_vertical(pdf):
              ["Rear fans wash the camera back and sides.",
               "Split rear guides and vented tray preserve flow.",
               "Raised support pads maintain under-body passage.",
-              "Eye annuli act as forward exhausts."],GREEN)
+              "Lens-to-mouth gaps act as forward exhausts."],GREEN)
     note_box(fig,[0.62,0.18,0.315,0.23],"MISSION 1 REFERENCE ENVELOPE",
              [f"body-only: {num(cam('BODY_WIDTH',78),1)} W x {num(body_d,1)} D x {num(body_h,1)} H",
               f"full measured envelope: {num(cam('REFERENCE_ENVELOPE_WIDTH',81),1)} W x {num(env_d,1)} D x {num(env_h,1)} H",
@@ -642,7 +632,7 @@ def page_retention(pdf):
                                 facecolor="#e1e5e8",edgecolor=INK,lw=1.1))
     guide_t=float(val("CAMERA_CRADLE_SIDE_GUIDE_THICKNESS",7)); guide_l=float(val("CAMERA_CRADLE_SIDE_GUIDE_RADIAL_LENGTH",8))
     ax.add_patch(Rectangle((-bw/2-guide_t,-bd/2),guide_t,guide_l,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
-    datum_w=float(val("CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH",8)); datum_plot_depth=3.5
+    datum_w=float(val("CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH",8)); datum_plot_depth=12.0
     ax.add_patch(Rectangle((-bw/2+9,-bd/2-datum_plot_depth),datum_w,datum_plot_depth,
                            facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
     rear_t=float(val("CAMERA_CRADLE_REAR_GUIDE_THICKNESS",7)); rear_w=float(val("CAMERA_CRADLE_REAR_GUIDE_TANGENTIAL_WIDTH",50)); air=float(val("CAMERA_CRADLE_REAR_GUIDE_CENTER_AIR_GAP",18))
@@ -656,7 +646,7 @@ def page_retention(pdf):
     dim_v(ax,-bd/2,-bd/2+guide_l,-bw/2-guide_t-8,-bw/2-guide_t,f"SIDE LENGTH {num(guide_l,1)}")
     leader(ax,(-bw/2-guide_t/2,-bd/2+4),(-63,20),f"side guide {num(guide_t,1)} thick x {mm('CAMERA_CRADLE_SIDE_GUIDE_HEIGHT',12)} high",BLUE)
     leader(ax,(-bw/2+9+datum_w/2,-bd/2-datum_plot_depth/2),(-56,-31),
-           "floor-rooted front datum\n(no suspended eye pads)",ORANGE)
+           "lower datum runs into solid shell\n(not a projection-thick tab)",ORANGE)
     setup(ax,-72,72,-40,46)
 
     ax2=panel(fig,[0.57,0.43,0.365,0.44],"UPPER CLAMP + L LOCATORS","EXPLODED")
@@ -680,24 +670,29 @@ def page_retention(pdf):
     leader(ax2,(31,49),(69,37),"continuous L-return\n(no butt-jointed tab)",PURPLE,"right")
     setup(ax2,-70,75,-8,82)
 
-    ax3=panel(fig,[0.065,0.18,0.48,0.18],"SPLIT REAR CLAMP + AIR PASSAGE","REAR")
-    lip_w=float(val("CAMERA_BRACKET_REAR_LIP_WIDTH",62)); lip_gap=float(val("CAMERA_BRACKET_REAR_LIP_CENTER_AIR_GAP",30)); lip_h=float(val("CAMERA_BRACKET_REAR_LIP_HEIGHT",12)); lip_t=float(val("CAMERA_BRACKET_REAR_LIP_THICKNESS",3))
-    seg=(lip_w-lip_gap)/2
-    ax3.add_patch(Rectangle((-39,0),78,32,facecolor="#e1e5e8",edgecolor=INK,lw=1.0))
-    for sign in (-1,1):
-        x0=sign*lip_gap/2+(0 if sign>0 else -seg)
-        ax3.add_patch(Rectangle((x0,32),seg,lip_h,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
-    ax3.add_patch(FancyArrowPatch((0,52),(0,15),arrowstyle="-|>",mutation_scale=10,color=GREEN,lw=1.2))
-    dim_h(ax3,-lip_gap/2,lip_gap/2,48,44,f"AIR GAP {num(lip_gap,1)}",GREEN)
-    dim_v(ax3,32,44,47,39,f"LIP H {num(lip_h,1)}",ORANGE)
-    setup(ax3,-52,56,-5,60)
+    ax3=panel(fig,[0.065,0.18,0.48,0.18],"UPPER ANTI-TILT FRONT STOP","SIDE SECTION")
+    contact_h=float(val("CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT",3.5))
+    contact_w=float(val("CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH",3.5))
+    gusset_angle=float(val("CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG",45))
+    z0=25; z1=z0+contact_h; root_x=16
+    root_z=z0-root_x*math.tan(math.radians(gusset_angle))
+    ax3.add_patch(Rectangle((-22,12),22,32,facecolor="#e1e5e8",edgecolor=INK,lw=1.0))
+    ax3.add_patch(Rectangle((root_x,root_z-3),4,46-root_z,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+    ax3.add_patch(Polygon([(0,z0),(0,z1),(root_x,z1),(root_x,root_z)],closed=True,
+                          facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.2))
+    dim_v(ax3,z0,z1,-29,-22,f"CONTACT H {num(contact_h,1)}",ORANGE)
+    leader(ax3,(0,(z0+z1)/2),(-43,40),f"camera contact face\n{num(contact_w,1)} mm wide",ORANGE)
+    leader(ax3,(8,(z0+root_z)/2),(42,10),f"support-free underside\n{num(gusset_angle,1)} deg",GREEN,"right")
+    leader(ax3,(root_x,20),(40,36),"monolithic root into\nsolid front shell",BLUE,"right")
+    setup(ax3,-48,48,-2,50)
 
     note_box(fig,[0.57,0.18,0.365,0.18],"FIT / STRENGTH DEFAULTS",
              [f"cradle side clearance = {mm('CAMERA_CRADLE_SIDE_CLEARANCE',0,1)} (snug)",
               f"front datum = {val('CAMERA_FRONT_STOP_STYLE','floor_rooted')!r}; {mm('CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH',8)} wide x {mm('CAMERA_FRONT_STOP_FLOOR_DATUM_HEIGHT_ABOVE_CAMERA_BOTTOM',12)} high",
+              f"lower minimum radial thickness = {mm('CAMERA_FRONT_STOP_LOWER_MIN_RADIAL_THICKNESS',4)}; exterior skin = {mm('CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN',0.8)}",
+              f"upper anti-tilt contact = {mm('CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH',3.5)} wide x {mm('CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT',3.5)} high; gusset {deg('CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG',45)}",
+              f"upper side = {val('CAMERA_FRONT_STOP_UPPER_SIDE','auto')!r}; top inset / mouth land = {mm('CAMERA_FRONT_STOP_UPPER_BODY_TOP_INSET',5)} / {mm('CAMERA_FRONT_STOP_UPPER_MOUTH_LAND',0.5)}",
               f"upper locator clearance = {mm('CAMERA_BRACKET_USB_SIDE_LOCATOR_CLEARANCE',0.10,2)}",
-              f"guide plate overhang = {mm('CAMERA_BRACKET_GUIDE_PLATE_OVERHANG',2)}",
-              f"arm width / plate embed = {mm('CAMERA_BRACKET_ARM_WIDTH',10)} / {mm('CAMERA_BRACKET_ARM_PLATE_EMBED',7)}",
               "USB case-wall openings are disabled; internal access remains."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
@@ -981,9 +976,12 @@ def page_idler_assembly(pdf):
 
 
 def page_carrier_guard(pdf):
-    fig=new_sheet(10,"ROTATING CARRIER GUIDE & YAW-SAFE EYE GUARD",
-                  "The final 14 mm carrier guides and compact front datum remain behind the assembled eye-rim guard through the full yaw sweep")
-    guide_h=float(val("CAMERA_CARRIER_GUIDE_HEIGHT",14)); guide_t=float(val("CAMERA_CARRIER_GUIDE_THICKNESS",5)); front_w=float(val("CAMERA_CARRIER_FRONT_STOP_WIDTH",14)); margin=float(val("CAMERA_CARRIER_FRONT_STOP_EYE_GUARD_MARGIN",0.35)); yaw=float(val("ADJUSTABLE_CAMERA_YAW_RANGE_DEG",10))
+    fig=new_sheet(
+        10,
+        "ROTATING CARRIER GUIDE & OPEN EYE MOUTH",
+        "Camera guides and front datums remain while the direct shell mouth stays unobstructed through the full yaw sweep",
+    )
+    guide_h=float(val("CAMERA_CARRIER_GUIDE_HEIGHT",14)); guide_t=float(val("CAMERA_CARRIER_GUIDE_THICKNESS",5)); front_w=float(val("CAMERA_CARRIER_FRONT_STOP_WIDTH",14)); margin=float(val("CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN",0.35)); yaw=float(val("ADJUSTABLE_CAMERA_YAW_RANGE_DEG",10))
     ax=panel(fig,[0.065,0.43,0.45,0.44],"GUIDE HEIGHT & CAMERA DATUM","SIDE")
     ax.add_patch(Rectangle((-44,0),88,3.2,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
     ax.add_patch(Rectangle((-38,3.2),76,3.2,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
@@ -992,20 +990,17 @@ def page_carrier_guard(pdf):
         ax.add_patch(Rectangle((x,6.4),guide_t,guide_h,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.1))
     dim_v(ax,6.4,6.4+guide_h,-49,-40,f"FINAL GUIDE {num(guide_h,1)}",ORANGE)
     dim_h(ax,35,35+guide_t,1,6.4,f"THICK {num(guide_t,1)}",ORANGE)
-    leader(ax,(-37.5,20),(-54,42),"guide top stops below\nexterior eye guard band",BLUE)
+    leader(ax,(-37.5,20),(-54,42),"guide belongs to carrier;\nno eye ring is generated",BLUE)
     leader(ax,(0,6.4),(31,-5),f"tray {mm('CAMERA_CARRIER_TRAY_THICKNESS',3.2)} thick",PURPLE)
     setup(ax,-60,62,-9,68)
 
-    ax2=panel(fig,[0.54,0.43,0.395,0.44],"FRONT DATUM VS. EYE-RIM GUARD","NORMAL / SECTION")
-    opening=float(val("EYE_OPENING_WIDTH",58)); guard=float(val("EYE_APERTURE_GUARD_BAND_OFFSET",0.75)); keep=float(val("EYE_INTERNAL_CUTTER_KEEP_OUT_MARGIN",0.35))
-    ax2.add_patch(FancyBboxPatch((-32,-25),64,50,boxstyle="round,pad=0,rounding_size=11",facecolor="#cce0ec",edgecolor=BLUE,lw=1.2))
-    ax2.add_patch(FancyBboxPatch((-opening/2,-23),opening,46,boxstyle="round,pad=0,rounding_size=10",facecolor=WHITE,edgecolor=ORANGE,lw=1.2))
-    ax2.add_patch(FancyBboxPatch((-opening/2-guard,-23-guard),opening+2*guard,46+2*guard,boxstyle="round,pad=0,rounding_size=10.5",facecolor="none",edgecolor=RED,lw=1.0,ls="--"))
+    ax2=panel(fig,[0.54,0.43,0.395,0.44],"FRONT DATUM VS. OPEN EYE MOUTH","NORMAL / SECTION")
+    opening=float(val("EYE_MOUTH_WIDTH",64)); opening_h=float(val("EYE_MOUTH_HEIGHT",52))
+    ax2.add_patch(FancyBboxPatch((-opening/2,-opening_h/2),opening,opening_h,boxstyle=f"round,pad=0,rounding_size={val('EYE_MOUTH_CORNER_RADIUS',14.5)}",facecolor=WHITE,edgecolor=BLUE,lw=1.4))
     ax2.add_patch(Rectangle((-front_w/2,-21),front_w,5,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
     dim_h(ax2,-front_w/2,front_w/2,-31,-21,f"FRONT DATUM WIDTH {num(front_w,1)}",ORANGE)
-    dim_v(ax2,-23-guard,-23,39,32,f"GUARD OFFSET {num(guard,2)}",RED)
+    leader(ax2,(-31,-18),(-43,11),"direct mouth boundary",BLUE)
     leader(ax2,(front_w/2,-18),(40,-12),f"yaw-safe margin >= {num(margin,2)}",GREEN,"right")
-    leader(ax2,(-29,-10),(-43,11),f"internal cutter keep-out {num(keep,2)}",RED)
     setup(ax2,-48,50,-38,38)
 
     ax3=panel(fig,[0.065,0.15,0.57,0.20],"FRONT DATUM THROUGH FULL YAW","TOP / PLAN")
@@ -1014,20 +1009,19 @@ def page_carrier_guard(pdf):
         rad=math.radians(angle)
         cx=-22*math.cos(rad); cy=-22*math.sin(rad)
         ax3.add_patch(Rectangle((cx-front_w/2,cy-2.5),front_w,5,angle=angle,rotation_point="center",facecolor="#f3c7aa",edgecolor=ORANGE,lw=0.8))
-    ax3.plot([-31,-31],[-48,48],color=RED,lw=2.0,ls="--")
-    ax3.text(-34,42,"EYE-RIM GUARD LIMIT",rotation=90,va="top",ha="right",color=RED,fontsize=7,weight="bold")
+    ax3.plot([-31,-31],[-48,48],color=BLUE,lw=2.0,ls="--")
+    ax3.text(-34,42,"OPEN EYE-MOUTH PLANE",rotation=90,va="top",ha="right",color=BLUE,fontsize=7,weight="bold")
     ax3.add_patch(Arc((0,0),58,58,theta1=180-yaw,theta2=180+yaw,edgecolor=ORANGE,lw=1.1))
     ax3.text(-15,31,f"+/- {num(yaw,1)} deg sweep",color=ORANGE,fontsize=7.5,weight="bold")
     leader(ax3,(-22,0),(30,-35),"front datum is solved on flat body land\nand checked at every yaw sample",GREEN)
     setup(ax3,-48,55,-52,52)
 
-    note_box(fig,[0.66,0.15,0.275,0.20],"GUARD / CHIMNEY LIMITS",
-             [f"front-stop eye-guard margin = {num(margin,2)} mm",
-              f"eye aperture guard-band offset = {num(guard,2)} mm",
-              f"internal cutter keep-out = {num(keep,2)} mm",
+    note_box(fig,[0.66,0.15,0.275,0.20],"OPEN-MOUTH / CHIMNEY LIMITS",
+             ["The eye mouth is permanently direct-open; no ring toggle exists.",
+              "Camera/cartridge collision validations remain active.",
               f"chimney wall guard = {mm('CAMERA_CARRIER_TOP_LOADING_CHIMNEY_WALL_GUARD',0.60,2)}",
               f"sweep-cut clearance = {mm('CAMERA_CARRIER_SWEEP_CUT_CLEARANCE',0.30,2)}",
-              "Final mesh validation rejects any guard-band breach."],GREEN)
+              "Top-loading lid closure and visor use the same mouth boundary."],GREEN)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -1280,11 +1274,12 @@ def page_index(pdf):
         ]),
         ("OPTICS / CAMERA",[
             ("CAMERA_HALF_ANGLE_DEG",num(val('CAMERA_HALF_ANGLE_DEG',35),1)),
-            ("EYE_OPENING_WIDTH / HEIGHT",f"{num(val('EYE_OPENING_WIDTH',58),1)} / {num(val('EYE_OPENING_HEIGHT',46),1)}"),
-            ("EYE_BEZEL_WIDTH / HEIGHT / DEPTH",f"{num(val('EYE_BEZEL_WIDTH',64),1)} / {num(val('EYE_BEZEL_HEIGHT',52),1)} / {num(val('EYE_BEZEL_DEPTH',5),1)}"),
-            ("FORWARD MODE / FIXED INDEP. / ADJ. OFFSET",f"{val('CAMERA_FORWARD_PLACEMENT_MODE','maximize')} / {val('CAMERA_FIXED_INDEPENDENT_FORWARD_ADVANCE_ENABLED',True)} / {num(val('ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET',1.7),2)}"),
-            ("EYE REAR RELIEF / RETAINED LIP",f"{num(val('EYE_ADJUSTABLE_BODY_RELIEF_DEPTH',2),1)} / {num(val('EYE_BEZEL_DEPTH',5)-val('EYE_ADJUSTABLE_BODY_RELIEF_DEPTH',2),1)}"),
-            ("FLOOR GAP / EYE WEB / FRONT DATUM",f"{num(val('CAMERA_FLOOR_CLEARANCE',4.5),1)} / {num(val('EYE_RECESS_BASE_SUPPORTED_WEB_WIDTH',6),1)} / {num(val('CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH',8),1)}"),
+            ("EYE_MOUTH W / H / CORNER R",f"{num(val('EYE_MOUTH_WIDTH',64),1)} / {num(val('EYE_MOUTH_HEIGHT',52),1)} / {num(val('EYE_MOUTH_CORNER_RADIUS',14.5),1)}"),
+            ("FORWARD / FIXED / ADJ. OFFSET",f"{val('CAMERA_FORWARD_PLACEMENT_MODE','maximize')} / {'on' if val('CAMERA_FIXED_INDEPENDENT_FORWARD_ADVANCE_ENABLED',True) else 'off'} / {num(val('ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET',1.7),2)}"),
+            ("MOUTH RELIEF / FRONT DATUM",f"{num(val('EYE_ADJUSTABLE_BODY_RELIEF_DEPTH',3),1)} / {num(val('EYE_FRONT_DATUM_DEPTH',2),1)}"),
+            ("FLOOR GAP / LOWER DATUM W",f"{num(val('CAMERA_FLOOR_CLEARANCE',4.5),1)} / {num(val('CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH',8),1)}"),
+            ("LOWER MIN THICK / SHELL SKIN",f"{num(val('CAMERA_FRONT_STOP_LOWER_MIN_RADIAL_THICKNESS',4),1)} / {num(val('CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN',.8),1)}"),
+            ("UPPER CONTACT W / H / ANGLE",f"{num(val('CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH',3.5),1)} / {num(val('CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT',3.5),1)} / {num(val('CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG',45),0)} deg"),
         ]),
         ("LID / RETENTION",[
             ("LID_THICKNESS",num(val('LID_THICKNESS',4.653),3)),
@@ -1303,7 +1298,7 @@ def page_index(pdf):
             (("STAGES: START / WHEEL / SECTOR" if direct else "STAGES: START / WHEEL / PINION / SECTOR"),
              (f"{num(val('CAMERA_WORM_STARTS',1),0)} / {num(val('CAMERA_IDLER_TEETH',30),0)} / {num(val('CAMERA_GEAR_EQUIVALENT_TEETH',170),0)}" if direct else
               f"{num(val('CAMERA_WORM_STARTS',1),0)} / {num(val('CAMERA_IDLER_TEETH',30),0)} / {num(val('CAMERA_IDLER_PINION_TEETH',30),0)} / {num(val('CAMERA_GEAR_EQUIVALENT_TEETH',170),0)}")),
-            ("GUIDE H / EYE-GUARD MARGIN",f"{num(val('CAMERA_CARRIER_GUIDE_HEIGHT',14),1)} / {num(val('CAMERA_CARRIER_FRONT_STOP_EYE_GUARD_MARGIN',0.35),2)}"),
+            ("GUIDE H / EYE-MOUTH MARGIN",f"{num(val('CAMERA_CARRIER_GUIDE_HEIGHT',14),1)} / {num(val('CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN',0.35),2)}"),
         ]),
         ("FANS / ACOUSTICS",[
             ("REAR_FAN_PAD_SIZE / FRAME_SIZE",f"{num(val('REAR_FAN_PAD_SIZE',45),1)} / {num(val('REAR_FAN_FRAME_SIZE',40),1)}"),
@@ -1337,6 +1332,7 @@ def page_index(pdf):
             yy-=0.123
     fig.text(0.065,0.165,"KEY ENABLE SWITCHES",fontsize=8.5,weight="bold",color=INK)
     switches=[
+        ("CAMERA_FRONT_STOP_UPPER_ENABLED",val("CAMERA_FRONT_STOP_UPPER_ENABLED",True)),
         ("EYE_TOP_LOADING_ENABLED",val("EYE_TOP_LOADING_ENABLED",True)),
         ("CAMERA_CRADLES_ENABLED",val("CAMERA_CRADLES_ENABLED",True)),
         ("CAMERA_BRACKETS_ENABLED",val("CAMERA_BRACKETS_ENABLED",True)),
@@ -1344,7 +1340,6 @@ def page_index(pdf):
         ("REAR_FANS_ENABLED",val("REAR_FANS_ENABLED",True)),
         ("CAMERA_WORM_BEARINGS_ENABLED",val("CAMERA_WORM_BEARINGS_ENABLED",False)),
         ("CAMERA_IDLER_BEARINGS_ENABLED",val("CAMERA_IDLER_BEARINGS_ENABLED",False)),
-        ("EYE_RECESS_BASE_SUPPORTED_WEB_ENABLED",val("EYE_RECESS_BASE_SUPPORTED_WEB_ENABLED",True)),
         ("BOTTOM_MOUNT_NUT_HOLDER_ENABLED",val("BOTTOM_MOUNT_NUT_HOLDER_ENABLED",True)),
         ("BOTTOM_KEYSTONES_ENABLED",val("BOTTOM_KEYSTONES_ENABLED",True)),
     ]
