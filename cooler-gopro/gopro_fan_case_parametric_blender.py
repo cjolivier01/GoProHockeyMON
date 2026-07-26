@@ -49,8 +49,13 @@ CYLINDER_SEGMENTS = 96
 CORNER_SEGMENTS = 12
 INSERT_DEPTH_SECTIONS = 8
 BOOLEAN_SOLVER = "EXACT"
+# Blender 5.2's EXACT solver can leave open edge fans at the small retention,
+# stop, and fan-boss unions.  Use MANIFOLD only for those closed-solid unions;
+# older Blender versions fall back to EXACT after enum inspection.
+WATERTIGHT_DETAIL_UNION_SOLVER = "MANIFOLD"
 BOOLEAN_OVERLAP = 0.08
 BOOLEAN_CLEANUP_DISTANCE = 0.0001
+BOOLEAN_MINIMUM_VOLUME_CHANGE = 1.0e-6
 
 # Rear fan/socket shell. Y=0 is its smooth front surface.
 BACK_OUTER_WIDTH = 96.65
@@ -1288,24 +1293,108 @@ def join_disconnected_tools(name: str, objects):
     return objects[0]
 
 
-def apply_boolean(base, tool, operation: str, label: str):
+def mesh_volume(obj) -> float:
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    volume = abs(bm.calc_volume(signed=True)) if bm.faces else 0.0
+    bm.free()
+    return volume
+
+
+def available_boolean_solvers(modifier):
+    if not hasattr(modifier, "solver"):
+        return set()
+    return {
+        item.identifier
+        for item in modifier.bl_rna.properties["solver"].enum_items
+    }
+
+
+def resolve_boolean_solver(modifier, requested: str, label: str):
+    available = available_boolean_solvers(modifier)
+    if not available or requested in available:
+        return requested if available else None
+    if requested == "MANIFOLD" and "EXACT" in available:
+        print(
+            f"BOOLEAN_SOLVER_FALLBACK {label}: "
+            "MANIFOLD unavailable; using EXACT"
+        )
+        return "EXACT"
+    raise ValueError(
+        f"Boolean solver {requested!r} is unavailable for {label}; "
+        f"available={sorted(available)}"
+    )
+
+
+def apply_boolean(
+    base,
+    tool,
+    operation: str,
+    label: str,
+    solver=None,
+    require_geometry_change=False,
+):
     select_only(base)
     modifier = base.modifiers.new(label, "BOOLEAN")
     modifier.operation = operation
     modifier.object = tool
-    if hasattr(modifier, "solver"):
-        modifier.solver = BOOLEAN_SOLVER
+    requested_solver = solver or BOOLEAN_SOLVER
+    resolved_solver = resolve_boolean_solver(modifier, requested_solver, label)
+    if resolved_solver is not None:
+        modifier.solver = resolved_solver
     if hasattr(modifier, "use_self"):
         modifier.use_self = False
-    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    if resolved_solver == "MANIFOLD":
+        base_non_manifold = non_manifold_edge_count(base)
+        tool_non_manifold = non_manifold_edge_count(tool)
+        if base_non_manifold or tool_non_manifold:
+            raise RuntimeError(
+                f"Manifold Boolean {label} requires manifold operands; "
+                f"base={base_non_manifold} tool={tool_non_manifold}"
+            )
+    before_volume = mesh_volume(base) if require_geometry_change else None
+    modifier_name = modifier.name
+    result = bpy.ops.object.modifier_apply(modifier=modifier_name)
+    if "FINISHED" not in result or base.modifiers.get(modifier_name) is not None:
+        raise RuntimeError(
+            f"Boolean {label} did not apply: operation={operation} "
+            f"solver={resolved_solver or 'legacy'} result={result}"
+        )
     bpy.data.objects.remove(tool, do_unlink=True)
     cleanup_boolean_mesh(base)
     recalc_normals(base)
+    if resolved_solver == "MANIFOLD":
+        result_non_manifold = non_manifold_edge_count(base)
+        if result_non_manifold:
+            raise RuntimeError(
+                f"Manifold Boolean {label} produced "
+                f"{result_non_manifold} non-manifold edges"
+            )
+    if require_geometry_change:
+        after_volume = mesh_volume(base)
+        if abs(after_volume - before_volume) <= BOOLEAN_MINIMUM_VOLUME_CHANGE:
+            raise RuntimeError(
+                f"Boolean {label} made no measurable volume change; "
+                f"before={before_volume:.9f} after={after_volume:.9f}"
+            )
     return base
 
 
-def boolean_union(base, part, label="Union"):
-    return apply_boolean(base, part, "UNION", label + "_" + part.name)
+def boolean_union(
+    base,
+    part,
+    label="Union",
+    solver=None,
+    require_geometry_change=False,
+):
+    return apply_boolean(
+        base,
+        part,
+        "UNION",
+        label + "_" + part.name,
+        solver=solver,
+        require_geometry_change=require_geometry_change,
+    )
 
 
 def boolean_difference(base, tools, label="Cut"):
@@ -1591,6 +1680,8 @@ def add_back_fastener_retention_tabs(back):
                 back,
                 tab,
                 f"Rear_Fastener_Retention_Tab_{fastener_index}_Union",
+                solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+                require_geometry_change=True,
             )
     return back
 
@@ -1726,7 +1817,13 @@ def create_back_shell():
             boolean_union(back, slat, "Vent_Slat_Union")
 
     if camera_stops is not None:
-        boolean_union(back, camera_stops, "Camera_Stops_Union")
+        boolean_union(
+            back,
+            camera_stops,
+            "Camera_Stops_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
         remove_tiny_mesh_components(back)
 
     # Build short fan bosses with their bores already present. Reopening a
@@ -1758,7 +1855,13 @@ def create_back_shell():
                     )
                 )
         fan_boss_group = join_disconnected_tools("Fan_Boss_Group", fan_bosses)
-        boolean_union(back, fan_boss_group, "Fan_Bosses_Union")
+        boolean_union(
+            back,
+            fan_boss_group,
+            "Fan_Bosses_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
 
     back.name = "GoPro_Fan_Case_Back"
     back.data.name = "GoPro_Fan_Case_Back_Mesh"

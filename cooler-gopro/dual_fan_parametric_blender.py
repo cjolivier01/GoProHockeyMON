@@ -35,7 +35,16 @@ EXPORT_STL_PATH = "gopro_dual_fan_parametric.stl"
 CYLINDER_SEGMENTS = 96
 CORNER_SEGMENTS = 10
 BOOLEAN_SOLVER = "EXACT"
+# Blender 5.2's EXACT solver can leave open edge fans where the independently
+# manifold fan/support parts are assembled.  Use MANIFOLD only for those final
+# unions; older Blender versions fall back to EXACT after enum inspection.
+ASSEMBLY_BOOLEAN_SOLVER = "MANIFOLD"
+# The receiver block's through-hole/countersink cuts feed directly into its
+# final assembly seam.  Keeping these n-gons on the same watertight solver
+# avoids spatially coincident face pairs after the block/stalk union.
+MOUNT_BLOCK_BOOLEAN_SOLVER = "MANIFOLD"
 BOOLEAN_OVERLAP = 0.08
+BOOLEAN_MINIMUM_VOLUME_CHANGE = 1.0e-6
 UNION_ALL_PARTS = True
 DEBUG_BOOLEAN_STEPS = False
 CLEAN_COINCIDENT_FACE_TOLERANCE = 1.0e-5
@@ -674,18 +683,89 @@ def join_disconnected_tools(name: str, objects):
     return objects[0]
 
 
-def apply_boolean(base, tool, operation: str, label: str):
+def mesh_volume(obj) -> float:
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    volume = abs(bm.calc_volume(signed=True)) if bm.faces else 0.0
+    bm.free()
+    return volume
+
+
+def available_boolean_solvers(modifier):
+    if not hasattr(modifier, "solver"):
+        return set()
+    return {
+        item.identifier
+        for item in modifier.bl_rna.properties["solver"].enum_items
+    }
+
+
+def resolve_boolean_solver(modifier, requested: str, label: str):
+    available = available_boolean_solvers(modifier)
+    if not available or requested in available:
+        return requested if available else None
+    if requested == "MANIFOLD" and "EXACT" in available:
+        print(
+            f"BOOLEAN_SOLVER_FALLBACK {label}: "
+            "MANIFOLD unavailable; using EXACT"
+        )
+        return "EXACT"
+    raise ValueError(
+        f"Boolean solver {requested!r} is unavailable for {label}; "
+        f"available={sorted(available)}"
+    )
+
+
+def apply_boolean(
+    base,
+    tool,
+    operation: str,
+    label: str,
+    solver=None,
+    require_geometry_change=False,
+):
     select_only(base)
     modifier = base.modifiers.new(label, "BOOLEAN")
     modifier.operation = operation
     modifier.object = tool
-    if hasattr(modifier, "solver"):
-        modifier.solver = BOOLEAN_SOLVER
+    requested_solver = solver or BOOLEAN_SOLVER
+    resolved_solver = resolve_boolean_solver(modifier, requested_solver, label)
+    if resolved_solver is not None:
+        modifier.solver = resolved_solver
     if hasattr(modifier, "use_self"):
         modifier.use_self = False
-    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    if resolved_solver == "MANIFOLD":
+        base_non_manifold = non_manifold_edge_count(base)
+        tool_non_manifold = non_manifold_edge_count(tool)
+        if base_non_manifold or tool_non_manifold:
+            raise RuntimeError(
+                f"Manifold Boolean {label} requires manifold operands; "
+                f"base={base_non_manifold} tool={tool_non_manifold}"
+            )
+    before_volume = mesh_volume(base) if require_geometry_change else None
+    modifier_name = modifier.name
+    result = bpy.ops.object.modifier_apply(modifier=modifier_name)
+    if "FINISHED" not in result or base.modifiers.get(modifier_name) is not None:
+        raise RuntimeError(
+            f"Boolean {label} did not apply: operation={operation} "
+            f"solver={resolved_solver or 'legacy'} result={result}"
+        )
     bpy.data.objects.remove(tool, do_unlink=True)
     recalc_normals(base)
+    if resolved_solver == "MANIFOLD":
+        result_non_manifold = non_manifold_edge_count(base)
+        if result_non_manifold:
+            raise RuntimeError(
+                f"Manifold Boolean {label} produced "
+                f"{result_non_manifold} non-manifold edges"
+            )
+    if require_geometry_change:
+        after_volume = mesh_volume(base)
+        if abs(after_volume - before_volume) <= BOOLEAN_MINIMUM_VOLUME_CHANGE:
+            raise RuntimeError(
+                f"Boolean {label} made no measurable volume change; "
+                f"before={before_volume:.9f} after={after_volume:.9f}"
+            )
     if DEBUG_BOOLEAN_STEPS:
         print(
             f"{label}: operation={operation} "
@@ -694,13 +774,39 @@ def apply_boolean(base, tool, operation: str, label: str):
     return base
 
 
-def boolean_union(base, part, label="Union"):
-    return apply_boolean(base, part, "UNION", label + "_" + part.name)
+def boolean_union(
+    base,
+    part,
+    label="Union",
+    solver=None,
+    require_geometry_change=False,
+):
+    return apply_boolean(
+        base,
+        part,
+        "UNION",
+        label + "_" + part.name,
+        solver=solver,
+        require_geometry_change=require_geometry_change,
+    )
 
 
-def boolean_difference(base, tools, label="Cut"):
+def boolean_difference(
+    base,
+    tools,
+    label="Cut",
+    solver=None,
+    require_geometry_change=False,
+):
     tool = join_disconnected_tools(label + "_Tools", list(tools))
-    return apply_boolean(base, tool, "DIFFERENCE", label)
+    return apply_boolean(
+        base,
+        tool,
+        "DIFFERENCE",
+        label,
+        solver=solver,
+        require_geometry_change=require_geometry_change,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1019,7 +1125,13 @@ def create_mount_block():
                 z=center_z,
             )
         )
-    boolean_difference(block, through_cuts, "Mount_Through_Holes")
+    boolean_difference(
+        block,
+        through_cuts,
+        "Mount_Through_Holes",
+        solver=MOUNT_BLOCK_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
 
     if MOUNT_COUNTERSINK_ENABLED and MOUNT_COUNTERSINK_DEPTH > 0.0:
         outer_y = center_y + MOUNT_BLOCK_DEPTH_Y / 2.0 + BOOLEAN_OVERLAP
@@ -1037,7 +1149,13 @@ def create_mount_block():
                     z=center_z,
                 )
             )
-        boolean_difference(block, countersinks, "Mount_Countersinks")
+        boolean_difference(
+            block,
+            countersinks,
+            "Mount_Countersinks",
+            solver=MOUNT_BLOCK_BOOLEAN_SOLVER,
+            require_geometry_change=True,
+        )
 
     return block
 
@@ -1252,6 +1370,9 @@ def remove_opposed_coincident_faces(obj) -> int:
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     bm.normal_update()
+    original_non_manifold = sum(
+        1 for edge in bm.edges if len(edge.link_faces) != 2
+    )
     tolerance = CLEAN_COINCIDENT_FACE_TOLERANCE
     groups = {}
     for face in bm.faces:
@@ -1280,13 +1401,25 @@ def remove_opposed_coincident_faces(obj) -> int:
                 remove.add(face)
                 remove.add(available.pop(opposite_index))
 
+    removed_count = 0
     if remove:
         bmesh.ops.delete(bm, geom=list(remove), context="FACES")
         bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-        bm.to_mesh(obj.data)
-        obj.data.update()
+        repaired_non_manifold = sum(
+            1 for edge in bm.edges if len(edge.link_faces) != 2
+        )
+        if repaired_non_manifold <= original_non_manifold:
+            bm.to_mesh(obj.data)
+            obj.data.update()
+            removed_count = len(remove)
+        else:
+            print(
+                "COINCIDENT_FACE_CLEANUP_SKIPPED "
+                f"{obj.name}: non_manifold_edges="
+                f"{original_non_manifold}->{repaired_non_manifold}"
+            )
     bm.free()
-    return len(remove)
+    return removed_count
 
 
 def triangulate_mesh(obj) -> None:
@@ -1351,7 +1484,13 @@ def build_dual_fan():
     if UNION_ALL_PARTS:
         final = parts[0]
         for part in parts[1:]:
-            boolean_union(final, part, "Assembly_Union")
+            boolean_union(
+                final,
+                part,
+                "Assembly_Union",
+                solver=ASSEMBLY_BOOLEAN_SOLVER,
+                require_geometry_change=True,
+            )
         final.name = "Parametric_Dual_Fan_Holder"
         final.data.name = "Parametric_Dual_Fan_Holder_Mesh"
         final_objects = [final]

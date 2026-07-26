@@ -1455,6 +1455,12 @@ ROUNDED_CORNER_SEGMENTS = 14
 BOOLEAN_SOLVER = "EXACT"
 BOOLEAN_OVERLAP = 0.25
 BOOLEAN_CLEANUP_DISTANCE = 0.0001
+# Blender 5.2 can expose a microscopic closed crack while triangulating an
+# Exact-boolean n-gon.  Only closed boundary loops below this physical extent
+# may be repaired; any larger opening still fails manifold validation.
+BOOLEAN_TINY_BOUNDARY_REPAIR_MAX_EXTENT = 0.1
+BOOLEAN_TINY_BOUNDARY_REPAIR_MAX_EDGES = 16
+BOOLEAN_TINY_BOUNDARY_REPAIR_MAX_COMPONENTS = 1
 BASE_REMOVE_SMALL_BOOLEAN_FRAGMENTS = True
 BASE_MAX_FRAGMENT_FACES = 16
 BASE_MAX_FRAGMENT_VOLUME = 0.20
@@ -18893,6 +18899,7 @@ def restore_final_adjustable_pivot_thrust_stack(base, mechanism):
     # Boolean n-gons and the two saddle/floor T-junctions here also makes this
     # final operation insensitive to rear-taper loop triangulation.
     triangulate_mesh(base)
+    repair_tiny_closed_boundary_holes(base)
     pre_restore_non_manifold = non_manifold_edge_count(base)
     if pre_restore_non_manifold:
         bm = bmesh.new()
@@ -21423,6 +21430,102 @@ def triangulate_mesh(obj) -> None:
     bm.to_mesh(obj.data)
     bm.free()
     obj.data.update()
+
+
+def repair_tiny_closed_boundary_holes(obj) -> int:
+    """Close only bounded micro-cracks exposed by Blender triangulation.
+
+    Functional openings are many millimeters across.  This repair accepts
+    only short, closed boundary loops with degree two at every vertex and a
+    sub-tolerance three-dimensional extent.  Manifold validation immediately
+    after the repair still rejects open, branching, or larger defects.
+    """
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    remaining = {
+        edge for edge in bm.edges if len(edge.link_faces) == 1
+    }
+    repaired_components = 0
+    repaired_edges = 0
+    maximum_repaired_extent = 0.0
+    repair_candidates = []
+    new_faces = []
+
+    while remaining:
+        seed = remaining.pop()
+        component = {seed}
+        stack = [seed]
+        while stack:
+            edge = stack.pop()
+            for vertex in edge.verts:
+                for linked_edge in vertex.link_edges:
+                    if (
+                        linked_edge in remaining
+                        and len(linked_edge.link_faces) == 1
+                    ):
+                        remaining.remove(linked_edge)
+                        component.add(linked_edge)
+                        stack.append(linked_edge)
+
+        vertices = {vertex for edge in component for vertex in edge.verts}
+        degree = {vertex: 0 for vertex in vertices}
+        for edge in component:
+            for vertex in edge.verts:
+                degree[vertex] += 1
+        if (
+            len(component) < 3
+            or len(component) > BOOLEAN_TINY_BOUNDARY_REPAIR_MAX_EDGES
+            or any(value != 2 for value in degree.values())
+        ):
+            continue
+
+        extent = max(
+            max(vertex.co[axis] for vertex in vertices)
+            - min(vertex.co[axis] for vertex in vertices)
+            for axis in range(3)
+        )
+        if extent > BOOLEAN_TINY_BOUNDARY_REPAIR_MAX_EXTENT:
+            continue
+
+        repair_candidates.append((component, extent))
+
+    if len(repair_candidates) > BOOLEAN_TINY_BOUNDARY_REPAIR_MAX_COMPONENTS:
+        bm.free()
+        raise RuntimeError(
+            f"Refusing to repair {len(repair_candidates)} tiny boundary "
+            "components; configured maximum is "
+            f"{BOOLEAN_TINY_BOUNDARY_REPAIR_MAX_COMPONENTS}"
+        )
+
+    for component, extent in repair_candidates:
+        result = bmesh.ops.holes_fill(
+            bm,
+            edges=list(component),
+            sides=0,
+        )
+        faces = list(result.get("faces", ()))
+        if not faces:
+            continue
+        new_faces.extend(faces)
+        repaired_components += 1
+        repaired_edges += len(component)
+        maximum_repaired_extent = max(maximum_repaired_extent, extent)
+
+    if new_faces:
+        bmesh.ops.triangulate(bm, faces=new_faces)
+        bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+        bm.to_mesh(obj.data)
+        obj.data.update()
+    bm.free()
+
+    if repaired_components:
+        print(
+            "TINY_CLOSED_BOUNDARY_HOLE_REPAIR "
+            f"{obj.name}: components={repaired_components} "
+            f"edges={repaired_edges} "
+            f"maximum_extent={maximum_repaired_extent:.6f}"
+        )
+    return repaired_components
 
 
 def non_manifold_edge_count(obj) -> int:
