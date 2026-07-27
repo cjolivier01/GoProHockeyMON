@@ -206,7 +206,8 @@ PREVIEW_SHOW_CAMERA_MOCKUPS = True
 
 # Source STL envelope: 215.167 x 233.661 x 70.653 mm.
 # BODY_WIDTH = 215.167
-BODY_WIDTH = 180
+# BODY_WIDTH = 180
+BODY_WIDTH = 160
 BODY_DEPTH = 233.661
 # BODY_DEPTH = 210
 # Two extra millimeters preserve lid/bracket clearance after raising the
@@ -228,7 +229,7 @@ FOOTPRINT_POINTS = 192
 # envelopes can automatically move the start rearward; lid posts may remain in
 # the taper because their insert and counterbore stacks use local roof heights.
 REAR_TAPER_SOLVER = "keepout"
-REAR_WIDTH_TAPER_SCALE = 0.75
+REAR_WIDTH_TAPER_SCALE = 0.5
 REAR_WIDTH_TAPER_START_FRACTION = 0.55
 REAR_HEIGHT_REDUCTION = 10.0
 REAR_HEIGHT_TAPER_START_FRACTION = 0.88
@@ -641,7 +642,8 @@ CAMERA_WORM_SHAFT_CLEARANCE = 0.30
 # screws only snug and alternated.  Verify/deburr the purchased worm's separate
 # nominal 4 mm metal bore before assembly.
 CAMERA_WORM_BEARINGS_ENABLED = False
-CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER = 4.24
+# CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER = 4.24
+CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER = 4.20
 # Reject accidentally loose values while this mode is still described as a
 # close, frictional printed journal.  The upper limit intentionally includes
 # the documented 4.40 mm freer-motion calibration coupon.
@@ -1372,7 +1374,8 @@ FAN_GASKET_COLOR = (0.12, 0.12, 0.12, 1.0)
 # in from above and then catch its top face.  Measure the actual nut and printer
 # before production; inch fastener hardware varies by standard and coating.
 BOTTOM_MOUNT_HOLE_ENABLED = True
-BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.50
+# BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.50
+BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.55
 BOTTOM_MOUNT_HOLE_LATERAL_TARGET = 0.0
 BOTTOM_MOUNT_HOLE_DIAMETER = 6.8
 BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE = 3.0
@@ -10496,6 +10499,7 @@ def resolve_symmetric_post_pairs(
     label,
     avoid_camera_bracket_plate=False,
     mechanism=None,
+    maximum_x=None,
 ):
     resolved = [None] * len(targets)
     accepted = list(accepted_positions)
@@ -10513,6 +10517,11 @@ def resolve_symmetric_post_pairs(
                 first = (first_target[0] + dx, first_target[1] + dy)
                 second = mirror_xy_across_camera_centerline(first)
                 if math.dist(second, second_target) > search_radius:
+                    continue
+                if maximum_x is not None and (
+                    first[0] > maximum_x + 1e-9
+                    or second[0] > maximum_x + 1e-9
+                ):
                     continue
                 if not post_is_valid(
                     first,
@@ -10557,6 +10566,7 @@ def resolve_fastener_post_positions(
     footprint,
     mechanism=None,
     target_positions=None,
+    maximum_x=None,
 ):
     if mechanism is None and CAMERA_CARTRIDGE_WORM_ENABLED:
         mechanism = adjustable_mechanism_layout(cameras, footprint)
@@ -10600,6 +10610,7 @@ def resolve_fastener_post_positions(
             "lid-fastener post",
             avoid_camera_bracket_plate=True,
             mechanism=mechanism,
+            maximum_x=maximum_x,
         )
         accepted = list(positions)
     else:
@@ -10614,6 +10625,10 @@ def resolve_fastener_post_positions(
                     if math.hypot(dx, dy) > FASTENER_AUTO_SEARCH_RADIUS:
                         continue
                     position = (target[0] + dx, target[1] + dy)
+                    if maximum_x is not None and (
+                        position[0] > maximum_x + 1e-9
+                    ):
+                        continue
                     if post_is_valid(
                         position,
                         cameras,
@@ -19169,6 +19184,21 @@ def add_bottom_mount_hole(base, position):
         )
         if holder_non_manifold or holder_shells != 1:
             raise RuntimeError("Captive nut holder is not one manifold component")
+        pre_union_non_manifold = non_manifold_edge_count(base)
+        if pre_union_non_manifold:
+            triangulate_mesh(base)
+            repair_tiny_closed_boundary_holes(base)
+            post_repair_non_manifold = non_manifold_edge_count(base)
+            print(
+                "BOTTOM_MOUNT_BASE_TOPOLOGY_REPAIR "
+                f"non_manifold_edges={pre_union_non_manifold}->"
+                f"{post_repair_non_manifold}"
+            )
+            if post_repair_non_manifold:
+                raise RuntimeError(
+                    "Base remains non-manifold before the captive-nut holder "
+                    f"union: {post_repair_non_manifold} edges"
+                )
         boolean_union(
             base,
             holder,
@@ -22570,6 +22600,31 @@ def intersection_metrics(
                 f"extents={tuple(round(value, 3) for value in extents)}"
             )
         if (
+            label.startswith("fan_acoustic_")
+            and "_removal_" in label
+            and volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE
+        ):
+            world_bounds = tuple(
+                (
+                    min(
+                        (first_copy.matrix_world @ vertex.co)[axis]
+                        for vertex in bm.verts
+                    ),
+                    max(
+                        (first_copy.matrix_world @ vertex.co)[axis]
+                        for vertex in bm.verts
+                    ),
+                )
+                for axis in range(3)
+            )
+            print(
+                "FAN_ACOUSTIC_REMOVAL_INTERSECTION_BOUNDS "
+                f"{label}: world_bounds="
+                f"{tuple(tuple(round(value, 3) for value in pair) for pair in world_bounds)} "
+                f"extents={tuple(round(value, 3) for value in extents)} "
+                f"volume={volume:.6f}"
+            )
+        if (
             label in {"camera_1_bracket_1", "camera_2_bracket_2"}
             and volume > CAMERA_BRACKET_REAR_CONTACT_VOLUME_TOLERANCE
         ):
@@ -24911,6 +24966,7 @@ def build_original_style_cover():
     if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
         validate_forced_air_camera_wash(footprint, cameras)
     automatic_post_targets = FASTENER_POST_TARGETS_XY
+    resolved_post_max_x = None
     if (
         REAR_FANS_ENABLED
         and FASTENER_POST_PLACEMENT == "auto"
@@ -24979,6 +25035,7 @@ def build_original_style_cover():
         footprint,
         mechanism,
         automatic_post_targets,
+        maximum_x=resolved_post_max_x,
     )
     validate_rear_taper_layout(footprint, positions, cameras)
     bracket_position_pairs = resolve_camera_bracket_post_positions(

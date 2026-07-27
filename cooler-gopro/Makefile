@@ -53,12 +53,15 @@ STL_FILES := \
 .DELETE_ON_ERROR:
 
 .PHONY: \
-	all print_targets dim-pdf \
+	all print_targets dim-pdf check-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-case hockeymom-cover \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover clean-dim-pdf
 
-all: $(STL_FILES) $(HOCKEYMOM_COVER_STLS)
+# Keep the generated dimension guide synchronized with both model sources.
+# The PDF target below also depends on its generator, so any configuration or
+# documentation-layout change is reflected by the next normal `make all`.
+all: $(STL_FILES) $(HOCKEYMOM_COVER_STLS) $(DIMENSION_PDF) check-dim-pdf-sync
 
 print_targets:
 	@printf '%s\n' \
@@ -66,7 +69,7 @@ print_targets:
 		'' \
 		'STL Builds' \
 		'----------' \
-		'all                       Build all STL files.' \
+		'all                       Build all STL files and synchronized dimension PDF.' \
 		'flat-fan-cover            Build the flat fan cover STL.' \
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
 		'horn                      Build the parametric horn STL.' \
@@ -78,6 +81,7 @@ print_targets:
 		'Documentation' \
 		'-------------' \
 		'dim-pdf                   Build the HOCKEYMOM 3 configuration dimension PDF.' \
+		'check-dim-pdf-sync        Verify the PDF matches its model and generator sources.' \
 		'' \
 		'Cleanup' \
 		'-------' \
@@ -102,6 +106,9 @@ mission1-dummy: $(MISSION1_DUMMY_STLS)
 dual-fan: $(DUAL_FAN_STLS)
 fan-case: $(FAN_CASE_STLS)
 dim-pdf: $(DIMENSION_PDF)
+
+check-dim-pdf-sync: $(DIMENSION_PDF)
+	$(PDF_PYTHON) generate_hockeymom_config_dimension_pdf.py --check-sync
 
 $(DIMENSION_PDF): generate_hockeymom_config_dimension_pdf.py \
 	hockeymom_3_cam_cover_original_style_blender.py gopro_mission1_dummy_blender.py

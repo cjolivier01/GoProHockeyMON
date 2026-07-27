@@ -13,11 +13,15 @@ Run with a Python that has matplotlib, for example::
 
 from __future__ import annotations
 
+import argparse
 import ast
 import hashlib
 import math
+import re
+import tempfile
 import textwrap
 import warnings
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,7 +39,8 @@ HERE = Path(__file__).absolute().parent
 MODEL_SOURCE = HERE / "hockeymom_3_cam_cover_original_style_blender.py"
 CAMERA_SOURCE = HERE / "gopro_mission1_dummy_blender.py"
 OUTPUT_PDF = HERE / "hockeymom_3_cam_cover_configuration_dimensions.pdf"
-TOTAL_SHEETS = 16
+TOTAL_SHEETS = 0
+UNDERSIZED_NOTE_BOXES: list[tuple[str, float]] = []
 
 # Matplotlib warns when an equal-aspect schematic asks it to preserve both a
 # fixed view window and a fixed panel rectangle.  It safely expands the view;
@@ -60,6 +65,11 @@ def _safe_value(node: ast.AST, env: dict[str, object]):
         return node.value
     if isinstance(node, ast.Name):
         return env[node.id]
+    if isinstance(node, ast.Attribute):
+        owner = _safe_value(node.value, env)
+        if isinstance(owner, dict):
+            return owner[node.attr]
+        raise ValueError
     if isinstance(node, ast.Tuple):
         return tuple(_safe_value(item, env) for item in node.elts)
     if isinstance(node, ast.List):
@@ -85,25 +95,536 @@ def _safe_value(node: ast.AST, env: dict[str, object]):
     raise ValueError
 
 
-def read_assignments(path: Path) -> dict[str, object]:
-    """Read literal/arithmetic top-level assignments without executing a file."""
+def _assignment_target_names(target: ast.AST) -> tuple[str, ...]:
+    """Return every simple name bound by an assignment target."""
+    if isinstance(target, ast.Name):
+        return (target.id,)
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return tuple(
+            name
+            for element in target.elts
+            for name in _assignment_target_names(element)
+        )
+    if isinstance(target, ast.Starred):
+        return _assignment_target_names(target.value)
+    return ()
+
+
+def _supported_top_level_assignments(
+    tree: ast.Module,
+    path: Path,
+) -> tuple[tuple[str, ast.AST, int], ...]:
+    """Find parseable assignments and reject uppercase targets we could omit.
+
+    A single-name regular or annotated assignment is deterministic enough for
+    the static evaluator.  Chained, unpacked, augmented, or otherwise complex
+    uppercase assignments deliberately fail here instead of silently falling
+    out of the generated dimension inventory.
+    """
+    supported = []
+    unsupported: dict[str, int] = {}
+    for statement in tree.body:
+        if isinstance(statement, ast.Assign):
+            if len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name):
+                supported.append((statement.targets[0].id, statement.value, statement.lineno))
+                continue
+            targets = statement.targets
+        elif isinstance(statement, ast.AnnAssign):
+            if isinstance(statement.target, ast.Name) and statement.value is not None:
+                supported.append((statement.target.id, statement.value, statement.lineno))
+                continue
+            targets = (statement.target,)
+        elif isinstance(statement, ast.AugAssign):
+            targets = (statement.target,)
+        else:
+            continue
+
+        for target in targets:
+            for name in _assignment_target_names(target):
+                if name.isupper():
+                    unsupported[name] = statement.lineno
+
+    if unsupported:
+        details = ", ".join(
+            f"{name} (line {line})" for name, line in sorted(unsupported.items())
+        )
+        raise RuntimeError(
+            f"Unsupported top-level uppercase assignment form in {path}: {details}. "
+            "Use one simple-name assignment per configuration variable so the "
+            "dimension PDF cannot silently omit it."
+        )
+    return tuple(supported)
+
+
+def read_assignments(
+    path: Path,
+    external_values: dict[str, object] | None = None,
+) -> tuple[dict[str, object], dict[str, int], dict[str, int]]:
+    """Read safe top-level assignments and report every unsupported expression."""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     result: dict[str, object] = {}
-    for statement in tree.body:
-        if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
-            continue
-        target = statement.targets[0]
-        if not isinstance(target, ast.Name):
-            continue
+    evaluation_env = dict(external_values or {})
+    unresolved: dict[str, int] = {}
+    lines: dict[str, int] = {}
+    for name, expression, line in _supported_top_level_assignments(tree, path):
+        lines[name] = line
         try:
-            result[target.id] = _safe_value(statement.value, result)
+            value = _safe_value(expression, evaluation_env)
         except (KeyError, TypeError, ValueError, ZeroDivisionError):
+            unresolved[name] = line
             continue
-    return result
+        result[name] = value
+        evaluation_env[name] = value
+    return result, unresolved, lines
 
 
-C = read_assignments(MODEL_SOURCE)
-M = read_assignments(CAMERA_SOURCE)
+M, CAMERA_UNRESOLVED_ASSIGNMENTS, CAMERA_ASSIGNMENT_LINES = read_assignments(CAMERA_SOURCE)
+C, MODEL_UNRESOLVED_ASSIGNMENTS, MODEL_ASSIGNMENT_LINES = read_assignments(
+    MODEL_SOURCE,
+    external_values={"mission1": M},
+)
+
+# These values are derived by runtime helper calls rather than being direct
+# user-editable dimensions.  Every other unsupported uppercase assignment is
+# treated as a parser coverage regression and aborts generation.
+EXPLICIT_UNRESOLVED_CONFIG = {
+    "MISSION1_REAR_MIC_LOCAL_CENTER": "derived runtime microphone datum",
+    "CAMERA_REAR_MIC_LOCAL_CENTERS": "derived runtime microphone datums",
+}
+UNEXPECTED_UNRESOLVED_CONFIG = {
+    name: line
+    for name, line in {
+        **CAMERA_UNRESOLVED_ASSIGNMENTS,
+        **MODEL_UNRESOLVED_ASSIGNMENTS,
+    }.items()
+    if name.isupper() and name not in EXPLICIT_UNRESOLVED_CONFIG
+}
+if UNEXPECTED_UNRESOLVED_CONFIG:
+    raise RuntimeError(
+        "Unsupported uppercase configuration assignments require safe parsing "
+        f"or explicit classification: {UNEXPECTED_UNRESOLVED_CONFIG}"
+    )
+
+@dataclass(frozen=True)
+class FeatureRule:
+    key: str
+    title: str
+    description: str
+    patterns: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DimensionEntry:
+    identity: str
+    name: str
+    raw_name: str
+    source: str
+    source_file: str
+    source_line: int
+    value: object
+    kind: str
+    feature_key: str
+
+
+@dataclass(frozen=True)
+class FeatureSection:
+    key: str
+    title: str
+    description: str
+    entries: tuple[DimensionEntry, ...]
+    first_page: int
+    last_page: int
+
+
+@dataclass(frozen=True)
+class DocumentSection:
+    title: str
+    description: str
+    first_page: int
+    last_page: int
+
+
+FEATURE_RULES = (
+    FeatureRule(
+        "mission1",
+        "GoPro MISSION 1 reference geometry",
+        "Camera body, reference envelope, lens, controls, ports and microphone datums.",
+        (r"^MISSION1\.",),
+    ),
+    FeatureRule(
+        "rear_taper",
+        "Rear shell taper and protected envelope",
+        "Rear width/height taper, screw islands and protected hardware envelope dimensions.",
+        (r"^REAR_(?:WIDTH|HEIGHT|TAPER)",),
+    ),
+    FeatureRule(
+        "eye",
+        "Eye openings, eyelids and lid closure",
+        "Direct eye mouths, open-top loading slots, eyelid lands and lid-completed openings.",
+        (r"^(?:EYE|EYELID)_",),
+    ),
+    FeatureRule(
+        "front_stops",
+        "Camera front stops and shell-rooted datums",
+        "Lower lens-forward datums, upper anti-tilt contacts, gussets and shell roots.",
+        (r"^CAMERA_FRONT_STOP_",),
+    ),
+    FeatureRule(
+        "brackets",
+        "Camera brackets and hold-down hardware",
+        "Monolithic removable brackets, side locators, M3 bosses and preload interfaces.",
+        (r"^CAMERA_(?:BRACKET|HOLD_DOWN)_",),
+    ),
+    FeatureRule(
+        "cradle_cooling",
+        "Camera cradle, support, cooling and access",
+        "Fixed guides, support pads, under-camera airflow, USB access and microphone clearances.",
+        (
+            r"^CAMERA_(?:CRADLE|SUPPORT|FLOOR|MIN_FLOOR|COOLING|USB|MIC|REAR_MIC)_",
+            r"^USB_",
+        ),
+    ),
+    FeatureRule(
+        "lid_fasteners",
+        "Lid, locating lip, fasteners and heat inserts",
+        "Main lid stack, locating lip, four-post placement, screw sinks and heat-set inserts.",
+        (r"^(?:LID|FASTENER|HEAT_INSERT|M3)_", r"^MANUAL_FASTENER_"),
+    ),
+    FeatureRule(
+        "carrier",
+        "Rotating cartridge and carrier",
+        "Pivot stack, thrust interface, tray, guide, service path and removable front stop.",
+        (r"^CAMERA_(?:CARRIER|CARTRIDGE)_", r"^ADJUSTABLE_"),
+    ),
+    FeatureRule(
+        "worm",
+        "Worm, horizontal shaft and split journals",
+        "Purchased worm reference, shaft support, plain bushings, wall passage and removable caps.",
+        (r"^CAMERA_WORM_",),
+    ),
+    FeatureRule(
+        "idler",
+        "Purchased worm wheel and vertical idler stack",
+        "Purchased wheel, vertical shaft, lower journal, upper cap and retention hardware.",
+        (r"^CAMERA_IDLER_",),
+    ),
+    FeatureRule(
+        "gear_mesh",
+        "Gear mesh and sector engagement",
+        "Gear module, backlash, pitch-center clearances and radial engagement controls.",
+        (r"^CAMERA_GEAR_",),
+    ),
+    FeatureRule(
+        "acoustic",
+        "Fan acoustic cassette and baffles",
+        "Open trough, removable lid, boot seals, baffles, flow throats and service hardware.",
+        (r"^FAN_ACOUSTIC_",),
+    ),
+    FeatureRule(
+        "rear_fans",
+        "Rear fans, pads and vibration gaskets",
+        "Fan stations, local-wall alignment, openings, screw pattern and compliant gasket geometry.",
+        (r"^REAR_FAN_", r"^FAN_GASKET_"),
+    ),
+    FeatureRule(
+        "bottom_mount",
+        "Bottom captive-nut mounting boss",
+        "Through-hole, press-fit nut pocket, snap lips, boss wall and placement search dimensions.",
+        (r"^BOTTOM_MOUNT_",),
+    ),
+    FeatureRule(
+        "keystone",
+        "Bottom keystone snap sockets",
+        "Socket cluster placement, cartridge envelope, face recess and snap-fit clearances.",
+        (r"^BOTTOM_KEYSTONE_",),
+    ),
+    FeatureRule(
+        "shell",
+        "Main shell, floor, visor and loft",
+        "Rounded-triangular envelope, wall/floor construction, loft stations and visor geometry.",
+        (r"^(?:BODY_|BASE_|BOTTOM_THICKNESS(?:_|$)|FOOTPRINT_|VISOR_)",),
+    ),
+    FeatureRule(
+        "camera_layout",
+        "Camera layout, optics and installation",
+        "Camera axes, forward placement, lens outset, body envelopes and installation sweeps.",
+        (r"^CAMERA_",),
+    ),
+    FeatureRule(
+        "assembly",
+        "Assembly preview and service motion",
+        "Exploded-preview offsets, lid lift and service-sweep dimensional controls.",
+        (r"^(?:ASSEMBLY|PREVIEW)_",),
+    ),
+    FeatureRule(
+        "manufacturing",
+        "Boolean, mesh and manufacturing tolerances",
+        "Boolean overlap, fragment repair, fit probes and minimum printable lands/webs.",
+        (r"^(?:BOOLEAN|FINAL|ROUNDED_CORNER|MIN_|MAX_)", r".*(?:FRAGMENT|MESH_APPROXIMATION).*"),
+    ),
+    FeatureRule(
+        "misc",
+        "Other dimensional configuration",
+        "Remaining measurable configuration values not owned by a narrower feature group.",
+        (r".*",),
+    ),
+)
+
+
+NON_DIMENSION_TOKENS = (
+    "COLOR", "COMPONENTS", "COSINE", "COUNT", "EDGES", "FACES", "FACTOR",
+    "FRACTION", "IMBALANCE", "INDEX", "ITERATIONS", "POINTS",
+    "QUOTIENT", "RATIO", "RESOLUTION", "SAMPLES", "SCALE", "SEGMENTS",
+    "SIGN", "STARTS", "STEPS", "TEETH", "TRIANGULARITY", "WEIGHT",
+)
+NON_DIMENSION_TOKEN_RE = re.compile(
+    r"(?:^|_)(?:COLOR|COUNT|INDEX|STEPS|TEETH|STARTS|SAMPLES|SEGMENTS|POINTS|"
+    r"RESOLUTION|ITERATIONS|QUOTIENT|RATIO|FRACTION|SCALE|FACTOR|WEIGHT|"
+    r"COSINE|SIGN|TRIANGULARITY|IMBALANCE|FACES|EDGES|COMPONENTS)(?:_|$)"
+)
+EXPLICIT_NON_DIMENSIONAL_NUMERIC_NAMES = {
+    "CAMERA_WORM_MAX_INPUT_TORQUE_NMM": "non-geometric physical quantity",
+    "CAMERA_CARRIER_FINAL_AIRFLOW_GRID": "sampling resolution grid",
+    "CAMERA_COOLING_WASH_SAMPLE_GRID": "sampling resolution grid",
+    "FAN_ACOUSTIC_FLOW_SECTION_GRID": "sampling resolution grid",
+    "FAN_ACOUSTIC_RAY_APERTURE_GRID": "sampling resolution grid",
+}
+OPTIONAL_DIMENSION_NAMES = {
+    "CAMERA_AZIMUTHS_DEG",
+    "EYE_CENTER_Z",
+    "CAMERA_LENS_OFFSET_Z",
+    "CAMERA_ENVELOPE_TANGENTIAL_OFFSET",
+    "REAR_FAN_CENTER_TANGENTS",
+}
+
+
+def is_numeric_structure(value: object) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return True
+    if isinstance(value, (tuple, list)):
+        return bool(value) and all(is_numeric_structure(item) for item in value)
+    return False
+
+
+def numeric_exclusion_reason(name: str, value: object) -> str | None:
+    if name in OPTIONAL_DIMENSION_NAMES and value is None:
+        return None
+    if not is_numeric_structure(value):
+        return "not a numeric configuration value"
+    if name.startswith("_"):
+        return "private resolved/runtime state"
+    if name in EXPLICIT_NON_DIMENSIONAL_NUMERIC_NAMES:
+        return EXPLICIT_NON_DIMENSIONAL_NUMERIC_NAMES[name]
+    match = NON_DIMENSION_TOKEN_RE.search(name)
+    if match:
+        return f"dimensionless/discrete setting ({match.group(0).strip('_')})"
+    return None
+
+
+def infer_dimension_kind(name: str, value: object) -> str:
+    if isinstance(value, (tuple, list)):
+        if "SECTIONS" in name:
+            return "loft/profile coordinates"
+        if re.search(r"(?:CENTER|POSITION|TARGET|WAYPOINT|_XY|_XYZ|BOUNDS|_MIN|_MAX)", name):
+            return "coordinate position"
+        return "multi-axis dimensions"
+    if re.search(r"(?:ANGLE|AZIMUTH|SLOPE|_DEG)(?:_|$)", name):
+        return "angular dimension"
+    if "COUNTERBORE" in name and "DEPTH" in name:
+        return "counterbore depth"
+    if "COUNTERBORE" in name and "FLOOR" in name:
+        return "counterbore floor"
+    if "ANNULAR_WEB" in name or ("COUNTERBORE" in name and "WEB" in name):
+        return "annular web"
+    if re.search(r"(?:DIAMETER|(?:^|_)BORE(?:_|$)|ACROSS_FLATS|(?:^|_)OD(?:_|$)|(?:^|_)ID(?:_|$))", name):
+        return "diameter / bore"
+    if "RADIUS" in name:
+        return "radial dimension"
+    if "AREA" in name:
+        return "area dimension"
+    if "VOLUME" in name:
+        return "volume dimension"
+    if re.search(r"(?:MODULE|PITCH)", name):
+        return "pitch / module"
+    if re.search(r"(?:CLEARANCE|GAP|ENDPLAY|BACKLASH|TOLERANCE|INTERFERENCE|OVERLAP|PRELOAD|COMPRESSION)", name):
+        return "fit / clearance"
+    if re.search(r"(?:THICKNESS|DEPTH|HEIGHT|(?:^|_)Z(?:_|$)|ABOVE|LIFT|FLOOR|LAND|WEB|SKIN)", name):
+        return "section / vertical"
+    if re.search(r"(?:OFFSET|INSET|MARGIN|TARGET|CENTER|POSITION|RADIAL|TANGENTIAL|OUTSET|PROJECTION|REACH|EXPANSION|RUN|RANGE|STEP|EXTENT|EMBED|BLEND|EXTRA)", name):
+        return "offset / position"
+    return "linear dimension"
+
+
+def feature_for_name(name: str) -> str:
+    for rule in FEATURE_RULES:
+        if any(re.search(pattern, name) for pattern in rule.patterns):
+            return rule.key
+    raise AssertionError(f"No feature rule for {name}")
+
+
+def build_dimension_inventory() -> tuple[tuple[DimensionEntry, ...], dict[str, str]]:
+    entries = []
+    excluded = {}
+    sources = (
+        ("MODEL", MODEL_SOURCE.name, C, MODEL_ASSIGNMENT_LINES, ""),
+        ("MISSION1", CAMERA_SOURCE.name, M, CAMERA_ASSIGNMENT_LINES, "MISSION1."),
+    )
+    for source, source_file, values, lines, prefix in sources:
+        for raw_name, value in values.items():
+            reason = numeric_exclusion_reason(raw_name, value)
+            classifier_name = f"{prefix}{raw_name}"
+            if reason is not None:
+                if is_numeric_structure(value):
+                    excluded[f"{source}:{raw_name}"] = reason
+                continue
+            entries.append(DimensionEntry(
+                identity=f"{source}:{raw_name}",
+                name=raw_name,
+                raw_name=raw_name,
+                source=source,
+                source_file=source_file,
+                source_line=lines.get(raw_name, 0),
+                value=value,
+                kind=infer_dimension_kind(classifier_name, value),
+                feature_key=feature_for_name(classifier_name),
+            ))
+    return tuple(entries), excluded
+
+
+DIMENSION_ENTRIES, EXCLUDED_NUMERIC_CONFIG = build_dimension_inventory()
+DIMENSION_IDENTITIES = frozenset(entry.identity for entry in DIMENSION_ENTRIES)
+if len(DIMENSION_IDENTITIES) != len(DIMENSION_ENTRIES):
+    raise RuntimeError("Duplicate source/name identities in dimensional configuration inventory")
+STATIC_NUMERIC_IDENTITIES = frozenset(
+    f"{source}:{name}"
+    for source, values in (("MODEL", C), ("MISSION1", M))
+    for name, value in values.items()
+    if is_numeric_structure(value)
+)
+CLASSIFIED_NUMERIC_IDENTITIES = (
+    DIMENSION_IDENTITIES & STATIC_NUMERIC_IDENTITIES
+) | frozenset(EXCLUDED_NUMERIC_CONFIG)
+if CLASSIFIED_NUMERIC_IDENTITIES != STATIC_NUMERIC_IDENTITIES:
+    raise RuntimeError(
+        "Numeric source classification drift: "
+        f"missing={sorted(STATIC_NUMERIC_IDENTITIES - CLASSIFIED_NUMERIC_IDENTITIES)}, "
+        f"unexpected={sorted(CLASSIFIED_NUMERIC_IDENTITIES - STATIC_NUMERIC_IDENTITIES)}"
+    )
+EXPECTED_OPTIONAL_DIMENSION_IDENTITIES = frozenset(
+    f"MODEL:{name}" for name in OPTIONAL_DIMENSION_NAMES
+)
+ACTUAL_OPTIONAL_DIMENSION_IDENTITIES = frozenset(
+    entry.identity for entry in DIMENSION_ENTRIES if entry.value is None
+)
+if ACTUAL_OPTIONAL_DIMENSION_IDENTITIES != EXPECTED_OPTIONAL_DIMENSION_IDENTITIES:
+    raise RuntimeError(
+        "Optional-dimension classification drift: "
+        f"missing={sorted(EXPECTED_OPTIONAL_DIMENSION_IDENTITIES - ACTUAL_OPTIONAL_DIMENSION_IDENTITIES)}, "
+        f"unexpected={sorted(ACTUAL_OPTIONAL_DIMENSION_IDENTITIES - EXPECTED_OPTIONAL_DIMENSION_IDENTITIES)}"
+    )
+UNCLASSIFIED_NONE_CONFIG = sorted(
+    f"{source}:{name}"
+    for source, values in (("MODEL", C), ("MISSION1", M))
+    for name, value in values.items()
+    if name.isupper()
+    and not name.startswith("_")
+    and value is None
+    and name not in OPTIONAL_DIMENSION_NAMES
+)
+if UNCLASSIFIED_NONE_CONFIG:
+    raise RuntimeError(
+        "None-default uppercase configuration assignments require explicit dimensional "
+        f"classification: {UNCLASSIFIED_NONE_CONFIG}"
+    )
+
+CATALOG_CARDS_PER_PAGE = 4
+INDEX_ENTRIES_PER_PAGE = 16
+TOC_ROWS_PER_PAGE = 15
+CURATED_DRAWING_PAGE_COUNT = 13
+QUICK_REFERENCE_PAGE_COUNT = 6
+
+_feature_entries = {
+    rule.key: tuple(entry for entry in DIMENSION_ENTRIES if entry.feature_key == rule.key)
+    for rule in FEATURE_RULES
+}
+_nonempty_feature_rules = tuple(rule for rule in FEATURE_RULES if _feature_entries[rule.key])
+_toc_item_count = 4 + len(_nonempty_feature_rules)
+TOC_PAGE_COUNT = math.ceil(_toc_item_count / TOC_ROWS_PER_PAGE)
+
+CURATED_DRAWING_FIRST_PAGE = 2 + TOC_PAGE_COUNT
+CURATED_DRAWING_LAST_PAGE = CURATED_DRAWING_FIRST_PAGE + CURATED_DRAWING_PAGE_COUNT - 1
+QUICK_REFERENCE_FIRST_PAGE = CURATED_DRAWING_LAST_PAGE + 1
+QUICK_REFERENCE_LAST_PAGE = QUICK_REFERENCE_FIRST_PAGE + QUICK_REFERENCE_PAGE_COUNT - 1
+
+_catalog_page_cursor = QUICK_REFERENCE_LAST_PAGE + 1
+_feature_sections = []
+DIMENSION_PAGE_BY_IDENTITY: dict[str, int] = {}
+for _rule in _nonempty_feature_rules:
+    _entries = _feature_entries[_rule.key]
+    _page_count = math.ceil(len(_entries) / CATALOG_CARDS_PER_PAGE)
+    _first_page = _catalog_page_cursor
+    _last_page = _first_page + _page_count - 1
+    _feature_sections.append(FeatureSection(
+        key=_rule.key,
+        title=_rule.title,
+        description=_rule.description,
+        entries=_entries,
+        first_page=_first_page,
+        last_page=_last_page,
+    ))
+    for _index, _entry in enumerate(_entries):
+        DIMENSION_PAGE_BY_IDENTITY[_entry.identity] = _first_page + _index // CATALOG_CARDS_PER_PAGE
+    _catalog_page_cursor = _last_page + 1
+
+FEATURE_SECTIONS = tuple(_feature_sections)
+ALPHABETICAL_INDEX_FIRST_PAGE = _catalog_page_cursor
+ALPHABETICAL_INDEX_PAGE_COUNT = math.ceil(len(DIMENSION_ENTRIES) / INDEX_ENTRIES_PER_PAGE)
+ALPHABETICAL_INDEX_LAST_PAGE = ALPHABETICAL_INDEX_FIRST_PAGE + ALPHABETICAL_INDEX_PAGE_COUNT - 1
+COVERAGE_REPORT_PAGE = ALPHABETICAL_INDEX_LAST_PAGE + 1
+TOTAL_SHEETS = COVERAGE_REPORT_PAGE
+
+DOCUMENT_SECTIONS = (
+    DocumentSection(
+        "Curated assembly drawings",
+        "Large engineering views for the most frequently changed dimensions.",
+        CURATED_DRAWING_FIRST_PAGE,
+        CURATED_DRAWING_LAST_PAGE,
+    ),
+    DocumentSection(
+        "Major-parameter quick reference",
+        "Compact system-level map retained from the original guide.",
+        QUICK_REFERENCE_FIRST_PAGE,
+        QUICK_REFERENCE_LAST_PAGE,
+    ),
+    *(DocumentSection(
+        section.title,
+        f"{len(section.entries)} measurable variables. {section.description}",
+        section.first_page,
+        section.last_page,
+    ) for section in FEATURE_SECTIONS),
+    DocumentSection(
+        "Alphabetical variable index",
+        "Every measurable variable mapped to its engineering catalog drawing.",
+        ALPHABETICAL_INDEX_FIRST_PAGE,
+        ALPHABETICAL_INDEX_LAST_PAGE,
+    ),
+    DocumentSection(
+        "Coverage and classification report",
+        "Automatic proof that every classified dimension has a drawing and index entry.",
+        COVERAGE_REPORT_PAGE,
+        COVERAGE_REPORT_PAGE,
+    ),
+)
+
+if frozenset(DIMENSION_PAGE_BY_IDENTITY) != DIMENSION_IDENTITIES:
+    missing = sorted(DIMENSION_IDENTITIES - frozenset(DIMENSION_PAGE_BY_IDENTITY))
+    raise RuntimeError(f"Dimension catalog page assignment is incomplete: {missing}")
+
+CURRENT_SHEET = 0
+DRAWN_DIMENSION_IDENTITIES: set[str] = set()
+INDEXED_DIMENSION_IDENTITIES: set[str] = set()
 
 
 def val(name: str, fallback):
@@ -135,15 +656,11 @@ def model_var(name: str):
 
 
 def camera_var(name: str):
-    return f"MISSION1.{name}"
+    return name
 
 
 def label_font_size(label: str, base: float) -> float:
     longest = max((len(line) for line in str(label).splitlines()), default=0)
-    if longest > 70:
-        return min(base, 4.2)
-    if longest > 55:
-        return min(base, 4.6)
     if longest > 44:
         return min(base, 5.0)
     if longest > 34:
@@ -170,7 +687,11 @@ def idler_sector_mesh_clearance() -> float:
 
 
 SOURCE_HASH = hashlib.sha256(
-    MODEL_SOURCE.read_bytes() + b"\0" + CAMERA_SOURCE.read_bytes()
+    MODEL_SOURCE.read_bytes()
+    + b"\0"
+    + CAMERA_SOURCE.read_bytes()
+    + b"\0"
+    + Path(__file__).read_bytes()
 ).hexdigest()[:12]
 GENERATED = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -189,9 +710,17 @@ mpl.set_loglevel("error")
 
 
 def new_sheet(number: int, title: str, subtitle: str = ""):
+    global CURRENT_SHEET
+    CURRENT_SHEET += 1
+    number = CURRENT_SHEET
     fig = plt.figure(figsize=(11, 8.5), facecolor=WHITE)
     fig.subplots_adjust(0, 0, 1, 1)
-    fig.text(0.055, 0.947, title, fontsize=18, weight="bold", color=INK)
+    # Catalog section names can be substantially longer than the curated page
+    # titles.  Fit every title inside the title-block border instead of letting
+    # long feature names clip or cross the right edge.
+    title_points = 0.865 * 11.0 * 72.0
+    title_size = max(11.5, min(18.0, title_points / (0.68 * max(len(title), 1))))
+    fig.text(0.055, 0.947, title, fontsize=title_size, weight="bold", color=INK)
     if subtitle:
         fig.text(0.055, 0.918, subtitle, fontsize=8.8, color=GRAY)
     fig.add_artist(plt.Line2D([0.055, 0.945], [0.902, 0.902], color=BLUE, lw=2.0))
@@ -293,7 +822,7 @@ def note_box(fig, rect, title, lines, accent=BLUE):
     ax.text(0.04, 0.86, title, transform=ax.transAxes, fontsize=8.2,
             weight="bold", color=accent, va="top")
     available_points = rect[2] * 11.0 * 72.0 * 0.90
-    wrap_width = max(30, int(available_points / (0.60 * 6.3)))
+    wrap_width = max(30, int(available_points / (0.55 * 6.3)))
     wrapped_lines = []
     for line in lines:
         wrapped_lines.extend(textwrap.wrap(
@@ -302,11 +831,13 @@ def note_box(fig, rect, title, lines, accent=BLUE):
         ) or [""])
     longest = max((len(line) for line in wrapped_lines), default=1)
     vertical_points = rect[3] * 8.5 * 72.0 * 0.62
-    body_font_size = max(3.6, min(
+    body_font_size = min(
         7.1,
-        available_points / (0.60 * longest),
+        available_points / (0.55 * longest),
         vertical_points / (1.34 * max(len(wrapped_lines), 1)),
-    ))
+    )
+    if body_font_size < 6.0:
+        UNDERSIZED_NOTE_BOXES.append((title, body_font_size))
     ax.text(0.04, 0.70, "\n".join(wrapped_lines), transform=ax.transAxes, fontsize=body_font_size,
             color=INK, va="top", linespacing=1.34)
     return ax
@@ -341,6 +872,344 @@ def rotated_rect(cx, cy, length, width, angle_deg):
     ]
 
 
+def page_range_text(first_page: int, last_page: int) -> str:
+    return str(first_page) if first_page == last_page else f"{first_page}–{last_page}"
+
+
+def page_contents(pdf):
+    items = list(DOCUMENT_SECTIONS)
+    for page_index in range(TOC_PAGE_COUNT):
+        start = page_index * TOC_ROWS_PER_PAGE
+        chunk = items[start:start + TOC_ROWS_PER_PAGE]
+        fig = new_sheet(None, "STRUCTURED TABLE OF CONTENTS",
+                        f"Part {page_index + 1}/{TOC_PAGE_COUNT} • feature sections, catalog drawings, index and coverage proof")
+        ax = fig.add_axes([0.075, 0.105, 0.85, 0.77])
+        ax.axis("off")
+        row_height = 1.0 / TOC_ROWS_PER_PAGE
+        for row_index, section in enumerate(chunk):
+            y_top = 1.0 - row_index * row_height
+            y_mid = y_top - row_height * 0.47
+            if row_index % 2 == 0:
+                ax.add_patch(Rectangle((0, y_top - row_height + 0.005), 1, row_height - 0.01,
+                                       transform=ax.transAxes, facecolor="#f7fafc", edgecolor="none"))
+            sequence = start + row_index + 1
+            ax.text(0.012, y_mid, f"{sequence:02d}", transform=ax.transAxes,
+                    va="center", ha="left", fontsize=7.0, weight="bold", color=WHITE,
+                    bbox=dict(boxstyle="round,pad=0.24", fc=BLUE, ec=BLUE))
+            ax.text(0.065, y_mid + row_height * 0.14, section.title,
+                    transform=ax.transAxes, va="center", ha="left",
+                    fontsize=7.9, weight="bold", color=INK)
+            description = textwrap.shorten(section.description, width=118, placeholder="…")
+            ax.text(0.065, y_mid - row_height * 0.17, description,
+                    transform=ax.transAxes, va="center", ha="left",
+                    fontsize=5.6, color=GRAY)
+            ax.text(0.97, y_mid, page_range_text(section.first_page, section.last_page),
+                    transform=ax.transAxes, va="center", ha="right",
+                    fontsize=8.2, weight="bold", color=BLUE)
+            ax.plot([0.01, 0.99], [y_top - row_height, y_top - row_height],
+                    transform=ax.transAxes, color=GRID, lw=0.55)
+        fig.text(0.075, 0.093,
+                 "Page ranges are generated from the live inventory; variable-to-drawing lookup is in the alphabetical index.",
+                 fontsize=6.2, color=GRAY)
+        pdf.savefig(fig)
+        plt.close(fig)
+
+
+def _catalog_arrow(ax, p1, p2, color=BLUE, scale=8):
+    ax.add_patch(FancyArrowPatch(p1, p2, arrowstyle="<|-|>", mutation_scale=scale,
+                                 lw=0.9, color=color, zorder=8))
+
+
+def _catalog_label(ax, entry: DimensionEntry, y=7.0, color=BLUE):
+    ax.text(50, y, entry.name, ha="center", va="center", fontsize=8.0,
+            weight="bold", color=color,
+            bbox=dict(boxstyle="round,pad=0.18", fc=WHITE, ec=color, lw=0.55),
+            zorder=20)
+
+
+def draw_dimension_glyph(ax, entry: DimensionEntry):
+    """Draw a normalized engineering schematic carrying one exact variable label."""
+    kind = entry.kind
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 60)
+    centerline(ax, (8, 32), (92, 32))
+
+    if kind == "angular dimension":
+        origin = (30, 22)
+        ax.plot([origin[0], 80], [origin[1], 22], color=INK, lw=1.1)
+        ax.plot([origin[0], 69], [origin[1], 46], color=INK, lw=1.1)
+        ax.add_patch(Arc(origin, 34, 34, theta1=0, theta2=32, edgecolor=ORANGE, lw=1.3))
+        ax.add_patch(FancyArrowPatch((45.7, 28.1), (45.0, 30.0),
+                                     arrowstyle="-|>", mutation_scale=7,
+                                     color=ORANGE, lw=0.8))
+        ax.text(28, 19, "DATUM", fontsize=4.4, color=GRAY, ha="center")
+        _catalog_label(ax, entry, color=ORANGE)
+        return
+
+    if kind == "diameter / bore":
+        ax.add_patch(Circle((50, 33), 15, facecolor="#edf4f7", edgecolor=INK, lw=1.1))
+        ax.add_patch(Circle((50, 33), 7, facecolor=WHITE, edgecolor=RED, lw=1.0))
+        centerline(ax, (31, 33), (69, 33))
+        _catalog_arrow(ax, (43, 33), (57, 33), RED)
+        ax.plot([57, 78], [33, 17], color=RED, lw=0.8)
+        _catalog_label(ax, entry, color=RED)
+        return
+
+    if kind == "radial dimension":
+        ax.add_patch(Arc((48, 31), 42, 34, theta1=15, theta2=315, edgecolor=INK, lw=1.2))
+        ax.plot([48, 66], [31, 41], color=PURPLE, lw=0.9)
+        ax.add_patch(FancyArrowPatch((48, 31), (66, 41), arrowstyle="-|>",
+                                     mutation_scale=8, color=PURPLE, lw=0.9))
+        ax.add_patch(Circle((48, 31), 1.2, facecolor=PURPLE, edgecolor="none"))
+        _catalog_label(ax, entry, color=PURPLE)
+        return
+
+    if kind == "fit / clearance":
+        ax.add_patch(Rectangle((15, 23), 31, 20, facecolor="#dfe7ec", edgecolor=INK, lw=1.0))
+        ax.add_patch(Rectangle((55, 23), 30, 20, facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
+        ax.plot([46, 46], [18, 47], color=GREEN, lw=0.75)
+        ax.plot([55, 55], [18, 47], color=GREEN, lw=0.75)
+        _catalog_arrow(ax, (46, 18), (55, 18), GREEN)
+        _catalog_label(ax, entry, color=GREEN)
+        return
+
+    if kind == "pitch / module":
+        for index in range(5):
+            x = 24 + index * 13
+            ax.add_patch(Polygon([(x - 5, 24), (x - 3, 43), (x + 3, 43), (x + 5, 24)],
+                                 closed=True, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.8))
+        ax.plot([24, 37], [18, 18], color=PURPLE, lw=0.75)
+        ax.plot([24, 24], [18, 24], color=PURPLE, lw=0.75)
+        ax.plot([37, 37], [18, 24], color=PURPLE, lw=0.75)
+        _catalog_arrow(ax, (24, 18), (37, 18), PURPLE)
+        _catalog_label(ax, entry, color=PURPLE)
+        return
+
+    if kind in ("coordinate position", "multi-axis dimensions", "loft/profile coordinates"):
+        ax.plot([18, 82], [18, 18], color=INK, lw=1.0)
+        ax.plot([18, 18], [18, 48], color=INK, lw=1.0)
+        points = [(30, 25), (48, 34), (70, 44)]
+        ax.plot([p[0] for p in points], [p[1] for p in points], color=CYAN, lw=1.2)
+        for point in points:
+            ax.add_patch(Circle(point, 1.7, facecolor=CYAN, edgecolor="none"))
+        _catalog_arrow(ax, (18, 14), (70, 14), BLUE)
+        ax.plot([70, 70], [14, 44], color=BLUE, lw=0.65)
+        _catalog_label(ax, entry)
+        return
+
+    if kind in ("area dimension", "volume dimension"):
+        ax.add_patch(Rectangle((24, 21), 50, 25, facecolor="#e8f2f8", edgecolor=BLUE, lw=1.1,
+                               hatch="//" if kind == "area dimension" else None))
+        if kind == "volume dimension":
+            ax.plot([24, 34, 84, 74], [46, 52, 52, 46], color=BLUE, lw=0.9)
+            ax.plot([74, 84], [21, 27], color=BLUE, lw=0.9)
+            ax.plot([84, 84], [27, 52], color=BLUE, lw=0.9)
+        _catalog_arrow(ax, (24, 17), (74, 17), BLUE)
+        _catalog_label(ax, entry)
+        return
+
+    if kind in ("counterbore depth", "counterbore floor"):
+        ax.add_patch(Rectangle((22, 18), 56, 30, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
+        ax.add_patch(Rectangle((40, 34), 20, 14, facecolor=WHITE, edgecolor=ORANGE, lw=1.0))
+        ax.plot([40, 60], [34, 34], color=ORANGE, lw=0.9)
+        if kind == "counterbore depth":
+            y1, y2, color = 34, 48, ORANGE
+        else:
+            y1, y2, color = 18, 34, GREEN
+        ax.plot([63, 72], [y1, y1], color=color, lw=0.75)
+        ax.plot([63, 72], [y2, y2], color=color, lw=0.75)
+        _catalog_arrow(ax, (68, y1), (68, y2), color)
+        _catalog_label(ax, entry, color=color)
+        return
+
+    if kind == "annular web":
+        ax.add_patch(Circle((50, 32), 18, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
+        ax.add_patch(Circle((50, 32), 9, facecolor=WHITE, edgecolor=ORANGE, lw=1.0))
+        ax.plot([59, 59], [27, 37], color=GREEN, lw=0.75)
+        ax.plot([68, 68], [27, 37], color=GREEN, lw=0.75)
+        _catalog_arrow(ax, (59, 32), (68, 32), GREEN)
+        _catalog_label(ax, entry, color=GREEN)
+        return
+
+    if kind == "section / vertical":
+        ax.add_patch(Rectangle((22, 20), 55, 25, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
+        ax.add_patch(Rectangle((22, 37), 55, 8, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.8,
+                               hatch="///"))
+        ax.plot([82, 82], [20, 45], color=ORANGE, lw=0.75)
+        ax.plot([77, 86], [20, 20], color=ORANGE, lw=0.75)
+        ax.plot([77, 86], [45, 45], color=ORANGE, lw=0.75)
+        _catalog_arrow(ax, (82, 20), (82, 45), ORANGE)
+        _catalog_label(ax, entry, color=ORANGE)
+        return
+
+    if kind == "offset / position":
+        ax.plot([18, 18], [17, 47], color=GRAY, lw=0.9, ls="--")
+        ax.add_patch(Rectangle((58, 24), 24, 18, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
+        ax.plot([18, 58], [19, 19], color=GREEN, lw=0.75)
+        ax.plot([58, 58], [19, 24], color=GREEN, lw=0.75)
+        _catalog_arrow(ax, (18, 19), (58, 19), GREEN)
+        ax.text(18, 49, "DATUM", ha="center", va="bottom", fontsize=4.4, color=GRAY)
+        _catalog_label(ax, entry, color=GREEN)
+        return
+
+    ax.add_patch(Rectangle((18, 23), 64, 19, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
+    ax.plot([18, 18], [17, 23], color=BLUE, lw=0.75)
+    ax.plot([82, 82], [17, 23], color=BLUE, lw=0.75)
+    _catalog_arrow(ax, (18, 17), (82, 17), BLUE)
+    _catalog_label(ax, entry)
+
+
+def dimension_card(fig, rect, entry: DimensionEntry):
+    if entry.identity in DRAWN_DIMENSION_IDENTITIES:
+        raise RuntimeError(f"Duplicate dimension drawing emitted for {entry.identity}")
+    DRAWN_DIMENSION_IDENTITIES.add(entry.identity)
+    ax = fig.add_axes(rect)
+    ax.set_facecolor("#fbfdfe")
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_color(GRID)
+        spine.set_linewidth(0.8)
+    ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+    draw_dimension_glyph(ax, entry)
+    ax.text(0.018, 0.965, f"{entry.source_file}:{entry.source_line}",
+            transform=ax.transAxes, ha="left", va="top", fontsize=6.2, color=GRAY,
+            bbox=dict(fc=WHITE, ec="none", pad=0.6, alpha=0.92), zorder=30)
+    ax.text(0.982, 0.965, entry.kind.upper(), transform=ax.transAxes,
+            ha="right", va="top", fontsize=6.2, weight="bold", color=GRAY,
+            bbox=dict(fc=WHITE, ec="none", pad=0.6, alpha=0.92), zorder=30)
+
+
+def page_dimension_catalog(pdf):
+    card_rects = (
+        (0.065, 0.690, 0.87, 0.180),
+        (0.065, 0.495, 0.87, 0.180),
+        (0.065, 0.300, 0.87, 0.180),
+        (0.065, 0.105, 0.87, 0.180),
+    )
+    for section in FEATURE_SECTIONS:
+        page_count = math.ceil(len(section.entries) / CATALOG_CARDS_PER_PAGE)
+        for page_offset in range(page_count):
+            expected_page = section.first_page + page_offset
+            if CURRENT_SHEET + 1 != expected_page:
+                raise RuntimeError(
+                    f"Catalog plan drift before {section.key}: expected page {expected_page}, "
+                    f"next runtime page is {CURRENT_SHEET + 1}"
+                )
+            fig = new_sheet(None, f"DIMENSION CATALOG — {section.title.upper()}",
+                            f"Feature sheet {page_offset + 1}/{page_count} • exact variable names • normalized engineering views • NTS")
+            start = page_offset * CATALOG_CARDS_PER_PAGE
+            chunk = section.entries[start:start + CATALOG_CARDS_PER_PAGE]
+            for rect, entry in zip(card_rects, chunk):
+                dimension_card(fig, rect, entry)
+            fig.text(0.065, 0.093,
+                     f"{section.description}  Catalog coverage: {len(section.entries)} variables on sheets "
+                     f"{page_range_text(section.first_page, section.last_page)}.",
+                     fontsize=6.2, color=GRAY)
+            pdf.savefig(fig)
+            plt.close(fig)
+
+
+def page_variable_index(pdf):
+    entries = sorted(DIMENSION_ENTRIES, key=lambda item: (item.name, item.source_file))
+    for page_offset in range(ALPHABETICAL_INDEX_PAGE_COUNT):
+        expected_page = ALPHABETICAL_INDEX_FIRST_PAGE + page_offset
+        if CURRENT_SHEET + 1 != expected_page:
+            raise RuntimeError(f"Index plan drift: expected page {expected_page}")
+        fig = new_sheet(None, "ALPHABETICAL DIMENSION VARIABLE INDEX",
+                        f"Part {page_offset + 1}/{ALPHABETICAL_INDEX_PAGE_COUNT} • exact variable → catalog sheet • source and dimension type")
+        chunk = entries[
+            page_offset * INDEX_ENTRIES_PER_PAGE:
+            (page_offset + 1) * INDEX_ENTRIES_PER_PAGE
+        ]
+        for row, entry in enumerate(chunk):
+            if entry.identity in INDEXED_DIMENSION_IDENTITIES:
+                raise RuntimeError(f"Duplicate index row emitted for {entry.identity}")
+            INDEXED_DIMENSION_IDENTITIES.add(entry.identity)
+            y = 0.855 - row * 0.0475
+            fig.text(0.075, y, entry.name, fontsize=8.0, color=BLUE,
+                     weight="bold", ha="left", va="center")
+            fig.text(0.925, y, f"p.{DIMENSION_PAGE_BY_IDENTITY[entry.identity]}",
+                     fontsize=7.2, color=INK, weight="bold", ha="right", va="center")
+            feature_title = next(section.title for section in FEATURE_SECTIONS
+                                 if section.key == entry.feature_key)
+            detail = f"{feature_title} • {entry.kind} • {entry.source_file}:{entry.source_line}"
+            fig.text(0.075, y - 0.012, textwrap.shorten(detail, width=150, placeholder="…"),
+                     fontsize=6.0, color=GRAY, ha="left", va="top")
+            fig.add_artist(plt.Line2D([0.075, 0.925], [y - 0.020, y - 0.020],
+                                      color=GRID, lw=0.4))
+        pdf.savefig(fig)
+        plt.close(fig)
+
+
+def page_coverage_report(pdf):
+    if CURRENT_SHEET + 1 != COVERAGE_REPORT_PAGE:
+        raise RuntimeError(f"Coverage-plan drift: expected page {COVERAGE_REPORT_PAGE}")
+    fig = new_sheet(None, "DIMENSION COVERAGE & CLASSIFICATION REPORT",
+                    "Generated proof that every measurable dimensional CONFIG value has an engineering drawing and index entry")
+
+    drawn = frozenset(DRAWN_DIMENSION_IDENTITIES)
+    indexed = frozenset(INDEXED_DIMENSION_IDENTITIES)
+    missing_drawings = sorted(DIMENSION_IDENTITIES - drawn)
+    unexpected_drawings = sorted(drawn - DIMENSION_IDENTITIES)
+    missing_index = sorted(DIMENSION_IDENTITIES - indexed)
+    unexpected_index = sorted(indexed - DIMENSION_IDENTITIES)
+    if missing_drawings or unexpected_drawings or missing_index or unexpected_index:
+        raise RuntimeError(
+            f"Coverage failure: missing drawings={missing_drawings}, "
+            f"unexpected drawings={unexpected_drawings}, missing index={missing_index}, "
+            f"unexpected index={unexpected_index}"
+        )
+
+    cards = (
+        (0.075, "MEASURABLE CONFIG DIMENSIONS", str(len(DIMENSION_ENTRIES)), BLUE),
+        (0.305, "ENGINEERING DRAWINGS", f"{len(drawn)}/{len(DIMENSION_ENTRIES)}", GREEN),
+        (0.535, "ALPHABETICAL INDEX", f"{len(indexed)}/{len(DIMENSION_ENTRIES)}", PURPLE),
+        (0.765, "MISSING", "0", ORANGE),
+    )
+    for x, label, value, color in cards:
+        ax = fig.add_axes([x, 0.705, 0.19, 0.15])
+        ax.axis("off")
+        ax.add_patch(FancyBboxPatch((0, 0), 1, 1, boxstyle="round,pad=0.02,rounding_size=0.04",
+                                    transform=ax.transAxes, facecolor="#fbfdfe", edgecolor=color, lw=1.2))
+        ax.text(0.5, 0.70, value, transform=ax.transAxes, ha="center", va="center",
+                fontsize=19, weight="bold", color=color)
+        ax.text(0.5, 0.24, label, transform=ax.transAxes, ha="center", va="center",
+                fontsize=5.2, weight="bold", color=INK)
+
+    note_box(fig, [0.075, 0.465, 0.41, 0.19], "CLASSIFICATION POLICY", [
+        "Included: every top-level static numeric scalar/tuple plus explicitly classified None-default dimensional overrides in both Python configuration sources.",
+        "Excluded as non-dimensional: booleans/strings, colors, counts, indices, tooth/start counts, sampling steps, ratios, fractions, scales, factors and iteration controls.",
+        "A conservative default treats every other numeric configuration value as a physical dimension, including solver ranges, fit probes and manufacturing tolerances.",
+        "Derived runtime aliases are represented by their controlling source variables; the source filename beside each exact variable name disambiguates duplicates.",
+    ], BLUE)
+
+    discrete_count = sum(
+        reason.startswith("dimensionless/discrete")
+        for reason in EXCLUDED_NUMERIC_CONFIG.values()
+    )
+    explicitly_named_count = len(EXCLUDED_NUMERIC_CONFIG) - discrete_count
+    note_box(fig, [0.515, 0.465, 0.41, 0.19], "NON-DIMENSIONAL NUMERIC EXCLUSIONS", [
+        f"Explicitly classified numeric settings: {len(EXCLUDED_NUMERIC_CONFIG)}",
+        f"Dimensionless/discrete controls: {discrete_count}",
+        f"Explicitly named non-dimensional/non-geometric controls: {explicitly_named_count}",
+        "Excluded name tokens: " + ", ".join(NON_DIMENSION_TOKENS),
+        "Unsupported uppercase assignments abort generation unless explicitly classified as runtime-derived aliases.",
+    ], PURPLE)
+
+    feature_lines = [
+        f"{section.title}: {len(section.entries)} variables / sheets {page_range_text(section.first_page, section.last_page)}"
+        for section in FEATURE_SECTIONS
+    ]
+    half = math.ceil(len(feature_lines) / 2)
+    note_box(fig, [0.075, 0.145, 0.41, 0.27], "FEATURE OWNERSHIP — A", feature_lines[:half], GREEN)
+    note_box(fig, [0.515, 0.145, 0.41, 0.27], "FEATURE OWNERSHIP — B", feature_lines[half:], GREEN)
+    fig.text(0.075, 0.112,
+             "Generation aborts on duplicate source/name identities, parser omissions, missing feature ownership, catalog page drift, missing drawing coverage or missing index coverage.",
+             fontsize=6.0, color=GRAY)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 def page_cover(pdf):
     fig = new_sheet(1, "CONFIGURATION DIMENSION GUIDE",
                     "Parametric Hockeymom-style enclosure for two GoPro MISSION 1 cameras")
@@ -371,34 +1240,43 @@ def page_cover(pdf):
     ax.text(68, -105, "FAN SIDE / REAR", color=GREEN, fontsize=8, weight="bold")
     centerline(ax, (-140, 0), (135, 0))
 
-    fig.text(0.655, 0.812, "DRAWING SET", fontsize=11, weight="bold", color=INK)
-    sections = [
-        ("02", "Shell, footprint & rear taper"),
-        ("03", "Camera axes, eyes & lens outset"),
-        ("04", "Vertical camera packaging & airflow"),
-        ("05", "Lid, four posts & M3 hardware"),
-        ("06", "Cradle and removable brackets"),
-        ("07", "Purchased worm & horizontal journals"),
-        ("08", ("Direct purchased-wheel" if direct_purchased_wheel_drive() else
-                "Legacy coaxial-pinion") + " drivetrain & centers"),
-        ("09", "Vertical journals & support-free assembly"),
-        ("10", "Carrier guide & open eye mouth"),
-        ("11", "Rear fan stations & alignment"),
-        ("12", "Baffled acoustic cassette & microphone"),
-        ("13", "Bottom captive-nut mount"),
-        ("14", "Bottom keystone snap sockets"),
-        ("15–16", "Major parameter quick reference"),
-    ]
-    y = 0.775
-    for number, title in sections:
-        fig.text(0.658, y, number, fontsize=8, color=WHITE, weight="bold",
-                 bbox=dict(boxstyle="round,pad=0.25", fc=BLUE, ec=BLUE))
-        fig.text(0.700, y, title, fontsize=8.2, color=INK)
-        y -= 0.041
-    note_box(fig, [0.65, 0.105, 0.275, 0.085], "HOW TO USE",
-             ["Dimension callouts are exact Python variable names.",
-              "Blue = dimension; orange = optical/critical.",
-              "Schematic geometry uses values read at generation time."], BLUE)
+    fig.text(0.655, 0.812, "EXHAUSTIVE DRAWING SET", fontsize=11, weight="bold", color=INK)
+    scope_rows = (
+        (str(len(DIMENSION_ENTRIES)), "measurable CONFIG dimensions"),
+        (str(len(FEATURE_SECTIONS)), "feature-based catalog sections"),
+        (str(TOTAL_SHEETS), "total engineering sheets"),
+        ("0", "unmapped dimensional variables"),
+    )
+    y = 0.765
+    for value, label in scope_rows:
+        fig.text(0.658, y, value, fontsize=12, color=BLUE, weight="bold")
+        fig.text(0.725, y + 0.002, label, fontsize=7.5, color=INK)
+        y -= 0.060
+
+    fig.text(0.655, 0.515, "DOCUMENT NAVIGATION", fontsize=8.8, weight="bold", color=INK)
+    navigation = (
+        (f"2–{1 + TOC_PAGE_COUNT}", "structured table of contents"),
+        (page_range_text(CURATED_DRAWING_FIRST_PAGE, CURATED_DRAWING_LAST_PAGE),
+         "large curated assembly drawings"),
+        (page_range_text(QUICK_REFERENCE_FIRST_PAGE, QUICK_REFERENCE_LAST_PAGE),
+         "major-parameter quick reference"),
+        (page_range_text(FEATURE_SECTIONS[0].first_page, FEATURE_SECTIONS[-1].last_page),
+         "complete feature dimension catalog"),
+        (page_range_text(ALPHABETICAL_INDEX_FIRST_PAGE, ALPHABETICAL_INDEX_LAST_PAGE),
+         "alphabetical variable index"),
+        (str(COVERAGE_REPORT_PAGE), "coverage/classification proof"),
+    )
+    y = 0.475
+    for pages, label in navigation:
+        fig.text(0.658, y, pages, fontsize=7.0, color=WHITE, weight="bold",
+                 bbox=dict(boxstyle="round,pad=0.23", fc=BLUE, ec=BLUE))
+        fig.text(0.720, y, label, fontsize=7.1, color=INK)
+        y -= 0.047
+
+    note_box(fig, [0.65, 0.105, 0.275, 0.125], "HOW TO USE",
+             ["Callouts use exact Python variable names.",
+              "Navigate by TOC feature or alphabetical index.",
+              "Views are NTS; generation fails on missing drawing or index coverage."], BLUE)
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -459,11 +1337,9 @@ def page_body(pdf):
               "BASE_HEIGHT identifies the full-scale upper base station.",
               f"wall = {mm('BODY_WALL_THICKNESS',3.2)}; floor = {mm('BOTTOM_THICKNESS',3.2)}"], PURPLE)
     note_box(fig, [0.65, 0.275, 0.285, 0.145], "IMPORTANT",
-             ["Width and height taper start only after protected",
-              "camera, cartridge and hardware envelopes. A request",
-              "may be clamped; the generator reports resolved values.",
-              "The Blender build prints requested and resolved dimensions.",
-              "Change REAR_HEIGHT_REDUCTION to change the request.",
+             ["Taper starts behind protected camera and hardware envelopes.",
+              "The solver may clamp requests and reports requested/resolved values.",
+              "Adjust REAR_HEIGHT_REDUCTION for roof taper.",
               "Screw islands remain locally horizontal."], GREEN)
     pdf.savefig(fig)
     plt.close(fig)
@@ -572,7 +1448,7 @@ def page_vertical(pdf):
     dim_v(ax,floor+gap,floor+gap+env_h,58,39,camera_var("REFERENCE_ENVELOPE_HEIGHT"),PURPLE)
     dim_h(ax,-39,39,floor+gap+body_h+12,floor+gap+body_h,camera_var("BODY_WIDTH"))
     leader(ax,(-20,floor+gap+12),(-48,40),
-           "MISSION1.REFERENCE_ENVELOPE_DEPTH\n- MISSION1.BODY_DEPTH",ORANGE)
+           "REFERENCE_ENVELOPE_DEPTH\n- BODY_DEPTH",ORANGE)
     setup(ax,-64,70,-4,80)
 
     ax2=panel(fig,[0.62,0.48,0.315,0.39],"VENTED SUPPORT PADS","BOTTOM / PLAN")
@@ -591,7 +1467,7 @@ def page_vertical(pdf):
     note_box(fig,[0.065,0.18,0.255,0.15],"VERTICAL DEFAULTS",
              [f"minimum accepted floor gap: {mm('CAMERA_MIN_FLOOR_AIR_GAP',3)}",
               "EYE_CENTER_Z = None (derived from camera)",
-              "MISSION1.BODY_HEIGHT / MISSION1.REFERENCE_ENVELOPE_HEIGHT",
+              "BODY_HEIGHT / REFERENCE_ENVELOPE_HEIGHT",
               "BASE_HEIGHT"],BLUE)
     note_box(fig,[0.34,0.18,0.255,0.15],"AIRFLOW INTENT",
              ["Rear fans wash the camera back and sides.",
@@ -599,10 +1475,10 @@ def page_vertical(pdf):
               "Raised support pads maintain under-body passage.",
               "Lens-to-mouth gaps act as forward exhausts."],GREEN)
     note_box(fig,[0.62,0.18,0.315,0.23],"MISSION 1 REFERENCE ENVELOPE",
-             ["MISSION1.BODY_WIDTH / MISSION1.BODY_DEPTH / MISSION1.BODY_HEIGHT",
-              "MISSION1.REFERENCE_ENVELOPE_WIDTH / MISSION1.REFERENCE_ENVELOPE_DEPTH / MISSION1.REFERENCE_ENVELOPE_HEIGHT",
-              "MISSION1.LENS_FACE_WIDTH / MISSION1.LENS_FACE_HEIGHT",
-              "MISSION1.LENS_FACE_Y",
+             ["BODY_WIDTH / BODY_DEPTH / BODY_HEIGHT",
+              "REFERENCE_ENVELOPE_WIDTH / REFERENCE_ENVELOPE_DEPTH / REFERENCE_ENVELOPE_HEIGHT",
+              "LENS_FACE_WIDTH / LENS_FACE_HEIGHT",
+              "LENS_FACE_Y",
               "Full envelope includes lens projection and controls.",
               "Dummy is upright unless CAMERA_UPSIDE_DOWN=True."],PURPLE)
     pdf.savefig(fig); plt.close(fig)
@@ -656,7 +1532,7 @@ def page_lid(pdf):
     dim_h(ax2,-hole/2,hole/2,14,20,"HEAT_INSERT_HOLE_DIAMETER",ORANGE)
     dim_v(ax2,post_h-depth,post_h,-42,-post_d/2,"HEAT_INSERT_HOLE_DEPTH",ORANGE)
     dim_v(ax2,post_h,post_h+lid_t,37,46,"LID_THICKNESS",GREEN)
-    leader(ax2,(cb/2,post_h+lid_t-cbd/2),(49,43),
+    leader(ax2,(cb/2,post_h+lid_t-cbd/2),(25,48),
            "LID_SCREW_HEAD_COUNTERBORE_DIAMETER\nLID_SCREW_HEAD_COUNTERBORE_DEPTH",ORANGE,"right")
     leader(ax2,(0,post_h+lid_t),(49,52),f"shank clearance dia {mm('LID_SCREW_CLEARANCE_DIAMETER',3.4)}",BLUE,"right")
     setup(ax2,-53,57,-12,58)
@@ -674,15 +1550,12 @@ def page_lid(pdf):
     setup(ax3,-48,60,-4,23)
 
     note_box(fig,[0.55,0.18,0.385,0.18],"PLACEMENT / CLEARANCE",
-             ["FASTENER_POST_PLACEMENT selects placement mode",
-              "FASTENER_POST_TARGETS_XY / MANUAL_FASTENER_POST_POSITIONS_XY",
-              "FASTENER_AUTO_SEARCH_RADIUS / FASTENER_AUTO_GRID_STEP",
-              f"edge clearance = {mm('FASTENER_POST_EDGE_CLEARANCE',2)}",
-              f"camera clearance = {mm('FASTENER_POST_CAMERA_CLEARANCE',10)}",
-              f"minimum center spacing = {mm('FASTENER_POST_MIN_CENTER_SPACING',18)}",
-              f"post top clearance = {mm('FASTENER_POST_TOP_CLEARANCE',0.20,2)}",
-              f"hold-down/lid pocket clearance = {mm('CAMERA_BRACKET_LID_LIP_RELIEF_CLEARANCE',0.50,2)}",
-              f"minimum pocket-to-lid web = {mm('CAMERA_HOLD_DOWN_LID_RELIEF_MIN_UNDERSIDE_WEB',0.15,2)}",
+             ["Mode: FASTENER_POST_PLACEMENT",
+              "Centers: FASTENER_POST_TARGETS_XY / MANUAL_FASTENER_POST_POSITIONS_XY",
+              "Search: FASTENER_AUTO_SEARCH_RADIUS / FASTENER_AUTO_GRID_STEP",
+              "Clearance: FASTENER_POST_EDGE_CLEARANCE / FASTENER_POST_CAMERA_CLEARANCE",
+              "Spacing/top: FASTENER_POST_MIN_CENTER_SPACING / FASTENER_POST_TOP_CLEARANCE",
+              "Lid relief: CAMERA_BRACKET_LID_LIP_RELIEF_CLEARANCE / CAMERA_HOLD_DOWN_LID_RELIEF_MIN_UNDERSIDE_WEB",
               "Rear taper uses local post heights and flat screw islands."],PURPLE)
     pdf.savefig(fig); plt.close(fig)
 
@@ -729,12 +1602,14 @@ def page_retention(pdf):
     ax2.add_patch(Rectangle((-39,48),16,3,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
     ax2.add_patch(Rectangle((23,48),16,3,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
     dim_v(ax2,61,61+thick,-52,-43,"CAMERA_BRACKET_THICKNESS",ORANGE)
-    dim_v(ax2,51-locator_h,51,51,43,"CAMERA_BRACKET_USB_SIDE_LOCATOR_HEIGHT",ORANGE)
+    dim_v(ax2,51-locator_h,51,58,43,"CAMERA_BRACKET_USB_SIDE_LOCATOR_HEIGHT",ORANGE)
     ax2.text(0,74,"monolithic roof spans both side guides",ha="center",va="center",
              fontsize=7.2,color=ORANGE,weight="bold")
     leader(ax2,(-42,55),(-65,33),
            "CAMERA_BRACKET_USB_SIDE_LOCATOR_THICKNESS\nCAMERA_BRACKET_USB_SIDE_LOCATOR_RADIAL_LENGTH",ORANGE)
-    leader(ax2,(31,49),(69,37),"continuous L-return\n(no butt-jointed tab)",PURPLE,"right")
+    ax2.text(0,20,"continuous L-return\n(no butt-jointed tab)",ha="center",va="center",
+             fontsize=7.2,color=PURPLE,
+             bbox=dict(boxstyle="round,pad=0.18",fc=WHITE,ec=PURPLE,lw=0.55),zorder=30)
     setup(ax2,-70,75,-8,82)
 
     ax3=panel(fig,[0.065,0.18,0.48,0.18],"UPPER ANTI-TILT FRONT STOP","SIDE SECTION")
@@ -753,13 +1628,13 @@ def page_retention(pdf):
     leader(ax3,(root_x,20),(40,46),"monolithic root into\nsolid front shell",BLUE,"right")
     setup(ax3,-48,48,-2,50)
 
-    note_box(fig,[0.57,0.18,0.365,0.18],"FIT / STRENGTH CONTROLS",
-             [f"cradle side clearance = {mm('CAMERA_CRADLE_SIDE_CLEARANCE',0,1)} (snug)",
-              "CAMERA_FRONT_STOP_STYLE; CAMERA_FRONT_STOP_FLOOR_DATUM_WIDTH / CAMERA_FRONT_STOP_FLOOR_DATUM_HEIGHT_ABOVE_CAMERA_BOTTOM",
-              f"lower minimum radial thickness = {mm('CAMERA_FRONT_STOP_LOWER_MIN_RADIAL_THICKNESS',4)}; exterior skin = {mm('CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN',0.8)}",
-              f"upper anti-tilt contact = {mm('CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH',3.5)} wide x {mm('CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT',3.5)} high; gusset {deg('CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG',45)}",
-              "CAMERA_FRONT_STOP_UPPER_SIDE; CAMERA_FRONT_STOP_UPPER_BODY_TOP_INSET / CAMERA_FRONT_STOP_UPPER_MOUTH_LAND",
-              f"upper locator clearance = {mm('CAMERA_BRACKET_USB_SIDE_LOCATOR_CLEARANCE',0.10,2)}",
+    note_box(fig,[0.57,0.18,0.365,0.22],"FIT / STRENGTH CONTROLS",
+             ["Cradle fit: CAMERA_CRADLE_SIDE_CLEARANCE",
+              "Lower stop: CAMERA_FRONT_STOP_LOWER_MIN_RADIAL_THICKNESS / CAMERA_FRONT_STOP_SHELL_ROOT_OUTER_SKIN",
+              "Upper contact: CAMERA_FRONT_STOP_UPPER_CONTACT_WIDTH / CAMERA_FRONT_STOP_UPPER_CONTACT_HEIGHT",
+              "Upper gusset: CAMERA_FRONT_STOP_UPPER_GUSSET_PRINT_ANGLE_DEG",
+              "Upper placement: CAMERA_FRONT_STOP_UPPER_SIDE / CAMERA_FRONT_STOP_UPPER_BODY_TOP_INSET / CAMERA_FRONT_STOP_UPPER_MOUTH_LAND",
+              "Clamp fit: CAMERA_BRACKET_USB_SIDE_LOCATOR_CLEARANCE",
               "USB case-wall openings are disabled; internal access remains."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
@@ -788,11 +1663,11 @@ def page_worm(pdf):
     dim_h(ax,0,total,14,worm_od/2,"CAMERA_WORM_LENGTH")
     dim_h(ax,0,threaded,10,worm_od/2,"CAMERA_WORM_THREADED_LENGTH",ORANGE)
     dim_h(ax,threaded,total,-11,-worm_od/2,"CAMERA_WORM_PLAIN_HUB_LENGTH",PURPLE)
-    dim_v(ax,-worm_od/2,worm_od/2,-8,0,
-          "(CAMERA_WORM_DIAMETER_QUOTIENT + 2) * CAMERA_GEAR_MODULE",ORANGE)
-    dim_v(ax,-shaft/2,shaft/2,43,48,"CAMERA_WORM_SHAFT_DIAMETER",BLUE)
-    leader(ax,(17.5,0),(52,8),"CAMERA_WORM_PLAIN_HUB_DIAMETER\n(toward enclosure wall)",PURPLE,"right")
-    setup(ax,-34,58,-max(17,hub_od/2+8),max(22,hub_od/2+12))
+    dim_v(ax,-worm_od/2,worm_od/2,-18,0,
+          "DERIVED OD:\n(CAMERA_WORM_DIAMETER_QUOTIENT + 2)\n* CAMERA_GEAR_MODULE",ORANGE)
+    dim_v(ax,-shaft/2,shaft/2,53,48,"CAMERA_WORM_SHAFT_DIAMETER",BLUE)
+    leader(ax,(17.5,0),(31,18),"CAMERA_WORM_PLAIN_HUB_DIAMETER\n(toward enclosure wall)",PURPLE,"right")
+    setup(ax,-40,58,-max(17,hub_od/2+8),max(22,hub_od/2+12))
 
     ax2=panel(fig,[0.64,0.48,0.295,0.39],"SPLIT PRINTED JOURNAL","END SECTION")
     capw=float(val("CAMERA_WORM_CAP_TOTAL_WIDTH",26)); screwsp=float(val("CAMERA_WORM_CAP_SCREW_SPACING",16))
@@ -808,10 +1683,10 @@ def page_worm(pdf):
     dim_h(ax2,-screwsp/2,screwsp/2,15,10,"CAMERA_WORM_CAP_SCREW_SPACING",PURPLE)
     leader(ax2,(bore/2,0),(25,-4),"CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER",RED,"right")
     leader(ax2,(shaft/2,0),(25,5),
-           "CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER\n- CAMERA_WORM_SHAFT_DIAMETER",BLUE,"right")
+           "derived diametral clearance",BLUE,"right")
     setup(ax2,-22,30,-22,22)
 
-    ax3=panel(fig,[0.065,0.18,0.55,0.22],"THREE HORIZONTAL SUPPORT STATIONS","SCHEMATIC PLAN")
+    ax3=panel(fig,[0.065,0.18,0.50,0.22],"THREE HORIZONTAL SUPPORT STATIONS","SCHEMATIC PLAN")
     ax3.plot([-70,72],[0,0],color=GRAY,lw=4.0,solid_capstyle="round")
     for x,label in ((-42,"INNER SPLIT SUPPORT"),(8,"OUTER SPLIT SUPPORT"),(58,"WALL PASSAGE")):
         ax3.add_patch(Rectangle((x-5,-10),10,20,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
@@ -822,17 +1697,13 @@ def page_worm(pdf):
     leader(ax3,(58,3),(73,13),"CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER",RED,"right")
     setup(ax3,-78,78,-27,27)
 
-    note_box(fig,[0.64,0.18,0.295,0.22],"FIT TUNING",
-             ["CAMERA_WORM_BEARINGS_ENABLED selects bearing or printed-journal mode",
-              "CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER",
-              "Default intent: perceptible drag; shaft should not freewheel",
-              "CAMERA_WORM_PLAIN_BUSHING_MAX_DIAMETRAL_CLEARANCE",
-              "Measure the rod; tune the bore with a printed coupon.",
-              "Hand line-ream hard-seated caps if needed; never power-drill.",
-              "Mark caps; reinstall over shaft; alternate M3 screws only snug.",
-              "Verify/deburr metal worm bore; set measured endplay with shims.",
-              f"Min bearing/key roof = {mm('CAMERA_WORM_CAP_MIN_BEARING_ROOF',1.5)} / {mm('CAMERA_WORM_CAP_MIN_KEY_ROOF',1.5)}",
-              f"Insert pilot = {mm('CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER',4)} x {mm('CAMERA_WORM_CAP_INSERT_DEPTH',5.5)} deep."],PURPLE)
+    note_box(fig,[0.59,0.18,0.345,0.22],"FIT TUNING",
+             ["Mode: CAMERA_WORM_BEARINGS_ENABLED",
+              "Journal fit: CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER / CAMERA_WORM_PLAIN_BUSHING_MAX_DIAMETRAL_CLEARANCE",
+              "Target perceptible drag; test a coupon and hand-ream seated caps only if needed.",
+              "Roof: CAMERA_WORM_CAP_MIN_BEARING_ROOF / CAMERA_WORM_CAP_MIN_KEY_ROOF",
+              "Insert: CAMERA_WORM_CAP_INSERT_HOLE_DIAMETER / CAMERA_WORM_CAP_INSERT_DEPTH",
+              "Deburr the purchased worm bore; set endplay with shims."],PURPLE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -875,11 +1746,11 @@ def page_idler_gears(pdf):
     )
     sector_drive_teeth_name = "CAMERA_IDLER_TEETH" if direct else "CAMERA_IDLER_PINION_TEETH"
     dim_h(ax,pivot[0],idler[0],-47,pivot[1],
-          "DERIVED FROM:\nCAMERA_GEAR_MODULE, CAMERA_GEAR_EQUIVALENT_TEETH,\n"
-          f"{sector_drive_teeth_name}, {sector_clearance_name}",BLUE)
+          "DERIVED FROM:\nCAMERA_GEAR_MODULE\nCAMERA_GEAR_EQUIVALENT_TEETH\n"
+          f"{sector_drive_teeth_name}\n{sector_clearance_name}",BLUE)
     dim_h(ax,idler[0],worm[0],-31,idler[1],
-          "DERIVED FROM:\nCAMERA_GEAR_MODULE, CAMERA_WORM_DIAMETER_QUOTIENT,\n"
-          "CAMERA_IDLER_TEETH, CAMERA_WORM_IDLER_MESH_CENTER_CLEARANCE",ORANGE)
+          "DERIVED FROM:\nCAMERA_GEAR_MODULE\nCAMERA_WORM_DIAMETER_QUOTIENT\n"
+          "CAMERA_IDLER_TEETH\nCAMERA_WORM_IDLER_MESH_CENTER_CLEARANCE",ORANGE)
     leader(ax,pivot,(-63,28),
            "CAMERA_GEAR_EQUIVALENT_TEETH\nCAMERA_GEAR_MODULE",BLUE)
     idler_note=(
@@ -915,12 +1786,12 @@ def page_idler_gears(pdf):
         ax3.add_patch(Rectangle((-8,tooth_z0),16,tooth_h,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.1,hatch="///"))
         ax3.add_patch(Rectangle((8.5,sector_z0),8,sector_face,facecolor="#cce0ec",edgecolor=BLUE,lw=1.1))
         centerline(ax3,(-13,mesh_z),(21,mesh_z))
-        dim_v(ax3,tooth_z0,tooth_z0+tooth_h,-14,-8,"CAMERA_IDLER_TOOTH_FACE_HEIGHT",ORANGE)
-        dim_v(ax3,sector_z0,sector_z0+sector_face,21,16.5,"CAMERA_GEAR_FACE_WIDTH",BLUE)
-        leader(ax3,(0,mesh_z),(22,16),
-               "DERIVED FROM BOTTOM_THICKNESS, CAMERA_WORM_FLOOR_CLEARANCE,\n"
-               "CAMERA_GEAR_MODULE, CAMERA_WORM_DIAMETER_QUOTIENT",PURPLE,"right")
-        setup(ax3,-19,25,3.5,18)
+        dim_v(ax3,tooth_z0,tooth_z0+tooth_h,-18,-8,"CAMERA_IDLER_TOOTH_FACE_HEIGHT",ORANGE)
+        dim_v(ax3,sector_z0,sector_z0+sector_face,25,16.5,"CAMERA_GEAR_FACE_WIDTH",BLUE)
+        leader(ax3,(0,mesh_z),(18,17),
+               "DERIVED FROM:\nBOTTOM_THICKNESS\nCAMERA_WORM_FLOOR_CLEARANCE\n"
+               "CAMERA_GEAR_MODULE\nCAMERA_WORM_DIAMETER_QUOTIENT",PURPLE,"right")
+        setup(ax3,-23,30,3.5,18.5)
     else:
         ax3=panel(fig,[0.65,0.20,0.285,0.25],"PRINTED COAXIAL PINION","TOP")
         pinion_od=module*(pinion_teeth+2); d_bore=float(val("CAMERA_IDLER_PINION_SHAFT_BORE_DIAMETER",4.25)); flat=float(val("CAMERA_IDLER_PINION_SHAFT_FLAT_DEPTH",0.45))
@@ -1010,8 +1881,9 @@ def page_idler_assembly(pdf):
     if direct:
         centerline(ax,(-12,mesh_z),(18,mesh_z))
         leader(ax,(8,mesh_z),(52,16),
-               "MESH CENTER Z DERIVED FROM BOTTOM_THICKNESS, CAMERA_WORM_FLOOR_CLEARANCE,\n"
-               "CAMERA_GEAR_MODULE, CAMERA_WORM_DIAMETER_QUOTIENT",GREEN,"right")
+               "MESH CENTER Z DERIVED FROM:\nBOTTOM_THICKNESS\n"
+               "CAMERA_WORM_FLOOR_CLEARANCE\nCAMERA_GEAR_MODULE\n"
+               "CAMERA_WORM_DIAMETER_QUOTIENT",GREEN,"right")
     else:
         leader(ax,(8,wheel_z0-0.08),(52,18),"CAMERA_IDLER_PINION_WHEEL_GAP",GREEN,"right")
     setup(ax,-54,58,-1,max(collar_z1+4,33))
@@ -1024,27 +1896,19 @@ def page_idler_assembly(pdf):
         ax2.add_patch(Circle((0,sign*offset),post_d/2,facecolor="#f3c7aa",edgecolor=ORANGE,lw=1.0))
         ax2.add_patch(Circle((0,sign*offset),float(val("CAMERA_IDLER_CAP_SCREW_CLEARANCE",3.4))/2,facecolor=WHITE,edgecolor=PURPLE,lw=0.8))
     ax2.add_patch(Circle((0,0),bore/2,facecolor=WHITE,edgecolor=RED,lw=1.0))
-    dim_v(ax2,-offset,offset,13,post_d/2,"2 * CAMERA_IDLER_CAP_POST_TANGENTIAL_OFFSET",PURPLE)
+    dim_v(ax2,-offset,offset,-15,-post_d/2,"2 * CAMERA_IDLER_CAP_POST_TANGENTIAL_OFFSET",PURPLE)
     dim_h(ax2,-armw/2,armw/2,-6,-8,"CAMERA_IDLER_CAP_ARM_WIDTH",ORANGE)
     leader(ax2,(0,offset),(32,10),"CAMERA_IDLER_CAP_SCREW_CLEARANCE\nCAMERA_IDLER_CAP_SCREW_HEAD_DIAMETER",PURPLE,"right")
     leader(ax2,(0,0),(31,0),"CAMERA_IDLER_SHAFT_RUNNING_BORE_DIAMETER",RED,"right")
     setup(ax2,-25,34,-24,26)
 
-    wheel_z_source_lines=(
-        ["wheel/tooth Z common sources: BOTTOM_THICKNESS / CAMERA_WORM_FLOOR_CLEARANCE / CAMERA_GEAR_MODULE / CAMERA_WORM_DIAMETER_QUOTIENT",
-         "direct-wheel Z sources: CAMERA_IDLER_TOOTH_FACE_HEIGHT / CAMERA_IDLER_TOTAL_HEIGHT / CAMERA_IDLER_TOOTH_BAND_POSITION"]
-        if direct else
-        ["wheel/tooth Z common sources: BOTTOM_THICKNESS / CAMERA_WORM_FLOOR_CLEARANCE / CAMERA_GEAR_MODULE / CAMERA_WORM_DIAMETER_QUOTIENT",
-         "legacy Z sources: CAMERA_IDLER_PINION_FACE_WIDTH / CAMERA_IDLER_PINION_WHEEL_GAP / CAMERA_IDLER_TOOTH_FACE_HEIGHT / CAMERA_IDLER_TOTAL_HEIGHT / CAMERA_IDLER_TOOTH_BAND_POSITION"]
-    )
-    note_box(fig,[0.54,0.275,0.395,0.195],"FIXED POSTS / INSERTS",
-             [f"post OD = {mm('CAMERA_IDLER_CAP_POST_DIAMETER',10)}; insert pilot = {mm('CAMERA_IDLER_CAP_INSERT_HOLE_DIAMETER',4)} x {mm('CAMERA_IDLER_CAP_INSERT_DEPTH',5.5)} deep",
-              "blind-journal floor land: CAMERA_IDLER_SHAFT_FLOOR_CLEARANCE",
-              f"cap: CAMERA_IDLER_CAP_THICKNESS; head sink: {mm('CAMERA_IDLER_CAP_SCREW_HEAD_DIAMETER',6.5)} / {mm('CAMERA_IDLER_CAP_SCREW_HEAD_DEPTH',2.4)}",
-              *wheel_z_source_lines,
-              (f"direct root bridge >= {mm('CAMERA_IDLER_DIRECT_SECTOR_ROOT_BRIDGE_MIN_HEIGHT',3.20,2)} high x {mm('CAMERA_IDLER_DIRECT_SECTOR_RIM_MIN_RADIAL_WIDTH',3.00,2)} radial; pocket {mm('CAMERA_IDLER_DIRECT_LOWER_WHEEL_POCKET_CLEARANCE',0.15,2)} / floor land {mm('CAMERA_IDLER_DIRECT_LOWER_WHEEL_POCKET_MIN_ROOT_LAND',0.55,2)}" if direct else
-               "legacy printed pinion sits above the carrier under-web"),
-              f"top collar: {mm('CAMERA_IDLER_SHAFT_TOP_COLLAR_DIAMETER',8)} / CAMERA_IDLER_SHAFT_TOP_COLLAR_HEIGHT; clearance CAMERA_IDLER_SHAFT_TOP_COLLAR_CLEARANCE"],PURPLE)
+    note_box(fig,[0.525,0.275,0.41,0.195],"FIXED POSTS / INSERTS",
+             ["Post: CAMERA_IDLER_CAP_POST_DIAMETER",
+              "Insert: CAMERA_IDLER_CAP_INSERT_HOLE_DIAMETER / CAMERA_IDLER_CAP_INSERT_DEPTH",
+              "Cap/head: CAMERA_IDLER_CAP_THICKNESS / CAMERA_IDLER_CAP_SCREW_HEAD_DIAMETER / CAMERA_IDLER_CAP_SCREW_HEAD_DEPTH",
+              "Floor land: CAMERA_IDLER_SHAFT_FLOOR_CLEARANCE",
+              "Collar: CAMERA_IDLER_SHAFT_TOP_COLLAR_DIAMETER / CAMERA_IDLER_SHAFT_TOP_COLLAR_HEIGHT / CAMERA_IDLER_SHAFT_TOP_COLLAR_CLEARANCE",
+              "Wheel Z and direct-drive root/pocket controls are indexed in the dimension catalog."],PURPLE)
 
     ax3=panel(fig,[0.065,0.12,0.87,0.15],"LID-OFF SUPPORT-FREE ASSEMBLY / REVERSE FOR SERVICE","ASSEMBLY")
     preassemble=("purchased wheel on bare shaft;\nshaft: CAMERA_IDLER_SHAFT_DIAMETER" if direct else
@@ -1268,12 +2132,12 @@ def page_nut(pdf):
         pts=[(base,3.2+nut_t),(base+sign*(3.5),3.2+nut_t),(base+sign*(3.5),3.2+nut_t+lip_h),(base-sign*lip_p,3.2+nut_t+0.2)]
         ax2.add_patch(Polygon(pts,closed=True,facecolor="#f3c7aa",edgecolor=ORANGE,lw=0.9))
     dim_h(ax2,-nut_af/2,nut_af/2,-7,3.2,"BOTTOM_MOUNT_NUT_ACROSS_FLATS",ORANGE)
-    dim_v(ax2,3.2,3.2+nut_t,17,nut_af/2,"BOTTOM_MOUNT_NUT_THICKNESS",ORANGE)
-    dim_h(ax2,-od/2,od/2,19,15,"BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER",GREEN)
-    leader(ax2,(nut_af/2+1,3.2+nut_t+0.5),(19,15),
+    dim_v(ax2,3.2,3.2+nut_t,22,nut_af/2,"BOTTOM_MOUNT_NUT_THICKNESS",ORANGE)
+    dim_h(ax2,-od/2,od/2,20,15,"BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER",GREEN)
+    leader(ax2,(nut_af/2+1,3.2+nut_t+0.5),(10,27),
            "BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT\nBOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION",ORANGE,"right")
     leader(ax2,(0,5),(-27,12),"BOTTOM_MOUNT_NUT_THREAD_DIAMETER",BLUE,"right")
-    setup(ax2,-36,40,-12,26)
+    setup(ax2,-36,42,-12,32)
 
     note_box(fig,[0.065,0.18,0.285,0.17],"PLACEMENT SEARCH",
              ["BOTTOM_MOUNT_HOLE_AUTO_LATERAL enables lateral search",
@@ -1323,7 +2187,7 @@ def page_keystone(pdf):
     dim_v(ax2,0,sh,-18,-ox/2,"BOTTOM_KEYSTONE_SOCKET_HEIGHT",PURPLE)
     dim_v(ax2,-recess,0,17,10,"BOTTOM_KEYSTONE_FACE_RECESS_DEPTH",PURPLE)
     dim_h(ax2,-11,11,sh+body_h+6,sh+body_h,"BOTTOM_KEYSTONE_INTERNAL_BODY_X")
-    leader(ax2,(0,sh+8),(50,20),"cartridge inserted\nfrom enclosure interior",GREEN,"right")
+    leader(ax2,(0,sh+body_h*0.5),(50,35),"cartridge inserted\nfrom enclosure interior",GREEN,"right")
     setup(ax2,-52,58,-10,50)
 
     ax3=panel(fig,[0.065,0.18,0.47,0.18],"SOCKET FACE GEOMETRY","BOTTOM")
@@ -1407,49 +2271,126 @@ def page_index(pdf):
             ("Keystone face recess / pocket","BOTTOM_KEYSTONE_FACE_RECESS_DEPTH / BOTTOM_KEYSTONE_FACE_POCKET_X / BOTTOM_KEYSTONE_FACE_POCKET_Y"),
         ]),
     ]
-    page_groups=(
-        (15,"MAJOR PARAMETER QUICK REFERENCE — STRUCTURE",groups[:3]),
-        (16,"MAJOR PARAMETER QUICK REFERENCE — SYSTEMS",groups[3:]),
-    )
+    if len(groups) != QUICK_REFERENCE_PAGE_COUNT:
+        raise RuntimeError(
+            f"Quick-reference plan drift: {len(groups)} groups for "
+            f"{QUICK_REFERENCE_PAGE_COUNT} planned pages"
+        )
     subtitle=("Descriptions are paired with exact CONFIG variable names—search for the blue name in "
               "hockeymom_3_cam_cover_original_style_blender.py")
-    for page_number,page_title,page_group in page_groups:
-        fig=new_sheet(page_number,page_title,subtitle)
-        positions=[(0.065,0.615),(0.065,0.355),(0.065,0.095)]
-        for (title,rows),(x,y) in zip(page_group,positions):
-            ax=fig.add_axes([x,y,0.87,0.235]); ax.axis("off")
-            ax.add_patch(FancyBboxPatch((0,0),1,1,boxstyle="round,pad=0.012,rounding_size=0.02",
-                                        transform=ax.transAxes,facecolor="#fbfdfe",edgecolor=GRID,lw=0.9))
-            ax.add_patch(Rectangle((0,0.84),1,0.16,transform=ax.transAxes,facecolor=BLUE,edgecolor="none"))
-            ax.text(0.025,0.92,title,transform=ax.transAxes,va="center",fontsize=8.0,weight="bold",color=WHITE)
-            yy=0.785
-            for description,variable_names in rows:
-                ax.text(0.025,yy,description,transform=ax.transAxes,fontsize=5.0,color=GRAY,va="center")
-                available_points=0.62*0.87*11.0*72.0
-                variable_size=max(4.1,min(5.2,available_points/(0.56*len(variable_names))))
-                ax.text(0.34,yy,variable_names,transform=ax.transAxes,fontsize=variable_size,
-                        color=BLUE,va="center",weight="bold")
-                ax.plot([0.025,0.975],[yy-0.053,yy-0.053],transform=ax.transAxes,color=GRID,lw=0.45)
-                yy-=0.108
+    for page_offset,(title,rows) in enumerate(groups):
+        fig=new_sheet(None,f"MAJOR PARAMETER QUICK REFERENCE — {title}",subtitle)
+        ax=fig.add_axes([0.065,0.115,0.87,0.755]); ax.axis("off")
+        ax.add_patch(FancyBboxPatch((0,0),1,1,boxstyle="round,pad=0.012,rounding_size=0.02",
+                                    transform=ax.transAxes,facecolor="#fbfdfe",edgecolor=GRID,lw=0.9))
+        ax.add_patch(Rectangle((0,0.88),1,0.12,transform=ax.transAxes,facecolor=BLUE,edgecolor="none"))
+        ax.text(0.025,0.94,title,transform=ax.transAxes,va="center",fontsize=11.0,weight="bold",color=WHITE)
+        row_height=0.88/max(len(rows),1)
+        for row,(description,variable_names) in enumerate(rows):
+            y_top=0.88-row*row_height
+            yy=y_top-row_height/2
+            if row%2==0:
+                ax.add_patch(Rectangle((0.012,y_top-row_height),0.976,row_height,
+                                       transform=ax.transAxes,facecolor="#f5f9fb",edgecolor="none"))
+            ax.text(0.025,yy,description,transform=ax.transAxes,fontsize=7.2,color=GRAY,va="center")
+            wrapped=textwrap.wrap(variable_names,width=78,break_long_words=False,break_on_hyphens=False)
+            ax.text(0.36,yy,"\n".join(wrapped),transform=ax.transAxes,fontsize=7.4,
+                    color=BLUE,va="center",weight="bold",linespacing=1.18)
+            ax.plot([0.025,0.975],[y_top-row_height,y_top-row_height],
+                    transform=ax.transAxes,color=GRID,lw=0.45)
+        fig.text(0.065,0.097,
+                 f"Quick-reference feature {page_offset + 1}/{QUICK_REFERENCE_PAGE_COUNT}; use the alphabetical index for the complete inventory.",
+                 fontsize=6.4,color=GRAY)
         pdf.savefig(fig)
         plt.close(fig)
 
 
+def check_pdf_sync():
+    """Fail if the generated guide does not match its model/generator inputs."""
+    if not OUTPUT_PDF.is_file():
+        raise RuntimeError(f"Missing generated dimension guide: {OUTPUT_PDF}")
+    pdf_data = OUTPUT_PDF.read_bytes()
+    expected = f"source-{SOURCE_HASH}".encode("ascii")
+    if expected not in pdf_data:
+        raise RuntimeError(
+            f"Stale dimension guide: {OUTPUT_PDF.name} does not contain {expected.decode()}. "
+            "Regenerate it with `make dim-pdf`."
+        )
+    if not pdf_data.rstrip().endswith(b"%%EOF"):
+        raise RuntimeError(f"Incomplete dimension guide: {OUTPUT_PDF.name} has no PDF EOF marker")
+    page_count = len(re.findall(rb"/Type\s*/Page\b", pdf_data))
+    if page_count != TOTAL_SHEETS:
+        raise RuntimeError(
+            f"Incomplete dimension guide: {OUTPUT_PDF.name} has {page_count} page objects; "
+            f"expected {TOTAL_SHEETS}. Regenerate it with `make dim-pdf`."
+        )
+    print(f"Synchronized {OUTPUT_PDF} source={SOURCE_HASH}")
+
+
 def main():
-    with PdfPages(OUTPUT_PDF, metadata={
-        "Title":"Hockeymom Dual-Camera Enclosure Configuration Dimension Guide",
-        "Author":"Generated from hockeymom_3_cam_cover_original_style_blender.py",
-        "Subject":"Parametric configuration engineering diagrams",
-        "Keywords":"Hockeymom GoPro MISSION 1 CAD dimensions configuration",
-    }) as pdf:
-        for build_page in (
-            page_cover,page_body,page_optics,page_vertical,page_lid,page_retention,
-            page_worm,page_idler_gears,page_idler_assembly,page_carrier_guard,
-            page_fans,page_acoustic,page_nut,page_keystone,page_index,
-        ):
-            build_page(pdf)
-    print(f"Wrote {OUTPUT_PDF}")
+    global CURRENT_SHEET
+    CURRENT_SHEET = 0
+    DRAWN_DIMENSION_IDENTITIES.clear()
+    INDEXED_DIMENSION_IDENTITIES.clear()
+    UNDERSIZED_NOTE_BOXES.clear()
+    temporary_handle = tempfile.NamedTemporaryFile(
+        prefix=f".{OUTPUT_PDF.stem}.",
+        suffix=".pdf.tmp",
+        dir=OUTPUT_PDF.parent,
+        delete=False,
+    )
+    temporary_path = Path(temporary_handle.name)
+    temporary_handle.close()
+    try:
+        with PdfPages(temporary_path, metadata={
+            "Title":"Hockeymom Dual-Camera Enclosure Exhaustive Configuration Dimension Guide",
+            "Author":"Generated from hockeymom_3_cam_cover_original_style_blender.py",
+            "Subject":"Exhaustive parametric configuration engineering diagrams",
+            "Keywords":f"Hockeymom GoPro MISSION 1 CAD dimensions configuration source-{SOURCE_HASH}",
+        }) as pdf:
+            page_cover(pdf)
+            page_contents(pdf)
+            for build_page in (
+                page_body,page_optics,page_vertical,page_lid,page_retention,
+                page_worm,page_idler_gears,page_idler_assembly,page_carrier_guard,
+                page_fans,page_acoustic,page_nut,page_keystone,page_index,
+            ):
+                build_page(pdf)
+            page_dimension_catalog(pdf)
+            page_variable_index(pdf)
+            page_coverage_report(pdf)
+        if CURRENT_SHEET != TOTAL_SHEETS:
+            raise RuntimeError(
+                f"Generated {CURRENT_SHEET} sheets, but the document plan requires {TOTAL_SHEETS}"
+            )
+        if UNDERSIZED_NOTE_BOXES:
+            details = ", ".join(
+                f"{title} ({font_size:.2f} pt)"
+                for title, font_size in UNDERSIZED_NOTE_BOXES
+            )
+            raise RuntimeError(
+                "Engineering note boxes below the 6.0 pt readability floor: " + details
+            )
+        temporary_path.replace(OUTPUT_PDF)
+    except BaseException:
+        temporary_path.unlink(missing_ok=True)
+        raise
+    print(
+        f"Wrote {OUTPUT_PDF} sheets={TOTAL_SHEETS} "
+        f"dimensions={len(DIMENSION_ENTRIES)} features={len(FEATURE_SECTIONS)} "
+        f"source={SOURCE_HASH} missing=0"
+    )
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check-sync",
+        action="store_true",
+        help="verify that the existing PDF matches both model sources and this generator",
+    )
+    args = parser.parse_args()
+    if args.check_sync:
+        check_pdf_sync()
+    else:
+        main()
