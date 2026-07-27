@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import math
 import hashlib
+import functools
 import sys
 from pathlib import Path
 
@@ -10346,6 +10347,102 @@ def circular_feature_intersects_camera_bracket_plate(
     )
 
 
+def prepared_polygon_segments(loop):
+    """Precompute immutable edge terms for repeated point-distance tests."""
+    return tuple(
+        (
+            start[0],
+            start[1],
+            end[0] - start[0],
+            end[1] - start[1],
+            (end[0] - start[0]) ** 2 + (end[1] - start[1]) ** 2,
+        )
+        for start, end in zip(loop, (*loop[1:], loop[0]))
+    )
+
+
+def prepared_polygon_boundary_distance(point, segments) -> float:
+    """Return polygon-edge distance without rebuilding segment deltas."""
+    px, py = point
+    minimum = float("inf")
+    for x0, y0, dx, dy, length_squared in segments:
+        if length_squared <= 1e-12:
+            distance = math.hypot(px - x0, py - y0)
+        else:
+            fraction = ((px - x0) * dx + (py - y0) * dy) / length_squared
+            fraction = min(max(fraction, 0.0), 1.0)
+            distance = math.hypot(
+                px - (x0 + fraction * dx),
+                py - (y0 + fraction * dy),
+            )
+        minimum = min(minimum, distance)
+    return minimum
+
+
+def prepare_post_validation_context(cameras, inner_loop, mechanism=None):
+    """Hoist camera/yaw keepouts shared by every post-search candidate."""
+    camera_records = {}
+    for camera in cameras:
+        adjustable = camera_is_adjustable(camera)
+        usb_yaws = (
+            adjustable_yaw_samples(include_preview=True)
+            if adjustable
+            else (0.0,)
+        )
+        record = {
+            "usb_loops": tuple(
+                convex_hull_2d(
+                    camera_usb_access_xy_corners(camera, yaw_delta)
+                )
+                for yaw_delta in usb_yaws
+            )
+            if CAMERA_USB_ACCESS_ENABLED
+            else (),
+        }
+        if adjustable:
+            pivot = adjustable_camera_pivot(camera)
+            record.update(
+                {
+                    "pivot": pivot,
+                    "pivot_tangent": adjustable_camera_pivot_tangential(
+                        camera
+                    ),
+                    "chimney_loop": (
+                        adjustable_carrier_top_loading_chimney_loop(camera)[0]
+                        if CAMERA_CARRIER_TOP_LOADING_CHIMNEY_ENABLED
+                        else None
+                    ),
+                    "envelope_radial": (
+                        mission1.CANONICAL_RADIAL_MIN,
+                        mission1.CANONICAL_RADIAL_MAX,
+                    ),
+                    "envelope_tangent": mission1.canonical_tangential_bounds(
+                        CAMERA_UPSIDE_DOWN
+                    ),
+                    "yaw_normals": tuple(
+                        (
+                            math.cos(
+                                math.radians(camera["angle"] + yaw_delta)
+                            ),
+                            math.sin(
+                                math.radians(camera["angle"] + yaw_delta)
+                            ),
+                        )
+                        for yaw_delta in adjustable_yaw_samples()
+                    ),
+                }
+            )
+        else:
+            angle = math.radians(camera["angle"])
+            record["normal"] = (math.cos(angle), math.sin(angle))
+        camera_records[id(camera)] = record
+    return {
+        "inner_boundary_segments": prepared_polygon_segments(inner_loop),
+        "camera_records": camera_records,
+        "mechanism": mechanism,
+    }
+
+
 def post_is_valid(
     position,
     cameras,
@@ -10354,12 +10451,21 @@ def post_is_valid(
     post_diameter=FASTENER_POST_DIAMETER,
     avoid_camera_bracket_plate=False,
     mechanism=None,
+    validation_context=None,
 ) -> bool:
     post_radius = post_diameter / 2.0
     required_edge_distance = post_radius + FASTENER_POST_EDGE_CLEARANCE
     if not point_in_polygon(position, inner_loop):
         return False
-    if polygon_boundary_distance(position, inner_loop) < required_edge_distance:
+    boundary_distance = (
+        prepared_polygon_boundary_distance(
+            position,
+            validation_context["inner_boundary_segments"],
+        )
+        if validation_context is not None
+        else polygon_boundary_distance(position, inner_loop)
+    )
+    if boundary_distance < required_edge_distance:
         return False
     minimum_center_spacing = max(
         FASTENER_POST_MIN_CENTER_SPACING,
@@ -10369,16 +10475,27 @@ def post_is_valid(
         if math.dist(position, accepted) < minimum_center_spacing:
             return False
     for camera in cameras:
+        record = (
+            validation_context["camera_records"][id(camera)]
+            if validation_context is not None
+            else None
+        )
         if CAMERA_USB_ACCESS_ENABLED:
-            usb_yaw_samples = (
-                adjustable_yaw_samples(include_preview=True)
-                if camera_is_adjustable(camera)
-                else (0.0,)
-            )
-            for yaw_delta in usb_yaw_samples:
-                usb_loop = convex_hull_2d(
-                    camera_usb_access_xy_corners(camera, yaw_delta)
+            usb_loops = (
+                record["usb_loops"]
+                if record is not None
+                else tuple(
+                    convex_hull_2d(
+                        camera_usb_access_xy_corners(camera, yaw_delta)
+                    )
+                    for yaw_delta in (
+                        adjustable_yaw_samples(include_preview=True)
+                        if camera_is_adjustable(camera)
+                        else (0.0,)
+                    )
                 )
+            )
+            for usb_loop in usb_loops:
                 if (
                     point_in_polygon(position, usb_loop)
                     or polygon_boundary_distance(position, usb_loop)
@@ -10386,7 +10503,11 @@ def post_is_valid(
                 ):
                     return False
         if camera_is_adjustable(camera):
-            pivot = adjustable_camera_pivot(camera)
+            pivot = (
+                record["pivot"]
+                if record is not None
+                else adjustable_camera_pivot(camera)
+            )
             if mechanism is not None and adjustable_mechanism_intersects_post(
                 position,
                 post_radius,
@@ -10395,8 +10516,10 @@ def post_is_valid(
             ):
                 return False
             if CAMERA_CARRIER_TOP_LOADING_CHIMNEY_ENABLED:
-                chimney_loop, _, _ = (
-                    adjustable_carrier_top_loading_chimney_loop(camera)
+                chimney_loop = (
+                    record["chimney_loop"]
+                    if record is not None
+                    else adjustable_carrier_top_loading_chimney_loop(camera)[0]
                 )
                 if (
                     point_in_polygon(position, chimney_loop)
@@ -10414,26 +10537,52 @@ def post_is_valid(
             ):
                 return False
             envelope_radial = (
-                mission1.CANONICAL_RADIAL_MIN,
-                mission1.CANONICAL_RADIAL_MAX,
+                record["envelope_radial"]
+                if record is not None
+                else (
+                    mission1.CANONICAL_RADIAL_MIN,
+                    mission1.CANONICAL_RADIAL_MAX,
+                )
             )
-            envelope_tangent = mission1.canonical_tangential_bounds(
-                CAMERA_UPSIDE_DOWN
+            envelope_tangent = (
+                record["envelope_tangent"]
+                if record is not None
+                else mission1.canonical_tangential_bounds(
+                    CAMERA_UPSIDE_DOWN
+                )
+            )
+            yaw_normals = (
+                record["yaw_normals"]
+                if record is not None
+                else tuple(
+                    (
+                        math.cos(
+                            math.radians(camera["angle"] + yaw_delta)
+                        ),
+                        math.sin(
+                            math.radians(camera["angle"] + yaw_delta)
+                        ),
+                    )
+                    for yaw_delta in adjustable_yaw_samples()
+                )
+            )
+            pivot_tangent = (
+                record["pivot_tangent"]
+                if record is not None
+                else adjustable_camera_pivot_tangential(camera)
             )
             keepout = FASTENER_POST_CAMERA_CLEARANCE + post_radius
-            for yaw_delta in adjustable_yaw_samples():
-                pose_angle = math.radians(camera["angle"] + yaw_delta)
-                normal = (math.cos(pose_angle), math.sin(pose_angle))
-                tangent_axis = (-math.sin(pose_angle), math.cos(pose_angle))
-                dx = position[0] - pivot.x
-                dy = position[1] - pivot.y
+            dx = position[0] - pivot.x
+            dy = position[1] - pivot.y
+            for normal in yaw_normals:
+                tangent_axis = (-normal[1], normal[0])
                 local_radial = (
                     ADJUSTABLE_CAMERA_PIVOT_RADIAL
                     + dx * normal[0]
                     + dy * normal[1]
                 )
                 local_tangent = (
-                    adjustable_camera_pivot_tangential(camera)
+                    pivot_tangent
                     + dx * tangent_axis[0]
                     + dy * tangent_axis[1]
                 )
@@ -10464,9 +10613,15 @@ def post_is_valid(
             CAMERA_INSTALLATION_POST_CLEARANCE,
         ):
             return False
-        angle = math.radians(camera["angle"])
-        normal = (math.cos(angle), math.sin(angle))
-        tangent_axis = (-math.sin(angle), math.cos(angle))
+        normal = (
+            record["normal"]
+            if record is not None
+            else (
+                math.cos(math.radians(camera["angle"])),
+                math.sin(math.radians(camera["angle"])),
+            )
+        )
+        tangent_axis = (-normal[1], normal[0])
         radial = position[0] * normal[0] + position[1] * normal[1]
         tangent = position[0] * tangent_axis[0] + position[1] * tangent_axis[1]
         radial_limit = (
@@ -10500,9 +10655,15 @@ def resolve_symmetric_post_pairs(
     avoid_camera_bracket_plate=False,
     mechanism=None,
     maximum_x=None,
+    validation_context=None,
 ):
     resolved = [None] * len(targets)
     accepted = list(accepted_positions)
+    validation_context = validation_context or prepare_post_validation_context(
+        cameras,
+        inner_loop,
+        mechanism,
+    )
     steps = int(math.ceil(search_radius / search_step))
     for first_index, second_index in index_pairs:
         first_target = targets[first_index]
@@ -10523,38 +10684,44 @@ def resolve_symmetric_post_pairs(
                     or second[0] > maximum_x + 1e-9
                 ):
                     continue
-                if not post_is_valid(
-                    first,
-                    cameras,
-                    inner_loop,
-                    accepted,
-                    post_diameter=post_diameter,
-                    avoid_camera_bracket_plate=avoid_camera_bracket_plate,
-                    mechanism=mechanism,
-                ):
-                    continue
-                if not post_is_valid(
-                    second,
-                    cameras,
-                    inner_loop,
-                    [*accepted, first],
-                    post_diameter=post_diameter,
-                    avoid_camera_bracket_plate=avoid_camera_bracket_plate,
-                    mechanism=mechanism,
-                ):
-                    continue
                 score = (
                     math.dist(first, first_target) ** 2
                     + math.dist(second, second_target) ** 2
                 )
                 candidates.append((score, first, second))
-        if not candidates:
+        candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+        selected = None
+        for _score, first, second in candidates:
+            if not post_is_valid(
+                first,
+                cameras,
+                inner_loop,
+                accepted,
+                post_diameter=post_diameter,
+                avoid_camera_bracket_plate=avoid_camera_bracket_plate,
+                mechanism=mechanism,
+                validation_context=validation_context,
+            ):
+                continue
+            if not post_is_valid(
+                second,
+                cameras,
+                inner_loop,
+                [*accepted, first],
+                post_diameter=post_diameter,
+                avoid_camera_bracket_plate=avoid_camera_bracket_plate,
+                mechanism=mechanism,
+                validation_context=validation_context,
+            ):
+                continue
+            selected = (first, second)
+            break
+        if selected is None:
             raise ValueError(
                 f"No symmetric {label} pair fits targets "
                 f"{first_target} and {second_target}"
             )
-        candidates.sort(key=lambda item: (item[0], item[1], item[2]))
-        _, first, second = candidates[0]
+        first, second = selected
         resolved[first_index] = first
         resolved[second_index] = second
         accepted.extend((first, second))
@@ -10577,6 +10744,11 @@ def resolve_fastener_post_positions(
     inner_loop = inset_footprint_loop(
         scale_loop(footprint, post_minimum_scale), BODY_WALL_THICKNESS
     )
+    validation_context = prepare_post_validation_context(
+        cameras,
+        inner_loop,
+        mechanism,
+    )
     resolved_targets = tuple(
         tuple(target) for target in (target_positions or FASTENER_POST_TARGETS_XY)
     )
@@ -10591,6 +10763,7 @@ def resolve_fastener_post_positions(
                 accepted,
                 avoid_camera_bracket_plate=True,
                 mechanism=mechanism,
+                validation_context=validation_context,
             ):
                 raise ValueError(
                     f"Manual fastener post {index} at {position} violates a camera, "
@@ -10611,6 +10784,7 @@ def resolve_fastener_post_positions(
             avoid_camera_bracket_plate=True,
             mechanism=mechanism,
             maximum_x=maximum_x,
+            validation_context=validation_context,
         )
         accepted = list(positions)
     else:
@@ -10629,6 +10803,12 @@ def resolve_fastener_post_positions(
                         position[0] > maximum_x + 1e-9
                     ):
                         continue
+                    candidates.append((dx * dx + dy * dy, position))
+            candidates.sort(key=lambda item: (item[0], item[1][0], item[1][1]))
+            selected = next(
+                (
+                    position
+                    for _score, position in candidates
                     if post_is_valid(
                         position,
                         cameras,
@@ -10636,15 +10816,17 @@ def resolve_fastener_post_positions(
                         accepted,
                         avoid_camera_bracket_plate=True,
                         mechanism=mechanism,
-                    ):
-                        candidates.append((dx * dx + dy * dy, position))
-            if not candidates:
+                        validation_context=validation_context,
+                    )
+                ),
+                None,
+            )
+            if selected is None:
                 raise ValueError(
                     f"No valid location found near fastener target {index} {target}; "
                     "move the target or increase FASTENER_AUTO_SEARCH_RADIUS"
                 )
-            candidates.sort(key=lambda item: (item[0], item[1][0], item[1][1]))
-            accepted.append(candidates[0][1])
+            accepted.append(selected)
     result = tuple(accepted)
     print("FASTENER_POST_POSITIONS_XY", result)
     return result
@@ -10767,6 +10949,11 @@ def resolve_camera_bracket_post_positions(
     inner_loop = inset_footprint_loop(
         scale_loop(footprint, post_minimum_scale), BODY_WALL_THICKNESS
     )
+    validation_context = prepare_post_validation_context(
+        cameras,
+        inner_loop,
+        mechanism,
+    )
     targets = camera_bracket_post_targets(cameras)
     accepted = list(lid_positions)
     resolved = []
@@ -10774,6 +10961,13 @@ def resolve_camera_bracket_post_positions(
         math.ceil(
             CAMERA_BRACKET_POST_SEARCH_RADIUS / CAMERA_BRACKET_POST_SEARCH_STEP
         )
+    )
+    required_installation_clearance = (
+        FASTENER_POST_CAMERA_CLEARANCE
+        + CAMERA_BRACKET_POST_REAR_CLEARANCE
+        if EYE_TOP_LOADING_ENABLED
+        else CAMERA_INSTALLATION_REARWARD_TRAVEL
+        + CAMERA_INSTALLATION_POST_CLEARANCE
     )
     for camera_index in range(2):
         first_target = targets[2 * camera_index]
@@ -10787,49 +10981,48 @@ def resolve_camera_bracket_post_positions(
                     continue
                 first = (first_target[0] + dx, first_target[1] + dy)
                 second = (second_target[0] + dx, second_target[1] + dy)
-                if not post_is_valid(
-                    first,
-                    cameras,
-                    inner_loop,
-                    accepted,
-                    post_diameter=CAMERA_BRACKET_POST_BASE_DIAMETER,
-                    mechanism=mechanism,
-                ):
-                    continue
-                if not post_is_valid(
-                    second,
-                    cameras,
-                    inner_loop,
-                    [*accepted, first],
-                    post_diameter=CAMERA_BRACKET_POST_BASE_DIAMETER,
-                    mechanism=mechanism,
-                ):
-                    continue
-                required_installation_clearance = (
-                    FASTENER_POST_CAMERA_CLEARANCE
-                    + CAMERA_BRACKET_POST_REAR_CLEARANCE
-                    if EYE_TOP_LOADING_ENABLED
-                    else CAMERA_INSTALLATION_REARWARD_TRAVEL
-                    + CAMERA_INSTALLATION_POST_CLEARANCE
-                )
-                if camera_bracket_post_installation_clearance(
-                    first,
-                    cameras[camera_index],
-                ) < required_installation_clearance:
-                    continue
-                if camera_bracket_post_installation_clearance(
-                    second,
-                    cameras[camera_index],
-                ) < required_installation_clearance:
-                    continue
                 candidates.append((dx * dx + dy * dy, first, second))
-        if not candidates:
+        candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+        selected = None
+        for _score, first, second in candidates:
+            if not post_is_valid(
+                first,
+                cameras,
+                inner_loop,
+                accepted,
+                post_diameter=CAMERA_BRACKET_POST_BASE_DIAMETER,
+                mechanism=mechanism,
+                validation_context=validation_context,
+            ):
+                continue
+            if not post_is_valid(
+                second,
+                cameras,
+                inner_loop,
+                [*accepted, first],
+                post_diameter=CAMERA_BRACKET_POST_BASE_DIAMETER,
+                mechanism=mechanism,
+                validation_context=validation_context,
+            ):
+                continue
+            if camera_bracket_post_installation_clearance(
+                first,
+                cameras[camera_index],
+            ) < required_installation_clearance:
+                continue
+            if camera_bracket_post_installation_clearance(
+                second,
+                cameras[camera_index],
+            ) < required_installation_clearance:
+                continue
+            selected = (first, second)
+            break
+        if selected is None:
             raise ValueError(
                 f"No balanced camera-bracket post pair found for camera "
                 f"{camera_index + 1}; increase CAMERA_BRACKET_POST_SEARCH_RADIUS"
             )
-        candidates.sort(key=lambda item: (item[0], item[1], item[2]))
-        _, first, second = candidates[0]
+        first, second = selected
         resolved.extend((first, second))
         accepted.extend((first, second))
     result = (tuple(resolved[:2]), tuple(resolved[2:]))
@@ -12862,6 +13055,11 @@ def resolve_fan_acoustic_layout(
     y_candidates.append(plenum_y_max - hardware_offset)
 
     mechanism = adjustable_mechanism_layout(cameras, footprint)
+    post_validation_context = prepare_post_validation_context(
+        cameras,
+        inner_case_loop,
+        mechanism,
+    )
     post_rejection_counts = {
         "wall": 0,
         "functional": 0,
@@ -12886,6 +13084,7 @@ def resolve_fan_acoustic_layout(
             post_diameter=FAN_ACOUSTIC_BASE_POST_DIAMETER,
             avoid_camera_bracket_plate=False,
             mechanism=mechanism,
+            validation_context=post_validation_context,
         ):
             post_rejection_counts["functional"] += 1
             return False
@@ -13801,11 +14000,245 @@ def segment_intersects_oriented_box(start, end, record, clearance=0.0):
     return maximum_t >= 0.0 and minimum_t <= 1.0
 
 
-def object_bvh_record(obj):
+class CachedBMeshLease:
+    """Keep existing ``record[2].free()`` call sites cache-safe."""
+
+    def __init__(self, bmesh_owner):
+        self.bmesh_owner = bmesh_owner
+
+    def free(self):
+        """The validation cache owns and eventually frees this BMesh."""
+
+
+def bmesh_component_representatives(bm):
+    """Return one point from every connected face component."""
+    remaining = set(bm.faces)
+    representatives = []
+    while remaining:
+        face = remaining.pop()
+        representatives.append(face.verts[0].co.copy())
+        stack = [face]
+        while stack:
+            current = stack.pop()
+            for edge in current.edges:
+                for linked in edge.link_faces:
+                    if linked in remaining:
+                        remaining.remove(linked)
+                        stack.append(linked)
+    if not representatives and bm.verts:
+        representatives.append(bm.verts[0].co.copy())
+    return tuple(representatives)
+
+
+def current_object_world_matrix(obj):
+    """Return the authoritative transform even before a depsgraph update."""
+    if obj.parent is None and not obj.constraints:
+        # Blender updates matrix_basis immediately when location/rotation/scale
+        # changes, while matrix_world can remain stale until the dependency
+        # graph is evaluated.  Generated Hockeymom objects are unparented and
+        # unconstrained, so this fast path is both current and exact.
+        return obj.matrix_basis.copy()
+    bpy.context.view_layer.update()
+    return obj.matrix_world.copy()
+
+
+def build_object_bvh_record(obj):
     """Build a local-space BVH plus transform and owned BMesh."""
     bm = bmesh.new()
     bm.from_mesh(obj.data)
-    return (BVHTree.FromBMesh(bm), obj.matrix_world.inverted(), bm)
+    return (BVHTree.FromBMesh(bm), current_object_world_matrix(obj).inverted(), bm)
+
+
+class ValidationBVHCache:
+    """Own reusable local/world BVHs for immutable final validation meshes."""
+
+    def __init__(self, objects):
+        self.persistent_object_pointers = {
+            obj.as_pointer() for obj in objects if obj is not None
+        }
+        self.local_records = {}
+        self.world_records = {}
+        self.world_bounds = {}
+        self.posed_local_bounds = {}
+        self.broad_phase_rejections = 0
+        self.local_cache_hits = 0
+        self.world_cache_hits = 0
+        self.world_bounds_hits = 0
+
+    def is_persistent(self, obj) -> bool:
+        return (
+            obj is not None
+            and obj.as_pointer() in self.persistent_object_pointers
+        )
+
+    def local_record(self, obj):
+        pointer = obj.as_pointer()
+        record = self.local_records.get(pointer)
+        if record is None:
+            record = build_object_bvh_record(obj)
+            self.local_records[pointer] = record
+        else:
+            self.local_cache_hits += 1
+        return (record[0], record[1], CachedBMeshLease(record[2]))
+
+    def build_world_record(self, obj):
+        world_matrix = current_object_world_matrix(obj)
+        if (
+            self.is_persistent(obj)
+            and world_matrix == Matrix.Identity(4)
+        ):
+            pointer = obj.as_pointer()
+            local_record = self.local_records.get(pointer)
+            if local_record is None:
+                local_record = build_object_bvh_record(obj)
+                self.local_records[pointer] = local_record
+            return [local_record[0], local_record[2], None]
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bm.transform(world_matrix)
+        tree = BVHTree.FromBMesh(bm)
+        return [tree, bm, None]
+
+    def bounds_for(self, obj):
+        """Return exact-current bounds for one immutable validation snapshot."""
+        pointer = obj.as_pointer()
+        record = self.world_bounds.get(pointer)
+        # Retaining the wrapper in the record prevents Python-id reuse, while
+        # the identity check also protects against Blender reusing a removed
+        # object's native pointer for a later temporary mesh.
+        if record is None or record[0] is not obj:
+            posed_record = self.posed_local_bounds.get(pointer)
+            local_bounds = (
+                posed_record[1]
+                if posed_record is not None and posed_record[0] is obj
+                else None
+            )
+            bounds = calculate_object_world_bounds(obj, local_bounds)
+            self.world_bounds[pointer] = (obj, bounds)
+        else:
+            self.world_bounds_hits += 1
+            bounds = record[1]
+        return bounds
+
+    def set_posed_local_bounds(self, obj, local_bounds):
+        """Record exact local bounds while a temporary mesh is being posed."""
+        pointer = obj.as_pointer()
+        self.posed_local_bounds[pointer] = (obj, local_bounds)
+        self.world_bounds.pop(pointer, None)
+
+    def acquire_world_record(self, obj):
+        if not self.is_persistent(obj):
+            return self.build_world_record(obj), True
+        pointer = obj.as_pointer()
+        record = self.world_records.get(pointer)
+        if record is None:
+            record = self.build_world_record(obj)
+            self.world_records[pointer] = record
+        else:
+            self.world_cache_hits += 1
+        return record, False
+
+    def may_have_volume_intersection(self, first, second) -> bool:
+        """Conservatively reject separated closed meshes before a Boolean."""
+        first_record, first_owned = self.acquire_world_record(first)
+        second_record, second_owned = self.acquire_world_record(second)
+        try:
+            first_tree, first_bm, first_points = first_record
+            second_tree, second_bm, second_points = second_record
+            if first_tree.overlap(second_tree):
+                return True
+            if first_points is None:
+                first_points = bmesh_component_representatives(first_bm)
+                first_record[2] = first_points
+            if second_points is None:
+                second_points = bmesh_component_representatives(second_bm)
+                second_record[2] = second_points
+            if any(
+                point_inside_closed_bvh(second_tree, point)
+                for point in first_points
+            ):
+                return True
+            if any(
+                point_inside_closed_bvh(first_tree, point)
+                for point in second_points
+            ):
+                return True
+            self.broad_phase_rejections += 1
+            return False
+        finally:
+            if first_owned:
+                first_record[1].free()
+            if second_owned:
+                second_record[1].free()
+
+    def close(self):
+        bmeshes = {
+            id(record[2]): record[2] for record in self.local_records.values()
+        }
+        bmeshes.update(
+            {id(record[1]): record[1] for record in self.world_records.values()}
+        )
+        for bm in bmeshes.values():
+            bm.free()
+        print(
+            "VALIDATION_BVH_CACHE "
+            f"local_records={len(self.local_records)} "
+            f"world_records={len(self.world_records)} "
+            f"local_hits={self.local_cache_hits} "
+            f"world_hits={self.world_cache_hits} "
+            f"world_bounds_hits={self.world_bounds_hits} "
+            f"broad_phase_rejections={self.broad_phase_rejections}"
+        )
+        self.local_records.clear()
+        self.world_records.clear()
+        self.world_bounds.clear()
+        self.posed_local_bounds.clear()
+        self.persistent_object_pointers.clear()
+
+
+_ACTIVE_VALIDATION_BVH_CACHE = None
+
+
+def activate_validation_bvh_cache(objects):
+    global _ACTIVE_VALIDATION_BVH_CACHE
+    close_validation_bvh_cache()
+    # Synchronize the bound boxes of completed final meshes once.  Subsequent
+    # temporary mesh rotations publish their exact bounds as they are posed,
+    # and transform-only moves use current matrix_basis below.
+    bpy.context.view_layer.update()
+    _ACTIVE_VALIDATION_BVH_CACHE = ValidationBVHCache(objects)
+    return _ACTIVE_VALIDATION_BVH_CACHE
+
+
+def close_validation_bvh_cache():
+    global _ACTIVE_VALIDATION_BVH_CACHE
+    if _ACTIVE_VALIDATION_BVH_CACHE is not None:
+        _ACTIVE_VALIDATION_BVH_CACHE.close()
+        _ACTIVE_VALIDATION_BVH_CACHE = None
+
+
+def validation_bvh_cache_lifecycle(function):
+    """Guarantee cache release after successful or failed Blender builds."""
+
+    @functools.wraps(function)
+    def wrapped(*args, **kwargs):
+        close_validation_bvh_cache()
+        try:
+            return function(*args, **kwargs)
+        finally:
+            close_validation_bvh_cache()
+
+    return wrapped
+
+
+def object_bvh_record(obj):
+    """Build or lease a local-space BVH plus its inverse transform."""
+    if (
+        _ACTIVE_VALIDATION_BVH_CACHE is not None
+        and _ACTIVE_VALIDATION_BVH_CACHE.is_persistent(obj)
+    ):
+        return _ACTIVE_VALIDATION_BVH_CACHE.local_record(obj)
+    return build_object_bvh_record(obj)
 
 
 def segment_intersects_bvh_record(start, end, record, endpoint_margin=0.02):
@@ -14832,8 +15265,19 @@ def add_acoustic_microphone_deflectors_to_brackets(
     return camera_brackets
 
 
-def object_world_bounds(obj):
-    corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+def calculate_object_world_bounds(obj, local_bounds=None):
+    """Calculate conservative bounds from synchronized or pose-time bounds."""
+    if local_bounds is not None:
+        local_corners = (
+            Vector((x, y, z))
+            for x in local_bounds[0]
+            for y in local_bounds[1]
+            for z in local_bounds[2]
+        )
+    else:
+        local_corners = (Vector(corner) for corner in obj.bound_box)
+    world_matrix = current_object_world_matrix(obj)
+    corners = [world_matrix @ corner for corner in local_corners]
     return tuple(
         (
             min(point[axis] for point in corners),
@@ -14841,6 +15285,15 @@ def object_world_bounds(obj):
         )
         for axis in range(3)
     )
+
+
+def object_world_bounds(obj):
+    if _ACTIVE_VALIDATION_BVH_CACHE is not None:
+        # Final objects and temporary posed copies are immutable snapshots once
+        # their validation query begins, so one live-vertex calculation is
+        # sufficient for every pair tested during that snapshot's lifetime.
+        return _ACTIVE_VALIDATION_BVH_CACHE.bounds_for(obj)
+    return calculate_object_world_bounds(obj)
 
 
 def object_bounds_overlap(first, second, clearance=0.0):
@@ -22399,12 +22852,25 @@ def intersection_metrics(
     label: str,
     contact_surface_fn=None,
 ):
+    if not object_bounds_overlap(first, second):
+        return 0, 0, 0.0
+    if (
+        contact_surface_fn is None
+        and _ACTIVE_VALIDATION_BVH_CACHE is not None
+        and not _ACTIVE_VALIDATION_BVH_CACHE.may_have_volume_intersection(
+            first,
+            second,
+        )
+    ):
+        return 0, 0, 0.0
     first_copy = duplicate_object(first, label + "_A")
-    second_copy = duplicate_object(second, label + "_B")
     select_only(first_copy)
     modifier = first_copy.modifiers.new(label, "BOOLEAN")
     modifier.operation = "INTERSECT"
-    modifier.object = second_copy
+    # The Boolean modifier reads but never mutates its target.  Reusing the
+    # authoritative second object avoids one full mesh copy for every exact
+    # collision-volume query.
+    modifier.object = second
     if hasattr(modifier, "solver"):
         modifier.solver = BOOLEAN_SOLVER
     bpy.ops.object.modifier_apply(modifier=modifier.name)
@@ -22754,7 +23220,6 @@ def intersection_metrics(
                 )
     bm.free()
     bpy.data.objects.remove(first_copy, do_unlink=True)
-    bpy.data.objects.remove(second_copy, do_unlink=True)
     return vertices, faces, volume
 
 
@@ -23306,12 +23771,28 @@ def rotate_mesh_about_world_axis(obj, origin, axis, angle_deg):
     world_matrix = obj.matrix_world.copy()
     inverse_matrix = world_matrix.inverted()
     world_origin = Vector(origin)
+    local_minimum = [math.inf, math.inf, math.inf]
+    local_maximum = [-math.inf, -math.inf, -math.inf]
     for vertex in obj.data.vertices:
         world = world_matrix @ vertex.co
         vertex.co = inverse_matrix @ (
             world_origin + rotation @ (world - world_origin)
         )
+        for coordinate in range(3):
+            local_minimum[coordinate] = min(
+                local_minimum[coordinate],
+                vertex.co[coordinate],
+            )
+            local_maximum[coordinate] = max(
+                local_maximum[coordinate],
+                vertex.co[coordinate],
+            )
     obj.data.update()
+    if _ACTIVE_VALIDATION_BVH_CACHE is not None and obj.data.vertices:
+        _ACTIVE_VALIDATION_BVH_CACHE.set_posed_local_bounds(
+            obj,
+            tuple(zip(local_minimum, local_maximum)),
+        )
 
 
 def posed_carrier_copy(carrier, camera, yaw_delta, name):
@@ -24049,16 +24530,36 @@ def validate_adjustable_camera_range(
     )
     pivot = adjustable_camera_pivot(camera)
     mechanism = adjustable_mechanism_layout(cameras, footprint)
+    body_inner_loop = inset_footprint_loop(
+        scale_loop(footprint, camera_minimum_body_scale()),
+        BODY_WALL_THICKNESS,
+    )
+    carrier_insets_by_scale = {}
+    carrier_vertex_records = []
+    for vertex in carrier.data.vertices:
+        world = carrier.matrix_world @ vertex.co
+        scale = body_scale_at_z(world.z)
+        inner = carrier_insets_by_scale.get(scale)
+        if inner is None:
+            inner = inset_footprint_loop(
+                scale_loop(footprint, scale),
+                BODY_WALL_THICKNESS,
+            )
+            carrier_insets_by_scale[scale] = inner
+        carrier_vertex_records.append(
+            (
+                world.x - pivot.x,
+                world.y - pivot.y,
+                world.z,
+                inner,
+            )
+        )
     for yaw_delta in adjustable_yaw_samples(include_preview=True):
         body_corners = adjustable_camera_pose_corners(
             camera,
             body_radial,
             body_tangent,
             yaw_delta,
-        )
-        body_inner_loop = inset_footprint_loop(
-            scale_loop(footprint, camera_minimum_body_scale()),
-            BODY_WALL_THICKNESS,
         )
         if not all(point_in_polygon(point, body_inner_loop) for point in body_corners):
             raise RuntimeError(
@@ -24108,17 +24609,10 @@ def validate_adjustable_camera_range(
         yaw_radians = math.radians(yaw_delta)
         cosine = math.cos(yaw_radians)
         sine = math.sin(yaw_radians)
-        for vertex in carrier.data.vertices:
-            world = carrier.matrix_world @ vertex.co
-            dx = world.x - pivot.x
-            dy = world.y - pivot.y
+        for dx, dy, world_z, inner in carrier_vertex_records:
             point = (
                 pivot.x + cosine * dx - sine * dy,
                 pivot.y + sine * dx + cosine * dy,
-            )
-            inner = inset_footprint_loop(
-                scale_loop(footprint, body_scale_at_z(world.z)),
-                BODY_WALL_THICKNESS,
             )
             if not point_in_polygon(point, inner):
                 boundary_gap = polygon_boundary_distance(point, inner)
@@ -24134,7 +24628,7 @@ def validate_adjustable_camera_range(
                     raise RuntimeError(
                         f"Rotating carrier leaves the cavity at yaw "
                         f"{yaw_delta:+.2f}: point=({point[0]:.3f},"
-                        f"{point[1]:.3f},{world.z:.3f}) "
+                        f"{point[1]:.3f},{world_z:.3f}) "
                         f"boundary_gap={boundary_gap:.3f} "
                         f"allowed_local_relief={allowed_boundary_gap:.3f}"
                     )
@@ -24617,13 +25111,18 @@ def validate_assembly_clearances(base, lid, camera_brackets, camera_mockups):
 
 def validate_camera_bracket_containment(camera_brackets, footprint):
     """Require complete brackets, not just their posts, to stay in the cavity."""
+    insets_by_scale = {}
     for bracket in camera_brackets:
         for vertex in bracket.data.vertices:
             point = bracket.matrix_world @ vertex.co
-            inner_loop = inset_footprint_loop(
-                scale_loop(footprint, body_scale_at_z(point.z)),
-                BODY_WALL_THICKNESS,
-            )
+            scale = body_scale_at_z(point.z)
+            inner_loop = insets_by_scale.get(scale)
+            if inner_loop is None:
+                inner_loop = inset_footprint_loop(
+                    scale_loop(footprint, scale),
+                    BODY_WALL_THICKNESS,
+                )
+                insets_by_scale[scale] = inner_loop
             xy = (point.x, point.y)
             if (
                 not point_in_polygon(xy, inner_loop)
@@ -24913,6 +25412,7 @@ def apply_adjustable_preview_pose(
     )
 
 
+@validation_bvh_cache_lifecycle
 def build_original_style_cover():
     global _RESOLVED_CAMERA_LENS_FACE_OUTSET, _RESOLVED_REAR_ENVELOPE
     _RESOLVED_CAMERA_LENS_FACE_OUTSET = None
@@ -25476,6 +25976,9 @@ def build_original_style_cover():
         ),
         None,
     )
+    activate_validation_bvh_cache(
+        obj for obj in bpy.context.scene.objects if obj.type == "MESH"
+    )
     validate_carrier_service_front_stop_parts(
         camera_carrier,
         camera_carrier_print_body,
@@ -25659,6 +26162,7 @@ def build_original_style_cover():
         base,
         idler_stationary_hardware,
     )
+    close_validation_bvh_cache()
     if EXPORT_STL:
         directory = output_directory()
         if EXPORT_SEPARATE_STLS:
