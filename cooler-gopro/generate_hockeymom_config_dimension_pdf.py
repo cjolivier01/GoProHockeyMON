@@ -539,7 +539,7 @@ if UNCLASSIFIED_NONE_CONFIG:
         f"classification: {UNCLASSIFIED_NONE_CONFIG}"
     )
 
-CATALOG_CARDS_PER_PAGE = 4
+CATALOG_CARDS_PER_PAGE = 3
 INDEX_ENTRIES_PER_PAGE = 16
 TOC_ROWS_PER_PAGE = 15
 CURATED_DRAWING_PAGE_COUNT = 13
@@ -915,148 +915,1214 @@ def page_contents(pdf):
         plt.close(fig)
 
 
+CATALOG_X_MAX = 230.0
+CATALOG_Y_MAX = 50.0
+CATALOG_CENTER_X = CATALOG_X_MAX / 2.0
+
+
 def _catalog_arrow(ax, p1, p2, color=BLUE, scale=8):
     ax.add_patch(FancyArrowPatch(p1, p2, arrowstyle="<|-|>", mutation_scale=scale,
                                  lw=0.9, color=color, zorder=8))
 
 
-def _catalog_label(ax, entry: DimensionEntry, y=7.0, color=BLUE):
-    ax.text(50, y, entry.name, ha="center", va="center", fontsize=8.0,
+def _catalog_label(ax, entry: DimensionEntry, y=4.0, color=BLUE):
+    ax.text(CATALOG_CENTER_X, y, entry.name, ha="center", va="center",
+            fontsize=label_font_size(entry.name, 7.4),
             weight="bold", color=color,
             bbox=dict(boxstyle="round,pad=0.18", fc=WHITE, ec=color, lw=0.55),
             zorder=20)
 
 
-def draw_dimension_glyph(ax, entry: DimensionEntry):
-    """Draw a normalized engineering schematic carrying one exact variable label."""
-    kind = entry.kind
-    ax.set_xlim(0, 100)
-    ax.set_ylim(0, 60)
-    centerline(ax, (8, 32), (92, 32))
+def _catalog_scene(title, **overrides):
+    scene = {
+        "title": title,
+        "h": (35.0, 195.0, 9.0, 14.0),
+        "v": (14.0, 40.0, 205.0, 195.0),
+        "gap": ((105.0, 25.0), (120.0, 25.0)),
+        "diameter": (150.0, 27.0, 10.0),
+        "radial": (150.0, 27.0, 10.0, 35.0),
+        "angle": (65.0, 18.0, 15.0, 0.0, 35.0),
+        "position": ((35.0, 14.0), (150.0, 28.0)),
+        "area": (115.0, 27.0),
+        "anchors": {},
+        "preferred": None,
+    }
+    scene.update(overrides)
+    return scene
 
-    if kind == "angular dimension":
-        origin = (30, 22)
-        ax.plot([origin[0], 80], [origin[1], 22], color=INK, lw=1.1)
-        ax.plot([origin[0], 69], [origin[1], 46], color=INK, lw=1.1)
-        ax.add_patch(Arc(origin, 34, 34, theta1=0, theta2=32, edgecolor=ORANGE, lw=1.3))
-        ax.add_patch(FancyArrowPatch((45.7, 28.1), (45.0, 30.0),
-                                     arrowstyle="-|>", mutation_scale=7,
-                                     color=ORANGE, lw=0.8))
-        ax.text(28, 19, "DATUM", fontsize=4.4, color=GRAY, ha="center")
-        _catalog_label(ax, entry, color=ORANGE)
-        return
 
-    if kind == "diameter / bore":
-        ax.add_patch(Circle((50, 33), 15, facecolor="#edf4f7", edgecolor=INK, lw=1.1))
-        ax.add_patch(Circle((50, 33), 7, facecolor=WHITE, edgecolor=RED, lw=1.0))
-        centerline(ax, (31, 33), (69, 33))
-        _catalog_arrow(ax, (43, 33), (57, 33), RED)
-        ax.plot([57, 78], [33, 17], color=RED, lw=0.8)
-        _catalog_label(ax, entry, color=RED)
-        return
+def _catalog_camera_body(ax, x, y, width, height, lens=True, alpha=1.0):
+    ax.add_patch(FancyBboxPatch(
+        (x, y), width, height,
+        boxstyle="round,pad=0,rounding_size=3",
+        facecolor="#e1e5e8", edgecolor=INK, lw=1.0, alpha=alpha,
+    ))
+    if lens:
+        radius = min(width, height) * 0.25
+        center = (x + width * 0.75, y + height * 0.67)
+        ax.add_patch(Circle(center, radius, facecolor="#27323b", edgecolor=INK,
+                            lw=0.8, alpha=alpha))
+        ax.add_patch(Circle(center, radius * 0.55, facecolor="#9bc4da",
+                            edgecolor=CYAN, lw=0.6, alpha=alpha))
 
-    if kind == "radial dimension":
-        ax.add_patch(Arc((48, 31), 42, 34, theta1=15, theta2=315, edgecolor=INK, lw=1.2))
-        ax.plot([48, 66], [31, 41], color=PURPLE, lw=0.9)
-        ax.add_patch(FancyArrowPatch((48, 31), (66, 41), arrowstyle="-|>",
-                                     mutation_scale=8, color=PURPLE, lw=0.9))
-        ax.add_patch(Circle((48, 31), 1.2, facecolor=PURPLE, edgecolor="none"))
-        _catalog_label(ax, entry, color=PURPLE)
-        return
 
-    if kind == "fit / clearance":
-        ax.add_patch(Rectangle((15, 23), 31, 20, facecolor="#dfe7ec", edgecolor=INK, lw=1.0))
-        ax.add_patch(Rectangle((55, 23), 30, 20, facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
-        ax.plot([46, 46], [18, 47], color=GREEN, lw=0.75)
-        ax.plot([55, 55], [18, 47], color=GREEN, lw=0.75)
-        _catalog_arrow(ax, (46, 18), (55, 18), GREEN)
-        _catalog_label(ax, entry, color=GREEN)
-        return
+def _catalog_scene_mission1(ax, entry):
+    name = entry.name
+    _catalog_camera_body(ax, 72, 13, 86, 29)
+    ax.add_patch(Rectangle((65, 9), 100, 37, fill=False, edgecolor=CYAN,
+                           lw=0.9, ls="--"))
+    ax.add_patch(Circle((112, 43), 2.4, facecolor=ORANGE, edgecolor=INK, lw=0.6))
+    ax.add_patch(Circle((158, 27), 4.0, facecolor=PURPLE, edgecolor=INK, lw=0.6))
+    preferred = None
+    if "BUTTON" in name:
+        preferred = "radial" if "RADIUS" in name else (
+            "position" if "CENTER" in name else "h"
+        )
+    elif "LENS" in name:
+        preferred = "radial" if "RADIUS" in name else (
+            "position" if "CENTER" in name or "FACE_Y" in name else "h"
+        )
+    elif "_Z" in name or "HEIGHT" in name or "VERTICAL" in name:
+        preferred = "v"
+    elif "MIN_X" in name or "MIN_Y" in name or "MIN_Z" in name:
+        preferred = "position"
+    return _catalog_scene(
+        "MISSION 1 BODY / REFERENCE ENVELOPE",
+        h=(65, 165, 8, 9), v=(9, 46, 174, 165),
+        diameter=(136.5, 32.5, 7.0), radial=(136.5, 32.5, 0.0, 7.0),
+        position=((52, 10), (112, 30)), area=(112, 28), preferred=preferred,
+    )
 
-    if kind == "pitch / module":
-        for index in range(5):
-            x = 24 + index * 13
-            ax.add_patch(Polygon([(x - 5, 24), (x - 3, 43), (x + 3, 43), (x + 5, 24)],
-                                 closed=True, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.8))
-        ax.plot([24, 37], [18, 18], color=PURPLE, lw=0.75)
-        ax.plot([24, 24], [18, 24], color=PURPLE, lw=0.75)
-        ax.plot([37, 37], [18, 24], color=PURPLE, lw=0.75)
-        _catalog_arrow(ax, (24, 18), (37, 18), PURPLE)
-        _catalog_label(ax, entry, color=PURPLE)
-        return
 
-    if kind in ("coordinate position", "multi-axis dimensions", "loft/profile coordinates"):
-        ax.plot([18, 82], [18, 18], color=INK, lw=1.0)
-        ax.plot([18, 18], [18, 48], color=INK, lw=1.0)
-        points = [(30, 25), (48, 34), (70, 44)]
-        ax.plot([p[0] for p in points], [p[1] for p in points], color=CYAN, lw=1.2)
-        for point in points:
-            ax.add_patch(Circle(point, 1.7, facecolor=CYAN, edgecolor="none"))
-        _catalog_arrow(ax, (18, 14), (70, 14), BLUE)
-        ax.plot([70, 70], [14, 44], color=BLUE, lw=0.65)
-        _catalog_label(ax, entry)
-        return
+def _catalog_scene_rear_taper(ax, entry):
+    ax.add_patch(Polygon([(24, 13), (207, 13), (207, 27), (166, 39), (24, 39)],
+                         closed=True, facecolor="#e8f0f5", edgecolor=BLUE, lw=1.1))
+    ax.plot([24, 207], [18, 18], color=GRAY, lw=0.7, ls="--")
+    ax.add_patch(FancyBboxPatch((160, 36), 20, 7, boxstyle="round,pad=0,rounding_size=3",
+                                facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Circle((170, 39), 3.0, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+    preferred = "v" if any(token in entry.name for token in ("HEIGHT", "ANCHOR_Z")) else None
+    return _catalog_scene(
+        "REAR ROOF TAPER / SCREW ISLAND SECTION",
+        h=(166, 207, 9, 13), v=(27, 39, 216, 207),
+        gap=((154, 39), (166, 39)), diameter=(170, 39, 3),
+        radial=(170, 39, 3, 10), angle=(166, 27, 13, 0, 18),
+        position=((24, 13), (166, 39)), area=(170, 39), preferred=preferred,
+    )
 
-    if kind in ("area dimension", "volume dimension"):
-        ax.add_patch(Rectangle((24, 21), 50, 25, facecolor="#e8f2f8", edgecolor=BLUE, lw=1.1,
-                               hatch="//" if kind == "area dimension" else None))
-        if kind == "volume dimension":
-            ax.plot([24, 34, 84, 74], [46, 52, 52, 46], color=BLUE, lw=0.9)
-            ax.plot([74, 84], [21, 27], color=BLUE, lw=0.9)
-            ax.plot([84, 84], [27, 52], color=BLUE, lw=0.9)
-        _catalog_arrow(ax, (24, 17), (74, 17), BLUE)
-        _catalog_label(ax, entry)
-        return
 
-    if kind in ("counterbore depth", "counterbore floor"):
-        ax.add_patch(Rectangle((22, 18), 56, 30, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
-        ax.add_patch(Rectangle((40, 34), 20, 14, facecolor=WHITE, edgecolor=ORANGE, lw=1.0))
-        ax.plot([40, 60], [34, 34], color=ORANGE, lw=0.9)
-        if kind == "counterbore depth":
-            y1, y2, color = 34, 48, ORANGE
+def _catalog_scene_eye(ax, entry):
+    name = entry.name
+    ax.add_patch(FancyBboxPatch((24, 12), 82, 31,
+                                boxstyle="round,pad=0,rounding_size=7",
+                                facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(FancyBboxPatch((39, 16), 52, 23,
+                                boxstyle="round,pad=0,rounding_size=6",
+                                facecolor=WHITE, edgecolor=ORANGE, lw=1.2))
+    ax.add_patch(Circle((65, 27.5), 8.5, facecolor="#9bc4da", edgecolor=CYAN, lw=0.8))
+    ax.add_patch(Rectangle((53, 35), 24, 9, facecolor=WHITE, edgecolor="none", zorder=4))
+    ax.plot([53, 53, 77, 77], [43, 35, 35, 43], color=ORANGE, lw=1.0, zorder=5)
+    ax.add_patch(Rectangle((137, 13), 8, 29, facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((145, 21), 27, 15, facecolor=WHITE, edgecolor=ORANGE, lw=1.0))
+    ax.add_patch(Rectangle((172, 18), 34, 21, facecolor="#e1e5e8", edgecolor=INK, lw=0.9))
+    ax.add_patch(Rectangle((137, 40), 69, 4, facecolor="#dce8ef", edgecolor=BLUE, lw=0.9))
+    ax.add_patch(Rectangle((145, 36), 18, 4, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.8))
+    side_tokens = ("DEPTH", "INWARD", "OUTWARD", "RADIAL", "DATUM", "EMBED", "BACKING")
+    if any(token in name for token in side_tokens):
+        preferred = "h"
+    elif "HEIGHT" in name or "BOTTOM_OFFSET_Z" in name:
+        preferred = "v"
+    elif "CORNER_RADIUS" in name:
+        preferred = "radial"
+    elif "CLEARANCE" in name:
+        preferred = "gap"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "OPEN EYE MOUTH / LID-COMPLETED SECTION",
+        h=(39, 91, 9, 16), v=(16, 39, 113, 106),
+        gap=((145, 28), (172, 28)), diameter=(65, 27.5, 8.5),
+        radial=(39, 16, 0, 7), position=((137, 13), (172, 28)),
+        area=(65, 27.5), preferred=preferred,
+    )
+
+
+def _catalog_scene_front_stops(ax, entry):
+    ax.add_patch(Rectangle((35, 11), 12, 33, facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((47, 18), 32, 19, facecolor=WHITE, edgecolor=ORANGE, lw=1.0))
+    _catalog_camera_body(ax, 99, 12, 72, 29, lens=False)
+    ax.add_patch(Rectangle((79, 20), 20, 16, facecolor="#9bc4da", edgecolor=CYAN, lw=0.9))
+    ax.add_patch(Rectangle((88, 12), 11, 5, facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
+    ax.add_patch(Rectangle((91, 36), 8, 5, facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
+    ax.add_patch(Polygon([(91, 36), (76, 27), (91, 26)], closed=True,
+                         facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+    preferred = "angle" if "ANGLE" in entry.name else (
+        "v" if any(token in entry.name for token in ("HEIGHT", "SKIN", "LAND")) else None
+    )
+    return _catalog_scene(
+        "CAMERA FRONT DATUM / ANTI-TILT GUSSET SECTION",
+        h=(79, 99, 8, 12), v=(12, 41, 180, 171),
+        gap=((79, 29), (88, 29)), diameter=(94, 14.5, 2.5),
+        radial=(91, 36, 0, 8), angle=(76, 27, 14, 0, 35),
+        position=((47, 18), (91, 36)), area=(91, 28), preferred=preferred,
+    )
+
+
+def _catalog_scene_brackets(ax, entry):
+    _catalog_camera_body(ax, 76, 12, 78, 27, lens=False)
+    ax.add_patch(Rectangle((68, 40), 96, 5, facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.1))
+    for x in (75, 151):
+        ax.add_patch(Rectangle((x, 25), 5, 15, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+        ax.add_patch(Circle((x + 2.5, 42.5), 1.5, facecolor=WHITE, edgecolor=PURPLE, lw=0.7))
+    ax.add_patch(Rectangle((65, 31), 8, 14, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+    ax.add_patch(Circle((115, 40), 7, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Rectangle((83, 8), 9, 4, facecolor="#dce8ef", edgecolor=BLUE, lw=0.8))
+    ax.add_patch(Rectangle((139, 8), 9, 4, facecolor="#dce8ef", edgecolor=BLUE, lw=0.8))
+    name = entry.name
+    if "SIDE_LOCATOR" in name:
+        if "HEIGHT" in name:
+            preferred = "locator_height"
+        elif "THICKNESS" in name:
+            preferred = "locator_thickness"
+        elif "CLEARANCE" in name:
+            preferred = "locator_clearance"
+        elif "GUSSET_DEPTH" in name:
+            preferred = "gusset_depth"
+        elif "GUSSET_REACH" in name:
+            preferred = "gusset_reach"
         else:
-            y1, y2, color = 18, 34, GREEN
-        ax.plot([63, 72], [y1, y1], color=color, lw=0.75)
-        ax.plot([63, 72], [y2, y2], color=color, lw=0.75)
-        _catalog_arrow(ax, (68, y1), (68, y2), color)
-        _catalog_label(ax, entry, color=color)
-        return
+            preferred = "locator_length"
+    elif "DIAMETER" in name:
+        preferred = "diameter"
+    elif "COUNTERBORE" in name:
+        preferred = "local_vertical"
+    elif any(token in name for token in ("HEIGHT", "THICKNESS", "CLEARANCE_Z", "PRELOAD_Z", "WEB")):
+        preferred = "local_vertical"
+    elif "PLATE_EMBED" in name:
+        preferred = "locator_clearance"
+    elif "OVER_CAMERA_DEPTH" in name:
+        preferred = "over_camera_depth"
+    elif "POST_TANGENTIAL_SPACING" in name:
+        preferred = "post_spacing"
+    elif "CLEARANCE" in name:
+        preferred = "gap"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "REMOVABLE CAMERA HOLD-DOWN / POST INTERFACE",
+        h=(68, 164, 8, 12), v=(12, 45, 174, 164),
+        gap=((73, 31), (76, 31)), diameter=(115, 40, 7),
+        radial=(115, 40, 0, 7), position=((78, 12), (78, 42.5)),
+        area=(115, 40),
+        anchors={
+            "local_vertical": ("v", (40, 45, 171, 164)),
+            "locator_height": ("v", (31, 45, 58, 65)),
+            "locator_thickness": ("h", (65, 73, 27, 31)),
+            "locator_length": ("h", (65, 80, 22, 31)),
+            "locator_clearance": ("gap", ((73, 34), (76, 34))),
+            "gusset_depth": ("v", (31, 39, 60, 65)),
+            "gusset_reach": ("h", (65, 76, 22, 31)),
+            "over_camera_depth": ("h", (76, 154, 9, 12)),
+            "post_spacing": ("h", (77.5, 153.5, 47, 42.5)),
+        },
+        preferred=preferred,
+    )
 
-    if kind == "annular web":
-        ax.add_patch(Circle((50, 32), 18, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
-        ax.add_patch(Circle((50, 32), 9, facecolor=WHITE, edgecolor=ORANGE, lw=1.0))
-        ax.plot([59, 59], [27, 37], color=GREEN, lw=0.75)
-        ax.plot([68, 68], [27, 37], color=GREEN, lw=0.75)
-        _catalog_arrow(ax, (59, 32), (68, 32), GREEN)
-        _catalog_label(ax, entry, color=GREEN)
-        return
 
-    if kind == "section / vertical":
-        ax.add_patch(Rectangle((22, 20), 55, 25, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
-        ax.add_patch(Rectangle((22, 37), 55, 8, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.8,
-                               hatch="///"))
-        ax.plot([82, 82], [20, 45], color=ORANGE, lw=0.75)
-        ax.plot([77, 86], [20, 20], color=ORANGE, lw=0.75)
-        ax.plot([77, 86], [45, 45], color=ORANGE, lw=0.75)
-        _catalog_arrow(ax, (82, 20), (82, 45), ORANGE)
-        _catalog_label(ax, entry, color=ORANGE)
-        return
+def _catalog_scene_cradle(ax, entry):
+    ax.add_patch(Rectangle((28, 10), 175, 4, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((73, 14), 22, 4, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Rectangle((137, 14), 22, 4, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+    _catalog_camera_body(ax, 66, 20, 100, 23, lens=False)
+    ax.add_patch(Rectangle((61, 18), 5, 18, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+    ax.add_patch(Rectangle((166, 18), 5, 18, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+    ax.add_patch(Rectangle((89, 26), 8, 7, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+    for x in (81, 116, 151):
+        ax.add_patch(FancyArrowPatch((x, 12), (x, 19), arrowstyle="-|>",
+                                     mutation_scale=6, color=GREEN, lw=0.7))
+    name = entry.name
+    if "MIC" in name and "RADIUS" in name:
+        preferred = "radial"
+    elif "HEIGHT" in name or "FLOOR" in name or "VERTICAL" in name:
+        preferred = "v"
+    elif "CLEARANCE" in name or "GAP" in name:
+        preferred = "gap"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "CAMERA CRADLE / FLOOR AIRFLOW / USB ACCESS",
+        h=(66, 166, 7, 10), v=(14, 20, 179, 171),
+        gap=((116, 14), (116, 20)), diameter=(93, 29.5, 4),
+        radial=(93, 29.5, 0, 4), position=((66, 20), (93, 29.5)),
+        area=(116, 16), preferred=preferred,
+    )
 
-    if kind == "offset / position":
-        ax.plot([18, 18], [17, 47], color=GRAY, lw=0.9, ls="--")
-        ax.add_patch(Rectangle((58, 24), 24, 18, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
-        ax.plot([18, 58], [19, 19], color=GREEN, lw=0.75)
-        ax.plot([58, 58], [19, 24], color=GREEN, lw=0.75)
-        _catalog_arrow(ax, (18, 19), (58, 19), GREEN)
-        ax.text(18, 49, "DATUM", ha="center", va="bottom", fontsize=4.4, color=GRAY)
-        _catalog_label(ax, entry, color=GREEN)
-        return
 
-    ax.add_patch(Rectangle((18, 23), 64, 19, facecolor="#dce8ef", edgecolor=INK, lw=1.0))
-    ax.plot([18, 18], [17, 23], color=BLUE, lw=0.75)
-    ax.plot([82, 82], [17, 23], color=BLUE, lw=0.75)
-    _catalog_arrow(ax, (18, 17), (82, 17), BLUE)
-    _catalog_label(ax, entry)
+def _catalog_scene_lid_fasteners(ax, entry):
+    ax.add_patch(Rectangle((28, 12), 174, 5, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((158, 17), 18, 22, facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((25, 38), 180, 6, facecolor="#e8f0f5", edgecolor=BLUE, lw=1.1))
+    ax.add_patch(Rectangle((33, 34), 137, 4, facecolor="#e8f0f5", edgecolor=BLUE, lw=0.9))
+    ax.add_patch(Rectangle((164, 24), 6, 14, facecolor="#d8b66a", edgecolor=INK, lw=0.8,
+                           hatch="///"))
+    ax.add_patch(Rectangle((165.5, 30), 3, 14, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+    ax.add_patch(Rectangle((161, 40), 12, 4, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+    name = entry.name
+    preferred = "diameter" if "DIAMETER" in name else (
+        "v" if any(token in name for token in ("DEPTH", "HEIGHT", "THICKNESS", "WEB", "CLEARANCE")) else None
+    )
+    return _catalog_scene(
+        "CASE LID / LOCATING LIP / M3 HEAT-INSERT POST",
+        h=(33, 170, 8, 12), v=(12, 44, 212, 202),
+        gap=((170, 34), (176, 34)), diameter=(167, 31, 3),
+        radial=(167, 31, 0, 6), position=((28, 12), (167, 31)),
+        area=(167, 27), preferred=preferred,
+    )
+
+
+def _catalog_scene_carrier(ax, entry):
+    name = entry.name
+    if any(token in name for token in ("PIVOT", "THRUST", "WASHER")):
+        ax.add_patch(Rectangle((38, 10), 154, 4, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+        ax.add_patch(Circle((115, 17), 15, facecolor="#dcebdd", edgecolor=GREEN, lw=1.0))
+        ax.add_patch(Rectangle((110, 10), 10, 28, facecolor="#dce8ef", edgecolor=INK, lw=0.9))
+        ax.add_patch(Rectangle((70, 23), 90, 5, facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
+        ax.add_patch(Rectangle((103, 20), 24, 3, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+        ax.add_patch(Circle((115, 17), 4, facecolor=WHITE, edgecolor=RED, lw=0.8))
+        if "ANGLE" in name or "_DEG" in name:
+            preferred = "angle"
+        elif "PIVOT_PIN_DIAMETER" in name:
+            preferred = "pivot_pin_diameter"
+        elif any(token in name for token in ("DIAMETER", "_OD", "_ID")):
+            preferred = "diameter"
+        elif "RADIAL_WALL" in name:
+            preferred = "pivot_wall"
+        elif "BRIDGE_WIDTH" in name:
+            preferred = "bridge_width"
+        elif "THRUST_WASHER_THICKNESS" in name:
+            preferred = "washer_thickness"
+        elif "THRUST_PAD_HEIGHT" in name:
+            preferred = "pad_height"
+        elif "PIN_HEIGHT" in name or "ENGAGEMENT" in name:
+            preferred = "pin_height"
+        elif "CLEARANCE" in name:
+            preferred = "stack_clearance"
+        elif "RADIAL" in name or "TANGENTIAL" in name or "OFFSET" in name:
+            preferred = "position"
+        else:
+            preferred = "v"
+        return _catalog_scene(
+            "ROTATING CARRIER PIVOT / THRUST STACK SECTION",
+            h=(100, 130, 7, 10), v=(10, 38, 202, 192),
+            gap=((103, 21.5), (110, 21.5)), diameter=(115, 17, 15),
+            radial=(115, 17, 0, 15), position=((38, 10), (115, 17)),
+            angle=(115, 17, 16, -12, 12), area=(115, 17),
+            anchors={
+                "pivot_pin_diameter": ("diameter", (115, 17, 4)),
+                "pivot_wall": ("radial", (115, 17, 4, 15)),
+                "bridge_width": ("h", (70, 160, 31, 28)),
+                "washer_thickness": ("v", (20, 23, 99, 103)),
+                "pad_height": ("v", (23, 28, 166, 160)),
+                "pin_height": ("v", (10, 38, 126, 120)),
+                "stack_clearance": ("gap", ((115, 14), (115, 17))),
+            },
+            preferred=preferred,
+        )
+    if "FRONT_STOP" in name or "SERVICE_NOSE_NOTCH" in name:
+        ax.add_patch(FancyBboxPatch((25, 12), 112, 29,
+                                    boxstyle="round,pad=0,rounding_size=6",
+                                    facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
+        ax.add_patch(Rectangle((47, 16), 72, 20, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+        ax.add_patch(Polygon([(25, 21), (13, 27), (25, 33), (47, 33), (47, 21)],
+                             closed=True, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+        for x in (65, 105):
+            ax.add_patch(Circle((x, 26), 7, facecolor="#dce8ef", edgecolor=BLUE, lw=0.9))
+            ax.add_patch(Circle((x, 26), 2.5, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+        ax.add_patch(Rectangle((13, 24), 18, 6, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+        ax.add_patch(Rectangle((157, 10), 61, 5, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+        ax.add_patch(Rectangle((169, 15), 37, 25, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+        ax.add_patch(Rectangle((184, 15), 7, 23, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+        ax.add_patch(Rectangle((181, 35), 13, 5, facecolor=WHITE, edgecolor=RED, lw=0.8))
+        if "RECEIVER_BOSS_DIAMETER" in name:
+            preferred = "boss_diameter"
+        elif "INSERT_HOLE_DIAMETER" in name:
+            preferred = "insert_diameter"
+        elif "INSERT_LEADIN_DIAMETER" in name:
+            preferred = "leadin_diameter"
+        elif "SCREW_HEAD_DIAMETER" in name:
+            preferred = "head_diameter"
+        elif "SEATING_FOOT_DIAMETER" in name:
+            preferred = "foot_diameter"
+        elif "INSERT_DEPTH" in name or "SCREW_HEAD_DEPTH" in name:
+            preferred = "insert_depth"
+        elif "MIN_BOTTOM_WEB" in name:
+            preferred = "bottom_web"
+        elif "MIN_RADIAL_WALL" in name:
+            preferred = "boss_wall"
+        elif "SCREW_SPACING" in name:
+            preferred = "screw_spacing"
+        elif "NOSE" in name and ("RADIAL_DEPTH" in name or "OUTWARD_EXTENSION" in name):
+            preferred = "nose_depth"
+        elif "NOSE" in name and ("TANGENTIAL" in name or "WIDTH" in name):
+            preferred = "nose_width"
+        elif "WIDTH" in name or "ROOT_LENGTH" in name:
+            preferred = "stop_width"
+        elif "CLEARANCE" in name or "OVERLAP" in name:
+            preferred = "stop_clearance"
+        else:
+            preferred = None
+        return _catalog_scene(
+            "REMOVABLE CARRIER FRONT STOP / BOSSES / SERVICE NOTCH",
+            h=(25, 137, 8, 12), v=(10, 40, 224, 218),
+            gap=((137, 27), (145, 27)), diameter=(65, 26, 7),
+            radial=(65, 26, 2.5, 7), position=((25, 12), (65, 26)),
+            area=(83, 26),
+            anchors={
+                "boss_diameter": ("diameter", (65, 26, 7)),
+                "insert_diameter": ("diameter", (65, 26, 2.5)),
+                "leadin_diameter": ("diameter", (65, 26, 3.3)),
+                "head_diameter": ("h", (181, 194, 43, 40)),
+                "foot_diameter": ("diameter", (105, 26, 6)),
+                "insert_depth": ("v", (15, 38, 212, 206)),
+                "bottom_web": ("v", (10, 15, 224, 218)),
+                "boss_wall": ("radial", (65, 26, 2.5, 7)),
+                "screw_spacing": ("h", (65, 105, 44, 33)),
+                "nose_depth": ("h", (13, 47, 8, 21)),
+                "nose_width": ("v", (21, 33, 8, 13)),
+                "stop_width": ("h", (25, 137, 8, 12)),
+                "stop_clearance": ("gap", ((137, 27), (145, 27))),
+            },
+            preferred=preferred,
+        )
+    ax.add_patch(FancyBboxPatch((58, 12), 114, 31, boxstyle="round,pad=0,rounding_size=8",
+                                facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
+    ax.add_patch(Polygon(rotated_rect(113, 28, 77, 24, 8), closed=True,
+                         facecolor="#e1e5e8", edgecolor=INK, lw=0.9))
+    ax.add_patch(Circle((92, 27), 3, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+    ax.add_patch(Wedge((92, 27), 27, 205, 335, width=5,
+                       facecolor="#d8b66a", edgecolor=PURPLE, lw=0.9))
+    ax.add_patch(Rectangle((160, 20), 12, 16, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Arc((92, 27), 73, 55, theta1=-12, theta2=12, edgecolor=GREEN, lw=1.0))
+    if any(token in name for token in ("DEG", "YAW", "ANGLE")):
+        preferred = "angle"
+    elif "CLEARANCE" in name or "GAP" in name:
+        preferred = "gap"
+    elif "GUIDE_HEIGHT" in name:
+        preferred = "guide_height"
+    elif "GUIDE_THICKNESS" in name or "GUIDE_TRAY_EMBED" in name:
+        preferred = "guide_thickness"
+    elif "TRAY_THICKNESS" in name:
+        preferred = "tray_thickness"
+    elif "FRONT_STOP" in name and "WIDTH" in name:
+        preferred = "front_stop_width"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "ROTATING CAMERA CARTRIDGE / SERVICE SWEEP PLAN",
+        h=(58, 172, 8, 12), v=(12, 43, 181, 172),
+        gap=((160, 28), (172, 28)), diameter=(92, 27, 3),
+        radial=(92, 27, 3, 27), angle=(92, 27, 25, -12, 12),
+        position=((92, 27), (151, 30)), area=(115, 27),
+        anchors={
+            "guide_height": ("v", (20, 36, 177, 172)),
+            "guide_thickness": ("h", (160, 172, 17, 20)),
+            "tray_thickness": ("v", (12, 17, 52, 58)),
+            "front_stop_width": ("h", (160, 172, 39, 36)),
+        },
+        preferred=preferred,
+    )
+
+
+def _catalog_scene_worm(ax, entry):
+    name = entry.name
+    if "_CAP_" in name:
+        ax.add_patch(Rectangle((38, 9), 154, 5, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+        ax.add_patch(Rectangle((91, 17), 48, 15, facecolor="#dce8ef", edgecolor=BLUE, lw=0.9))
+        ax.add_patch(Circle((115, 25), 7, facecolor=WHITE, edgecolor=RED, lw=0.9))
+        ax.add_patch(Rectangle((111, 29), 8, 5, facecolor="#e8dff3", edgecolor=PURPLE, lw=0.9))
+        ax.add_patch(Polygon([(82, 29), (91, 38), (139, 38), (148, 29), (148, 43), (82, 43)],
+                             closed=True, facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
+        for x in (91, 139):
+            ax.add_patch(Circle((x, 36), 4.5, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+            ax.add_patch(Circle((x, 36), 1.8, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+        ax.add_patch(Rectangle((166, 14), 16, 28, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+        ax.add_patch(Rectangle((169, 19), 10, 17, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+        if "INSERT_HOLE_DIAMETER" in name or "SCREW_CLEARANCE" in name:
+            preferred = "insert_diameter"
+        elif "INSERT_LEADIN_DIAMETER" in name:
+            preferred = "leadin_diameter"
+        elif "EAR_DIAMETER" in name:
+            preferred = "ear_diameter"
+        elif "INSERT_DEPTH" in name or "INSERT_LEADIN_DEPTH" in name:
+            preferred = "insert_depth"
+        elif "TOTAL_WIDTH" in name:
+            preferred = "cap_width"
+        elif "SCREW_SPACING" in name:
+            preferred = "screw_spacing"
+        elif "SCREW_AXIAL" in name:
+            preferred = "axial_screw"
+        elif "KEY_CLEARANCE" in name:
+            preferred = "key_clearance"
+        elif "KEY_WIDTH" in name:
+            preferred = "key_width"
+        elif "KEY_DEPTH" in name or "KEY_HEIGHT" in name:
+            preferred = "key_height"
+        elif "LAND_WIDTH" in name:
+            preferred = "land_width"
+        elif "BEARING_ROOF" in name:
+            preferred = "bearing_roof"
+        elif "KEY_ROOF" in name:
+            preferred = "key_roof"
+        elif "SEAT_ABOVE_SHAFT" in name:
+            preferred = "seat_height"
+        elif "CLEARANCE" in name:
+            preferred = "cap_clearance"
+        elif "LIFT" in name:
+            preferred = "lift"
+        else:
+            preferred = None
+        return _catalog_scene(
+            "REMOVABLE WORM JOURNAL CAP / KEY / INSERT DETAIL",
+            h=(82, 148, 7, 29), v=(14, 43, 198, 192),
+            gap=((139, 25), (148, 25)), diameter=(115, 25, 7),
+            radial=(115, 25, 7, 24), position=((38, 9), (115, 25)),
+            area=(115, 34),
+            anchors={
+                "insert_diameter": ("diameter", (91, 36, 1.8)),
+                "leadin_diameter": ("diameter", (91, 36, 2.5)),
+                "ear_diameter": ("diameter", (91, 36, 4.5)),
+                "insert_depth": ("v", (19, 36, 186, 182)),
+                "cap_width": ("h", (82, 148, 7, 29)),
+                "screw_spacing": ("h", (91, 139, 46, 36)),
+                "axial_screw": ("v", (19, 36, 186, 182)),
+                "key_clearance": ("gap", ((109.5, 31.5), (111, 31.5))),
+                "key_width": ("h", (111, 119, 16, 29)),
+                "key_height": ("v", (29, 34, 124, 119)),
+                "land_width": ("h", (119, 127, 16, 29)),
+                "bearing_roof": ("v", (32, 38, 153, 148)),
+                "key_roof": ("v", (34, 38, 126, 119)),
+                "seat_height": ("v", (25, 29, 105, 111)),
+                "cap_clearance": ("gap", ((148, 36), (153, 36))),
+                "lift": ("v", (9, 14, 198, 192)),
+            },
+            preferred=preferred,
+        )
+    ax.plot([25, 207], [27, 27], color=INK, lw=2.0)
+    for x in range(82, 139, 8):
+        ax.plot([x - 5, x + 5], [20, 34], color=PURPLE, lw=1.1)
+    for x in (54, 166):
+        ax.add_patch(Rectangle((x - 13, 16), 26, 22, facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
+        ax.add_patch(Rectangle((x - 14, 34), 28, 7, facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+        ax.add_patch(Circle((x, 27), 5, facecolor=WHITE, edgecolor=RED, lw=0.8))
+    ax.add_patch(Rectangle((199, 10), 8, 34, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Circle((203, 27), 8, facecolor="#dcebdd", edgecolor=GREEN, lw=0.8))
+    if any(token in name for token in ("DIAMETER", "BORE", "_OD")):
+        preferred = "diameter"
+    elif "CLEARANCE" in name or "BACKLASH" in name:
+        preferred = "gap"
+    elif any(token in name for token in ("LENGTH", "WIDTH", "THICKNESS", "OUTSET", "INWARD", "SETBACK")):
+        preferred = "shaft_axis"
+    elif "FLOOR" in name or "TOP_CLEARANCE" in name or "RADIAL_WEB" in name:
+        preferred = "radial_stack"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "WORM SHAFT / SPLIT JOURNALS / WALL PORT SECTION",
+        h=(25, 207, 9, 16), v=(16, 41, 217, 207),
+        gap=((67, 27), (82, 27)), diameter=(54, 27, 5),
+        radial=(203, 27, 0, 8), position=((25, 27), (54, 27)),
+        area=(110, 27),
+        anchors={
+            "shaft_axis": ("h", (25, 207, 9, 16)),
+            "radial_stack": ("v", (16, 38, 214, 207)),
+        },
+        preferred=preferred,
+    )
+
+
+def _catalog_scene_idler(ax, entry):
+    ax.add_patch(Rectangle((40, 10), 150, 4, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((112, 12), 6, 31, facecolor="#d8b66a", edgecolor=INK, lw=0.9))
+    ax.add_patch(Rectangle((88, 18), 54, 11, facecolor="#e8dff3", edgecolor=PURPLE, lw=1.0))
+    ax.add_patch(Rectangle((99, 29), 32, 8, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Circle((115, 23.5), 3.2, facecolor=WHITE, edgecolor=RED, lw=0.8))
+    ax.add_patch(Rectangle((82, 40), 66, 5, facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
+    ax.add_patch(Rectangle((95, 37), 8, 3, facecolor="#dce8ef", edgecolor=BLUE, lw=0.8))
+    ax.add_patch(Rectangle((127, 37), 8, 3, facecolor="#dce8ef", edgecolor=BLUE, lw=0.8))
+    name = entry.name
+    if "OUTER_DIAMETER" in name:
+        preferred = "wheel_diameter"
+    elif "PINION_HUB_DIAMETER" in name or "HUB_DIAMETER" in name:
+        preferred = "hub_diameter"
+    elif ("CAP_" in name and any(token in name for token in ("INSERT_HOLE_DIAMETER", "INSERT_LEADIN_DIAMETER"))) or "CAP_POST_DIAMETER" in name or "SCREW_HEAD_DIAMETER" in name:
+        preferred = "cap_post_diameter"
+    elif "BEARING_OD" in name or "LOWER_BUSHING_DIAMETER" in name or "BEARING_POCKET_DIAMETER" in name:
+        preferred = "bearing_diameter"
+    elif "TOP_COLLAR_DIAMETER" in name:
+        preferred = "cap_post_diameter"
+    elif any(token in name for token in ("DIAMETER", "BORE", "_OD")):
+        preferred = "diameter"
+    elif "CLEARANCE" in name or "BACKLASH" in name or "GAP" in name:
+        preferred = "stack_gap"
+    elif "CAP_WIDTH" in name:
+        preferred = "cap_width"
+    elif "CAP_ARM_WIDTH" in name:
+        preferred = "cap_arm_width"
+    elif "CAP_THICKNESS" in name:
+        preferred = "cap_thickness"
+    elif "CAP_INSERT_DEPTH" in name or "SCREW_HEAD_DEPTH" in name:
+        preferred = "cap_insert_depth"
+    elif "TOTAL_HEIGHT" in name:
+        preferred = "v"
+    elif "TOOTH_FACE_HEIGHT" in name or "PINION_FACE_WIDTH" in name:
+        preferred = "wheel_height"
+    elif "HUB_HEIGHT" in name or "HUB_EXTENSION" in name:
+        preferred = "hub_height"
+    elif "BEARING_WIDTH" in name:
+        preferred = "bearing_height"
+    elif "COLLAR_HEIGHT" in name:
+        preferred = "collar_height"
+    elif "HEIGHT" in name or "DEPTH" in name or "THICKNESS" in name:
+        preferred = "local_vertical"
+    elif "TANGENTIAL_OFFSET" in name:
+        preferred = "position"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "VERTICAL IDLER SHAFT / WHEEL / REMOVABLE CAP STACK",
+        h=(88, 142, 8, 10), v=(10, 45, 158, 148),
+        gap=((115, 29), (115, 37)), diameter=(115, 23.5, 3.2),
+        radial=(115, 23.5, 3.2, 27), position=((40, 10), (115, 23.5)),
+        area=(115, 24),
+        anchors={
+            "wheel_diameter": ("h", (88, 142, 16, 18)),
+            "hub_diameter": ("h", (99, 131, 32, 29)),
+            "cap_post_diameter": ("h", (95, 103, 35, 37)),
+            "bearing_diameter": ("h", (99, 131, 16, 18)),
+            "stack_gap": ("gap", ((115, 29), (115, 37))),
+            "cap_width": ("h", (82, 148, 48, 45)),
+            "cap_arm_width": ("h", (95, 103, 35, 37)),
+            "cap_thickness": ("v", (40, 45, 154, 148)),
+            "cap_insert_depth": ("v", (37, 45, 157, 148)),
+            "wheel_height": ("v", (18, 29, 148, 142)),
+            "hub_height": ("v", (29, 37, 137, 131)),
+            "bearing_height": ("v", (18, 29, 148, 142)),
+            "collar_height": ("v", (37, 40, 140, 135)),
+            "local_vertical": ("v", (18, 29, 148, 142)),
+        },
+        preferred=preferred,
+    )
+
+
+def _catalog_scene_gear_mesh(ax, entry):
+    ax.add_patch(Wedge((91, 25), 34, 195, 345, width=9,
+                       facecolor="#f3c7aa", edgecolor=ORANGE, lw=1.0))
+    ax.add_patch(Circle((143, 25), 18, facecolor="#e8dff3", edgecolor=PURPLE, lw=1.1))
+    ax.add_patch(Circle((143, 25), 4, facecolor=WHITE, edgecolor=RED, lw=0.8))
+    for index in range(16):
+        angle = 2 * math.pi * index / 16
+        x1, y1 = 143 + 18 * math.cos(angle), 25 + 18 * math.sin(angle)
+        x2, y2 = 143 + 21 * math.cos(angle), 25 + 21 * math.sin(angle)
+        ax.plot([x1, x2], [y1, y2], color=PURPLE, lw=0.7)
+    ax.plot([91, 143], [25, 25], color=GRAY, lw=0.7, ls="--")
+    ax.add_patch(Arc((91, 25), 46, 46, theta1=205, theta2=335, edgecolor=GREEN, lw=1.0))
+    preferred = "angle" if "DEG" in entry.name or "ANGLE" in entry.name else (
+        "radial" if "RADIUS" in entry.name else (
+            "gap" if "CLEARANCE" in entry.name or "BACKLASH" in entry.name or "ENGAGEMENT" in entry.name else None
+        )
+    )
+    return _catalog_scene(
+        "CARRIER SECTOR / PURCHASED IDLER GEAR MESH PLAN",
+        h=(91, 143, 8, 25), v=(7, 43, 171, 161),
+        gap=((125, 25), (128, 25)), diameter=(143, 25, 18),
+        radial=(91, 25, 9, 34), angle=(91, 25, 23, 205, 335),
+        position=((91, 25), (143, 25)), area=(126, 25), preferred=preferred,
+    )
+
+
+def _catalog_scene_acoustic(ax, entry):
+    name = entry.name
+    hardware_tokens = ("LID_", "BASE_", "BOOT_SEAL", "TROUGH_BOOT", "DRIVER")
+    if any(token in name for token in hardware_tokens):
+        ax.add_patch(Rectangle((25, 9), 180, 4, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+        ax.add_patch(Rectangle((72, 14), 104, 4, facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
+        ax.add_patch(Rectangle((72, 18), 5, 20, facecolor="#dce8ef", edgecolor=BLUE, lw=0.9))
+        ax.add_patch(Rectangle((171, 18), 5, 20, facecolor="#dce8ef", edgecolor=BLUE, lw=0.9))
+        ax.add_patch(Rectangle((70, 39), 108, 5, facecolor="#e8f0f5", edgecolor=BLUE, lw=1.0))
+        ax.add_patch(Rectangle((178, 19), 13, 18, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+        ax.add_patch(Rectangle((191, 17), 20, 22, facecolor="#e1e5e8", edgecolor=INK, lw=0.9))
+        ax.add_patch(Rectangle((116, 13), 8, 26, facecolor="#d8b66a", edgecolor=INK, lw=0.8))
+        ax.add_patch(Circle((120, 41.5), 2.2, facecolor=WHITE, edgecolor=PURPLE, lw=0.7))
+        if "COUNTERBORE_DEPTH" in name:
+            preferred = "counterbore_depth"
+        elif "MIN_COUNTERBORE_FLOOR" in name or "MIN_ANNULAR_WEB" in name:
+            preferred = "counterbore_floor"
+        elif "DIAMETER" in name or "BORE" in name:
+            preferred = "diameter"
+        elif "TROUGH_BOOT_OPENING_SIZE" in name:
+            preferred = "boot_opening"
+        elif "BOOT_SEAL_WALL" in name:
+            preferred = "boot_wall"
+        elif "TROUGH_BOOT_OPENING_RADIAL_MARGIN" in name:
+            preferred = "boot_margin"
+        elif "CLEARANCE" in name or "COMPRESSION" in name:
+            preferred = "gap"
+        elif "LID_THICKNESS" in name:
+            preferred = "lid_thickness"
+        elif "LID_KEY_DEPTH" in name:
+            preferred = "lid_key_depth"
+        elif "INSERT_DEPTH" in name:
+            preferred = "insert_depth"
+        elif "ISOLATOR_THICKNESS" in name:
+            preferred = "isolator_thickness"
+        elif "BOSS_HEIGHT" in name:
+            preferred = "boss_height"
+        elif "MIN_FLOOR" in name:
+            preferred = "base_floor"
+        else:
+            preferred = "v"
+        return _catalog_scene(
+            "FAN / COMPLIANT BOOT / TROUGH / SEALED LID SECTION",
+            h=(178, 211, 7, 9), v=(13, 44, 218, 211),
+            gap=((176, 28), (178, 28)), diameter=(120, 41.5, 2.2),
+            radial=(120, 41.5, 2.2, 7), position=((25, 9), (120, 26)),
+            area=(124, 28),
+            anchors={
+                "boot_opening": ("h", (178, 191, 8, 19)),
+                "boot_wall": ("h", (178, 181, 15, 19)),
+                "boot_margin": ("gap", ((176, 28), (178, 28))),
+                "lid_thickness": ("v", (39, 44, 184, 178)),
+                "lid_key_depth": ("v", (36, 39, 184, 178)),
+                "counterbore_depth": ("v", (39, 44, 130, 124)),
+                "counterbore_floor": ("v", (36, 39, 130, 124)),
+                "insert_depth": ("v", (13, 39, 130, 124)),
+                "isolator_thickness": ("v", (9, 13, 211, 205)),
+                "boss_height": ("v", (13, 18, 66, 72)),
+                "base_floor": ("v", (9, 13, 211, 205)),
+            },
+            preferred=preferred,
+        )
+    ax.add_patch(Rectangle((39, 11), 135, 32, facecolor="#e8f0f6", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((174, 15), 18, 24, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Rectangle((192, 13), 22, 28, facecolor="#e1e5e8", edgecolor=INK, lw=0.9))
+    for index, x in enumerate((67, 96, 125)):
+        y = 13 if index % 2 == 0 else 25
+        ax.add_patch(FancyBboxPatch((x, y), 4, 17, boxstyle="round,pad=0,rounding_size=2",
+                                    facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.8))
+    ax.add_patch(Rectangle((35, 15), 8, 10, facecolor=WHITE, edgecolor=GREEN, lw=0.8))
+    ax.add_patch(Rectangle((35, 29), 8, 10, facecolor=WHITE, edgecolor=GREEN, lw=0.8))
+    for y in (20, 34):
+        ax.add_patch(FancyArrowPatch((207, y), (43, y), arrowstyle="-|>",
+                                     mutation_scale=7, connectionstyle="arc3,rad=.10",
+                                     color=GREEN, lw=0.9))
+    if "ANGLE" in name or "YAW" in name:
+        preferred = "angle"
+    elif "RADIUS" in name:
+        preferred = "radial"
+    elif "DIVIDED_INLET_DEPTH" in name:
+        preferred = "inlet_depth"
+    elif "PLENUM_DEPTH" in name:
+        preferred = "plenum_depth"
+    elif "BAFFLE_THICKNESS" in name:
+        preferred = "baffle_thickness"
+    elif "BAFFLE_WIDTH" in name:
+        preferred = "baffle_width"
+    elif "WALL_THICKNESS" in name:
+        preferred = "wall_thickness"
+    elif "PLENUM_SIDE_EXPANSION" in name:
+        preferred = "side_expansion"
+    elif "PATH_SPLIT_OFFSET" in name:
+        preferred = "split_offset"
+    elif "OUTLET_HEIGHT" in name:
+        preferred = "outlet_height"
+    elif "REMESH_VOXEL_SIZE" in name or "FLOW_PROBE_THICKNESS" in name:
+        preferred = "local_thickness"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "DIVIDED ACOUSTIC LABYRINTH / CAMERA OUTLETS PLAN",
+        h=(39, 174, 8, 11), v=(11, 43, 222, 214),
+        gap=((170, 27), (174, 27)), diameter=(203, 27, 10),
+        radial=(69, 30, 0, 8), angle=(39, 27, 14, -8, 8),
+        position=((174, 27), (43, 27)), area=(105, 27),
+        anchors={
+            "inlet_depth": ("h", (39, 67, 8, 13)),
+            "plenum_depth": ("h", (125, 174, 8, 13)),
+            "baffle_thickness": ("h", (67, 71, 46, 42)),
+            "baffle_width": ("v", (13, 30, 76, 71)),
+            "wall_thickness": ("h", (39, 43, 8, 15)),
+            "side_expansion": ("v", (11, 43, 180, 174)),
+            "split_offset": ("v", (25, 27, 131, 125)),
+            "outlet_height": ("v", (15, 39, 198, 192)),
+            "local_thickness": ("h", (125, 129, 46, 42)),
+        },
+        preferred=preferred,
+    )
+
+
+def _catalog_scene_rear_fans(ax, entry):
+    ax.add_patch(Rectangle((23, 10), 75, 34, facecolor="#edf4f7", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((37, 12), 47, 30, facecolor=WHITE, edgecolor=GREEN, lw=1.1))
+    ax.add_patch(Circle((60.5, 27), 12, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Circle((60.5, 27), 6, facecolor=WHITE, edgecolor=CYAN, lw=0.8))
+    for x in (45, 76):
+        for y in (18, 36):
+            ax.add_patch(Circle((x, y), 1.5, facecolor=WHITE, edgecolor=PURPLE, lw=0.7))
+    ax.add_patch(Rectangle((130, 9), 7, 35, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((137, 14), 22, 26, facecolor="#e1e5e8", edgecolor=INK, lw=0.9))
+    ax.add_patch(Rectangle((159, 17), 13, 20, facecolor="#dcebdd", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Rectangle((172, 15), 30, 24, facecolor="#e8f0f6", edgecolor=BLUE, lw=0.9))
+    name = entry.name
+    if "PAD_SIZE" in name:
+        preferred = "pad_size"
+    elif "PAD_GAP" in name:
+        preferred = "pad_gap"
+    elif "CENTERLINE_OFFSET" in name or "CENTER_TANGENTS" in name:
+        preferred = "fan_position"
+    elif "CENTER_Z" in name:
+        preferred = "fan_center_z"
+    elif "WALL_ANGLE_SAMPLE_DISTANCE" in name:
+        preferred = "wall_sample"
+    elif "PAD_FACE_OUTSET" in name:
+        preferred = "pad_outset"
+    elif "MOUNT_SPACING" in name:
+        preferred = "mount_spacing"
+    elif "MOUNT_HOLE_DIAMETER" in name or "SCREW_CLEARANCE" in name:
+        preferred = "mount_hole_diameter"
+    elif "AIR_OPENING_DIAMETER" in name or "GASKET_INNER_DIAMETER" in name:
+        preferred = "diameter"
+    elif "HUB_DIAMETER" in name:
+        preferred = "hub_diameter"
+    elif "SLEEVE_OUTER_DIAMETER" in name:
+        preferred = "mount_sleeve_diameter"
+    elif "FRAME_SIZE" in name or "GASKET_OUTER_SIZE" in name:
+        preferred = "frame_size"
+    elif "FAN_DEPTH" in name:
+        preferred = "fan_depth"
+    elif "GASKET_THICKNESS" in name:
+        preferred = "gasket_thickness"
+    elif "BODY_CLEARANCE" in name:
+        preferred = "gap"
+    elif "CUTTER_INWARD_EXTENSION" in name:
+        preferred = "cutter_extension"
+    elif "MIN_WEB" in name:
+        preferred = "pad_web"
+    elif "AUTO_LID_POST_MAX_X" in name:
+        preferred = "fan_position"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "40 MM FAN PAD ELEVATION / FAN-TO-BOOT SECTION",
+        h=(137, 159, 7, 9), v=(10, 44, 211, 202),
+        gap=((159, 27), (172, 27)), diameter=(60.5, 27, 12),
+        radial=(60.5, 27, 0, 12), position=((23, 10), (60.5, 27)),
+        area=(60.5, 27),
+        anchors={
+            "pad_size": ("h", (23, 98, 7, 10)),
+            "pad_gap": ("gap", ((98, 27), (105, 27))),
+            "fan_position": ("position", ((23, 10), (60.5, 27))),
+            "fan_center_z": ("v", (10, 27, 105, 98)),
+            "wall_sample": ("h", (130, 137, 7, 9)),
+            "pad_outset": ("h", (130, 137, 47, 44)),
+            "mount_spacing": ("h", (45, 76, 47, 36)),
+            "mount_hole_diameter": ("diameter", (45, 18, 1.5)),
+            "hub_diameter": ("diameter", (60.5, 27, 6)),
+            "mount_sleeve_diameter": ("diameter", (76, 36, 2.2)),
+            "frame_size": ("h", (37, 84, 47, 42)),
+            "fan_depth": ("h", (137, 159, 7, 9)),
+            "gasket_thickness": ("h", (159, 172, 42, 37)),
+            "cutter_extension": ("h", (172, 202, 42, 39)),
+            "pad_web": ("h", (23, 37, 47, 44)),
+        },
+        preferred=preferred,
+    )
+
+
+def _catalog_scene_bottom_mount(ax, entry):
+    ax.add_patch(Rectangle((25, 9), 180, 6, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((81, 15), 68, 27, facecolor="#dcebdd", edgecolor=GREEN, lw=1.0))
+    ax.add_patch(Rectangle((100, 18), 30, 12, facecolor="#d8b66a", edgecolor=INK, lw=0.9,
+                           hatch="///"))
+    ax.add_patch(Rectangle((109, 7), 12, 35, facecolor=WHITE, edgecolor=INK, lw=0.8))
+    ax.add_patch(Polygon([(100, 30), (94, 35), (100, 38), (108, 31)], closed=True,
+                         facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+    ax.add_patch(Polygon([(130, 30), (136, 35), (130, 38), (122, 31)], closed=True,
+                         facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+    name = entry.name
+    if "HOLDER_OUTER_DIAMETER" in name:
+        preferred = "holder_diameter"
+    elif "DIAMETER" in name:
+        preferred = "diameter"
+    elif "ACROSS_FLATS" in name:
+        preferred = "nut_width"
+    elif "ROTATION" in name:
+        preferred = "angle"
+    elif "HOLE_LATERAL_TARGET" in name or "HOLE_SEARCH" in name:
+        preferred = "hole_position"
+    elif name == "BOTTOM_MOUNT_NUT_THICKNESS":
+        preferred = "nut_thickness"
+    elif "SNAP_LIP_HEIGHT" in name:
+        preferred = "lip_height"
+    elif "SNAP_LIP_PROJECTION" in name:
+        preferred = "lip_projection"
+    elif "SNAP_LIP_WIDTH" in name:
+        preferred = "lip_width"
+    elif "FLEX_WALL_THICKNESS" in name:
+        preferred = "flex_wall"
+    elif "RELIEF_DEPTH" in name:
+        preferred = "relief_depth"
+    elif "SIDE_SLOT_WIDTH" in name:
+        preferred = "side_slot"
+    elif "FLEX_HEIGHT" in name:
+        preferred = "flex_height"
+    elif "SNAP_ROOT_EMBED" in name:
+        preferred = "lip_embed"
+    elif "HOLDER_MIN_WALL" in name:
+        preferred = "holder_wall"
+    elif "MIN_SEAT_WIDTH" in name:
+        preferred = "seat_width"
+    elif any(token in name for token in ("CLEARANCE", "INTERFERENCE", "TOLERANCE")):
+        preferred = "gap"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "CAPTIVE 1/4-20 NUT BOSS / SNAP-LIP SECTION",
+        h=(81, 149, 7, 9), v=(9, 42, 159, 149),
+        gap=((100, 24), (109, 24)), diameter=(115, 27, 6),
+        radial=(115, 27, 6, 34), angle=(115, 27, 14, 0, 30),
+        position=((25, 9), (115, 27)), area=(115, 27),
+        anchors={
+            "holder_diameter": ("h", (81, 149, 7, 9)),
+            "nut_width": ("h", (100, 130, 16, 18)),
+            "hole_position": ("position", ((25, 9), (115, 27))),
+            "nut_thickness": ("v", (18, 30, 136, 130)),
+            "lip_height": ("v", (30, 38, 91, 94)),
+            "lip_projection": ("h", (94, 100, 40, 38)),
+            "lip_width": ("h", (94, 108, 40, 38)),
+            "flex_wall": ("h", (81, 94, 33, 35)),
+            "relief_depth": ("v", (30, 35, 89, 94)),
+            "side_slot": ("h", (108, 121, 45, 42)),
+            "flex_height": ("v", (30, 38, 91, 94)),
+            "lip_embed": ("h", (100, 108, 40, 38)),
+            "holder_wall": ("h", (81, 100, 16, 18)),
+            "seat_width": ("h", (100, 109, 16, 18)),
+        },
+        preferred=preferred,
+    )
+
+
+def _catalog_scene_keystone(ax, entry):
+    ax.add_patch(Rectangle((28, 13), 61, 28, facecolor="#e8dff3", edgecolor=PURPLE, lw=1.0))
+    ax.add_patch(Rectangle((39, 19), 39, 16, facecolor=WHITE, edgecolor=INK, lw=0.9))
+    ax.add_patch(Rectangle((34, 17), 49, 20, fill=False, edgecolor=ORANGE, lw=0.8, ls="--"))
+    ax.add_patch(Rectangle((112, 10), 91, 5, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Rectangle((137, 15), 35, 14, facecolor="#e8dff3", edgecolor=PURPLE, lw=1.0))
+    ax.add_patch(Rectangle((143, 29), 23, 15, facecolor="#d9dde1", edgecolor=INK, lw=0.9))
+    ax.add_patch(Rectangle((141, 8), 27, 2, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+    ax.plot([128, 182], [10, 10], color=ORANGE, lw=1.1)
+    name = entry.name
+    if "ROTATION" in name:
+        preferred = "angle"
+    elif "HEIGHT" in name:
+        preferred = "socket_height"
+    elif "FACE_RECESS_DEPTH" in name:
+        preferred = "face_recess"
+    elif "INNER_CLEAR_X" in name or "CUTOUT_X" in name:
+        preferred = "inner_x"
+    elif "INNER_CLEAR_Y" in name or "CUTOUT_Y" in name:
+        preferred = "inner_y"
+    elif "FACE_POCKET_X" in name:
+        preferred = "face_x"
+    elif "FACE_POCKET_Y" in name:
+        preferred = "face_y"
+    elif "INTERNAL_BODY_X" in name:
+        preferred = "body_x"
+    elif "INTERNAL_BODY_Y" in name:
+        preferred = "outer_y"
+    elif "_X" in name:
+        preferred = "outer_x"
+    elif "_Y" in name:
+        preferred = "outer_y"
+    elif "CENTER_SPACING" in name:
+        preferred = "center_spacing"
+    elif "INSET" in name or "SEARCH" in name:
+        preferred = "socket_position"
+    elif "CLEARANCE" in name or "TOLERANCE" in name:
+        preferred = "gap"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "KEYSTONE SNAP SOCKET PLAN / FLUSH-FACE SECTION",
+        h=(28, 89, 8, 13), v=(10, 44, 211, 203),
+        gap=((39, 27), (28, 27)), diameter=(58.5, 27, 8),
+        radial=(58.5, 27, 0, 12), angle=(58.5, 27, 14, 0, 25),
+        position=((112, 10), (154.5, 29)), area=(58.5, 27),
+        anchors={
+            "outer_x": ("h", (28, 89, 8, 13)),
+            "outer_y": ("v", (13, 41, 96, 89)),
+            "inner_x": ("h", (39, 78, 16, 19)),
+            "inner_y": ("v", (19, 35, 84, 78)),
+            "face_x": ("h", (34, 83, 44, 37)),
+            "face_y": ("v", (17, 37, 96, 83)),
+            "body_x": ("h", (143, 166, 47, 44)),
+            "socket_height": ("v", (10, 44, 211, 203)),
+            "face_recess": ("v", (8, 10, 174, 168)),
+            "center_spacing": ("h", (58.5, 154.5, 7, 13)),
+            "socket_position": ("position", ((112, 10), (154.5, 29))),
+        },
+        preferred=preferred,
+    )
+
+
+def _catalog_scene_shell(ax, entry):
+    outline = [(x + 73, y * 0.36 + 27) for x, y in soft_triangle(92, 72, 0.72, 0.55, 60)]
+    ax.add_patch(Polygon(outline, closed=True, facecolor="#edf4f7", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Polygon([(132, 12), (214, 12), (214, 31), (132, 39)], closed=True,
+                         facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Polygon([(132, 17), (207, 17), (207, 27), (132, 34)], closed=True,
+                         facecolor=WHITE, edgecolor=CYAN, lw=0.8))
+    ax.add_patch(Polygon([(139, 38), (158, 45), (179, 38)], closed=True,
+                         facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
+    name = entry.name
+    if name == "BODY_WIDTH":
+        preferred = "plan_width"
+    elif name == "BODY_DEPTH":
+        preferred = "plan_depth"
+    elif name == "BODY_HEIGHT":
+        preferred = "body_height"
+    elif "HEIGHT" in name or "THICKNESS" in name or "_Z" in name or "SKIN" in name or "WEB" in name:
+        preferred = "section_vertical"
+    elif "VISOR" in name and "WIDTH" in name:
+        preferred = "visor_width"
+    elif "VISOR" in name and ("INSET" in name or "PROJECTION" in name):
+        preferred = "visor_depth"
+    elif "RADIUS" in name:
+        preferred = "radial"
+    elif "CLEARANCE" in name:
+        preferred = "gap"
+    else:
+        preferred = None
+    return _catalog_scene(
+        "ROUNDED-TRIANGULAR HULL PLAN / HOLLOW SHELL SECTION",
+        h=(27, 119, 8, 14), v=(12, 39, 222, 214),
+        gap=((207, 27), (214, 27)), diameter=(73, 27, 10),
+        radial=(27, 27, 0, 12), position=((27, 27), (119, 27)),
+        area=(173, 25),
+        anchors={
+            "plan_width": ("v", (14, 40, 125, 119)),
+            "plan_depth": ("h", (27, 119, 8, 14)),
+            "body_height": ("v", (12, 39, 222, 214)),
+            "section_vertical": ("v", (17, 34, 212, 207)),
+            "visor_width": ("h", (139, 179, 48, 45)),
+            "visor_depth": ("h", (132, 214, 8, 12)),
+        },
+        preferred=preferred,
+    )
+
+
+def _catalog_scene_camera_layout(ax, entry):
+    outline = [(x + 115, y * 0.28 + 27) for x, y in soft_triangle(188, 105, 0.78, 0.55, 80)]
+    ax.add_patch(Polygon(outline, closed=True, facecolor="#edf4f7", edgecolor=BLUE, lw=1.0))
+    for angle, cy in ((35, 35), (-35, 19)):
+        ax.add_patch(Polygon(rotated_rect(79, cy, 58, 19, angle), closed=True,
+                             facecolor="#e1e5e8", edgecolor=INK, lw=0.9))
+        rad = math.radians(angle)
+        ax.add_patch(Circle((51, cy - 28 * math.sin(rad)), 5,
+                            facecolor="#9bc4da", edgecolor=CYAN, lw=0.8))
+    ax.add_patch(Circle((93, 19), 2.5, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+    ax.add_patch(Arc((93, 19), 38, 38, theta1=-12, theta2=12, edgecolor=ORANGE, lw=1.0))
+    name = entry.name
+    preferred = "angle" if any(token in name for token in ("DEG", "ANGLE", "AZIMUTH")) else (
+        "diameter" if "DIAMETER" in name else (
+            "v" if "HEIGHT" in name or "_Z" in name or "LIFT" in name else (
+                "gap" if "CLEARANCE" in name or "TOLERANCE" in name else None
+            )
+        )
+    )
+    return _catalog_scene(
+        "DUAL CAMERA AXES / EYE PROJECTION / YAW SWEEP PLAN",
+        h=(21, 209, 8, 13), v=(13, 41, 218, 209),
+        gap=((105, 27), (119, 27)), diameter=(93, 19, 2.5),
+        radial=(93, 19, 2.5, 19), angle=(93, 19, 19, -12, 12),
+        position=((115, 27), (51, 35)), area=(80, 27), preferred=preferred,
+    )
+
+
+def _catalog_scene_assembly(ax, entry):
+    ax.add_patch(Polygon([(26, 10), (202, 10), (194, 28), (36, 28)], closed=True,
+                         facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
+    _catalog_camera_body(ax, 61, 15, 55, 18, lens=False, alpha=0.9)
+    ax.add_patch(Rectangle((128, 15), 48, 16, facecolor="#e8f0f6", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Rectangle((31, 39), 166, 5, facecolor="#edf4f7", edgecolor=BLUE, lw=1.0))
+    for x in (48, 181):
+        ax.add_patch(FancyArrowPatch((x, 37), (x, 30), arrowstyle="-|>",
+                                     mutation_scale=7, color=ORANGE, lw=0.8))
+    preferred = "v" if "LIFT" in entry.name else (
+        "gap" if "TOLERANCE" in entry.name or "CLEARANCE" in entry.name else None
+    )
+    return _catalog_scene(
+        "EXPLODED CASE LID / CAMERAS / ACOUSTIC CASSETTE",
+        h=(26, 202, 7, 10), v=(10, 44, 212, 202),
+        gap=((181, 28), (181, 39)), diameter=(48, 34, 3),
+        radial=(48, 34, 0, 6), position=((26, 10), (181, 39)),
+        area=(152, 23), preferred=preferred,
+    )
+
+
+def _catalog_scene_manufacturing(ax, entry):
+    ax.add_patch(Polygon([(28, 11), (199, 11), (190, 39), (38, 39)], closed=True,
+                         facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Polygon([(38, 16), (190, 16), (183, 34), (45, 34)], closed=True,
+                         facecolor=WHITE, edgecolor=CYAN, lw=0.8))
+    ax.add_patch(Rectangle((101, 7), 29, 36, facecolor="#f3c7aa", edgecolor=ORANGE,
+                           lw=0.9, alpha=0.60, hatch="//"))
+    ax.add_patch(Circle((163, 16), 5, facecolor=WHITE, edgecolor=RED, lw=0.8))
+    ax.plot([160, 166], [16, 16], color=RED, lw=1.4)
+    preferred = "gap" if "OVERLAP" in entry.name or "CLEANUP" in entry.name else None
+    return _catalog_scene(
+        "FINAL SHELL / BOOLEAN CUTTER / MICRO-BOUNDARY DETAIL",
+        h=(101, 130, 7, 11), v=(11, 39, 208, 199),
+        gap=((130, 25), (137, 25)), diameter=(163, 16, 5),
+        radial=(163, 16, 0, 5), position=((28, 11), (163, 16)),
+        area=(115, 25), preferred=preferred,
+    )
+
+
+CATALOG_SCENE_DRAWERS = {
+    "mission1": _catalog_scene_mission1,
+    "rear_taper": _catalog_scene_rear_taper,
+    "eye": _catalog_scene_eye,
+    "front_stops": _catalog_scene_front_stops,
+    "brackets": _catalog_scene_brackets,
+    "cradle_cooling": _catalog_scene_cradle,
+    "lid_fasteners": _catalog_scene_lid_fasteners,
+    "carrier": _catalog_scene_carrier,
+    "worm": _catalog_scene_worm,
+    "idler": _catalog_scene_idler,
+    "gear_mesh": _catalog_scene_gear_mesh,
+    "acoustic": _catalog_scene_acoustic,
+    "rear_fans": _catalog_scene_rear_fans,
+    "bottom_mount": _catalog_scene_bottom_mount,
+    "keystone": _catalog_scene_keystone,
+    "shell": _catalog_scene_shell,
+    "camera_layout": _catalog_scene_camera_layout,
+    "assembly": _catalog_scene_assembly,
+    "manufacturing": _catalog_scene_manufacturing,
+    "misc": _catalog_scene_shell,
+}
+
+
+def _catalog_dimension_mode(entry, scene):
+    if scene.get("preferred"):
+        return scene["preferred"]
+    if entry.kind == "angular dimension":
+        return "angle"
+    if entry.kind == "diameter / bore":
+        return "diameter"
+    if entry.kind == "radial dimension":
+        return "radial"
+    if entry.kind in ("fit / clearance", "annular web"):
+        return "gap"
+    if entry.kind in ("counterbore depth", "counterbore floor", "section / vertical"):
+        return "v"
+    if entry.kind in ("coordinate position", "multi-axis dimensions", "loft/profile coordinates"):
+        return "position"
+    if entry.kind in ("area dimension", "volume dimension"):
+        return "area"
+    if entry.kind == "pitch / module":
+        return "gap"
+    if entry.kind == "offset / position" and any(
+        token in entry.name
+        for token in ("HEIGHT", "_Z", "THICKNESS", "FLOOR", "LIFT", "EMBED")
+    ):
+        return "v"
+    return "h"
+
+
+def _catalog_draw_measurement(ax, entry, scene):
+    mode = _catalog_dimension_mode(entry, scene)
+    anchor = scene.get("anchors", {}).get(mode)
+    if anchor is None:
+        draw_mode = mode
+        measurement = scene[mode]
+    else:
+        draw_mode, measurement = anchor
+    color = {
+        "angle": ORANGE,
+        "diameter": RED,
+        "radial": PURPLE,
+        "gap": GREEN,
+        "v": ORANGE,
+        "position": CYAN,
+        "area": GREEN,
+    }.get(draw_mode, BLUE)
+
+    if draw_mode == "h":
+        x1, x2, y, object_y = measurement
+        ax.plot([x1, x1], [object_y, y], color=color, lw=0.65)
+        ax.plot([x2, x2], [object_y, y], color=color, lw=0.65)
+        _catalog_arrow(ax, (x1, y), (x2, y), color)
+    elif draw_mode == "v":
+        y1, y2, x, object_x = measurement
+        ax.plot([object_x, x], [y1, y1], color=color, lw=0.65)
+        ax.plot([object_x, x], [y2, y2], color=color, lw=0.65)
+        _catalog_arrow(ax, (x, y1), (x, y2), color)
+    elif draw_mode == "gap":
+        p1, p2 = measurement
+        _catalog_arrow(ax, p1, p2, color, scale=7)
+        ax.add_patch(Circle(p1, 0.8, facecolor=color, edgecolor="none", zorder=9))
+        ax.add_patch(Circle(p2, 0.8, facecolor=color, edgecolor="none", zorder=9))
+    elif draw_mode == "diameter":
+        cx, cy, radius = measurement
+        centerline(ax, (cx - radius - 3, cy), (cx + radius + 3, cy))
+        _catalog_arrow(ax, (cx - radius, cy), (cx + radius, cy), color, scale=7)
+    elif draw_mode == "radial":
+        cx, cy, inner_radius, outer_radius = measurement
+        angle = math.radians(35)
+        p1 = (cx + inner_radius * math.cos(angle), cy + inner_radius * math.sin(angle))
+        p2 = (cx + outer_radius * math.cos(angle), cy + outer_radius * math.sin(angle))
+        ax.add_patch(FancyArrowPatch(p1, p2, arrowstyle="-|>", mutation_scale=7,
+                                     color=color, lw=0.9, zorder=9))
+        ax.add_patch(Circle((cx, cy), 0.8, facecolor=color, edgecolor="none", zorder=9))
+    elif draw_mode == "angle":
+        cx, cy, radius, theta1, theta2 = measurement
+        ax.add_patch(Arc((cx, cy), 2 * radius, 2 * radius,
+                         theta1=theta1, theta2=theta2, edgecolor=color, lw=1.3, zorder=9))
+        for theta in (theta1, theta2):
+            radians = math.radians(theta)
+            ax.plot([cx, cx + radius * math.cos(radians)],
+                    [cy, cy + radius * math.sin(radians)], color=color, lw=0.7, zorder=8)
+    elif draw_mode == "position":
+        datum, target = measurement
+        ax.plot([datum[0], target[0]], [datum[1], datum[1]], color=color, lw=0.7, ls="--")
+        ax.plot([target[0], target[0]], [datum[1], target[1]], color=color, lw=0.7, ls="--")
+        ax.add_patch(FancyArrowPatch(datum, target, arrowstyle="-|>", mutation_scale=7,
+                                     color=color, lw=0.9, zorder=9))
+        ax.add_patch(Circle(target, 1.1, facecolor=color, edgecolor=WHITE, lw=0.4, zorder=10))
+        ax.text(datum[0], datum[1] - 1.5, "DATUM", ha="center", va="top",
+                fontsize=4.2, color=GRAY)
+    else:
+        point = measurement
+        ax.add_patch(Circle(point, 4.5, fill=False, edgecolor=color, lw=1.0, hatch="//"))
+        ax.plot([point[0], CATALOG_CENTER_X], [point[1] - 4.5, 6.0],
+                color=color, lw=0.7, zorder=8)
+
+    _catalog_label(ax, entry, color=color)
+
+
+def draw_dimension_glyph(ax, entry: DimensionEntry):
+    """Draw an exact dimension on a feature-specific part or assembly view."""
+    ax.set_xlim(0, CATALOG_X_MAX)
+    ax.set_ylim(0, CATALOG_Y_MAX)
+    ax.set_aspect("equal", adjustable="box")
+    drawer = CATALOG_SCENE_DRAWERS.get(entry.feature_key)
+    if drawer is None:
+        raise RuntimeError(f"No catalog scene renderer for feature {entry.feature_key}")
+    scene = drawer(ax, entry)
+    ax.text(CATALOG_CENTER_X, 45.0, scene["title"], ha="center", va="center",
+            fontsize=5.7, weight="bold", color=GRAY,
+            bbox=dict(facecolor=WHITE, edgecolor="none", pad=0.7, alpha=0.88), zorder=18)
+    _catalog_draw_measurement(ax, entry, scene)
 
 
 def dimension_card(fig, rect, entry: DimensionEntry):
@@ -1081,10 +2147,9 @@ def dimension_card(fig, rect, entry: DimensionEntry):
 
 def page_dimension_catalog(pdf):
     card_rects = (
-        (0.065, 0.690, 0.87, 0.180),
-        (0.065, 0.495, 0.87, 0.180),
-        (0.065, 0.300, 0.87, 0.180),
-        (0.065, 0.105, 0.87, 0.180),
+        (0.065, 0.625, 0.87, 0.245),
+        (0.065, 0.365, 0.87, 0.245),
+        (0.065, 0.105, 0.87, 0.245),
     )
     for section in FEATURE_SECTIONS:
         page_count = math.ceil(len(section.entries) / CATALOG_CARDS_PER_PAGE)
@@ -1096,7 +2161,7 @@ def page_dimension_catalog(pdf):
                     f"next runtime page is {CURRENT_SHEET + 1}"
                 )
             fig = new_sheet(None, f"DIMENSION CATALOG — {section.title.upper()}",
-                            f"Feature sheet {page_offset + 1}/{page_count} • exact variable names • normalized engineering views • NTS")
+                            f"Feature sheet {page_offset + 1}/{page_count} • exact variable names • feature-specific part views • NTS")
             start = page_offset * CATALOG_CARDS_PER_PAGE
             chunk = section.entries[start:start + CATALOG_CARDS_PER_PAGE]
             for rect, entry in zip(card_rects, chunk):

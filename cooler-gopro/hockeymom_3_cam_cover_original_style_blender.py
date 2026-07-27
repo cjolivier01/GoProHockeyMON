@@ -1206,10 +1206,10 @@ REAR_FAN_MOUNT_SPACING = 32.0
 REAR_FAN_MOUNT_HOLE_DIAMETER = 3.4
 REAR_FAN_AIR_OPENING_DIAMETER = 36.0
 REAR_FAN_FRAME_SIZE = 40.0
-# Default model is a 40 x 40 x 10 mm Noctua-style fan mounted inside and
-# blowing inward.  The keepout is validated against both camera stations and
-# every cartridge yaw pose; change depth for a 40 x 20 mm fan.
-REAR_FAN_DEPTH = 10.0
+# Configured model is a 40 x 40 x 20 mm fan mounted inside and blowing inward.
+# The keepout is validated against both camera stations and every cartridge
+# yaw pose; use 10 mm for the original slim-fan layout.
+REAR_FAN_DEPTH = 20.0
 REAR_FAN_HUB_DIAMETER = 20.0
 REAR_FAN_BODY_CLEARANCE = 1.0
 REAR_FAN_AIRFLOW_DIRECTION = "intake"
@@ -10932,11 +10932,268 @@ def camera_bracket_post_installation_clearance(position, camera) -> float:
     return body_back - post_front
 
 
+def camera_bracket_primary_plate_plan_bounds(camera):
+    """Return the fixed bracket's exact primary-plate bounds in camera axes."""
+    body_radial, body_tangent, _body_vertical = mission1.canonical_body_bounds(
+        CAMERA_UPSIDE_DOWN
+    )
+    lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
+    body_back = lens_face_radius + body_radial[0]
+    body_tangent_center = camera["eye_tangent"] + sum(body_tangent) / 2.0
+    rail_tangents = tuple(
+        camera.get(
+            "bracket_contact_rail_tangents",
+            (
+                camera["eye_tangent"]
+                + body_tangent[0]
+                + CAMERA_BRACKET_CONTACT_RAIL_EDGE_INSET,
+                camera["eye_tangent"]
+                + body_tangent[1]
+                - CAMERA_BRACKET_CONTACT_RAIL_EDGE_INSET,
+            ),
+        )
+    )
+    if CAMERA_BRACKET_COMPACT_OUTER_RAIL_ONLY:
+        lip_tangent_center = rail_tangents[0]
+        lip_width = CAMERA_BRACKET_COMPACT_REAR_LIP_WIDTH
+    else:
+        lip_tangent_center = body_tangent_center
+        lip_width = CAMERA_BRACKET_REAR_LIP_WIDTH
+
+    tangent_extensions = []
+    if CAMERA_BRACKET_USB_SIDE_LOCATOR_ENABLED:
+        usb_side_sign = camera_usb_side_sign()
+        usb_side_tangent = (
+            body_tangent[0] if usb_side_sign < 0.0 else body_tangent[1]
+        )
+        locator_center = (
+            camera["eye_tangent"]
+            + usb_side_tangent
+            + usb_side_sign
+            * (
+                CAMERA_BRACKET_USB_SIDE_LOCATOR_CLEARANCE
+                + CAMERA_BRACKET_USB_SIDE_LOCATOR_THICKNESS / 2.0
+            )
+        )
+        locator_bounds = (
+            locator_center - CAMERA_BRACKET_USB_SIDE_LOCATOR_THICKNESS / 2.0,
+            locator_center + CAMERA_BRACKET_USB_SIDE_LOCATOR_THICKNESS / 2.0,
+        )
+        tangent_extensions.append(locator_bounds)
+        if CAMERA_BRACKET_SIDE_LOCATOR_GUSSETS_ENABLED:
+            locator_outer = (
+                locator_center
+                + usb_side_sign
+                * CAMERA_BRACKET_USB_SIDE_LOCATOR_THICKNESS
+                / 2.0
+            )
+            tangent_extensions.append(
+                tuple(
+                    sorted(
+                        (
+                            locator_outer,
+                            locator_outer
+                            + usb_side_sign
+                            * CAMERA_BRACKET_SIDE_LOCATOR_GUSSET_REACH,
+                        )
+                    )
+                )
+            )
+        if CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED:
+            locator_outer = (
+                locator_center
+                + usb_side_sign
+                * CAMERA_BRACKET_USB_SIDE_LOCATOR_THICKNESS
+                / 2.0
+            )
+            tangent_extensions.append(
+                tuple(
+                    sorted(
+                        (
+                            locator_outer,
+                            camera["eye_tangent"]
+                            + usb_side_tangent
+                            - usb_side_sign
+                            * CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH,
+                        )
+                    )
+                )
+            )
+    if CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_ENABLED:
+        non_usb_side_sign = -camera_usb_side_sign()
+        non_usb_side_tangent = (
+            body_tangent[0]
+            if non_usb_side_sign < 0.0
+            else body_tangent[1]
+        )
+        locator_center = (
+            camera["eye_tangent"]
+            + non_usb_side_tangent
+            + non_usb_side_sign
+            * (
+                CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_CLEARANCE
+                + CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_THICKNESS / 2.0
+            )
+        )
+        locator_bounds = (
+            locator_center
+            - CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_THICKNESS / 2.0,
+            locator_center
+            + CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_THICKNESS / 2.0,
+        )
+        tangent_extensions.append(locator_bounds)
+        if CAMERA_BRACKET_SIDE_LOCATOR_GUSSETS_ENABLED:
+            locator_outer = (
+                locator_center
+                + non_usb_side_sign
+                * CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_THICKNESS
+                / 2.0
+            )
+            tangent_extensions.append(
+                tuple(
+                    sorted(
+                        (
+                            locator_outer,
+                            locator_outer
+                            + non_usb_side_sign
+                            * CAMERA_BRACKET_SIDE_LOCATOR_GUSSET_REACH,
+                        )
+                    )
+                )
+            )
+        if CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED:
+            locator_outer = (
+                locator_center
+                + non_usb_side_sign
+                * CAMERA_BRACKET_NON_USB_SIDE_LOCATOR_THICKNESS
+                / 2.0
+            )
+            tangent_extensions.append(
+                tuple(
+                    sorted(
+                        (
+                            locator_outer,
+                            camera["eye_tangent"]
+                            + non_usb_side_tangent
+                            - non_usb_side_sign
+                            * CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH,
+                        )
+                    )
+                )
+            )
+
+    rear_guide_radial_min = (
+        body_back
+        - CAMERA_BRACKET_REAR_CLEARANCE
+        - CAMERA_BRACKET_REAR_LIP_THICKNESS
+    )
+    radial_min = body_back - CAMERA_BRACKET_PRIMARY_REAR_OVERLAP
+    radial_max = body_back + CAMERA_BRACKET_OVER_CAMERA_DEPTH
+    tangent_min = min(
+        lip_tangent_center - lip_width / 2.0,
+        min(rail_tangents) - CAMERA_BRACKET_CONTACT_RAIL_WIDTH / 2.0,
+    ) - CAMERA_BRACKET_PRIMARY_TANGENTIAL_MARGIN
+    tangent_max = max(
+        lip_tangent_center + lip_width / 2.0,
+        max(rail_tangents) + CAMERA_BRACKET_CONTACT_RAIL_WIDTH / 2.0,
+    ) + CAMERA_BRACKET_PRIMARY_TANGENTIAL_MARGIN
+    for lower, upper in tangent_extensions:
+        tangent_min = min(tangent_min, lower)
+        tangent_max = max(tangent_max, upper)
+    if CAMERA_BRACKET_L_CORNER_GUIDES_ENABLED:
+        radial_min = min(
+            radial_min,
+            rear_guide_radial_min - CAMERA_BRACKET_GUIDE_PLATE_OVERHANG,
+        )
+        radial_max = max(
+            radial_max,
+            body_back
+            + CAMERA_BRACKET_OVER_CAMERA_DEPTH
+            + CAMERA_BRACKET_GUIDE_PLATE_OVERHANG,
+        )
+        tangent_min -= CAMERA_BRACKET_GUIDE_PLATE_OVERHANG
+        tangent_max += CAMERA_BRACKET_GUIDE_PLATE_OVERHANG
+    return radial_min, radial_max, tangent_min, tangent_max
+
+
+def camera_bracket_arm_removal_keepouts(camera, position):
+    """Cover one generated bracket arm with conservative plan-view disks."""
+    start = Vector((position[0], position[1]))
+    if camera_is_adjustable(camera):
+        pivot = adjustable_camera_pivot(camera)
+        center_radius = CAMERA_HOLD_DOWN_CENTER_PLATE_DIAMETER / 2.0
+        vector = Vector((pivot.x - start.x, pivot.y - start.y))
+        # Match create_adjustable_camera_hold_down(): a post already inside
+        # the center disk needs no separate arm at all.
+        if vector.length - center_radius <= 1e-6:
+            return ()
+        unit = vector.normalized()
+        end = Vector((pivot.x, pivot.y)) - unit * center_radius * 0.65
+        overlap = CAMERA_BRACKET_ARM_PLATE_OVERLAP / 2.0
+    else:
+        angle = math.radians(camera["angle"])
+        normal = Vector((math.cos(angle), math.sin(angle)))
+        tangent = Vector((-math.sin(angle), math.cos(angle)))
+        post_radial = start.dot(normal)
+        post_tangent = start.dot(tangent)
+        radial_min, radial_max, tangent_min, tangent_max = (
+            camera_bracket_primary_plate_plan_bounds(camera)
+        )
+        target_radial = min(
+            max(post_radial, radial_min + CAMERA_BRACKET_ARM_PLATE_EMBED),
+            radial_max - CAMERA_BRACKET_ARM_PLATE_EMBED,
+        )
+        target_tangent = min(
+            max(post_tangent, tangent_min + CAMERA_BRACKET_ARM_PLATE_EMBED),
+            tangent_max - CAMERA_BRACKET_ARM_PLATE_EMBED,
+        )
+        end = normal * target_radial + tangent * target_tangent
+        vector = end - start
+        if vector.length <= 1e-9:
+            return ()
+        unit = vector.normalized()
+        overlap = CAMERA_BRACKET_ARM_PLATE_OVERLAP
+    start -= unit * overlap
+    end += unit * overlap
+    length = (end - start).length
+    segment_count = max(1, int(math.ceil(length / 2.0)))
+    segment_length = length / segment_count
+    # Enlarging the physical half-width by half a sample step makes the union
+    # of disks conservative for the complete rectangular arm, including its
+    # rounded/beveled corners.  Cassette service/remesh clearance is added by
+    # fan_acoustic_case_post_chamfer().
+    sample_radius = math.hypot(
+        CAMERA_BRACKET_ARM_WIDTH / 2.0,
+        segment_length / 2.0,
+    )
+    return tuple(
+        (
+            float((start + (end - start) * (index / segment_count)).x),
+            float((start + (end - start) * (index / segment_count)).y),
+            sample_radius,
+        )
+        for index in range(segment_count + 1)
+    )
+
+
+def camera_bracket_post_roof_fits(position) -> bool:
+    """Check a bracket post against the already-resolved, immutable roof."""
+    bracket_underside, _bracket_top = camera_bracket_z_bounds()
+    post_top = bracket_underside - camera_bracket_clamp_travel()
+    minimum_seam, _maximum_seam = local_disk_seam_bounds(
+        position[0],
+        position[1],
+        CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0,
+    )
+    return minimum_seam - post_top >= FASTENER_POST_TOP_CLEARANCE
+
+
 def resolve_camera_bracket_post_positions(
     cameras,
     footprint,
     lid_positions,
     mechanism=None,
+    acoustic_geometry=None,
 ):
     if not CAMERA_BRACKETS_ENABLED:
         return ((), ())
@@ -10955,8 +11212,7 @@ def resolve_camera_bracket_post_positions(
         mechanism,
     )
     targets = camera_bracket_post_targets(cameras)
-    accepted = list(lid_positions)
-    resolved = []
+    fixed_positions = tuple(lid_positions)
     steps = int(
         math.ceil(
             CAMERA_BRACKET_POST_SEARCH_RADIUS / CAMERA_BRACKET_POST_SEARCH_STEP
@@ -10969,64 +11225,285 @@ def resolve_camera_bracket_post_positions(
         else CAMERA_INSTALLATION_REARWARD_TRAVEL
         + CAMERA_INSTALLATION_POST_CLEARANCE
     )
-    for camera_index in range(2):
+    minimum_pair_spacing = max(
+        FASTENER_POST_MIN_CENTER_SPACING,
+        CAMERA_BRACKET_POST_BASE_DIAMETER + FASTENER_POST_EDGE_CLEARANCE,
+    )
+    offsets = sorted(
+        (
+            (dx * dx + dy * dy, dx, dy)
+            for ix in range(-steps, steps + 1)
+            for iy in range(-steps, steps + 1)
+            for dx, dy in (
+                (
+                    ix * CAMERA_BRACKET_POST_SEARCH_STEP,
+                    iy * CAMERA_BRACKET_POST_SEARCH_STEP,
+                ),
+            )
+            if math.hypot(dx, dy) <= CAMERA_BRACKET_POST_SEARCH_RADIUS
+        ),
+        key=lambda item: (item[0], item[1], item[2]),
+    )
+    rejection_counts = [
+        [
+            {"acoustic": 0, "functional": 0, "installation": 0, "roof": 0}
+            for _post_index in range(2)
+        ]
+        for _camera_index in range(2)
+    ]
+    validity_cache = {}
+
+    def candidate_is_valid(camera_index, post_index, position):
+        key = (camera_index, post_index, position)
+        cached = validity_cache.get(key)
+        if cached is not None:
+            return cached
+        counts = rejection_counts[camera_index][post_index]
+        if acoustic_geometry is not None:
+            removal_keepouts = (
+                (
+                    position[0],
+                    position[1],
+                    CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0,
+                ),
+                *camera_bracket_arm_removal_keepouts(
+                    cameras[camera_index],
+                    position,
+                ),
+            )
+            if not all(
+                fan_acoustic_case_post_fits(
+                    (x, y),
+                    radius,
+                    acoustic_geometry,
+                )
+                for x, y, radius in removal_keepouts
+            ):
+                counts["acoustic"] += 1
+                validity_cache[key] = False
+                return False
+        if not post_is_valid(
+            position,
+            cameras,
+            inner_loop,
+            fixed_positions,
+            post_diameter=CAMERA_BRACKET_POST_BASE_DIAMETER,
+            mechanism=mechanism,
+            validation_context=validation_context,
+        ):
+            counts["functional"] += 1
+            validity_cache[key] = False
+            return False
+        if camera_bracket_post_installation_clearance(
+            position,
+            cameras[camera_index],
+        ) < required_installation_clearance:
+            counts["installation"] += 1
+            validity_cache[key] = False
+            return False
+        if not camera_bracket_post_roof_fits(position):
+            counts["roof"] += 1
+            validity_cache[key] = False
+            return False
+        validity_cache[key] = True
+        return True
+
+    def iter_balanced_choices(camera_index):
         first_target = targets[2 * camera_index]
         second_target = targets[2 * camera_index + 1]
-        candidates = []
-        for ix in range(-steps, steps + 1):
-            for iy in range(-steps, steps + 1):
-                dx = ix * CAMERA_BRACKET_POST_SEARCH_STEP
-                dy = iy * CAMERA_BRACKET_POST_SEARCH_STEP
-                if math.hypot(dx, dy) > CAMERA_BRACKET_POST_SEARCH_RADIUS:
-                    continue
-                first = (first_target[0] + dx, first_target[1] + dy)
-                second = (second_target[0] + dx, second_target[1] + dy)
-                candidates.append((dx * dx + dy * dy, first, second))
-        candidates.sort(key=lambda item: (item[0], item[1], item[2]))
-        selected = None
-        for _score, first, second in candidates:
-            if not post_is_valid(
-                first,
-                cameras,
-                inner_loop,
-                accepted,
-                post_diameter=CAMERA_BRACKET_POST_BASE_DIAMETER,
-                mechanism=mechanism,
-                validation_context=validation_context,
+        for score, dx, dy in offsets:
+            first = (first_target[0] + dx, first_target[1] + dy)
+            second = (second_target[0] + dx, second_target[1] + dy)
+            if (
+                candidate_is_valid(camera_index, 0, first)
+                and candidate_is_valid(camera_index, 1, second)
+                and math.dist(first, second) >= minimum_pair_spacing
             ):
-                continue
-            if not post_is_valid(
-                second,
-                cameras,
-                inner_loop,
-                [*accepted, first],
-                post_diameter=CAMERA_BRACKET_POST_BASE_DIAMETER,
-                mechanism=mechanism,
-                validation_context=validation_context,
-            ):
-                continue
-            if camera_bracket_post_installation_clearance(
-                first,
-                cameras[camera_index],
-            ) < required_installation_clearance:
-                continue
-            if camera_bracket_post_installation_clearance(
-                second,
-                cameras[camera_index],
-            ) < required_installation_clearance:
-                continue
-            selected = (first, second)
-            break
+                yield score, (first, second)
+
+    def choices_fit(positions, accepted):
+        return all(
+            math.dist(position, other) >= minimum_pair_spacing
+            for position in positions
+            for other in accepted
+        )
+
+    # Preserve the old fast path and exact default ordering.  Only materialize
+    # the complete search domains when the locally best balanced choices do
+    # not form a valid two-camera layout.
+    fast_result = []
+    fast_accepted = list(fixed_positions)
+    for camera_index in range(2):
+        selected = next(
+            (
+                positions
+                for _score, positions in iter_balanced_choices(camera_index)
+                if choices_fit(positions, fast_accepted)
+            ),
+            None,
+        )
         if selected is None:
-            raise ValueError(
-                f"No balanced camera-bracket post pair found for camera "
-                f"{camera_index + 1}; increase CAMERA_BRACKET_POST_SEARCH_RADIUS"
+            break
+        fast_result.append(selected)
+        fast_accepted.extend(selected)
+    search_nodes = 0
+    selected_mode = ("balanced", "balanced")
+    if len(fast_result) == 2:
+        result = tuple(fast_result)
+    else:
+        balanced_domains = [
+            tuple(iter_balanced_choices(camera_index))
+            for camera_index in range(2)
+        ]
+        individual_domains = []
+        for camera_index in range(2):
+            camera_domains = []
+            for post_index in range(2):
+                target = targets[2 * camera_index + post_index]
+                candidates = []
+                for score, dx, dy in offsets:
+                    position = (target[0] + dx, target[1] + dy)
+                    if candidate_is_valid(camera_index, post_index, position):
+                        candidates.append((score, (position,)))
+                camera_domains.append(tuple(candidates))
+            individual_domains.append(tuple(camera_domains))
+
+        modes = [
+            ("balanced", "balanced"),
+            ("balanced", "independent"),
+            ("independent", "balanced"),
+            ("independent", "independent"),
+        ]
+
+        def solve_domains(variables):
+            nonlocal search_nodes
+            selected = {}
+
+            def recurse(remaining_variables, accepted):
+                nonlocal search_nodes
+                if not remaining_variables:
+                    return dict(selected)
+                compatible_domains = []
+                for order, (variable, domain) in enumerate(remaining_variables):
+                    compatible_domain = tuple(
+                        choice
+                        for choice in domain
+                        if choices_fit(choice[1], accepted)
+                    )
+                    if not compatible_domain:
+                        return None
+                    compatible_domains.append(
+                        (len(compatible_domain), order, variable, compatible_domain)
+                    )
+                # Minimum-remaining-values ordering makes exhaustive failure
+                # practical when one post or pair has a tight feasible region.
+                # Domain order itself remains the deterministic displacement
+                # order used by the original solver.
+                _length, chosen_order, variable, domain = min(
+                    compatible_domains,
+                    key=lambda item: (item[0], item[1]),
+                )
+                next_variables = tuple(
+                    (candidate_variable, candidate_domain)
+                    for _count, order, candidate_variable, candidate_domain in (
+                        compatible_domains
+                    )
+                    if order != chosen_order
+                )
+                for _score, positions in domain:
+                    search_nodes += 1
+                    next_accepted = (*accepted, *positions)
+                    selected[variable] = positions
+                    solved = recurse(next_variables, next_accepted)
+                    if solved is not None:
+                        return solved
+                    selected.pop(variable, None)
+                return None
+
+            return recurse(tuple(variables), fixed_positions)
+
+        result = None
+        for mode in modes:
+            variables = []
+            for camera_index, placement_mode in enumerate(mode):
+                if placement_mode == "balanced":
+                    variables.append(
+                        ((camera_index, "pair"), balanced_domains[camera_index])
+                    )
+                else:
+                    variables.extend(
+                        (
+                            (
+                                (camera_index, post_index),
+                                individual_domains[camera_index][post_index],
+                            )
+                            for post_index in range(2)
+                        )
+                    )
+            solved = solve_domains(tuple(variables))
+            if solved is None:
+                continue
+            resolved_pairs = []
+            for camera_index, placement_mode in enumerate(mode):
+                if placement_mode == "balanced":
+                    resolved_pairs.append(solved[(camera_index, "pair")])
+                else:
+                    resolved_pairs.append(
+                        tuple(
+                            solved[(camera_index, post_index)][0]
+                            for post_index in range(2)
+                        )
+                    )
+            result = tuple(resolved_pairs)
+            selected_mode = mode
+            break
+        if result is None:
+            candidate_counts = tuple(
+                {
+                    "balanced_pairs": len(balanced_domains[camera_index]),
+                    "independent_posts": tuple(
+                        len(domain) for domain in individual_domains[camera_index]
+                    ),
+                    "rejections": tuple(rejection_counts[camera_index]),
+                }
+                for camera_index in range(2)
             )
-        first, second = selected
-        resolved.extend((first, second))
-        accepted.extend((first, second))
-    result = (tuple(resolved[:2]), tuple(resolved[2:]))
+            acoustic_constraint = (
+                " and fan acoustic cassette" if acoustic_geometry is not None else ""
+            )
+            acoustic_remedy = (
+                "reduce the fan/cassette depth, "
+                if acoustic_geometry is not None
+                else ""
+            )
+            raise ValueError(
+                "No-fit configuration: no complete camera-bracket post layout "
+                f"fits the existing case envelope{acoustic_constraint} within "
+                "CAMERA_BRACKET_POST_SEARCH_RADIUS. The solver tested "
+                "balanced and independent placements for both cameras and "
+                "does not enlarge the "
+                "case. Move the camera/fan/post targets, increase the "
+                f"configured footprint, {acoustic_remedy}or increase the "
+                "search radius. "
+                f"candidate_summary={candidate_counts} "
+                f"combination_search_nodes={search_nodes}"
+            )
     print("CAMERA_BRACKET_POST_POSITIONS_XY", result)
+    if acoustic_geometry is not None:
+        acoustic_rejections = sum(
+            counts["acoustic"]
+            for camera_counts in rejection_counts
+            for counts in camera_counts
+        )
+        print(
+            "CAMERA_BRACKET_ACOUSTIC_POST_SEARCH "
+            f"rejections={acoustic_rejections} "
+            f"placement_modes={selected_mode} "
+            f"combination_search_nodes={search_nodes} "
+            f"plenum_x=({acoustic_geometry['plenum_front_x']:.2f},"
+            f"{acoustic_geometry['plenum_rear_x']:.2f}) "
+            f"maximum_chamfer={acoustic_geometry['maximum_chamfer']:.2f}"
+        )
     for camera, pair in zip(cameras, result):
         minimum_clearance = min(
             camera_bracket_post_installation_clearance(position, camera)
@@ -11040,81 +11517,19 @@ def resolve_camera_bracket_post_positions(
     return result
 
 
-def protect_rear_taper_for_resolved_bracket_posts(bracket_position_pairs):
-    """Keep the final searched bracket posts below a full-height roof land.
-
-    The preliminary taper solver can only see nominal bracket-post targets;
-    the collision-aware post search runs later and may translate a pair.  Move
-    only the height-taper knee rearward around those resolved disks, then
-    re-clamp the requested drop to the remaining run and slope limit.  Width
-    taper and all mechanism/wall coordinates remain unchanged.
-    """
-    if (
-        not CAMERA_BRACKETS_ENABLED
-        or _RESOLVED_REAR_ENVELOPE is None
-        or _RESOLVED_REAR_ENVELOPE["height_reduction"] <= 0.0
-    ):
-        return
+def validate_rear_taper_for_resolved_bracket_posts(bracket_position_pairs):
+    """Assert that searched posts fit without changing the resolved roof."""
     positions = tuple(
         position for pair in bracket_position_pairs for position in pair
     )
-    if not positions:
-        return
-    post_radius = CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0
-    required_start = max(x + post_radius for x, _y in positions)
-    required_start += REAR_TAPER_PROTECTED_MARGIN
-    old_start = _RESOLVED_REAR_ENVELOPE["height_start_x"]
-    rear_x = _RESOLVED_REAR_ENVELOPE["rear_x"]
-    if required_start > old_start:
-        new_start = min(required_start, rear_x)
-        run = max(rear_x - new_start, 0.0)
-        slope_limited_drop = run * math.tan(
-            math.radians(REAR_TAPER_MAX_SLOPE_DEG)
-        )
-        web_limited_drop = max(
-            BASE_HEIGHT
-            - effective_rear_height_taper_anchor_z()
-            - REAR_FAN_MIN_WEB,
-            0.0,
-        )
-        _RESOLVED_REAR_ENVELOPE["height_start_x"] = new_start
-        _RESOLVED_REAR_ENVELOPE["height_reduction"] = min(
-            REAR_HEIGHT_REDUCTION,
-            slope_limited_drop,
-            web_limited_drop,
-        )
-        if (
-            _RESOLVED_REAR_ENVELOPE["height_reduction"] > 0.0
-            and not rear_height_taper_lid_loops_feasible(
-                _RESOLVED_REAR_ENVELOPE["footprint"],
-                new_start,
-            )
-        ):
-            _RESOLVED_REAR_ENVELOPE["height_start_x"] = rear_x
-            _RESOLVED_REAR_ENVELOPE["height_reduction"] = 0.0
-            print(
-                "REAR_HEIGHT_TAPER_DISABLED "
-                "bracket_post_knee_does_not_cross_all_lid_loops"
-            )
-        print(
-            "REAR_HEIGHT_TAPER_BRACKET_POST_PROTECTION "
-            f"old_start_x={old_start:.2f} new_start_x={new_start:.2f} "
-            f"resolved_drop="
-            f"{_RESOLVED_REAR_ENVELOPE['height_reduction']:.2f}"
-        )
-
-    bracket_underside, _bracket_top = camera_bracket_z_bounds()
-    post_top = bracket_underside - camera_bracket_clamp_travel()
-    for index, (x, y) in enumerate(positions, start=1):
-        minimum_seam, _maximum_seam = local_disk_seam_bounds(
-            x,
-            y,
-            post_radius,
-        )
-        if minimum_seam - post_top < FASTENER_POST_TOP_CLEARANCE:
+    for index, position in enumerate(positions, start=1):
+        if not camera_bracket_post_roof_fits(position):
             raise RuntimeError(
-                f"Resolved bracket post {index} lacks roof clearance after "
-                "height-taper protection"
+                "No-fit configuration: resolved bracket post "
+                f"{index} lacks clearance below the configured tapered roof. "
+                "The solver does not raise or enlarge the case; move the post "
+                "targets, increase the configured case height, or reduce the "
+                "rear height taper."
             )
 
 
@@ -12482,13 +12897,8 @@ def voxel_union_printed_assembly(obj, voxel_size, label):
     return obj
 
 
-def resolve_fan_acoustic_layout(
-    footprint,
-    cameras,
-    case_post_keepouts=(),
-    base_hardware_keepouts=(),
-):
-    """Resolve the removable acoustic trough around the final fan stations."""
+def resolve_fan_acoustic_preliminary_geometry(footprint):
+    """Resolve the post-relevant plenum envelope before hardware placement."""
     if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
         return None
     wall = FAN_ACOUSTIC_WALL_THICKNESS
@@ -12515,20 +12925,15 @@ def resolve_fan_acoustic_layout(
         ),
         key=lambda station: station["face_center"].y,
     )
-    camera_records = tuple(
-        sorted(
-            zip(cameras, CAMERA_REAR_MIC_LOCAL_CENTERS),
-            key=lambda record: record[0]["center_xy"][1],
-        )
-    )
     boot_records = []
     boot_plan_points = []
     boot_end_points = []
+    inner_loop = inset_footprint_loop(footprint, BODY_WALL_THICKNESS)
     for fan_index, station in enumerate(stations, start=1):
         inner_wall_radius = radial_surface_distance(
             station["wall_angle_deg"],
             station["center_axis_tangent"],
-            inset_footprint_loop(footprint, BODY_WALL_THICKNESS),
+            inner_loop,
         )
         if REAR_FAN_PAD_INSIDE:
             boot_start_radius = (
@@ -12612,42 +13017,138 @@ def resolve_fan_acoustic_layout(
         max(point[1] for point in boot_plan_points)
         + FAN_ACOUSTIC_PLENUM_SIDE_EXPANSION
     )
-    cassette_center_y = (plenum_y_min + plenum_y_max) / 2.0
-    lower_rear_chamfer = 0.0
-    upper_rear_chamfer = 0.0
-    for post_x, post_y, post_radius in case_post_keepouts:
-        keepout_radius = (
-            post_radius + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE
-        )
-        if post_y >= cassette_center_y:
-            corner_excess = (
-                post_x - plenum_rear_x + post_y - plenum_y_max
-            )
-            if post_x > plenum_front_x and post_y > plenum_y_min:
-                upper_rear_chamfer = max(
-                    upper_rear_chamfer,
-                    keepout_radius * math.sqrt(2.0) - corner_excess,
-                )
-        else:
-            corner_excess = (
-                post_x - plenum_rear_x + plenum_y_min - post_y
-            )
-            if post_x > plenum_front_x and post_y < plenum_y_max:
-                lower_rear_chamfer = max(
-                    lower_rear_chamfer,
-                    keepout_radius * math.sqrt(2.0) - corner_excess,
-                )
-    lower_rear_chamfer = max(lower_rear_chamfer, 0.0)
-    upper_rear_chamfer = max(upper_rear_chamfer, 0.0)
     maximum_chamfer = min(
         plenum_rear_x - plenum_front_x,
         plenum_y_max - plenum_y_min,
     ) / 2.0 - wall
+    return {
+        "wall": wall,
+        "inner_height": inner_height,
+        "inner_bottom_z": inner_bottom_z,
+        "inner_top_z": inner_top_z,
+        "outer_bottom_z": outer_bottom_z,
+        "outer_top_z": outer_top_z,
+        "boot_records": tuple(boot_records),
+        "boot_plan_points": tuple(boot_plan_points),
+        "plenum_front_x": plenum_front_x,
+        "plenum_rear_x": plenum_rear_x,
+        "plenum_y_min": plenum_y_min,
+        "plenum_y_max": plenum_y_max,
+        "cassette_center_y": (plenum_y_min + plenum_y_max) / 2.0,
+        "maximum_chamfer": maximum_chamfer,
+    }
+
+
+def fan_acoustic_case_post_chamfer(position, post_radius, geometry):
+    """Return the lower/upper cassette chamfer required by one case post."""
+    post_x, post_y = position
+    plenum_front_x = geometry["plenum_front_x"]
+    plenum_rear_x = geometry["plenum_rear_x"]
+    plenum_y_min = geometry["plenum_y_min"]
+    plenum_y_max = geometry["plenum_y_max"]
+    keepout_radius = (
+        post_radius
+        + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE
+        + FAN_ACOUSTIC_REMESH_VOXEL_SIZE
+    )
+    # The divided inlet boots are rigid oriented rectangles and cannot be
+    # removed by chamfering the plenum's rear corners.  Reject any service disk
+    # that reaches one, including the conservative voxel-remesh allowance.
+    for boot in geometry["boot_records"]:
+        if point_to_oriented_rectangle_distance(
+            position,
+            (boot["boot_center"].x, boot["boot_center"].y),
+            FAN_ACOUSTIC_DIVIDED_INLET_DEPTH + BOOLEAN_OVERLAP,
+            REAR_FAN_PAD_SIZE,
+            boot["station"]["wall_angle_deg"],
+        ) < keepout_radius:
+            return (math.inf, math.inf)
+    # Separation beyond any complete straight edge is already service-safe.
+    # The rear (+X) case matters for posts behind the plenum but clear of both
+    # oblique boots; omitting it caused false no-fit results there.
+    if (
+        post_x + keepout_radius <= plenum_front_x + 1e-9
+        or post_x - keepout_radius >= plenum_rear_x - 1e-9
+        or post_y + keepout_radius <= plenum_y_min + 1e-9
+        or post_y - keepout_radius >= plenum_y_max - 1e-9
+    ):
+        return (0.0, 0.0)
+    if post_y >= geometry["cassette_center_y"]:
+        # Only the rear (+X) corner is chamfered.  A post beside the straight
+        # front or upper edge is clear only when its entire service disk lies
+        # outside that edge; testing the center alone allowed the acoustic lid
+        # to clip a large bracket post during removal.
+        corner_excess = post_x - plenum_rear_x + post_y - plenum_y_max
+        return (
+            0.0,
+            max(keepout_radius * math.sqrt(2.0) - corner_excess, 0.0),
+        )
+    corner_excess = post_x - plenum_rear_x + plenum_y_min - post_y
+    return (
+        max(keepout_radius * math.sqrt(2.0) - corner_excess, 0.0),
+        0.0,
+    )
+
+
+def fan_acoustic_case_post_fits(position, post_radius, geometry) -> bool:
+    return max(fan_acoustic_case_post_chamfer(
+        position,
+        post_radius,
+        geometry,
+    )) <= geometry["maximum_chamfer"] + 1e-9
+
+
+def resolve_fan_acoustic_layout(
+    footprint,
+    cameras,
+    case_post_keepouts=(),
+    base_hardware_keepouts=(),
+    preliminary_geometry=None,
+):
+    """Resolve the removable acoustic trough around the final fan stations."""
+    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        return None
+    geometry = (
+        preliminary_geometry
+        if preliminary_geometry is not None
+        else resolve_fan_acoustic_preliminary_geometry(footprint)
+    )
+    wall = geometry["wall"]
+    inner_height = geometry["inner_height"]
+    inner_bottom_z = geometry["inner_bottom_z"]
+    inner_top_z = geometry["inner_top_z"]
+    outer_bottom_z = geometry["outer_bottom_z"]
+    outer_top_z = geometry["outer_top_z"]
+    boot_records = geometry["boot_records"]
+    boot_plan_points = geometry["boot_plan_points"]
+    plenum_front_x = geometry["plenum_front_x"]
+    plenum_rear_x = geometry["plenum_rear_x"]
+    plenum_y_min = geometry["plenum_y_min"]
+    plenum_y_max = geometry["plenum_y_max"]
+    camera_records = tuple(
+        sorted(
+            zip(cameras, CAMERA_REAR_MIC_LOCAL_CENTERS),
+            key=lambda record: record[0]["center_xy"][1],
+        )
+    )
+    lower_rear_chamfer = 0.0
+    upper_rear_chamfer = 0.0
+    for post_x, post_y, post_radius in case_post_keepouts:
+        lower_required, upper_required = fan_acoustic_case_post_chamfer(
+            (post_x, post_y),
+            post_radius,
+            geometry,
+        )
+        lower_rear_chamfer = max(lower_rear_chamfer, lower_required)
+        upper_rear_chamfer = max(upper_rear_chamfer, upper_required)
+    maximum_chamfer = geometry["maximum_chamfer"]
     if max(lower_rear_chamfer, upper_rear_chamfer) > maximum_chamfer:
         raise ValueError(
-            "The fan acoustic cassette cannot chamfer around the configured "
-            "case posts. Move the lid posts/fan stations or use the default "
-            "internal fan pads for this acoustic layout. "
+            "No-fit configuration: the fan acoustic cassette cannot clear "
+            "the configured case-post and bracket-removal keepouts inside "
+            "the existing case envelope. The solver does not enlarge the "
+            "case; move the posts/fan stations, reduce the fan/cassette depth, "
+            "or increase the configured footprint. "
             f"Required lower/upper chamfers are {lower_rear_chamfer:.2f}/"
             f"{upper_rear_chamfer:.2f} mm; the geometric maximum is "
             f"{maximum_chamfer:.2f} mm; plenum bounds are "
@@ -15077,8 +15578,11 @@ def validate_acoustic_cassette_removal(
                     )[2]
                     if volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
                         raise RuntimeError(
-                            f"Acoustic {part_label} removal hits {target_label} "
-                            f"at sweep step {step}: {volume:.4f} mm3"
+                            "No-fit configuration: acoustic "
+                            f"{part_label} removal hits {target_label} at "
+                            f"sweep step {step}: {volume:.4f} mm3. The layout "
+                            "solver does not enlarge the case; reduce the fan/"
+                            "cassette depth or move the conflicting hardware."
                         )
             finally:
                 bpy.data.objects.remove(moved, do_unlink=True)
@@ -20264,6 +20768,16 @@ def create_camera_bracket(camera, post_positions):
         )
         tangent_min -= CAMERA_BRACKET_GUIDE_PLATE_OVERHANG
         tangent_max += CAMERA_BRACKET_GUIDE_PLATE_OVERHANG
+    analytical_bounds = camera_bracket_primary_plate_plan_bounds(camera)
+    generated_bounds = (radial_min, radial_max, tangent_min, tangent_max)
+    if any(
+        abs(analytical - generated) > 1e-9
+        for analytical, generated in zip(analytical_bounds, generated_bounds)
+    ):
+        raise RuntimeError(
+            f"Camera {camera['index']} analytical bracket-arm anchors no "
+            "longer match the generated primary plate"
+        )
     if 2.0 * CAMERA_BRACKET_ARM_PLATE_EMBED >= tangent_max - tangent_min:
         raise ValueError(
             f"Camera {camera['index']} bracket plate has no interior "
@@ -25460,6 +25974,9 @@ def build_original_style_cover():
     validate_stationary_worm_hardware_clearance(cameras, mechanism)
     refresh_camera_eye_recesses(cameras, footprint)
     validate_camera_lens_protrusion(cameras)
+    acoustic_preliminary_geometry = resolve_fan_acoustic_preliminary_geometry(
+        footprint
+    )
     # With the optional labyrinth installed, the fans no longer discharge
     # directly at the cameras; its final outlet geometry is validated after
     # the cassette mesh exists.
@@ -25473,42 +25990,16 @@ def build_original_style_cover():
         and REAR_FAN_AUTO_LID_POST_MAX_X is not None
     ):
         resolved_post_max_x = REAR_FAN_AUTO_LID_POST_MAX_X
-        if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        if acoustic_preliminary_geometry is not None:
             # Keep the two mid-rear lid posts fully ahead of the cassette's
             # open front edge.  A fixed X clamp is insufficient when fan
             # angle, pad side, inlet depth, or plenum depth changes; derive
             # the service-safe limit from the same boot geometry used by the
             # acoustic layout.  The later post solver may still move a target
             # farther forward to avoid camera hardware.
-            boot_end_x = []
-            for tangent in rear_fan_center_tangents():
-                station = rear_fan_station_geometry(footprint, tangent)
-                inner_wall_radius = radial_surface_distance(
-                    station["wall_angle_deg"],
-                    station["center_axis_tangent"],
-                    inset_footprint_loop(footprint, BODY_WALL_THICKNESS),
-                )
-                if REAR_FAN_PAD_INSIDE:
-                    boot_start_radius = (
-                        station["face_radius"]
-                        - REAR_FAN_DEPTH
-                        - FAN_ACOUSTIC_FAN_GAP
-                    )
-                else:
-                    boot_start_radius = (
-                        inner_wall_radius
-                        - REAR_FAN_DEPTH
-                        - FAN_ACOUSTIC_FAN_GAP
-                    )
-                boot_end = axis_point(
-                    station["wall_angle_deg"],
-                    boot_start_radius - FAN_ACOUSTIC_DIVIDED_INLET_DEPTH,
-                    station["center_axis_tangent"],
-                    REAR_FAN_CENTER_Z,
-                )
-                boot_end_x.append(boot_end.x)
-            acoustic_front_x = min(boot_end_x) - FAN_ACOUSTIC_PLENUM_DEPTH
-            acoustic_post_max_x = acoustic_front_x - (
+            acoustic_post_max_x = acoustic_preliminary_geometry[
+                "plenum_front_x"
+            ] - (
                 FASTENER_POST_DIAMETER / 2.0
                 + FAN_ACOUSTIC_CASSETTE_REMOVAL_CLEARANCE
                 + FAN_ACOUSTIC_REMESH_VOXEL_SIZE
@@ -25543,8 +26034,9 @@ def build_original_style_cover():
         footprint,
         positions,
         mechanism,
+        acoustic_preliminary_geometry,
     )
-    protect_rear_taper_for_resolved_bracket_posts(bracket_position_pairs)
+    validate_rear_taper_for_resolved_bracket_posts(bracket_position_pairs)
     bottom_mount_hole_position = resolve_bottom_mount_hole_position(
         cameras,
         footprint,
@@ -25569,10 +26061,20 @@ def build_original_style_cover():
             for x, y in pair
         ),
     )
+    acoustic_bracket_arm_keepouts = tuple(
+        keepout
+        for camera, pair in zip(cameras, bracket_position_pairs)
+        for position in pair
+        for keepout in camera_bracket_arm_removal_keepouts(camera, position)
+    )
+    acoustic_removal_keepouts = (
+        *acoustic_case_post_keepouts,
+        *acoustic_bracket_arm_keepouts,
+    )
     acoustic_base_hardware_keepouts = [
         *(
             ("circle", (x, y), radius)
-            for x, y, radius in acoustic_case_post_keepouts
+            for x, y, radius in acoustic_removal_keepouts
         ),
     ]
     if bottom_mount_hole_position is not None:
@@ -25609,8 +26111,9 @@ def build_original_style_cover():
     acoustic_layout = resolve_fan_acoustic_layout(
         footprint,
         cameras,
-        acoustic_case_post_keepouts,
+        acoustic_removal_keepouts,
         tuple(acoustic_base_hardware_keepouts),
+        acoustic_preliminary_geometry,
     )
     base = create_base(
         positions,
