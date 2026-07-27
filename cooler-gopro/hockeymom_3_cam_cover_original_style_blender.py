@@ -207,8 +207,8 @@ PREVIEW_SHOW_CAMERA_MOCKUPS = True
 
 # Source STL envelope: 215.167 x 233.661 x 70.653 mm.
 # BODY_WIDTH = 215.167
-# BODY_WIDTH = 180
-BODY_WIDTH = 160
+BODY_WIDTH = 180
+# BODY_WIDTH = 160
 BODY_DEPTH = 233.661
 # BODY_DEPTH = 210
 # Two extra millimeters preserve lid/bracket clearance after raising the
