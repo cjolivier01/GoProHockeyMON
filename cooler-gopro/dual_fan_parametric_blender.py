@@ -50,10 +50,10 @@ DEBUG_BOOLEAN_STEPS = False
 CLEAN_COINCIDENT_FACE_TOLERANCE = 1.0e-5
 
 # Fan cages. Distances are measured independently from the stalk centerline.
-FAN_1_DISTANCE_FROM_CENTER = 75
-FAN_2_DISTANCE_FROM_CENTER = 75
-#FAN_1_DISTANCE_FROM_CENTER = 52.5
-#FAN_2_DISTANCE_FROM_CENTER = 52.5
+#FAN_1_DISTANCE_FROM_CENTER = 75
+#FAN_2_DISTANCE_FROM_CENTER = 75
+FAN_1_DISTANCE_FROM_CENTER = 52.5
+FAN_2_DISTANCE_FROM_CENTER = 52.5
 FAN_FRAME_SIZE = 66.7
 FAN_FRAME_DEPTH = 14.7
 FAN_FRAME_WALL = 3.0
@@ -62,8 +62,8 @@ GRILL_THICKNESS = 2.8
 
 # Fan angles relative to the unrotated support, in Blender XYZ Euler degrees.
 # Fan 1 is on the negative-X (left) side; fan 2 is on positive X (right).
-FAN_1_ROTATION_DEG = (0.0, -30.0, 0.0)
-FAN_2_ROTATION_DEG = (0.0, 30.0, 0.0)
+FAN_1_ROTATION_DEG = (0.0, 0.0, 0.0)
+FAN_2_ROTATION_DEG = (0.0, 0.0, 0.0)
 
 # "support_contact" rotates around the lower-inner connection to the support.
 # "fan_center" rotates around the geometric center of each fan cage.
