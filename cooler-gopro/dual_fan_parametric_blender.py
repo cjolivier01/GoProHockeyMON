@@ -29,7 +29,9 @@ from mathutils import Euler, Matrix, Quaternion, Vector
 
 CLEAR_SCENE = True
 EXPORT_STL = False
-EXPORT_STL_PATH = "gopro_dual_fan_parametric.stl"
+# Leave None to derive a count/size-specific holder filename.  Build tooling or
+# Blender console users may set an explicit path to override it.
+EXPORT_STL_PATH = None
 EXPORT_ADAPTER_STL_PATH = "gopro_dual_fan_adapter.stl"
 
 # Structural profile for the fan holder.  The detachable GoPro adapter remains
@@ -129,6 +131,10 @@ FAN_ROTATION_PIVOT_Z = 2.25
 
 # Fan airflow grille.
 AIRFLOW_DIAMETER_AT_REFERENCE = 61.4
+# Preserve at least the original 60 mm design's web between the airflow cut and
+# the 7.6 mm countersink.  This caps the 40 mm opening instead of scaling it into
+# its closer 32 mm mounting-hole pattern.
+AIRFLOW_TO_COUNTERSINK_MIN_WEB = 0.8
 GRILL_CENTER_DISK_DIAMETER_AT_REFERENCE = 21.4
 GRILL_RING_CENTER_RADII_AT_REFERENCE = (16.7, 23.7)
 GRILL_CONNECTION_OVERLAP = 1.0
@@ -386,6 +392,21 @@ def resolve_fan_specs():
         scale = size / FAN_REFERENCE_SIZE_MM
         center_x = cursor_x + size / 2.0
         cavity_size = size + 2.0 * FAN_BODY_CLEARANCE_PER_SIDE
+        hole_spacing = float(preset["hole_spacing"])
+        hole_center_radius = math.sqrt(2.0) * hole_spacing / 2.0
+        maximum_airflow_radius = (
+            hole_center_radius
+            - FAN_HOLE_COUNTERSINK_DIAMETER / 2.0
+            - AIRFLOW_TO_COUNTERSINK_MIN_WEB
+        )
+        airflow_diameter = min(
+            AIRFLOW_DIAMETER_AT_REFERENCE * scale,
+            2.0 * maximum_airflow_radius,
+        )
+        support_arm_fan_insert_y = min(
+            SUPPORT_ARM_FAN_INSERT_Y_AT_REFERENCE * scale,
+            FAN_FRAME_WALL - BOOLEAN_OVERLAP,
+        )
         specs.append(
             {
                 "index": index,
@@ -396,7 +417,7 @@ def resolve_fan_specs():
                 "rotation": tuple(float(value) for value in rotation),
                 "cavity_size": cavity_size,
                 "frame_size": cavity_size + 2.0 * FAN_FRAME_WALL,
-                "airflow_diameter": AIRFLOW_DIAMETER_AT_REFERENCE * scale,
+                "airflow_diameter": airflow_diameter,
                 "grill_center_disk_diameter": (
                     GRILL_CENTER_DISK_DIAMETER_AT_REFERENCE * scale
                 ),
@@ -404,15 +425,13 @@ def resolve_fan_specs():
                     radius * scale
                     for radius in GRILL_RING_CENTER_RADII_AT_REFERENCE
                 ),
-                "hole_spacing": float(preset["hole_spacing"]),
+                "hole_spacing": hole_spacing,
                 "hole_diameter": float(preset["hole_diameter"]),
                 "wire_slot_offset": FAN_WIRE_SLOT_OFFSET_AT_REFERENCE * scale,
                 "pivot_inward_x": (
                     FAN_ROTATION_PIVOT_INWARD_X_AT_REFERENCE * scale
                 ),
-                "support_arm_fan_insert_y": (
-                    SUPPORT_ARM_FAN_INSERT_Y_AT_REFERENCE * scale
-                ),
+                "support_arm_fan_insert_y": support_arm_fan_insert_y,
                 "support_arm_center_width": SUPPORT_ARM_CENTER_WIDTH * scale,
                 "support_arm_fan_width": SUPPORT_ARM_FAN_WIDTH * scale,
             }
@@ -429,6 +448,7 @@ def validate_config() -> None:
         "FAN_FRAME_DEPTH": FAN_FRAME_DEPTH,
         "FAN_FRAME_WALL": FAN_FRAME_WALL,
         "GRILL_THICKNESS": GRILL_THICKNESS,
+        "AIRFLOW_TO_COUNTERSINK_MIN_WEB": AIRFLOW_TO_COUNTERSINK_MIN_WEB,
         "FAN_WIRE_SLOT_WIDTH": FAN_WIRE_SLOT_WIDTH,
         "FAN_WIRE_SLOT_DEPTH": FAN_WIRE_SLOT_DEPTH,
         "SUPPORT_THICKNESS": SUPPORT_THICKNESS,
@@ -474,6 +494,8 @@ def validate_config() -> None:
 
     if FAN_BODY_CLEARANCE_PER_SIDE < 0.0:
         raise ValueError("FAN_BODY_CLEARANCE_PER_SIDE cannot be negative")
+    if FAN_FRAME_WALL <= BOOLEAN_OVERLAP:
+        raise ValueError("FAN_FRAME_WALL must exceed BOOLEAN_OVERLAP")
     if not 0 < GRILL_THICKNESS < FAN_FRAME_DEPTH:
         raise ValueError("GRILL_THICKNESS must be less than FAN_FRAME_DEPTH")
 
@@ -496,6 +518,8 @@ def validate_config() -> None:
                 f"{label} cavity is {cavity_size:.3f} mm; "
                 f"at least {required_cavity:.3f} mm is required"
             )
+        if fan["airflow_diameter"] <= 0.0:
+            raise ValueError(f"{label} mounting pattern leaves no airflow opening")
         if fan["airflow_diameter"] >= frame_size:
             raise ValueError(f"{label} airflow opening does not fit its frame")
         if fan["grill_center_disk_diameter"] >= fan["airflow_diameter"]:
@@ -519,6 +543,8 @@ def validate_config() -> None:
             raise ValueError(f"{label} mounting holes do not fit inside the frame")
         if not 0.0 <= fan["pivot_inward_x"] < frame_size / 2.0:
             raise ValueError(f"{label} rotation pivot must remain inside the frame")
+        if not 0.0 < fan["support_arm_fan_insert_y"] <= FAN_FRAME_WALL:
+            raise ValueError(f"{label} support-arm insertion must remain in the wall")
         if fan["support_arm_fan_insert_y"] >= frame_size / 2.0:
             raise ValueError(f"{label} support-arm insertion exceeds the frame")
 
@@ -1840,6 +1866,12 @@ def export_stl(objects, output_path) -> Path:
     return path
 
 
+def default_holder_stl_path(fan_specs) -> str:
+    count_label = {1: "single", 2: "dual", 3: "triple"}[len(fan_specs)]
+    size_label = "-".join(f"{fan['size']:g}" for fan in fan_specs)
+    return f"gopro_{count_label}_fan_{size_label}mm_parametric.stl"
+
+
 def build_dual_fan():
     # A direct MATERIAL_MODE assignment remains convenient for Blender's
     # console and --python-expr.  Reapply only after an actual mode change so
@@ -1933,7 +1965,12 @@ def build_dual_fan():
         )
 
     if EXPORT_STL:
-        holder_path = export_stl(holder_objects, EXPORT_STL_PATH)
+        holder_output_path = (
+            EXPORT_STL_PATH
+            if EXPORT_STL_PATH is not None
+            else default_holder_stl_path(fan_specs)
+        )
+        holder_path = export_stl(holder_objects, holder_output_path)
         print(f"Wrote holder {holder_path}")
         if gopro_adapter is not None:
             adapter_path = export_stl([gopro_adapter], EXPORT_ADAPTER_STL_PATH)
