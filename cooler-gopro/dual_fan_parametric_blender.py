@@ -30,6 +30,20 @@ from mathutils import Euler, Matrix, Quaternion, Vector
 CLEAR_SCENE = True
 EXPORT_STL = False
 EXPORT_STL_PATH = "gopro_dual_fan_parametric.stl"
+EXPORT_ADAPTER_STL_PATH = "gopro_dual_fan_adapter.stl"
+
+# Structural profile for the fan holder.  The detachable GoPro adapter remains
+# a separate rigid part in every mode; only the holder dimensions and fastener
+# treatment change.  TPU_95A is deliberately stiffened by geometry instead of
+# relying on very high slicer infill.
+MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU_95A"
+
+# Slicer guidance is informational because STL files cannot encode these
+# settings.  Five to six walls should provide at least a 2.0-2.4 mm shell.
+TPU_95A_RECOMMENDED_INFILL_PERCENT = (40, 45)
+TPU_95A_RECOMMENDED_INFILL_PATTERN = "gyroid"
+TPU_95A_RECOMMENDED_WALLS = (5, 6)
+TPU_95A_MOUNT_SCREW_EXTRA_LENGTH_MM = 4.0
 
 # Mesh and boolean quality.
 CYLINDER_SEGMENTS = 96
@@ -54,11 +68,14 @@ CLEAN_COINCIDENT_FACE_TOLERANCE = 1.0e-5
 #FAN_2_DISTANCE_FROM_CENTER = 75
 FAN_1_DISTANCE_FROM_CENTER = 52.5
 FAN_2_DISTANCE_FROM_CENTER = 52.5
-FAN_FRAME_SIZE = 66.7
 FAN_FRAME_DEPTH = 14.7
-FAN_FRAME_WALL = 3.0
 FAN_FRAME_CORNER_RADIUS = 2.5
-GRILL_THICKNESS = 2.8
+# The rigid cavity is 60.7 mm for a nominal 60 mm Noctua NF-A6x25.  Material
+# profiles may grow the outside of the cage but must retain this snug fit.
+NOMINAL_FAN_SIZE_MM = 60.0
+FAN_BODY_CLEARANCE_PER_SIDE = 0.35
+# FAN_FRAME_SIZE, FAN_FRAME_WALL, and GRILL_THICKNESS are selected in
+# MATERIAL_PROFILES below.
 
 # Fan angles relative to the unrotated support, in Blender XYZ Euler degrees.
 # Fan 1 is on the negative-X (left) side; fan 2 is on positive X (right).
@@ -74,21 +91,20 @@ FAN_ROTATION_PIVOT_Z = 2.25
 
 # Fan airflow grille.
 AIRFLOW_DIAMETER = 61.4
-GRILL_BAR_WIDTH = 2.0
 GRILL_CENTER_DISK_DIAMETER = 21.4
 GRILL_RING_CENTER_RADII = (16.7, 23.7)
-GRILL_RING_WIDTH = 2.0
 GRILL_CONNECTION_OVERLAP = 1.0
+# GRILL_BAR_WIDTH and GRILL_RING_WIDTH are selected in MATERIAL_PROFILES.
 
 # Four fan screw holes in each cage.
 FAN_HOLE_SPACING = 50.0
 FAN_HOLE_DIAMETER = 4.2
-FAN_HOLE_COUNTERSINK_ENABLED = True
 FAN_HOLE_COUNTERSINK_DIAMETER = 7.6
 FAN_HOLE_COUNTERSINK_DEPTH = 2.2
-FAN_HOLE_COLLARS_ENABLED = True
 FAN_HOLE_COLLAR_DIAMETER = 6.0
 FAN_HOLE_COLLAR_HEIGHT = 0.5
+# FAN_HOLE_COUNTERSINK_ENABLED and FAN_HOLE_COLLARS_ENABLED are selected in
+# MATERIAL_PROFILES.
 
 # Optional U-shaped fan-wire exit cut into one wall from the open back. The
 # offset is local to each fan and runs along the selected wall. On TOP/BOTTOM,
@@ -101,35 +117,31 @@ FAN_WIRE_SLOT_OFFSET = 22.0
 
 # Twisted support joining the stalk to the two fan cages.
 SUPPORT_ENABLED = True
-SUPPORT_THICKNESS = 4.5
 SUPPORT_HUB_WIDTH = 76.2
-SUPPORT_HUB_DEPTH_Y = 10.0
 SUPPORT_HUB_BELOW_FAN_Y = 17.2
 SUPPORT_ARM_START_X = 18.0
-SUPPORT_ARM_CENTER_WIDTH = 18.0
-SUPPORT_ARM_FAN_WIDTH = 22.0
 SUPPORT_ARM_HUB_INSERT_Y = 2.0
 SUPPORT_ARM_FAN_INSERT_Y = 4.0
 SUPPORT_ARM_SECTIONS = 10
+# SUPPORT_THICKNESS, SUPPORT_HUB_DEPTH_Y, and the arm widths are selected in
+# MATERIAL_PROFILES.
 
 # Stalk projecting from the support toward the camera mount.
 STALK_ENABLED = True
-STALK_WIDTH = 16.1
-STALK_DEPTH_Y = 7.25
 STALK_LENGTH_Z = 31.2
 STALK_BOTTOM_Y_OVERHANG = 0.5
+# STALK_WIDTH and STALK_DEPTH_Y are selected in MATERIAL_PROFILES.
 
 # Two-hole receiver block fixed to the end of the stalk.
 MOUNT_BLOCK_ENABLED = True
 MOUNT_BLOCK_WIDTH = 28.45
 MOUNT_BLOCK_HEIGHT_Z = 18.8
-MOUNT_BLOCK_DEPTH_Y = 7.25
 MOUNT_BLOCK_OVERLAP = 0.15
 MOUNT_HOLE_SPACING = 12.0
-MOUNT_HOLE_DIAMETER = 4.2
-MOUNT_COUNTERSINK_ENABLED = True
 MOUNT_COUNTERSINK_DIAMETER = 7.2
 MOUNT_COUNTERSINK_DEPTH = 3.6
+# MOUNT_BLOCK_DEPTH_Y, MOUNT_HOLE_DIAMETER, and MOUNT_COUNTERSINK_ENABLED are
+# selected in MATERIAL_PROFILES.
 
 # Detachable right-angle GoPro adapter fitted to the receiver block above.
 # These defaults reproduce the newly measured ``gopro-dual-fan.stl`` mount.
@@ -166,6 +178,131 @@ GOPRO_NUT_TRAP_ENABLED = True
 GOPRO_NUT_BOSS_DIAMETER = 12.0
 GOPRO_NUT_BOSS_DEPTH = 3.15
 GOPRO_NUT_ACROSS_FLATS = 8.0
+
+
+# Values controlled by MATERIAL_MODE.  Edit these profiles rather than the
+# corresponding scalar defaults above when tuning a material mode.  Keeping a
+# complete rigid profile also lets callers switch modes between repeated builds
+# in the same Blender process without retaining TPU values.
+_RIGID_MATERIAL_PROFILE = {
+    "FAN_FRAME_SIZE": 66.7,
+    "FAN_FRAME_WALL": 3.0,
+    "FAN_CAGE_BOOLEAN_SOLVER": "EXACT",
+    "GRILL_THICKNESS": 2.8,
+    "GRILL_BAR_WIDTH": 2.0,
+    "GRILL_RING_WIDTH": 2.0,
+    "FAN_HOLE_COUNTERSINK_ENABLED": True,
+    "FAN_HOLE_COLLARS_ENABLED": True,
+    "SUPPORT_THICKNESS": 4.5,
+    "SUPPORT_HUB_DEPTH_Y": 10.0,
+    "SUPPORT_ARM_CENTER_WIDTH": 18.0,
+    "SUPPORT_ARM_FAN_WIDTH": 22.0,
+    "STALK_WIDTH": 16.1,
+    "STALK_DEPTH_Y": 7.25,
+    "STALK_END_FLARES_ENABLED": False,
+    "MOUNT_BLOCK_DEPTH_Y": 7.25,
+    "MOUNT_HOLE_DIAMETER": 4.2,
+    "MOUNT_COUNTERSINK_ENABLED": True,
+}
+MATERIAL_PROFILES = {
+    "RIGID": _RIGID_MATERIAL_PROFILE,
+    "TPU_95A": {
+        **_RIGID_MATERIAL_PROFILE,
+        # Preserve the rigid profile's 60.7 mm inner cavity (0.35 mm
+        # clearance per side around a 60 mm fan) when using thicker walls.
+        "FAN_FRAME_SIZE": 68.7,
+        "FAN_FRAME_WALL": 4.0,
+        # MANIFOLD avoids tiny open triangles where plain cylindrical holes
+        # meet the thicker TPU grille; the rigid profile retains EXACT output.
+        "FAN_CAGE_BOOLEAN_SOLVER": "MANIFOLD",
+        "GRILL_THICKNESS": 3.5,
+        "GRILL_BAR_WIDTH": 2.6,
+        "GRILL_RING_WIDTH": 2.6,
+        # Flat faces accept button/pan heads and broad washers without the
+        # wedging and long-term preload loss caused by countersinks in TPU.
+        "FAN_HOLE_COUNTERSINK_ENABLED": False,
+        "FAN_HOLE_COLLARS_ENABLED": False,
+        "SUPPORT_THICKNESS": 7.0,
+        "SUPPORT_HUB_DEPTH_Y": 13.0,
+        "SUPPORT_ARM_CENTER_WIDTH": 22.0,
+        "SUPPORT_ARM_FAN_WIDTH": 28.0,
+        "STALK_WIDTH": 22.0,
+        "STALK_DEPTH_Y": 11.0,
+        "STALK_END_FLARES_ENABLED": True,
+        "MOUNT_BLOCK_DEPTH_Y": 11.0,
+        "MOUNT_HOLE_DIAMETER": 3.6,
+        "MOUNT_COUNTERSINK_ENABLED": False,
+    },
+}
+
+# TPU stalk flares spread bending loads into the support hub and receiver.  The
+# rigid profile keeps the original rectangular stalk exactly as generated
+# before material modes were introduced.
+STALK_END_FLARES_ENABLED = False
+STALK_HUB_FLARE_WIDTH = 38.0
+STALK_HUB_FLARE_LENGTH_Z = 8.0
+STALK_MOUNT_FLARE_LENGTH_Z = 6.0
+_APPLIED_MATERIAL_MODE = None
+
+
+def apply_material_profile() -> None:
+    global _APPLIED_MATERIAL_MODE
+    global FAN_FRAME_SIZE
+    global FAN_FRAME_WALL
+    global FAN_CAGE_BOOLEAN_SOLVER
+    global GRILL_THICKNESS
+    global GRILL_BAR_WIDTH
+    global GRILL_RING_WIDTH
+    global FAN_HOLE_COUNTERSINK_ENABLED
+    global FAN_HOLE_COLLARS_ENABLED
+    global SUPPORT_THICKNESS
+    global SUPPORT_HUB_DEPTH_Y
+    global SUPPORT_ARM_CENTER_WIDTH
+    global SUPPORT_ARM_FAN_WIDTH
+    global STALK_WIDTH
+    global STALK_DEPTH_Y
+    global STALK_END_FLARES_ENABLED
+    global MOUNT_BLOCK_DEPTH_Y
+    global MOUNT_HOLE_DIAMETER
+    global MOUNT_COUNTERSINK_ENABLED
+
+    try:
+        profile = MATERIAL_PROFILES[MATERIAL_MODE]
+    except KeyError as error:
+        choices = ", ".join(sorted(MATERIAL_PROFILES))
+        raise ValueError(
+            f"MATERIAL_MODE must be one of: {choices}; got {MATERIAL_MODE!r}"
+        ) from error
+
+    FAN_FRAME_SIZE = profile["FAN_FRAME_SIZE"]
+    FAN_FRAME_WALL = profile["FAN_FRAME_WALL"]
+    FAN_CAGE_BOOLEAN_SOLVER = profile["FAN_CAGE_BOOLEAN_SOLVER"]
+    GRILL_THICKNESS = profile["GRILL_THICKNESS"]
+    GRILL_BAR_WIDTH = profile["GRILL_BAR_WIDTH"]
+    GRILL_RING_WIDTH = profile["GRILL_RING_WIDTH"]
+    FAN_HOLE_COUNTERSINK_ENABLED = profile["FAN_HOLE_COUNTERSINK_ENABLED"]
+    FAN_HOLE_COLLARS_ENABLED = profile["FAN_HOLE_COLLARS_ENABLED"]
+    SUPPORT_THICKNESS = profile["SUPPORT_THICKNESS"]
+    SUPPORT_HUB_DEPTH_Y = profile["SUPPORT_HUB_DEPTH_Y"]
+    SUPPORT_ARM_CENTER_WIDTH = profile["SUPPORT_ARM_CENTER_WIDTH"]
+    SUPPORT_ARM_FAN_WIDTH = profile["SUPPORT_ARM_FAN_WIDTH"]
+    STALK_WIDTH = profile["STALK_WIDTH"]
+    STALK_DEPTH_Y = profile["STALK_DEPTH_Y"]
+    STALK_END_FLARES_ENABLED = profile["STALK_END_FLARES_ENABLED"]
+    MOUNT_BLOCK_DEPTH_Y = profile["MOUNT_BLOCK_DEPTH_Y"]
+    MOUNT_HOLE_DIAMETER = profile["MOUNT_HOLE_DIAMETER"]
+    MOUNT_COUNTERSINK_ENABLED = profile["MOUNT_COUNTERSINK_ENABLED"]
+    _APPLIED_MATERIAL_MODE = MATERIAL_MODE
+
+
+def set_material_mode(mode: str) -> None:
+    """Select a profile while leaving later explicit scalar overrides intact."""
+    global MATERIAL_MODE
+    MATERIAL_MODE = mode
+    apply_material_profile()
+
+
+set_material_mode(MATERIAL_MODE)
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +360,14 @@ def validate_config() -> None:
 
     if FAN_FRAME_WALL * 2.0 >= FAN_FRAME_SIZE:
         raise ValueError("FAN_FRAME_WALL leaves no opening")
+    minimum_fan_cavity = NOMINAL_FAN_SIZE_MM + 2.0 * FAN_BODY_CLEARANCE_PER_SIDE
+    fan_cavity = FAN_FRAME_SIZE - 2.0 * FAN_FRAME_WALL
+    if fan_cavity + 1.0e-9 < minimum_fan_cavity:
+        raise ValueError(
+            "FAN_FRAME_SIZE and FAN_FRAME_WALL leave only "
+            f"{fan_cavity:.3f} mm for a {NOMINAL_FAN_SIZE_MM:.3f} mm fan; "
+            f"at least {minimum_fan_cavity:.3f} mm is required"
+        )
     if not 0 < GRILL_THICKNESS < FAN_FRAME_DEPTH:
         raise ValueError("GRILL_THICKNESS must be less than FAN_FRAME_DEPTH")
     if AIRFLOW_DIAMETER >= FAN_FRAME_SIZE:
@@ -308,6 +453,17 @@ def validate_config() -> None:
         raise ValueError("SUPPORT_ARM_HUB_INSERT_Y must be less than SUPPORT_HUB_DEPTH_Y")
     if SUPPORT_ARM_FAN_INSERT_Y >= FAN_FRAME_SIZE / 2.0:
         raise ValueError("SUPPORT_ARM_FAN_INSERT_Y must remain inside the fan frame")
+    if STALK_END_FLARES_ENABLED:
+        if STALK_HUB_FLARE_WIDTH <= STALK_WIDTH:
+            raise ValueError("STALK_HUB_FLARE_WIDTH must exceed STALK_WIDTH")
+        if STALK_HUB_FLARE_WIDTH >= SUPPORT_HUB_WIDTH:
+            raise ValueError("STALK_HUB_FLARE_WIDTH must fit inside SUPPORT_HUB_WIDTH")
+        if STALK_HUB_FLARE_LENGTH_Z <= 0.0:
+            raise ValueError("STALK_HUB_FLARE_LENGTH_Z must be positive")
+        if STALK_MOUNT_FLARE_LENGTH_Z <= 0.0:
+            raise ValueError("STALK_MOUNT_FLARE_LENGTH_Z must be positive")
+        if STALK_HUB_FLARE_LENGTH_Z + STALK_MOUNT_FLARE_LENGTH_Z >= STALK_LENGTH_Z:
+            raise ValueError("Stalk flare lengths must leave a straight center section")
     for name, rotation in (
         ("FAN_1_ROTATION_DEG", FAN_1_ROTATION_DEG),
         ("FAN_2_ROTATION_DEG", FAN_2_ROTATION_DEG),
@@ -454,6 +610,27 @@ def yz_polygon_prism(name: str, loop, x0: float, x1: float):
         faces.append([i, j, count + j, count + i])
         faces.append([left_center, j, i])
         faces.append([right_center, count + i, count + j])
+    return create_mesh_object(name, vertices, faces)
+
+
+def xz_polygon_prism(name: str, loop, y0: float, y1: float):
+    if y1 <= y0:
+        raise ValueError(f"{name}: y1 must be greater than y0")
+    count = len(loop)
+    vertices = [(x, y0, z) for x, z in loop]
+    vertices.extend((x, y1, z) for x, z in loop)
+    center_x = sum(x for x, _ in loop) / count
+    center_z = sum(z for _, z in loop) / count
+    vertices.extend(((center_x, y0, center_z), (center_x, y1, center_z)))
+    back_center = count * 2
+    front_center = back_center + 1
+
+    faces = []
+    for i in range(count):
+        j = (i + 1) % count
+        faces.append([i, j, count + j, count + i])
+        faces.append([back_center, j, i])
+        faces.append([front_center, count + i, count + j])
     return create_mesh_object(name, vertices, faces)
 
 
@@ -855,7 +1032,12 @@ def cut_fan_wire_slot(cage, center_x: float, index: int) -> None:
         cutter_dimensions,
         cutter_location,
     )
-    boolean_difference(cage, [cutter], f"Fan_{index}_Wire_Slot_Cut")
+    boolean_difference(
+        cage,
+        [cutter],
+        f"Fan_{index}_Wire_Slot_Cut",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+    )
 
 
 def create_fan_cage(center_x: float, index: int):
@@ -879,7 +1061,12 @@ def create_fan_cage(center_x: float, index: int):
             x=center_x,
         )
     ]
-    boolean_difference(grill, grill_cutters, prefix + "_Openings")
+    boolean_difference(
+        grill,
+        grill_cutters,
+        prefix + "_Openings",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+    )
 
     housing = rounded_rectangle_prism(
         prefix + "_Housing",
@@ -896,8 +1083,18 @@ def create_fan_cage(center_x: float, index: int):
         (inner_size, inner_size, FAN_FRAME_DEPTH - GRILL_THICKNESS + 2.0 * BOOLEAN_OVERLAP),
         (center_x, 0.0, (FAN_FRAME_DEPTH + GRILL_THICKNESS) / 2.0),
     )
-    boolean_difference(housing, [housing_cut], prefix + "_Housing_Cut")
-    boolean_union(grill, housing, prefix + "_Housing_Union")
+    boolean_difference(
+        housing,
+        [housing_cut],
+        prefix + "_Housing_Cut",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+    )
+    boolean_union(
+        grill,
+        housing,
+        prefix + "_Housing_Union",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+    )
 
     bar_length = AIRFLOW_DIAMETER + 2.0 * GRILL_CONNECTION_OVERLAP
     horizontal_bar = add_box(
@@ -910,8 +1107,18 @@ def create_fan_cage(center_x: float, index: int):
         (GRILL_BAR_WIDTH, bar_length, GRILL_THICKNESS),
         (center_x, 0.0, GRILL_THICKNESS / 2.0),
     )
-    boolean_union(grill, horizontal_bar, prefix + "_Horizontal_Bar_Union")
-    boolean_union(grill, vertical_bar, prefix + "_Vertical_Bar_Union")
+    boolean_union(
+        grill,
+        horizontal_bar,
+        prefix + "_Horizontal_Bar_Union",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+    )
+    boolean_union(
+        grill,
+        vertical_bar,
+        prefix + "_Vertical_Bar_Union",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+    )
 
     for ring_index, radius in enumerate(GRILL_RING_CENTER_RADII, start=1):
         ring = annular_prism(
@@ -923,7 +1130,12 @@ def create_fan_cage(center_x: float, index: int):
             0.0,
             GRILL_THICKNESS,
         )
-        boolean_union(grill, ring, prefix + f"_Ring_{ring_index}_Union")
+        boolean_union(
+            grill,
+            ring,
+            prefix + f"_Ring_{ring_index}_Union",
+            solver=FAN_CAGE_BOOLEAN_SOLVER,
+        )
 
     center_disk = add_cylinder_z(
         prefix + "_Center_Disk",
@@ -932,7 +1144,12 @@ def create_fan_cage(center_x: float, index: int):
         GRILL_THICKNESS,
         x=center_x,
     )
-    boolean_union(grill, center_disk, prefix + "_Center_Disk_Union")
+    boolean_union(
+        grill,
+        center_disk,
+        prefix + "_Center_Disk_Union",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+    )
 
     if FAN_HOLE_COLLARS_ENABLED and FAN_HOLE_COLLAR_HEIGHT > 0.0:
         for collar_index, (x, y) in enumerate(fan_hole_centers(center_x), start=1):
@@ -944,7 +1161,12 @@ def create_fan_cage(center_x: float, index: int):
                 x=x,
                 y=y,
             )
-            boolean_union(grill, collar, prefix + f"_Screw_Collar_{collar_index}_Union")
+            boolean_union(
+                grill,
+                collar,
+                prefix + f"_Screw_Collar_{collar_index}_Union",
+                solver=FAN_CAGE_BOOLEAN_SOLVER,
+            )
 
     # Drill after adding the optional solid collars. This avoids coincident
     # cylindrical surfaces between pre-cut holes and annular collar meshes.
@@ -963,7 +1185,12 @@ def create_fan_cage(center_x: float, index: int):
                 y=y,
             )
         )
-    boolean_difference(grill, screw_hole_cuts, prefix + "_Screw_Holes")
+    boolean_difference(
+        grill,
+        screw_hole_cuts,
+        prefix + "_Screw_Holes",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+    )
 
     if FAN_HOLE_COUNTERSINK_ENABLED and FAN_HOLE_COUNTERSINK_DEPTH > 0.0:
         countersinks = []
@@ -979,7 +1206,12 @@ def create_fan_cage(center_x: float, index: int):
                     y=y,
                 )
             )
-        boolean_difference(grill, countersinks, prefix + "_Countersinks")
+        boolean_difference(
+            grill,
+            countersinks,
+            prefix + "_Countersinks",
+            solver=FAN_CAGE_BOOLEAN_SOLVER,
+        )
 
     cut_fan_wire_slot(grill, center_x, index)
 
@@ -1092,6 +1324,27 @@ def stalk_center_y() -> float:
 def create_stalk():
     z0 = -STALK_LENGTH_Z
     z1 = BOOLEAN_OVERLAP
+    if STALK_END_FLARES_ENABLED:
+        half_stalk_width = STALK_WIDTH / 2.0
+        half_hub_flare_width = STALK_HUB_FLARE_WIDTH / 2.0
+        half_mount_width = MOUNT_BLOCK_WIDTH / 2.0
+        profile = [
+            (-half_mount_width, z0),
+            (half_mount_width, z0),
+            (half_stalk_width, z0 + STALK_MOUNT_FLARE_LENGTH_Z),
+            (half_stalk_width, z1 - STALK_HUB_FLARE_LENGTH_Z),
+            (half_hub_flare_width, z1),
+            (-half_hub_flare_width, z1),
+            (-half_stalk_width, z1 - STALK_HUB_FLARE_LENGTH_Z),
+            (-half_stalk_width, z0 + STALK_MOUNT_FLARE_LENGTH_Z),
+        ]
+        center_y = stalk_center_y()
+        return xz_polygon_prism(
+            "Mount_Stalk_With_End_Flares",
+            profile,
+            center_y - STALK_DEPTH_Y / 2.0,
+            center_y + STALK_DEPTH_Y / 2.0,
+        )
     return add_box(
         "Mount_Stalk",
         (STALK_WIDTH, STALK_DEPTH_Y, z1 - z0),
@@ -1436,8 +1689,8 @@ def triangulate_mesh(obj) -> None:
     obj.data.update()
 
 
-def export_stl(objects) -> Path:
-    path = Path(EXPORT_STL_PATH)
+def export_stl(objects, output_path) -> Path:
+    path = Path(output_path)
     if not path.is_absolute():
         base = Path(bpy.data.filepath).parent if bpy.data.filepath else Path.cwd()
         path = base / path
@@ -1458,6 +1711,11 @@ def export_stl(objects) -> Path:
 
 
 def build_dual_fan():
+    # A direct MATERIAL_MODE assignment remains convenient for Blender's
+    # console and --python-expr.  Reapply only after an actual mode change so
+    # explicit scalar tuning performed after profile selection remains intact.
+    if MATERIAL_MODE != _APPLIED_MATERIAL_MODE:
+        apply_material_profile()
     validate_config()
     if CLEAR_SCENE:
         clear_scene()
@@ -1493,10 +1751,11 @@ def build_dual_fan():
             )
         final.name = "Parametric_Dual_Fan_Holder"
         final.data.name = "Parametric_Dual_Fan_Holder_Mesh"
-        final_objects = [final]
+        holder_objects = [final]
     else:
         final = parts[0]
-        final_objects = parts
+        holder_objects = parts
+    final_objects = list(holder_objects)
     if gopro_adapter is not None:
         final_objects.append(gopro_adapter)
     for part in final_objects:
@@ -1519,9 +1778,28 @@ def build_dual_fan():
         if UNION_ALL_PARTS and shells != 1:
             raise RuntimeError(f"{obj.name} has {shells} disconnected shells")
 
+    print(f"MATERIAL_MODE={MATERIAL_MODE}")
+    if MATERIAL_MODE == "TPU_95A":
+        print(
+            "TPU_95A_SLICER_GUIDANCE "
+            f"infill={TPU_95A_RECOMMENDED_INFILL_PERCENT[0]}-"
+            f"{TPU_95A_RECOMMENDED_INFILL_PERCENT[1]}% "
+            f"pattern={TPU_95A_RECOMMENDED_INFILL_PATTERN} "
+            f"walls={TPU_95A_RECOMMENDED_WALLS[0]}-"
+            f"{TPU_95A_RECOMMENDED_WALLS[1]}"
+        )
+        print("Detachable_GoPro_Adapter material=RIGID")
+        print(
+            "TPU_95A_MOUNT_HARDWARE "
+            f"M3_screw_extra_length={TPU_95A_MOUNT_SCREW_EXTRA_LENGTH_MM:.1f}mm"
+        )
+
     if EXPORT_STL:
-        path = export_stl(final_objects)
-        print(f"Wrote {path}")
+        holder_path = export_stl(holder_objects, EXPORT_STL_PATH)
+        print(f"Wrote holder {holder_path}")
+        if gopro_adapter is not None:
+            adapter_path = export_stl([gopro_adapter], EXPORT_ADAPTER_STL_PATH)
+            print(f"Wrote rigid adapter {adapter_path}")
 
     select_only(final)
     return final

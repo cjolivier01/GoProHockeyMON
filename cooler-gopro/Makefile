@@ -8,7 +8,9 @@ FLAT_FAN_COVER_STLS := flat-fan-cover.stl
 WRAPPING_FAN_COVER_STLS := wrapping-fan-cover.stl
 HORN_STLS := horn_parametric_blender.stl
 MISSION1_DUMMY_STLS := gopro_mission1_dummy_recreated.stl
-DUAL_FAN_STLS := gopro_dual_fan_parametric.stl
+DUAL_FAN_STLS := \
+	gopro_dual_fan_parametric.stl \
+	gopro_dual_fan_adapter.stl
 FAN_CASE_STLS := \
 	gopro_fan_case_parametric.stl \
 	gopro_fan_case_back.stl \
@@ -141,8 +143,9 @@ $(HORN_STLS): horn_parametric_blender.py
 $(MISSION1_DUMMY_STLS): gopro_mission1_dummy_blender.py
 	$(call run_single_output_generator,$<,main,EXPORT_PATH)
 
-$(DUAL_FAN_STLS): dual_fan_parametric_blender.py
-	$(call run_single_output_generator,$<,build_dual_fan,EXPORT_STL_PATH)
+$(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py
+	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
+		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_STL_PATH']='$(word 1,$(DUAL_FAN_STLS))'; ns['EXPORT_ADAPTER_STL_PATH']='$(word 2,$(DUAL_FAN_STLS))'; ns['build_dual_fan']()"
 
 # Grouped targets tell make that one Blender run creates every listed file.
 $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py
