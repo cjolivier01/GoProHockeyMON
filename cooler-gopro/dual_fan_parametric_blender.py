@@ -1,15 +1,15 @@
-"""Parametric dual-fan holder with a detachable GoPro adapter for Blender.
+"""Parametric one-to-three-fan holder with a detachable GoPro adapter.
 
 Run inside Blender:
 
     blender --background --python dual_fan_parametric_blender.py
 
 All dimensions are millimeters. Edit the values in CONFIG, then run the
-script. The default dimensions follow ``gopro-dual-fan.stl`` while keeping
-the geometry centered and easy to modify.
+script. The default two-fan dimensions follow ``gopro-dual-fan.stl`` while
+keeping every supported fan array centered and easy to modify.
 
 Axes:
-    X - across the two fans
+    X - across the fan array
     Y - vertical in the fan plane; the GoPro fingers project toward negative Y
     Z - fan depth; the camera mount projects toward negative Z
 """
@@ -29,7 +29,9 @@ from mathutils import Euler, Matrix, Quaternion, Vector
 
 CLEAR_SCENE = True
 EXPORT_STL = False
-EXPORT_STL_PATH = "gopro_dual_fan_parametric.stl"
+# Leave None to derive a count/size-specific holder filename.  Build tooling or
+# Blender console users may set an explicit path to override it.
+EXPORT_STL_PATH = None
 EXPORT_ADAPTER_STL_PATH = "gopro_dual_fan_adapter.stl"
 
 # Structural profile for the fan holder.  The detachable GoPro adapter remains
@@ -63,42 +65,82 @@ UNION_ALL_PARTS = True
 DEBUG_BOOLEAN_STEPS = False
 CLEAN_COINCIDENT_FACE_TOLERANCE = 1.0e-5
 
-# Fan cages. Distances are measured independently from the stalk centerline.
-#FAN_1_DISTANCE_FROM_CENTER = 75
-#FAN_2_DISTANCE_FROM_CENTER = 75
-FAN_1_DISTANCE_FROM_CENTER = 52.5
-FAN_2_DISTANCE_FROM_CENTER = 52.5
+# Fan array.  FAN_COUNT consumes the first entries from FAN_SIZES_MM and
+# FAN_ROTATIONS_DEG, so changing only FAN_COUNT selects the normal one-, two-,
+# or three-fan arrangement.  Edit an entry in FAN_SIZES_MM to mix sizes.
+FAN_COUNT = 2
+FAN_SIZES_MM = (60, 60, 60)
+FAN_ROTATIONS_DEG = (
+    (0.0, 0.0, 0.0),
+    (0.0, 0.0, 0.0),
+    (0.0, 0.0, 0.0),
+)
+
+# Noctua reference dimensions: nominal frame size, depth, square mounting-hole
+# spacing, and fan-frame hole diameter.  The holder sleeves only the front
+# FAN_FRAME_DEPTH millimeters; the remainder of a 20/25 mm fan may protrude
+# from the open back exactly as it does in the original 60 mm design.
+FAN_PRESETS = {
+    40: {
+        "depth": 20.0,
+        "hole_spacing": 32.0,
+        "hole_diameter": 4.3,
+        "reference": "Noctua NF-A4x20",
+    },
+    60: {
+        "depth": 25.0,
+        "hole_spacing": 50.0,
+        "hole_diameter": 4.3,
+        "reference": "Noctua NF-A6x25",
+    },
+    80: {
+        "depth": 25.0,
+        "hole_spacing": 71.5,
+        "hole_diameter": 4.3,
+        "reference": "Noctua NF-A8",
+    },
+    120: {
+        "depth": 25.0,
+        "hole_spacing": 105.0,
+        "hole_diameter": 4.3,
+        "reference": "Noctua NF-A12x25",
+    },
+}
+# Noctua dimensional sources used for these presets:
+# https://www.noctua.at/en/products/nf-a4x20-pwm/specifications
+# https://www.noctua.at/en/products/nf-a6x25-pwm/specifications
+# https://www.noctua.at/en/products/nf-a8-pwm/specifications
+# https://www.noctua.at/en/products/nf-a12x25-pwm/specifications
+FAN_REFERENCE_SIZE_MM = 60.0
+# The original centers at +/-52.5 mm leave 45 mm between nominal 60 mm bodies.
+FAN_BODY_GAP_MM = 45.0
 FAN_FRAME_DEPTH = 14.7
 FAN_FRAME_CORNER_RADIUS = 2.5
-# The rigid cavity is 60.7 mm for a nominal 60 mm Noctua NF-A6x25.  Material
-# profiles may grow the outside of the cage but must retain this snug fit.
-NOMINAL_FAN_SIZE_MM = 60.0
+# The original rigid cavity is 60.7 mm around a nominal 60 mm fan.
 FAN_BODY_CLEARANCE_PER_SIDE = 0.35
-# FAN_FRAME_SIZE, FAN_FRAME_WALL, and GRILL_THICKNESS are selected in
-# MATERIAL_PROFILES below.
-
-# Fan angles relative to the unrotated support, in Blender XYZ Euler degrees.
-# Fan 1 is on the negative-X (left) side; fan 2 is on positive X (right).
-FAN_1_ROTATION_DEG = (0.0, 0.0, 0.0)
-FAN_2_ROTATION_DEG = (0.0, 0.0, 0.0)
+# FAN_FRAME_WALL and GRILL_THICKNESS are selected in MATERIAL_PROFILES below.
 
 # "support_contact" rotates around the lower-inner connection to the support.
 # "fan_center" rotates around the geometric center of each fan cage.
 FAN_ROTATION_PIVOT_MODE = "support_contact"
-FAN_ROTATION_PIVOT_INWARD_X = 17.0
+# Size-dependent values below are specified for the 60 mm reference and scale
+# linearly for each selected fan.
+FAN_ROTATION_PIVOT_INWARD_X_AT_REFERENCE = 17.0
 FAN_ROTATION_PIVOT_ABOVE_BOTTOM_Y = 1.0
 FAN_ROTATION_PIVOT_Z = 2.25
 
 # Fan airflow grille.
-AIRFLOW_DIAMETER = 61.4
-GRILL_CENTER_DISK_DIAMETER = 21.4
-GRILL_RING_CENTER_RADII = (16.7, 23.7)
+AIRFLOW_DIAMETER_AT_REFERENCE = 61.4
+# Preserve at least the original 60 mm design's web between the airflow cut and
+# the 7.6 mm countersink.  This caps the 40 mm opening instead of scaling it into
+# its closer 32 mm mounting-hole pattern.
+AIRFLOW_TO_COUNTERSINK_MIN_WEB = 0.8
+GRILL_CENTER_DISK_DIAMETER_AT_REFERENCE = 21.4
+GRILL_RING_CENTER_RADII_AT_REFERENCE = (16.7, 23.7)
 GRILL_CONNECTION_OVERLAP = 1.0
 # GRILL_BAR_WIDTH and GRILL_RING_WIDTH are selected in MATERIAL_PROFILES.
 
 # Four fan screw holes in each cage.
-FAN_HOLE_SPACING = 50.0
-FAN_HOLE_DIAMETER = 4.2
 FAN_HOLE_COUNTERSINK_DIAMETER = 7.6
 FAN_HOLE_COUNTERSINK_DEPTH = 2.2
 FAN_HOLE_COLLAR_DIAMETER = 6.0
@@ -113,15 +155,17 @@ FAN_WIRE_SLOT_ENABLED = True
 FAN_WIRE_SLOT_SIDE = "BOTTOM"  # "TOP", "BOTTOM", "LEFT", or "RIGHT"
 FAN_WIRE_SLOT_WIDTH = 5.0
 FAN_WIRE_SLOT_DEPTH = 9.0
-FAN_WIRE_SLOT_OFFSET = 22.0
+FAN_WIRE_SLOT_OFFSET_AT_REFERENCE = 22.0
 
-# Twisted support joining the stalk to the two fan cages.
+# Twisted support joining the stalk to the selected fan cages.  A 38.1 mm hub
+# segment per fan and 36 mm arm-start pitch reproduce the original dual layout.
 SUPPORT_ENABLED = True
-SUPPORT_HUB_WIDTH = 76.2
+SUPPORT_HUB_WIDTH_PER_FAN = 38.1
+SUPPORT_HUB_WIDTH_OVERRIDE = None
 SUPPORT_HUB_BELOW_FAN_Y = 17.2
-SUPPORT_ARM_START_X = 18.0
+SUPPORT_ARM_START_PITCH_X = 36.0
 SUPPORT_ARM_HUB_INSERT_Y = 2.0
-SUPPORT_ARM_FAN_INSERT_Y = 4.0
+SUPPORT_ARM_FAN_INSERT_Y_AT_REFERENCE = 4.0
 SUPPORT_ARM_SECTIONS = 10
 # SUPPORT_THICKNESS, SUPPORT_HUB_DEPTH_Y, and the arm widths are selected in
 # MATERIAL_PROFILES.
@@ -185,9 +229,10 @@ GOPRO_NUT_ACROSS_FLATS = 8.0
 # complete rigid profile also lets callers switch modes between repeated builds
 # in the same Blender process without retaining TPU values.
 _RIGID_MATERIAL_PROFILE = {
-    "FAN_FRAME_SIZE": 66.7,
     "FAN_FRAME_WALL": 3.0,
-    "FAN_CAGE_BOOLEAN_SOLVER": "EXACT",
+    # Mixed-size layouts place cages at coordinates where Blender's EXACT
+    # solver can leave tiny open triangles around otherwise valid screw holes.
+    "FAN_CAGE_BOOLEAN_SOLVER": "MANIFOLD",
     "GRILL_THICKNESS": 2.8,
     "GRILL_BAR_WIDTH": 2.0,
     "GRILL_RING_WIDTH": 2.0,
@@ -208,13 +253,9 @@ MATERIAL_PROFILES = {
     "RIGID": _RIGID_MATERIAL_PROFILE,
     "TPU_95A": {
         **_RIGID_MATERIAL_PROFILE,
-        # Preserve the rigid profile's 60.7 mm inner cavity (0.35 mm
-        # clearance per side around a 60 mm fan) when using thicker walls.
-        "FAN_FRAME_SIZE": 68.7,
+        # Per-fan outer sizes grow automatically to preserve the same 0.35 mm
+        # cavity clearance when this profile selects thicker walls.
         "FAN_FRAME_WALL": 4.0,
-        # MANIFOLD avoids tiny open triangles where plain cylindrical holes
-        # meet the thicker TPU grille; the rigid profile retains EXACT output.
-        "FAN_CAGE_BOOLEAN_SOLVER": "MANIFOLD",
         "GRILL_THICKNESS": 3.5,
         "GRILL_BAR_WIDTH": 2.6,
         "GRILL_RING_WIDTH": 2.6,
@@ -247,7 +288,6 @@ _APPLIED_MATERIAL_MODE = None
 
 def apply_material_profile() -> None:
     global _APPLIED_MATERIAL_MODE
-    global FAN_FRAME_SIZE
     global FAN_FRAME_WALL
     global FAN_CAGE_BOOLEAN_SOLVER
     global GRILL_THICKNESS
@@ -274,7 +314,6 @@ def apply_material_profile() -> None:
             f"MATERIAL_MODE must be one of: {choices}; got {MATERIAL_MODE!r}"
         ) from error
 
-    FAN_FRAME_SIZE = profile["FAN_FRAME_SIZE"]
     FAN_FRAME_WALL = profile["FAN_FRAME_WALL"]
     FAN_CAGE_BOOLEAN_SOLVER = profile["FAN_CAGE_BOOLEAN_SOLVER"]
     GRILL_THICKNESS = profile["GRILL_THICKNESS"]
@@ -309,26 +348,121 @@ set_material_mode(MATERIAL_MODE)
 # Basic mesh helpers
 
 
+def support_hub_width() -> float:
+    if SUPPORT_HUB_WIDTH_OVERRIDE is not None:
+        return float(SUPPORT_HUB_WIDTH_OVERRIDE)
+    return SUPPORT_HUB_WIDTH_PER_FAN * FAN_COUNT
+
+
+def resolve_fan_specs():
+    if FAN_REFERENCE_SIZE_MM <= 0.0:
+        raise ValueError("FAN_REFERENCE_SIZE_MM must be positive")
+    if not isinstance(FAN_COUNT, int) or isinstance(FAN_COUNT, bool):
+        raise ValueError("FAN_COUNT must be an integer")
+    if not 1 <= FAN_COUNT <= 3:
+        raise ValueError("FAN_COUNT must be 1, 2, or 3")
+    if len(FAN_SIZES_MM) < FAN_COUNT:
+        raise ValueError("FAN_SIZES_MM must contain at least FAN_COUNT entries")
+    if len(FAN_ROTATIONS_DEG) < FAN_COUNT:
+        raise ValueError("FAN_ROTATIONS_DEG must contain at least FAN_COUNT entries")
+    if FAN_BODY_GAP_MM < 0.0:
+        raise ValueError("FAN_BODY_GAP_MM cannot be negative")
+
+    selected_sizes = []
+    for index, raw_size in enumerate(FAN_SIZES_MM[:FAN_COUNT], start=1):
+        if raw_size not in FAN_PRESETS:
+            choices = ", ".join(str(size) for size in sorted(FAN_PRESETS))
+            raise ValueError(
+                f"Fan {index} size {raw_size!r} is unsupported; choose {choices} mm"
+            )
+        selected_sizes.append(float(raw_size))
+
+    total_width = sum(selected_sizes) + FAN_BODY_GAP_MM * (FAN_COUNT - 1)
+    cursor_x = -total_width / 2.0
+    specs = []
+    for index, (size, rotation) in enumerate(
+        zip(selected_sizes, FAN_ROTATIONS_DEG[:FAN_COUNT]),
+        start=1,
+    ):
+        if len(rotation) != 3 or not all(math.isfinite(value) for value in rotation):
+            raise ValueError(
+                f"FAN_ROTATIONS_DEG[{index - 1}] must contain three finite XYZ angles"
+            )
+        preset = FAN_PRESETS[int(size)]
+        scale = size / FAN_REFERENCE_SIZE_MM
+        center_x = cursor_x + size / 2.0
+        cavity_size = size + 2.0 * FAN_BODY_CLEARANCE_PER_SIDE
+        hole_spacing = float(preset["hole_spacing"])
+        hole_center_radius = math.sqrt(2.0) * hole_spacing / 2.0
+        maximum_airflow_radius = (
+            hole_center_radius
+            - FAN_HOLE_COUNTERSINK_DIAMETER / 2.0
+            - AIRFLOW_TO_COUNTERSINK_MIN_WEB
+        )
+        airflow_diameter = min(
+            AIRFLOW_DIAMETER_AT_REFERENCE * scale,
+            2.0 * maximum_airflow_radius,
+        )
+        support_arm_fan_insert_y = min(
+            SUPPORT_ARM_FAN_INSERT_Y_AT_REFERENCE * scale,
+            FAN_FRAME_WALL - BOOLEAN_OVERLAP,
+        )
+        specs.append(
+            {
+                "index": index,
+                "size": size,
+                "depth": float(preset["depth"]),
+                "reference": preset["reference"],
+                "center_x": center_x,
+                "rotation": tuple(float(value) for value in rotation),
+                "cavity_size": cavity_size,
+                "frame_size": cavity_size + 2.0 * FAN_FRAME_WALL,
+                "airflow_diameter": airflow_diameter,
+                "grill_center_disk_diameter": (
+                    GRILL_CENTER_DISK_DIAMETER_AT_REFERENCE * scale
+                ),
+                "grill_ring_center_radii": tuple(
+                    radius * scale
+                    for radius in GRILL_RING_CENTER_RADII_AT_REFERENCE
+                ),
+                "hole_spacing": hole_spacing,
+                "hole_diameter": float(preset["hole_diameter"]),
+                "wire_slot_offset": FAN_WIRE_SLOT_OFFSET_AT_REFERENCE * scale,
+                "pivot_inward_x": (
+                    FAN_ROTATION_PIVOT_INWARD_X_AT_REFERENCE * scale
+                ),
+                "support_arm_fan_insert_y": support_arm_fan_insert_y,
+                "support_arm_center_width": SUPPORT_ARM_CENTER_WIDTH * scale,
+                "support_arm_fan_width": SUPPORT_ARM_FAN_WIDTH * scale,
+            }
+        )
+        cursor_x += size + FAN_BODY_GAP_MM
+    return specs
+
+
 def validate_config() -> None:
+    fan_specs = resolve_fan_specs()
+    resolved_hub_width = support_hub_width()
     positive = {
-        "FAN_1_DISTANCE_FROM_CENTER": FAN_1_DISTANCE_FROM_CENTER,
-        "FAN_2_DISTANCE_FROM_CENTER": FAN_2_DISTANCE_FROM_CENTER,
-        "FAN_FRAME_SIZE": FAN_FRAME_SIZE,
+        "FAN_REFERENCE_SIZE_MM": FAN_REFERENCE_SIZE_MM,
         "FAN_FRAME_DEPTH": FAN_FRAME_DEPTH,
         "FAN_FRAME_WALL": FAN_FRAME_WALL,
         "GRILL_THICKNESS": GRILL_THICKNESS,
-        "AIRFLOW_DIAMETER": AIRFLOW_DIAMETER,
-        "FAN_HOLE_DIAMETER": FAN_HOLE_DIAMETER,
+        "AIRFLOW_TO_COUNTERSINK_MIN_WEB": AIRFLOW_TO_COUNTERSINK_MIN_WEB,
         "FAN_WIRE_SLOT_WIDTH": FAN_WIRE_SLOT_WIDTH,
         "FAN_WIRE_SLOT_DEPTH": FAN_WIRE_SLOT_DEPTH,
         "SUPPORT_THICKNESS": SUPPORT_THICKNESS,
-        "SUPPORT_HUB_WIDTH": SUPPORT_HUB_WIDTH,
+        "SUPPORT_HUB_WIDTH": resolved_hub_width,
+        "SUPPORT_HUB_WIDTH_PER_FAN": SUPPORT_HUB_WIDTH_PER_FAN,
         "SUPPORT_HUB_DEPTH_Y": SUPPORT_HUB_DEPTH_Y,
         "SUPPORT_HUB_BELOW_FAN_Y": SUPPORT_HUB_BELOW_FAN_Y,
+        "SUPPORT_ARM_START_PITCH_X": SUPPORT_ARM_START_PITCH_X,
         "SUPPORT_ARM_CENTER_WIDTH": SUPPORT_ARM_CENTER_WIDTH,
         "SUPPORT_ARM_FAN_WIDTH": SUPPORT_ARM_FAN_WIDTH,
         "SUPPORT_ARM_HUB_INSERT_Y": SUPPORT_ARM_HUB_INSERT_Y,
-        "SUPPORT_ARM_FAN_INSERT_Y": SUPPORT_ARM_FAN_INSERT_Y,
+        "SUPPORT_ARM_FAN_INSERT_Y_AT_REFERENCE": (
+            SUPPORT_ARM_FAN_INSERT_Y_AT_REFERENCE
+        ),
         "STALK_WIDTH": STALK_WIDTH,
         "STALK_DEPTH_Y": STALK_DEPTH_Y,
         "STALK_LENGTH_Z": STALK_LENGTH_Z,
@@ -358,22 +492,12 @@ def validate_config() -> None:
         if value <= 0:
             raise ValueError(f"{name} must be positive")
 
-    if FAN_FRAME_WALL * 2.0 >= FAN_FRAME_SIZE:
-        raise ValueError("FAN_FRAME_WALL leaves no opening")
-    minimum_fan_cavity = NOMINAL_FAN_SIZE_MM + 2.0 * FAN_BODY_CLEARANCE_PER_SIDE
-    fan_cavity = FAN_FRAME_SIZE - 2.0 * FAN_FRAME_WALL
-    if fan_cavity + 1.0e-9 < minimum_fan_cavity:
-        raise ValueError(
-            "FAN_FRAME_SIZE and FAN_FRAME_WALL leave only "
-            f"{fan_cavity:.3f} mm for a {NOMINAL_FAN_SIZE_MM:.3f} mm fan; "
-            f"at least {minimum_fan_cavity:.3f} mm is required"
-        )
+    if FAN_BODY_CLEARANCE_PER_SIDE < 0.0:
+        raise ValueError("FAN_BODY_CLEARANCE_PER_SIDE cannot be negative")
+    if FAN_FRAME_WALL <= BOOLEAN_OVERLAP:
+        raise ValueError("FAN_FRAME_WALL must exceed BOOLEAN_OVERLAP")
     if not 0 < GRILL_THICKNESS < FAN_FRAME_DEPTH:
         raise ValueError("GRILL_THICKNESS must be less than FAN_FRAME_DEPTH")
-    if AIRFLOW_DIAMETER >= FAN_FRAME_SIZE:
-        raise ValueError("AIRFLOW_DIAMETER must be smaller than FAN_FRAME_SIZE")
-    if GRILL_CENTER_DISK_DIAMETER >= AIRFLOW_DIAMETER:
-        raise ValueError("GRILL_CENTER_DISK_DIAMETER must fit inside the airflow opening")
 
     if FAN_WIRE_SLOT_SIDE not in {"TOP", "BOTTOM", "LEFT", "RIGHT"}:
         raise ValueError(
@@ -384,23 +508,45 @@ def validate_config() -> None:
             "FAN_WIRE_SLOT_DEPTH must leave material between the slot and grille"
         )
     slot_half_width = FAN_WIRE_SLOT_WIDTH / 2.0
-    straight_wall_half_length = FAN_FRAME_SIZE / 2.0 - FAN_FRAME_CORNER_RADIUS
-    if abs(FAN_WIRE_SLOT_OFFSET) + slot_half_width > straight_wall_half_length:
-        raise ValueError(
-            "FAN_WIRE_SLOT_OFFSET and FAN_WIRE_SLOT_WIDTH must keep the slot "
-            "inside the straight portion of its wall"
+    for fan in fan_specs:
+        label = f"Fan {fan['index']} ({fan['size']:.0f} mm)"
+        frame_size = fan["frame_size"]
+        cavity_size = frame_size - 2.0 * FAN_FRAME_WALL
+        required_cavity = fan["size"] + 2.0 * FAN_BODY_CLEARANCE_PER_SIDE
+        if cavity_size + 1.0e-9 < required_cavity:
+            raise ValueError(
+                f"{label} cavity is {cavity_size:.3f} mm; "
+                f"at least {required_cavity:.3f} mm is required"
+            )
+        if fan["airflow_diameter"] <= 0.0:
+            raise ValueError(f"{label} mounting pattern leaves no airflow opening")
+        if fan["airflow_diameter"] >= frame_size:
+            raise ValueError(f"{label} airflow opening does not fit its frame")
+        if fan["grill_center_disk_diameter"] >= fan["airflow_diameter"]:
+            raise ValueError(f"{label} center disk does not fit its airflow opening")
+        straight_wall_half_length = frame_size / 2.0 - FAN_FRAME_CORNER_RADIUS
+        if (
+            abs(fan["wire_slot_offset"]) + slot_half_width
+            > straight_wall_half_length
+        ):
+            raise ValueError(f"{label} wire slot does not fit its straight wall")
+        airflow_radius = fan["airflow_diameter"] / 2.0
+        for radius in fan["grill_ring_center_radii"]:
+            if radius <= GRILL_RING_WIDTH / 2.0:
+                raise ValueError(f"{label} grille ring is too small")
+            if radius + GRILL_RING_WIDTH / 2.0 >= airflow_radius:
+                raise ValueError(f"{label} grille ring exceeds the airflow opening")
+        fan_hole_extent = (
+            fan["hole_spacing"] / 2.0 + FAN_HOLE_COUNTERSINK_DIAMETER / 2.0
         )
-
-    airflow_radius = AIRFLOW_DIAMETER / 2.0
-    for radius in GRILL_RING_CENTER_RADII:
-        if radius <= GRILL_RING_WIDTH / 2.0:
-            raise ValueError("Each grille ring radius must exceed half its width")
-        if radius + GRILL_RING_WIDTH / 2.0 >= airflow_radius:
-            raise ValueError("Each grille ring must fit inside AIRFLOW_DIAMETER")
-
-    fan_hole_extent = FAN_HOLE_SPACING / 2.0 + FAN_HOLE_COUNTERSINK_DIAMETER / 2.0
-    if fan_hole_extent >= FAN_FRAME_SIZE / 2.0:
-        raise ValueError("Fan holes or countersinks do not fit inside the fan frame")
+        if fan_hole_extent >= frame_size / 2.0:
+            raise ValueError(f"{label} mounting holes do not fit inside the frame")
+        if not 0.0 <= fan["pivot_inward_x"] < frame_size / 2.0:
+            raise ValueError(f"{label} rotation pivot must remain inside the frame")
+        if not 0.0 < fan["support_arm_fan_insert_y"] <= FAN_FRAME_WALL:
+            raise ValueError(f"{label} support-arm insertion must remain in the wall")
+        if fan["support_arm_fan_insert_y"] >= frame_size / 2.0:
+            raise ValueError(f"{label} support-arm insertion exceeds the frame")
 
     mount_hole_extent = MOUNT_HOLE_SPACING / 2.0 + MOUNT_COUNTERSINK_DIAMETER / 2.0
     if mount_hole_extent >= MOUNT_BLOCK_WIDTH / 2.0:
@@ -445,18 +591,14 @@ def validate_config() -> None:
 
     if FAN_ROTATION_PIVOT_MODE not in {"support_contact", "fan_center"}:
         raise ValueError('FAN_ROTATION_PIVOT_MODE must be "support_contact" or "fan_center"')
-    if not 0.0 <= FAN_ROTATION_PIVOT_INWARD_X < FAN_FRAME_SIZE / 2.0:
-        raise ValueError("FAN_ROTATION_PIVOT_INWARD_X must remain inside the fan frame")
     if SUPPORT_ARM_SECTIONS < 2:
         raise ValueError("SUPPORT_ARM_SECTIONS must be at least 2")
     if SUPPORT_ARM_HUB_INSERT_Y >= SUPPORT_HUB_DEPTH_Y:
         raise ValueError("SUPPORT_ARM_HUB_INSERT_Y must be less than SUPPORT_HUB_DEPTH_Y")
-    if SUPPORT_ARM_FAN_INSERT_Y >= FAN_FRAME_SIZE / 2.0:
-        raise ValueError("SUPPORT_ARM_FAN_INSERT_Y must remain inside the fan frame")
     if STALK_END_FLARES_ENABLED:
         if STALK_HUB_FLARE_WIDTH <= STALK_WIDTH:
             raise ValueError("STALK_HUB_FLARE_WIDTH must exceed STALK_WIDTH")
-        if STALK_HUB_FLARE_WIDTH >= SUPPORT_HUB_WIDTH:
+        if STALK_HUB_FLARE_WIDTH >= resolved_hub_width:
             raise ValueError("STALK_HUB_FLARE_WIDTH must fit inside SUPPORT_HUB_WIDTH")
         if STALK_HUB_FLARE_LENGTH_Z <= 0.0:
             raise ValueError("STALK_HUB_FLARE_LENGTH_Z must be positive")
@@ -464,12 +606,6 @@ def validate_config() -> None:
             raise ValueError("STALK_MOUNT_FLARE_LENGTH_Z must be positive")
         if STALK_HUB_FLARE_LENGTH_Z + STALK_MOUNT_FLARE_LENGTH_Z >= STALK_LENGTH_Z:
             raise ValueError("Stalk flare lengths must leave a straight center section")
-    for name, rotation in (
-        ("FAN_1_ROTATION_DEG", FAN_1_ROTATION_DEG),
-        ("FAN_2_ROTATION_DEG", FAN_2_ROTATION_DEG),
-    ):
-        if len(rotation) != 3 or not all(math.isfinite(value) for value in rotation):
-            raise ValueError(f"{name} must contain three finite XYZ angles")
 
 
 def set_units() -> None:
@@ -504,14 +640,22 @@ def create_mesh_object(name: str, vertices, faces):
     return obj
 
 
-def fan_rotation_pivot(center_x: float):
+def fan_inward_sign(fan) -> float:
+    if fan["center_x"] < -1.0e-9:
+        return 1.0
+    if fan["center_x"] > 1.0e-9:
+        return -1.0
+    return 0.0
+
+
+def fan_rotation_pivot(fan):
+    center_x = fan["center_x"]
     if FAN_ROTATION_PIVOT_MODE == "fan_center":
         return (center_x, 0.0, FAN_FRAME_DEPTH / 2.0)
 
-    inward_sign = 1.0 if center_x < 0.0 else -1.0
     return (
-        center_x + inward_sign * FAN_ROTATION_PIVOT_INWARD_X,
-        -FAN_FRAME_SIZE / 2.0 + FAN_ROTATION_PIVOT_ABOVE_BOTTOM_Y,
+        center_x + fan_inward_sign(fan) * fan["pivot_inward_x"],
+        -fan["frame_size"] / 2.0 + FAN_ROTATION_PIVOT_ABOVE_BOTTOM_Y,
         FAN_ROTATION_PIVOT_Z,
     )
 
@@ -521,18 +665,18 @@ def fan_rotation_quaternion(rotation_deg):
     return Euler(angles, "XYZ").to_quaternion()
 
 
-def transform_fan_point(point, center_x: float, rotation_deg):
-    pivot = Vector(fan_rotation_pivot(center_x))
-    rotation = fan_rotation_quaternion(rotation_deg)
+def transform_fan_point(point, fan):
+    pivot = Vector(fan_rotation_pivot(fan))
+    rotation = fan_rotation_quaternion(fan["rotation"])
     return pivot + rotation @ (Vector(point) - pivot)
 
 
-def rotate_fan_cage(obj, center_x: float, rotation_deg) -> None:
-    if all(abs(value) < 1.0e-12 for value in rotation_deg):
+def rotate_fan_cage(obj, fan) -> None:
+    if all(abs(value) < 1.0e-12 for value in fan["rotation"]):
         return
 
-    pivot = fan_rotation_pivot(center_x)
-    rotation = fan_rotation_quaternion(rotation_deg).to_matrix().to_4x4()
+    pivot = fan_rotation_pivot(fan)
+    rotation = fan_rotation_quaternion(fan["rotation"]).to_matrix().to_4x4()
     transform = (
         Matrix.Translation(pivot)
         @ rotation
@@ -990,15 +1134,23 @@ def boolean_difference(
 # Parametric parts
 
 
-def fan_hole_centers(center_x: float):
-    half = FAN_HOLE_SPACING / 2.0
-    return [(center_x + sx * half, sy * half) for sx in (-1.0, 1.0) for sy in (-1.0, 1.0)]
+def fan_hole_centers(fan):
+    half = fan["hole_spacing"] / 2.0
+    center_x = fan["center_x"]
+    return [
+        (center_x + sx * half, sy * half)
+        for sx in (-1.0, 1.0)
+        for sy in (-1.0, 1.0)
+    ]
 
 
-def cut_fan_wire_slot(cage, center_x: float, index: int) -> None:
+def cut_fan_wire_slot(cage, fan) -> None:
     if not FAN_WIRE_SLOT_ENABLED:
         return
 
+    index = fan["index"]
+    center_x = fan["center_x"]
+    frame_size = fan["frame_size"]
     # Extend through the selected wall and beyond the open back so the result is
     # a true U-shaped exit rather than an enclosed pocket.
     cutter_depth = FAN_WIRE_SLOT_DEPTH + 2.0 * BOOLEAN_OVERLAP
@@ -1011,8 +1163,8 @@ def cut_fan_wire_slot(cage, center_x: float, index: int) -> None:
             cutter_depth,
         )
         cutter_location = (
-            center_x + FAN_WIRE_SLOT_OFFSET,
-            side_sign * (FAN_FRAME_SIZE / 2.0 - FAN_FRAME_WALL / 2.0),
+            center_x + fan["wire_slot_offset"],
+            side_sign * (frame_size / 2.0 - FAN_FRAME_WALL / 2.0),
             cutter_z,
         )
     else:
@@ -1023,8 +1175,8 @@ def cut_fan_wire_slot(cage, center_x: float, index: int) -> None:
             cutter_depth,
         )
         cutter_location = (
-            center_x + side_sign * (FAN_FRAME_SIZE / 2.0 - FAN_FRAME_WALL / 2.0),
-            FAN_WIRE_SLOT_OFFSET,
+            center_x + side_sign * (frame_size / 2.0 - FAN_FRAME_WALL / 2.0),
+            fan["wire_slot_offset"],
             cutter_z,
         )
     cutter = add_box(
@@ -1040,13 +1192,16 @@ def cut_fan_wire_slot(cage, center_x: float, index: int) -> None:
     )
 
 
-def create_fan_cage(center_x: float, index: int):
+def create_fan_cage(fan):
+    index = fan["index"]
+    center_x = fan["center_x"]
+    frame_size = fan["frame_size"]
     prefix = f"Fan_{index}"
 
     grill = rounded_rectangle_prism(
         prefix + "_Grill_Frame",
-        FAN_FRAME_SIZE,
-        FAN_FRAME_SIZE,
+        frame_size,
+        frame_size,
         FAN_FRAME_CORNER_RADIUS,
         0.0,
         GRILL_THICKNESS,
@@ -1055,7 +1210,7 @@ def create_fan_cage(center_x: float, index: int):
     grill_cutters = [
         add_cylinder_z(
             prefix + "_Airflow_Cut",
-            AIRFLOW_DIAMETER / 2.0,
+            fan["airflow_diameter"] / 2.0,
             -BOOLEAN_OVERLAP,
             GRILL_THICKNESS + BOOLEAN_OVERLAP,
             x=center_x,
@@ -1070,14 +1225,14 @@ def create_fan_cage(center_x: float, index: int):
 
     housing = rounded_rectangle_prism(
         prefix + "_Housing",
-        FAN_FRAME_SIZE,
-        FAN_FRAME_SIZE,
+        frame_size,
+        frame_size,
         FAN_FRAME_CORNER_RADIUS,
         GRILL_THICKNESS - BOOLEAN_OVERLAP,
         FAN_FRAME_DEPTH,
         center_x=center_x,
     )
-    inner_size = FAN_FRAME_SIZE - 2.0 * FAN_FRAME_WALL
+    inner_size = fan["cavity_size"]
     housing_cut = add_box(
         prefix + "_Housing_Opening",
         (inner_size, inner_size, FAN_FRAME_DEPTH - GRILL_THICKNESS + 2.0 * BOOLEAN_OVERLAP),
@@ -1096,7 +1251,7 @@ def create_fan_cage(center_x: float, index: int):
         solver=FAN_CAGE_BOOLEAN_SOLVER,
     )
 
-    bar_length = AIRFLOW_DIAMETER + 2.0 * GRILL_CONNECTION_OVERLAP
+    bar_length = fan["airflow_diameter"] + 2.0 * GRILL_CONNECTION_OVERLAP
     horizontal_bar = add_box(
         prefix + "_Horizontal_Bar",
         (bar_length, GRILL_BAR_WIDTH, GRILL_THICKNESS),
@@ -1120,7 +1275,10 @@ def create_fan_cage(center_x: float, index: int):
         solver=FAN_CAGE_BOOLEAN_SOLVER,
     )
 
-    for ring_index, radius in enumerate(GRILL_RING_CENTER_RADII, start=1):
+    for ring_index, radius in enumerate(
+        fan["grill_ring_center_radii"],
+        start=1,
+    ):
         ring = annular_prism(
             f"{prefix}_Ring_{ring_index}",
             center_x,
@@ -1139,7 +1297,7 @@ def create_fan_cage(center_x: float, index: int):
 
     center_disk = add_cylinder_z(
         prefix + "_Center_Disk",
-        GRILL_CENTER_DISK_DIAMETER / 2.0,
+        fan["grill_center_disk_diameter"] / 2.0,
         0.0,
         GRILL_THICKNESS,
         x=center_x,
@@ -1152,7 +1310,7 @@ def create_fan_cage(center_x: float, index: int):
     )
 
     if FAN_HOLE_COLLARS_ENABLED and FAN_HOLE_COLLAR_HEIGHT > 0.0:
-        for collar_index, (x, y) in enumerate(fan_hole_centers(center_x), start=1):
+        for collar_index, (x, y) in enumerate(fan_hole_centers(fan), start=1):
             collar = add_cylinder_z(
                 f"{prefix}_Screw_Collar_{collar_index}",
                 FAN_HOLE_COLLAR_DIAMETER / 2.0,
@@ -1174,11 +1332,11 @@ def create_fan_cage(center_x: float, index: int):
     if FAN_HOLE_COLLARS_ENABLED:
         screw_hole_top += FAN_HOLE_COLLAR_HEIGHT
     screw_hole_cuts = []
-    for hole_index, (x, y) in enumerate(fan_hole_centers(center_x), start=1):
+    for hole_index, (x, y) in enumerate(fan_hole_centers(fan), start=1):
         screw_hole_cuts.append(
             add_cylinder_z(
                 f"{prefix}_Screw_Cut_{hole_index}",
-                FAN_HOLE_DIAMETER / 2.0,
+                fan["hole_diameter"] / 2.0,
                 -BOOLEAN_OVERLAP,
                 screw_hole_top + BOOLEAN_OVERLAP,
                 x=x,
@@ -1194,12 +1352,12 @@ def create_fan_cage(center_x: float, index: int):
 
     if FAN_HOLE_COUNTERSINK_ENABLED and FAN_HOLE_COUNTERSINK_DEPTH > 0.0:
         countersinks = []
-        for hole_index, (x, y) in enumerate(fan_hole_centers(center_x), start=1):
+        for hole_index, (x, y) in enumerate(fan_hole_centers(fan), start=1):
             countersinks.append(
                 add_cone_z(
                     f"{prefix}_Screw_Countersink_{hole_index}",
                     FAN_HOLE_COUNTERSINK_DIAMETER / 2.0,
-                    FAN_HOLE_DIAMETER / 2.0,
+                    fan["hole_diameter"] / 2.0,
                     -BOOLEAN_OVERLAP,
                     FAN_HOLE_COUNTERSINK_DEPTH,
                     x=x,
@@ -1213,37 +1371,38 @@ def create_fan_cage(center_x: float, index: int):
             solver=FAN_CAGE_BOOLEAN_SOLVER,
         )
 
-    cut_fan_wire_slot(grill, center_x, index)
+    cut_fan_wire_slot(grill, fan)
 
     grill.name = prefix + "_Cage"
     grill.data.name = prefix + "_Cage_Mesh"
     return grill
 
 
-def support_bottom_y() -> float:
-    return -FAN_FRAME_SIZE / 2.0 - SUPPORT_HUB_BELOW_FAN_Y
+def support_bottom_y(fan_specs=None) -> float:
+    fan_specs = fan_specs or resolve_fan_specs()
+    largest_frame_size = max(fan["frame_size"] for fan in fan_specs)
+    return -largest_frame_size / 2.0 - SUPPORT_HUB_BELOW_FAN_Y
 
 
-def support_hub_top_y() -> float:
-    return support_bottom_y() + SUPPORT_HUB_DEPTH_Y
+def support_hub_top_y(fan_specs=None) -> float:
+    return support_bottom_y(fan_specs) + SUPPORT_HUB_DEPTH_Y
 
 
-def create_twisted_support_arm(name: str, side: float, fan_x: float, rotation_deg):
+def create_twisted_support_arm(name: str, fan, start_x: float, fan_specs):
     start = Vector(
         (
-            side * SUPPORT_ARM_START_X,
-            support_hub_top_y() - SUPPORT_ARM_HUB_INSERT_Y,
+            start_x,
+            support_hub_top_y(fan_specs) - SUPPORT_ARM_HUB_INSERT_Y,
             SUPPORT_THICKNESS / 2.0,
         )
     )
-    inward_sign = -side
     end_unrotated = (
-        fan_x + inward_sign * FAN_ROTATION_PIVOT_INWARD_X,
-        -FAN_FRAME_SIZE / 2.0 + SUPPORT_ARM_FAN_INSERT_Y,
+        fan["center_x"] + fan_inward_sign(fan) * fan["pivot_inward_x"],
+        -fan["frame_size"] / 2.0 + fan["support_arm_fan_insert_y"],
         FAN_ROTATION_PIVOT_Z,
     )
-    end = transform_fan_point(end_unrotated, fan_x, rotation_deg)
-    target_rotation = fan_rotation_quaternion(rotation_deg)
+    end = transform_fan_point(end_unrotated, fan)
+    target_rotation = fan_rotation_quaternion(fan["rotation"])
     identity = Quaternion((1.0, 0.0, 0.0, 0.0))
 
     vertices = []
@@ -1254,8 +1413,8 @@ def create_twisted_support_arm(name: str, side: float, fan_x: float, rotation_de
         orientation = identity.slerp(target_rotation, smooth_t)
         x_axis = orientation @ Vector((1.0, 0.0, 0.0))
         z_axis = orientation @ Vector((0.0, 0.0, 1.0))
-        width = SUPPORT_ARM_CENTER_WIDTH + (
-            SUPPORT_ARM_FAN_WIDTH - SUPPORT_ARM_CENTER_WIDTH
+        width = fan["support_arm_center_width"] + (
+            fan["support_arm_fan_width"] - fan["support_arm_center_width"]
         ) * smooth_t
         half_width = width / 2.0
         half_thickness = SUPPORT_THICKNESS / 2.0
@@ -1288,30 +1447,27 @@ def create_twisted_support_arm(name: str, side: float, fan_x: float, rotation_de
     return create_mesh_object(name, vertices, faces)
 
 
-def create_support(fan_1_x: float, fan_2_x: float):
-    bottom_y = support_bottom_y()
-    top_y = support_hub_top_y()
+def create_support(fan_specs):
+    bottom_y = support_bottom_y(fan_specs)
+    top_y = support_hub_top_y(fan_specs)
+    hub_width = support_hub_width()
     loop = [
-        (-SUPPORT_HUB_WIDTH / 2.0, bottom_y),
-        (SUPPORT_HUB_WIDTH / 2.0, bottom_y),
-        (SUPPORT_HUB_WIDTH / 2.0, top_y),
-        (-SUPPORT_HUB_WIDTH / 2.0, top_y),
+        (-hub_width / 2.0, bottom_y),
+        (hub_width / 2.0, bottom_y),
+        (hub_width / 2.0, top_y),
+        (-hub_width / 2.0, top_y),
     ]
     hub = polygon_prism("Fan_Support_Hub", loop, 0.0, SUPPORT_THICKNESS)
-    fan_1_arm = create_twisted_support_arm(
-        "Fan_1_Twisted_Support",
-        -1.0,
-        fan_1_x,
-        FAN_1_ROTATION_DEG,
-    )
-    fan_2_arm = create_twisted_support_arm(
-        "Fan_2_Twisted_Support",
-        1.0,
-        fan_2_x,
-        FAN_2_ROTATION_DEG,
-    )
-    boolean_union(hub, fan_1_arm, "Support_Arm_1_Union")
-    boolean_union(hub, fan_2_arm, "Support_Arm_2_Union")
+    center_index = (len(fan_specs) - 1) / 2.0
+    for zero_based_index, fan in enumerate(fan_specs):
+        start_x = (zero_based_index - center_index) * SUPPORT_ARM_START_PITCH_X
+        arm = create_twisted_support_arm(
+            f"Fan_{fan['index']}_Twisted_Support",
+            fan,
+            start_x,
+            fan_specs,
+        )
+        boolean_union(hub, arm, f"Support_Arm_{fan['index']}_Union")
     hub.name = "Twisted_Fan_Support"
     hub.data.name = "Twisted_Fan_Support_Mesh"
     return hub
@@ -1710,6 +1866,12 @@ def export_stl(objects, output_path) -> Path:
     return path
 
 
+def default_holder_stl_path(fan_specs) -> str:
+    count_label = {1: "single", 2: "dual", 3: "triple"}[len(fan_specs)]
+    size_label = "-".join(f"{fan['size']:g}" for fan in fan_specs)
+    return f"gopro_{count_label}_fan_{size_label}mm_parametric.stl"
+
+
 def build_dual_fan():
     # A direct MATERIAL_MODE assignment remains convenient for Blender's
     # console and --python-expr.  Reapply only after an actual mode change so
@@ -1717,21 +1879,19 @@ def build_dual_fan():
     if MATERIAL_MODE != _APPLIED_MATERIAL_MODE:
         apply_material_profile()
     validate_config()
+    fan_specs = resolve_fan_specs()
     if CLEAR_SCENE:
         clear_scene()
     set_units()
 
-    fan_1_x = -FAN_1_DISTANCE_FROM_CENTER
-    fan_2_x = FAN_2_DISTANCE_FROM_CENTER
     parts = []
     if SUPPORT_ENABLED:
-        parts.append(create_support(fan_1_x, fan_2_x))
+        parts.append(create_support(fan_specs))
 
-    fan_1 = create_fan_cage(fan_1_x, 1)
-    fan_2 = create_fan_cage(fan_2_x, 2)
-    rotate_fan_cage(fan_1, fan_1_x, FAN_1_ROTATION_DEG)
-    rotate_fan_cage(fan_2, fan_2_x, FAN_2_ROTATION_DEG)
-    parts.extend((fan_1, fan_2))
+    for fan in fan_specs:
+        cage = create_fan_cage(fan)
+        rotate_fan_cage(cage, fan)
+        parts.append(cage)
 
     if STALK_ENABLED:
         parts.append(create_stalk())
@@ -1749,8 +1909,9 @@ def build_dual_fan():
                 solver=ASSEMBLY_BOOLEAN_SOLVER,
                 require_geometry_change=True,
             )
-        final.name = "Parametric_Dual_Fan_Holder"
-        final.data.name = "Parametric_Dual_Fan_Holder_Mesh"
+        count_label = {1: "Single", 2: "Dual", 3: "Triple"}[FAN_COUNT]
+        final.name = f"Parametric_{count_label}_Fan_Holder"
+        final.data.name = final.name + "_Mesh"
         holder_objects = [final]
     else:
         final = parts[0]
@@ -1779,6 +1940,15 @@ def build_dual_fan():
             raise RuntimeError(f"{obj.name} has {shells} disconnected shells")
 
     print(f"MATERIAL_MODE={MATERIAL_MODE}")
+    print(f"FAN_COUNT={FAN_COUNT}")
+    for fan in fan_specs:
+        print(
+            f"FAN_{fan['index']} reference={fan['reference']} "
+            f"body={fan['size']:.1f}x{fan['size']:.1f}x{fan['depth']:.1f}mm "
+            f"cavity={fan['cavity_size']:.2f}mm "
+            f"frame={fan['frame_size']:.2f}mm "
+            f"center_x={fan['center_x']:.2f}mm"
+        )
     if MATERIAL_MODE == "TPU_95A":
         print(
             "TPU_95A_SLICER_GUIDANCE "
@@ -1795,7 +1965,12 @@ def build_dual_fan():
         )
 
     if EXPORT_STL:
-        holder_path = export_stl(holder_objects, EXPORT_STL_PATH)
+        holder_output_path = (
+            EXPORT_STL_PATH
+            if EXPORT_STL_PATH is not None
+            else default_holder_stl_path(fan_specs)
+        )
+        holder_path = export_stl(holder_objects, holder_output_path)
         print(f"Wrote holder {holder_path}")
         if gopro_adapter is not None:
             adapter_path = export_stl([gopro_adapter], EXPORT_ADAPTER_STL_PATH)
