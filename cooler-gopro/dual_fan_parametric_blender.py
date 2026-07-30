@@ -182,6 +182,9 @@ MOUNT_BLOCK_WIDTH = 28.45
 MOUNT_BLOCK_HEIGHT_Z = 18.8
 MOUNT_BLOCK_OVERLAP = 0.15
 MOUNT_HOLE_SPACING = 12.0
+# Legacy variable names retained for configuration compatibility.  In rigid
+# mode these dimensions now describe a cylindrical, flat-bottomed counterbore
+# for the mounting-screw head rather than a conical countersink.
 MOUNT_COUNTERSINK_DIAMETER = 7.2
 MOUNT_COUNTERSINK_DEPTH = 3.6
 # MOUNT_BLOCK_DEPTH_Y, MOUNT_HOLE_DIAMETER, and MOUNT_COUNTERSINK_ENABLED are
@@ -272,6 +275,7 @@ MATERIAL_PROFILES = {
         "STALK_END_FLARES_ENABLED": True,
         "MOUNT_BLOCK_DEPTH_Y": 11.0,
         "MOUNT_HOLE_DIAMETER": 3.6,
+        # Keep the flexible receiver face unrecessed for a broad washer.
         "MOUNT_COUNTERSINK_ENABLED": False,
     },
 }
@@ -550,9 +554,17 @@ def validate_config() -> None:
 
     mount_hole_extent = MOUNT_HOLE_SPACING / 2.0 + MOUNT_COUNTERSINK_DIAMETER / 2.0
     if mount_hole_extent >= MOUNT_BLOCK_WIDTH / 2.0:
-        raise ValueError("Mount holes or countersinks do not fit inside MOUNT_BLOCK_WIDTH")
+        raise ValueError("Mount holes or counterbores do not fit inside MOUNT_BLOCK_WIDTH")
     if MOUNT_COUNTERSINK_DIAMETER >= MOUNT_BLOCK_HEIGHT_Z:
-        raise ValueError("Mount countersinks do not fit inside MOUNT_BLOCK_HEIGHT_Z")
+        raise ValueError("Mount counterbores do not fit inside MOUNT_BLOCK_HEIGHT_Z")
+    if MOUNT_COUNTERSINK_ENABLED and (
+        MOUNT_COUNTERSINK_DIAMETER <= MOUNT_HOLE_DIAMETER
+        or MOUNT_COUNTERSINK_DEPTH >= MOUNT_BLOCK_DEPTH_Y
+    ):
+        raise ValueError(
+            "Rigid mount counterbores require a larger head diameter and "
+            "must leave a positive-depth shoulder"
+        )
 
     if GOPRO_ADAPTER_PRONG_COUNT not in {2, 3}:
         raise ValueError("GOPRO_ADAPTER_PRONG_COUNT must be 2 or 3")
@@ -1545,13 +1557,12 @@ def create_mount_block():
     if MOUNT_COUNTERSINK_ENABLED and MOUNT_COUNTERSINK_DEPTH > 0.0:
         outer_y = center_y + MOUNT_BLOCK_DEPTH_Y / 2.0 + BOOLEAN_OVERLAP
         inner_y = outer_y - MOUNT_COUNTERSINK_DEPTH - BOOLEAN_OVERLAP
-        countersinks = []
+        counterbores = []
         for hole_index, x in enumerate((-MOUNT_HOLE_SPACING / 2.0, MOUNT_HOLE_SPACING / 2.0), start=1):
-            countersinks.append(
-                add_cone_y_positive(
-                    f"Mount_Countersink_{hole_index}",
+            counterbores.append(
+                add_cylinder_y(
+                    f"Mount_Counterbore_{hole_index}",
                     MOUNT_COUNTERSINK_DIAMETER / 2.0,
-                    MOUNT_HOLE_DIAMETER / 2.0,
                     inner_y,
                     outer_y,
                     x=x,
@@ -1560,8 +1571,8 @@ def create_mount_block():
             )
         boolean_difference(
             block,
-            countersinks,
-            "Mount_Countersinks",
+            counterbores,
+            "Mount_Counterbores",
             solver=MOUNT_BLOCK_BOOLEAN_SOLVER,
             require_geometry_change=True,
         )
