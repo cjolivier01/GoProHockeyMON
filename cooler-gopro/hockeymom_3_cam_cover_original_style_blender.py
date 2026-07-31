@@ -13,7 +13,7 @@ enclosure with:
 * removable, button-relieved camera clamps using M3 heat-set inserts,
 * two camera openings on the same side with the lens faces projecting through,
 * camera axes angled apart in plan,
-* two locally wall-aligned 40 mm fan stations with inside/outside pads,
+* either two locally wall-aligned 40 mm fan stations or one large lid fan,
 * three flush-recessed bottom keystone-module mounts, and
 * an optional projecting eyelid/visor directly above each camera opening.
 
@@ -269,6 +269,13 @@ LID_LIP_ENABLED = True
 LID_LIP_DEPTH = 3.0
 LID_LIP_THICKNESS = 1.8
 LID_LIP_CLEARANCE = 0.30
+# The front/camera nose has no practical screw location.  Deepen only that
+# part of the alignment ring so it remains inserted when a warm printed lid
+# curls slightly between the four rear/side screws.  The longer engagement is
+# installed nose-first and also gives the lid a much stiffer front edge.
+LID_FRONT_INSERT_LIP_ENABLED = True
+LID_FRONT_INSERT_LIP_DEPTH = 8.0
+LID_FRONT_INSERT_ZONE_DEPTH = 32.0
 # The height-taper synchronizer resamples nested loops independently so their
 # vertices share the roof-knee indices.  This small radial allowance absorbs
 # the worst chord-phase error while preserving at least LID_LIP_CLEARANCE in
@@ -482,6 +489,11 @@ CAMERA_CARRIER_GUIDE_HEIGHT = 14.0
 CAMERA_CARRIER_GUIDE_THICKNESS = 5.0
 CAMERA_CARRIER_GUIDE_TRAY_EMBED = 0.80
 CAMERA_CARRIER_FRONT_STOP_WIDTH = 14.0
+# The ordinary side/rear guides stay low for airflow, but the front datum rises
+# farther up the camera face.  Because this keeper belongs to the rotating
+# carrier it follows yaw exactly and adds no stationary rubbing arc near the
+# protruding lens.
+CAMERA_CARRIER_FRONT_KEEPER_HEIGHT = 24.0
 # Keep the complete yawed front datum behind the open eye-mouth plane.
 CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN = 0.35
 CAMERA_CARRIER_FRONT_STOP_ROOT_LENGTH = 4.0
@@ -882,7 +894,7 @@ CAMERA_WORM_MAX_INPUT_TORQUE_NMM = 2.0
 # supplying vertical preload without an appreciable yaw moment.  A second
 # rotating top cap is deliberately omitted: this small stationary interface is
 # stiffer, cannot desynchronize from the lower carrier, and obstructs less air.
-CAMERA_HOLD_DOWN_PAD_DIAMETER = 10.0
+CAMERA_HOLD_DOWN_PAD_DIAMETER = 14.0
 CAMERA_HOLD_DOWN_CENTER_PLATE_DIAMETER = 18.0
 # Bond a replaceable PTFE/UHMW/acetal disk to the printed pivot pad.  It is
 # centered on the yaw axis, so the stationary bridge adds negligible yaw drag.
@@ -1036,6 +1048,10 @@ CAMERA_BRACKET_THICKNESS = 4.8
 CAMERA_BRACKET_TOP_FEATURE_CLEARANCE_Z = 0.8
 CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z = 0.2
 CAMERA_BRACKET_CLAMP_PRELOAD_Z = 0.15
+# Lower only the fixed-camera bracket posts by this additional amount.  The
+# rotating bridge retains its lighter low-friction pivot preload so yaw is not
+# made unnecessarily stiff.
+CAMERA_BRACKET_FIXED_EXTRA_POST_LOWERING_Z = 0.10
 CAMERA_BRACKET_BUTTON_MIN_CLEARANCE_Z = 0.35
 CAMERA_BRACKET_CONTACT_RAIL_WIDTH = 5.0
 CAMERA_BRACKET_CONTACT_RAIL_EDGE_INSET = 8.0
@@ -1061,6 +1077,21 @@ CAMERA_BRACKET_REAR_LIP_WIDTH = 62.0
 CAMERA_BRACKET_SPLIT_REAR_LIP = True
 CAMERA_BRACKET_REAR_LIP_CENTER_AIR_GAP = 30.0
 CAMERA_BRACKET_REAR_LIP_MIN_SEGMENT_WIDTH = 10.0
+# A narrow bracket-owned keeper descends through the clear strip between the
+# eye-mouth edge and lens housing, then bears on the upper front body face.
+# Together with the rear lip it removes the remaining fore/aft rocking without
+# hiding the lens or consuming the fixed shell-rooted lower datum.
+CAMERA_BRACKET_FRONT_LOCATOR_ENABLED = True
+CAMERA_BRACKET_FRONT_LOCATOR_WIDTH = 5.0
+CAMERA_BRACKET_FRONT_LOCATOR_THICKNESS = 3.0
+CAMERA_BRACKET_FRONT_LOCATOR_CLEARANCE = 0.10
+CAMERA_BRACKET_FRONT_LOCATOR_HEIGHT = 10.0
+CAMERA_BRACKET_FRONT_LOCATOR_BODY_TOP_INSET = 4.5
+CAMERA_BRACKET_FRONT_LOCATOR_MOUTH_EDGE_LAND = 0.8
+CAMERA_BRACKET_FRONT_LOCATOR_LENS_CLEARANCE = 1.0
+CAMERA_BRACKET_FRONT_LOCATOR_PLATE_EMBED = 3.0
+CAMERA_BRACKET_FRONT_LOCATOR_BEAM_WIDTH = 8.0
+CAMERA_BRACKET_FRONT_LOCATOR_EDGE_RADIUS = 0.6
 # Wrap each enabled side locator around the camera's rounded rear corner and
 # into its own rear-face stop.  This produces two continuous L-shaped guides:
 # one on the USB/battery side and one on the opposite side, while leaving the
@@ -1180,13 +1211,18 @@ LID_SCREW_HEAD_COUNTERBORE_DIAMETER = 6.2
 LID_SCREW_HEAD_COUNTERBORE_DEPTH = 3.3
 CAMERA_BRACKET_MIN_COUNTERBORE_FLOOR = 1.5
 
+# Select exactly one purchased-fan arrangement.  "rear_wall_pair" preserves
+# the two 40 mm rear-wall stations and their optional acoustic cartridge.
+# "lid_single" replaces them with one external fan on the rear half of the
+# lid.  The lid fan defaults to a Noctua NF-A12x25-sized 120 mm exhaust.
+FAN_MOUNT_MODE = "rear_wall_pair"  # "rear_wall_pair" or "lid_single"
+
 # Two 40 mm fan stations on the rounded rear (+X) wall.  Each fan
 # seats against an exact 45 x 45 mm flat plane.  Standard 40 mm fan mounting
 # centers are 32 mm apart in both axes.  By default the two centers sit at the
 # configurable +/- centerline offset and each pad follows the rear wall's local
 # tangent.  Set REAR_FAN_CENTER_TANGENTS to two signed global-Y offsets for an
 # asymmetric layout.
-REAR_FANS_ENABLED = True
 REAR_FAN_PAD_SIZE = 45.0
 REAR_FAN_PAD_GAP = 4.0
 # Signed centers default to +/- this global-Y distance.  Set it to None to
@@ -1216,9 +1252,32 @@ REAR_FAN_AIRFLOW_DIRECTION = "intake"
 VALIDATE_REAR_FAN_BODY_CLEARANCE = True
 REAR_FAN_CUTTER_INWARD_EXTENSION = 8.0
 REAR_FAN_MIN_WEB = 2.0
-# Treat the two lens/mouth gaps as the primary front exhausts.  These limits
-# preserve a rear-fan -> camera body -> eye-opening flow path without adding
-# rain/debris-facing perforations to the removable lid.
+
+# Single external lid-fan mode.  Supported Noctua reference presets are
+# 40/60/80/120 mm; None derives depth, hole spacing, opening, and hub diameter
+# from the selected preset.  At 120 mm the generator uses the NF-A12x25 frame
+# (120 x 120 x 25 mm, 105 mm square mounting pattern).  The fan sits outside
+# the enclosure because the camera/bracket stack leaves no internal 25 mm bay.
+LID_FAN_SIZE_MM = 120
+LID_FAN_DEPTH_MM = None
+LID_FAN_MOUNT_SPACING_MM = None
+LID_FAN_AIR_OPENING_DIAMETER_MM = None
+LID_FAN_HUB_DIAMETER_MM = None
+LID_FAN_CENTER_X = -10.0
+LID_FAN_CENTER_Y = 0.0
+LID_FAN_AIRFLOW_DIRECTION = "exhaust"  # "exhaust" or "intake"
+LID_FAN_MOUNT_HOLE_DIAMETER = 4.5
+LID_FAN_FLAT_SEAT_EDGE_MARGIN = 2.0
+LID_FAN_FLAT_SEAT_EXTRA_THICKNESS = 2.4
+LID_FAN_FLAT_SEAT_EMBED = 0.8
+LID_FAN_FLAT_SEAT_CORNER_RADIUS = 4.0
+LID_FAN_EDGE_CLEARANCE = 3.0
+LID_FAN_FASTENER_KEEPOUT_CLEARANCE = 3.0
+LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO = 0.25
+VALIDATE_LID_FAN_FIT = True
+# Treat the two lens/mouth gaps as the primary front flow openings: exhausts
+# for rear-wall intake fans, or inlets for the default lid-fan exhaust flow.
+# This avoids adding separate rain/debris-facing shell perforations.
 CAMERA_COOLING_MIN_EXHAUST_TO_FAN_AREA_RATIO = 0.75
 CAMERA_COOLING_MIN_EYE_EDGE_GAP = 1.5
 # Do not accept a cooling layout merely because the inlet and exhaust areas
@@ -1482,6 +1541,96 @@ _RESOLVED_REAR_ENVELOPE = None
 
 # ---------------------------------------------------------------------------
 # Configuration and scene helpers
+
+
+def rear_wall_fans_enabled() -> bool:
+    return FAN_MOUNT_MODE == "rear_wall_pair"
+
+
+def lid_fan_enabled() -> bool:
+    return FAN_MOUNT_MODE == "lid_single"
+
+
+def fan_acoustic_attenuator_enabled() -> bool:
+    """The existing labyrinth is specific to the paired rear-wall fans."""
+    return rear_wall_fans_enabled() and FAN_ACOUSTIC_ATTENUATOR_ENABLED
+
+
+def lid_fan_reference_dimensions():
+    """Return Noctua frame/depth/hole/opening/hub reference dimensions."""
+    presets = {
+        40: (40.0, 20.0, 32.0, 36.0, 20.0),
+        60: (60.0, 25.0, 50.0, 55.0, 28.0),
+        80: (80.0, 25.0, 71.5, 75.0, 36.0),
+        120: (120.0, 25.0, 105.0, 110.0, 50.0),
+    }
+    try:
+        frame, default_depth, default_spacing, default_opening, default_hub = (
+            presets[LID_FAN_SIZE_MM]
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(
+            "LID_FAN_SIZE_MM must be one of the Noctua reference presets "
+            "40, 60, 80, or 120"
+        ) from exc
+    return {
+        "frame": frame,
+        "depth": (
+            default_depth
+            if LID_FAN_DEPTH_MM is None
+            else float(LID_FAN_DEPTH_MM)
+        ),
+        "mount_spacing": (
+            default_spacing
+            if LID_FAN_MOUNT_SPACING_MM is None
+            else float(LID_FAN_MOUNT_SPACING_MM)
+        ),
+        "opening": (
+            default_opening
+            if LID_FAN_AIR_OPENING_DIAMETER_MM is None
+            else float(LID_FAN_AIR_OPENING_DIAMETER_MM)
+        ),
+        "hub": (
+            default_hub
+            if LID_FAN_HUB_DIAMETER_MM is None
+            else float(LID_FAN_HUB_DIAMETER_MM)
+        ),
+    }
+
+
+def lid_fan_flat_seat_size() -> float:
+    return (
+        lid_fan_reference_dimensions()["frame"]
+        + 2.0 * LID_FAN_FLAT_SEAT_EDGE_MARGIN
+    )
+
+
+def lid_fan_mount_centers():
+    half_spacing = lid_fan_reference_dimensions()["mount_spacing"] / 2.0
+    return tuple(
+        (
+            LID_FAN_CENTER_X + x_sign * half_spacing,
+            LID_FAN_CENTER_Y + y_sign * half_spacing,
+        )
+        for x_sign, y_sign in (
+            (-1.0, -1.0),
+            (-1.0, 1.0),
+            (1.0, -1.0),
+            (1.0, 1.0),
+        )
+    )
+
+
+def circular_feature_intersects_lid_fan(position, feature_radius: float) -> bool:
+    """Conservative plan keepout for lid posts around the fan seat."""
+    if not lid_fan_enabled():
+        return False
+    half_seat = lid_fan_flat_seat_size() / 2.0
+    clearance = feature_radius + LID_FAN_FASTENER_KEEPOUT_CLEARANCE
+    return (
+        abs(position[0] - LID_FAN_CENTER_X) < half_seat + clearance
+        and abs(position[1] - LID_FAN_CENTER_Y) < half_seat + clearance
+    )
 
 
 def point_inside_rounded_rectangle(
@@ -2190,11 +2339,22 @@ def rounded_rectangle_area(width, height, radius):
 
 def forced_airflow_path_metrics():
     """Return gross/effective fan and lens-annulus exhaust areas."""
-    fan_open_area = 2.0 * math.pi * (REAR_FAN_AIR_OPENING_DIAMETER / 2.0) ** 2
-    fan_effective_open_area = 2.0 * math.pi * (
-        (REAR_FAN_AIR_OPENING_DIAMETER / 2.0) ** 2
-        - (REAR_FAN_HUB_DIAMETER / 2.0) ** 2
-    )
+    if lid_fan_enabled():
+        dimensions = lid_fan_reference_dimensions()
+        opening_radius = dimensions["opening"] / 2.0
+        hub_radius = dimensions["hub"] / 2.0
+        fan_open_area = math.pi * opening_radius**2
+        fan_effective_open_area = math.pi * (
+            opening_radius**2 - hub_radius**2
+        )
+    else:
+        fan_open_area = (
+            2.0 * math.pi * (REAR_FAN_AIR_OPENING_DIAMETER / 2.0) ** 2
+        )
+        fan_effective_open_area = 2.0 * math.pi * (
+            (REAR_FAN_AIR_OPENING_DIAMETER / 2.0) ** 2
+            - (REAR_FAN_HUB_DIAMETER / 2.0) ** 2
+        )
     eye_area = rounded_rectangle_area(
         EYE_MOUTH_WIDTH,
         EYE_MOUTH_HEIGHT,
@@ -2222,7 +2382,11 @@ def forced_airflow_path_metrics():
 
 def installed_fan_gasket_thickness() -> float:
     """Return the axial fan offset created by the installed soft gasket."""
-    return FAN_GASKET_THICKNESS if FAN_VIBRATION_ISOLATION_ENABLED else 0.0
+    return (
+        FAN_GASKET_THICKNESS
+        if rear_wall_fans_enabled() and FAN_VIBRATION_ISOLATION_ENABLED
+        else 0.0
+    )
 
 
 def camera_rear_face_pose(camera, yaw_delta=0.0):
@@ -2337,7 +2501,7 @@ def fan_camera_rear_wash_metrics(station, camera, yaw_delta=0.0):
 
 def validate_forced_air_camera_wash(footprint, cameras):
     """Require one rear fan to wash each camera throughout its yaw sweep."""
-    if not REAR_FANS_ENABLED:
+    if not rear_wall_fans_enabled():
         return
     stations = sorted(
         (
@@ -2445,8 +2609,8 @@ def validate_final_forced_air_camera_wash(
 ):
     """Ray-test useful fan wash through the completed installed geometry."""
     if (
-        not REAR_FANS_ENABLED
-        or FAN_ACOUSTIC_ATTENUATOR_ENABLED
+        not rear_wall_fans_enabled()
+        or fan_acoustic_attenuator_enabled()
         or not VALIDATE_REAR_FAN_BODY_CLEARANCE
     ):
         return
@@ -2745,6 +2909,10 @@ def validate_config() -> None:
         "LID_THICKNESS": LID_THICKNESS,
         "BOTTOM_THICKNESS": BOTTOM_THICKNESS,
         "BODY_WALL_THICKNESS": BODY_WALL_THICKNESS,
+        "LID_LIP_DEPTH": LID_LIP_DEPTH,
+        "LID_LIP_THICKNESS": LID_LIP_THICKNESS,
+        "LID_FRONT_INSERT_LIP_DEPTH": LID_FRONT_INSERT_LIP_DEPTH,
+        "LID_FRONT_INSERT_ZONE_DEPTH": LID_FRONT_INSERT_ZONE_DEPTH,
         "ASSEMBLY_SERVICE_SWEEP_MAX_STEP": ASSEMBLY_SERVICE_SWEEP_MAX_STEP,
         "REAR_WIDTH_TAPER_SCALE": REAR_WIDTH_TAPER_SCALE,
         "REAR_HEIGHT_TAPER_ANCHOR_Z": REAR_HEIGHT_TAPER_ANCHOR_Z,
@@ -2892,6 +3060,24 @@ def validate_config() -> None:
         "CAMERA_BRACKET_REAR_LIP_MIN_SEGMENT_WIDTH": (
             CAMERA_BRACKET_REAR_LIP_MIN_SEGMENT_WIDTH
         ),
+        "CAMERA_BRACKET_FRONT_LOCATOR_WIDTH": (
+            CAMERA_BRACKET_FRONT_LOCATOR_WIDTH
+        ),
+        "CAMERA_BRACKET_FRONT_LOCATOR_THICKNESS": (
+            CAMERA_BRACKET_FRONT_LOCATOR_THICKNESS
+        ),
+        "CAMERA_BRACKET_FRONT_LOCATOR_HEIGHT": (
+            CAMERA_BRACKET_FRONT_LOCATOR_HEIGHT
+        ),
+        "CAMERA_BRACKET_FRONT_LOCATOR_BODY_TOP_INSET": (
+            CAMERA_BRACKET_FRONT_LOCATOR_BODY_TOP_INSET
+        ),
+        "CAMERA_BRACKET_FRONT_LOCATOR_PLATE_EMBED": (
+            CAMERA_BRACKET_FRONT_LOCATOR_PLATE_EMBED
+        ),
+        "CAMERA_BRACKET_FRONT_LOCATOR_BEAM_WIDTH": (
+            CAMERA_BRACKET_FRONT_LOCATOR_BEAM_WIDTH
+        ),
         "CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH": (
             CAMERA_BRACKET_L_CORNER_RETURN_INBOARD_LENGTH
         ),
@@ -3005,6 +3191,9 @@ def validate_config() -> None:
         ),
         "CAMERA_CARRIER_FIT_PROBE_LIFT": CAMERA_CARRIER_FIT_PROBE_LIFT,
         "CAMERA_CARRIER_GUIDE_HEIGHT": CAMERA_CARRIER_GUIDE_HEIGHT,
+        "CAMERA_CARRIER_FRONT_KEEPER_HEIGHT": (
+            CAMERA_CARRIER_FRONT_KEEPER_HEIGHT
+        ),
         "CAMERA_CARRIER_GUIDE_THICKNESS": CAMERA_CARRIER_GUIDE_THICKNESS,
         "CAMERA_CARRIER_GUIDE_TRAY_EMBED": (
             CAMERA_CARRIER_GUIDE_TRAY_EMBED
@@ -3271,6 +3460,20 @@ def validate_config() -> None:
             REAR_FAN_CUTTER_INWARD_EXTENSION
         ),
         "REAR_FAN_MIN_WEB": REAR_FAN_MIN_WEB,
+        "LID_FAN_SIZE_MM": LID_FAN_SIZE_MM,
+        "LID_FAN_MOUNT_HOLE_DIAMETER": LID_FAN_MOUNT_HOLE_DIAMETER,
+        "LID_FAN_FLAT_SEAT_EDGE_MARGIN": LID_FAN_FLAT_SEAT_EDGE_MARGIN,
+        "LID_FAN_FLAT_SEAT_EXTRA_THICKNESS": (
+            LID_FAN_FLAT_SEAT_EXTRA_THICKNESS
+        ),
+        "LID_FAN_FLAT_SEAT_EMBED": LID_FAN_FLAT_SEAT_EMBED,
+        "LID_FAN_FLAT_SEAT_CORNER_RADIUS": (
+            LID_FAN_FLAT_SEAT_CORNER_RADIUS
+        ),
+        "LID_FAN_EDGE_CLEARANCE": LID_FAN_EDGE_CLEARANCE,
+        "LID_FAN_FASTENER_KEEPOUT_CLEARANCE": (
+            LID_FAN_FASTENER_KEEPOUT_CLEARANCE
+        ),
         "BOTTOM_MOUNT_HOLE_DIAMETER": BOTTOM_MOUNT_HOLE_DIAMETER,
         "BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE": (
             BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE
@@ -3353,6 +3556,48 @@ def validate_config() -> None:
     for name, value in positive.items():
         if not math.isfinite(value) or value <= 0.0:
             raise ValueError(f"{name} must be finite and positive")
+    if FAN_MOUNT_MODE not in {"rear_wall_pair", "lid_single"}:
+        raise ValueError(
+            'FAN_MOUNT_MODE must be "rear_wall_pair" or "lid_single"'
+        )
+    if lid_fan_enabled() and FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        print(
+            "FAN_ACOUSTIC_ATTENUATOR inactive_for_lid_single=True "
+            "reason=rear_wall_specific_boot_geometry"
+        )
+    if LID_FRONT_INSERT_LIP_ENABLED and (
+        LID_FRONT_INSERT_LIP_DEPTH <= LID_LIP_DEPTH
+    ):
+        raise ValueError(
+            "LID_FRONT_INSERT_LIP_DEPTH must exceed the ordinary lid-lip depth"
+        )
+    if CAMERA_CARRIER_FRONT_KEEPER_HEIGHT < CAMERA_CARRIER_GUIDE_HEIGHT:
+        raise ValueError(
+            "CAMERA_CARRIER_FRONT_KEEPER_HEIGHT cannot be shorter than the "
+            "ordinary carrier guides"
+        )
+    lid_fan_dimensions = lid_fan_reference_dimensions()
+    for name, value in lid_fan_dimensions.items():
+        if not math.isfinite(value) or value <= 0.0:
+            raise ValueError(f"Resolved lid fan {name} must be positive")
+    if lid_fan_dimensions["hub"] >= lid_fan_dimensions["opening"]:
+        raise ValueError("Lid fan hub must fit inside its air opening")
+    if lid_fan_dimensions["opening"] >= lid_fan_dimensions["frame"]:
+        raise ValueError("Lid fan opening must remain inside its frame")
+    if (
+        lid_fan_dimensions["mount_spacing"] / 2.0
+        + LID_FAN_MOUNT_HOLE_DIAMETER / 2.0
+        > lid_fan_dimensions["frame"] / 2.0
+    ):
+        raise ValueError("Lid fan mounting holes exceed its frame")
+    if LID_FAN_AIRFLOW_DIRECTION not in {"exhaust", "intake"}:
+        raise ValueError(
+            'LID_FAN_AIRFLOW_DIRECTION must be "exhaust" or "intake"'
+        )
+    if not 0.0 < LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO <= 1.0:
+        raise ValueError(
+            "LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO must be in (0, 1]"
+        )
     if not 0.0 <= FOOTPRINT_TRIANGULARITY < 0.85:
         raise ValueError("FOOTPRINT_TRIANGULARITY must be between 0 and 0.85")
     if FOOTPRINT_POINTS < 32 or FOOTPRINT_POINTS % 4:
@@ -3392,7 +3637,7 @@ def validate_config() -> None:
     if BASE_HEIGHT < effective_rear_anchor + REAR_FAN_MIN_WEB:
         raise ValueError(
             "Even the untapered base leaves too little wall above the "
-            f"{'fan pads' if REAR_FANS_ENABLED else 'fixed lower body'}"
+            f"{'fan pads' if rear_wall_fans_enabled() else 'fixed lower body'}"
         )
     if REAR_TAPER_SOLVE_MAX_ITERATIONS < 2:
         raise ValueError("REAR_TAPER_SOLVE_MAX_ITERATIONS must be at least 2")
@@ -4133,9 +4378,7 @@ def validate_config() -> None:
         ADJUSTABLE_CAMERA_YAW_RANGE_DEG + 1e-9
     ):
         raise ValueError("Acoustic service yaw exceeds the mechanical yaw range")
-    if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
-        if not REAR_FANS_ENABLED:
-            raise ValueError("The acoustic attenuator requires REAR_FANS_ENABLED")
+    if fan_acoustic_attenuator_enabled():
         if not isinstance(CAMERA_MIC_DEFLECTORS_ENABLED, bool):
             raise ValueError("CAMERA_MIC_DEFLECTORS_ENABLED must be True or False")
         if CAMERA_REAR_MIC_LOCAL_CENTERS is None:
@@ -4324,6 +4567,9 @@ def validate_config() -> None:
             CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z
         ),
         "CAMERA_BRACKET_CLAMP_PRELOAD_Z": CAMERA_BRACKET_CLAMP_PRELOAD_Z,
+        "CAMERA_BRACKET_FIXED_EXTRA_POST_LOWERING_Z": (
+            CAMERA_BRACKET_FIXED_EXTRA_POST_LOWERING_Z
+        ),
         "CAMERA_BRACKET_BUTTON_MIN_CLEARANCE_Z": (
             CAMERA_BRACKET_BUTTON_MIN_CLEARANCE_Z
         ),
@@ -4331,6 +4577,18 @@ def validate_config() -> None:
             CAMERA_BRACKET_BUTTON_RELIEF_MARGIN
         ),
         "CAMERA_BRACKET_REAR_CLEARANCE": CAMERA_BRACKET_REAR_CLEARANCE,
+        "CAMERA_BRACKET_FRONT_LOCATOR_CLEARANCE": (
+            CAMERA_BRACKET_FRONT_LOCATOR_CLEARANCE
+        ),
+        "CAMERA_BRACKET_FRONT_LOCATOR_MOUTH_EDGE_LAND": (
+            CAMERA_BRACKET_FRONT_LOCATOR_MOUTH_EDGE_LAND
+        ),
+        "CAMERA_BRACKET_FRONT_LOCATOR_LENS_CLEARANCE": (
+            CAMERA_BRACKET_FRONT_LOCATOR_LENS_CLEARANCE
+        ),
+        "CAMERA_BRACKET_FRONT_LOCATOR_EDGE_RADIUS": (
+            CAMERA_BRACKET_FRONT_LOCATOR_EDGE_RADIUS
+        ),
         "CAMERA_BRACKET_USB_SIDE_LOCATOR_CLEARANCE": (
             CAMERA_BRACKET_USB_SIDE_LOCATOR_CLEARANCE
         ),
@@ -4546,13 +4804,13 @@ def validate_config() -> None:
         math.isfinite(float(value)) for value in REAR_FAN_CENTER_TANGENTS
     ):
         raise ValueError("REAR_FAN_CENTER_TANGENTS values must be finite")
-    if REAR_FANS_ENABLED and REAR_FAN_AIRFLOW_DIRECTION != "intake":
+    if rear_wall_fans_enabled() and REAR_FAN_AIRFLOW_DIRECTION != "intake":
         raise ValueError(
             'REAR_FAN_AIRFLOW_DIRECTION must be "intake" so the validated '
             "path runs rear-to-front across the cameras"
         )
     if (
-        REAR_FANS_ENABLED
+        rear_wall_fans_enabled()
         and REAR_FAN_HUB_DIAMETER >= REAR_FAN_AIR_OPENING_DIAMETER
     ):
         raise ValueError("Rear fan hub must fit inside the air opening")
@@ -4581,7 +4839,7 @@ def validate_config() -> None:
         > REAR_FAN_PAD_SIZE / 2.0
     ):
         raise ValueError("Rear fan screw holes exceed the 45 mm seating pad")
-    if REAR_FANS_ENABLED:
+    if rear_wall_fans_enabled():
         (
             fan_open_area,
             fan_effective_open_area,
@@ -4612,6 +4870,39 @@ def validate_config() -> None:
             f"exhaust_to_hub_adjusted_fan_ratio="
             f"{effective_exhaust_ratio:.3f} "
             f"minimum_eye_edge_gap={minimum_eye_gap:.2f}mm"
+        )
+    elif lid_fan_enabled():
+        (
+            fan_open_area,
+            fan_effective_open_area,
+            eye_flow_area,
+            eye_to_opening_ratio,
+            eye_to_effective_ratio,
+            minimum_eye_gap,
+        ) = forced_airflow_path_metrics()
+        if eye_to_opening_ratio < LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO:
+            raise ValueError(
+                "Eye/lens flow area is too small for the single lid fan: "
+                f"{eye_to_opening_ratio:.3f} < "
+                f"{LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO:.3f}. Use a "
+                "smaller fan/opening or add a deliberate filtered inlet."
+            )
+        if minimum_eye_gap < CAMERA_COOLING_MIN_EYE_EDGE_GAP:
+            raise ValueError(
+                "Eye opening leaves too little cooling gap around the lens: "
+                f"{minimum_eye_gap:.2f} < "
+                f"{CAMERA_COOLING_MIN_EYE_EDGE_GAP:.2f} mm"
+            )
+        print(
+            "FORCED_AIR_COOLING_PATH "
+            f"direction={'eye_gaps_to_lid_exhaust' if LID_FAN_AIRFLOW_DIRECTION == 'exhaust' else 'lid_intake_to_eye_gaps'} "
+            f"fan_gross_open_area={fan_open_area:.1f}mm^2 "
+            f"fan_hub_adjusted_open_area={fan_effective_open_area:.1f}mm^2 "
+            f"eye_flow_area={eye_flow_area:.1f}mm^2 "
+            f"eye_to_gross_fan_ratio={eye_to_opening_ratio:.3f} "
+            f"eye_to_hub_adjusted_fan_ratio={eye_to_effective_ratio:.3f} "
+            f"minimum_eye_edge_gap={minimum_eye_gap:.2f}mm "
+            "recommendation=run_120mm_fan_at_low_PWM"
         )
     if not math.isfinite(CAMERA_LENS_FACE_OUTSET):
         raise ValueError("CAMERA_LENS_FACE_OUTSET must be finite")
@@ -4779,7 +5070,7 @@ def validate_config() -> None:
     ):
         raise ValueError("Eye mouths must clear the MISSION 1 lens housing")
     required_lens_edge_clearance = CAMERA_LENS_OPENING_CLEARANCE
-    if REAR_FANS_ENABLED:
+    if rear_wall_fans_enabled():
         required_lens_edge_clearance = max(
             required_lens_edge_clearance,
             CAMERA_COOLING_MIN_EYE_EDGE_GAP,
@@ -5827,17 +6118,19 @@ def validate_config() -> None:
                 "CAMERA_BRACKET_ARM_WIDTH leaves less than the configured web "
                 "around the socket-head counterbore"
             )
-        clamp_travel = (
+        maximum_clamp_travel = (
             CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z
             + CAMERA_BRACKET_CLAMP_PRELOAD_Z
+            + CAMERA_BRACKET_FIXED_EXTRA_POST_LOWERING_Z
         )
-        final_plate_underside = plate_underside - clamp_travel
+        final_plate_underside = plate_underside - maximum_clamp_travel
         if (
             final_plate_underside - camera_top
             < CAMERA_BRACKET_BUTTON_MIN_CLEARANCE_Z - 1e-6
         ):
             raise ValueError(
-                "Tightened bracket plate would load the camera's highest control"
+                "Tightened fixed bracket plate would load the camera's "
+                "highest control"
             )
         loose_contact_bottom = (
             body_top + CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z
@@ -6149,12 +6442,12 @@ def rear_taper_start_x(loop, start_fraction: float) -> float:
 
 def effective_rear_height_taper_anchor_z() -> float:
     anchor = REAR_HEIGHT_TAPER_ANCHOR_Z
-    if REAR_FANS_ENABLED:
+    if rear_wall_fans_enabled():
         anchor = max(
             anchor,
             REAR_FAN_CENTER_Z + REAR_FAN_PAD_SIZE / 2.0,
         )
-    if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+    if fan_acoustic_attenuator_enabled():
         acoustic_lid_top = (
             REAR_FAN_CENTER_Z
             + max(FAN_ACOUSTIC_OUTLET_HEIGHT, REAR_FAN_AIR_OPENING_DIAMETER)
@@ -6228,7 +6521,7 @@ def rear_taper_camera_keepout_max_x(cameras, mechanism=None) -> float:
             )
 
         if (
-            FAN_ACOUSTIC_ATTENUATOR_ENABLED
+            fan_acoustic_attenuator_enabled()
             and CAMERA_REAR_MIC_LOCAL_CENTERS is not None
         ):
             local_mic = CAMERA_REAR_MIC_LOCAL_CENTERS[camera["index"] - 1]
@@ -6348,7 +6641,7 @@ def apply_resolved_rear_width_taper(loop, start_x: float, scale: float = None):
 
 def rear_fan_plan_keepouts_fit(footprint) -> bool:
     """Cheap XY gate for complete inside-mounted fan-frame envelopes."""
-    if not REAR_FANS_ENABLED or not REAR_FAN_PAD_INSIDE:
+    if not rear_wall_fans_enabled() or not REAR_FAN_PAD_INSIDE:
         return True
     try:
         inner_loop = inset_footprint_loop(footprint, BODY_WALL_THICKNESS)
@@ -6391,7 +6684,7 @@ def rear_fan_plan_keepouts_fit(footprint) -> bool:
 
 def acoustic_plan_keepouts_fit(footprint, cameras) -> bool:
     """Cheap plan-view gate used while resolving acoustic rear width."""
-    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+    if not fan_acoustic_attenuator_enabled():
         return True
     try:
         inner_loop = inset_footprint_loop(
@@ -6515,7 +6808,7 @@ def resolve_rear_envelope(footprint, cameras, mechanism=None):
     resolved_width_scale = (
         REAR_WIDTH_TAPER_SCALE if width_has_run else 1.0
     )
-    if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+    if fan_acoustic_attenuator_enabled():
         resolved_width_scale = max(
             resolved_width_scale,
             FAN_ACOUSTIC_MIN_REAR_WIDTH_SCALE,
@@ -7362,8 +7655,15 @@ def lid_with_alignment_lip(
 
     seam_z_fn = seam_z_fn or (lambda _x, _y: BASE_HEIGHT)
     top_z_fn = top_z_fn or (lambda _x, _y: BODY_HEIGHT)
+    front_insert_limit_x = min(x for x, _y in outer_loop) + (
+        LID_FRONT_INSERT_ZONE_DEPTH
+    )
+
     def lip_bottom_fn(x, y):
-        return seam_z_fn(x, y) - LID_LIP_DEPTH
+        depth = LID_LIP_DEPTH
+        if LID_FRONT_INSERT_LIP_ENABLED and x <= front_insert_limit_x:
+            depth = LID_FRONT_INSERT_LIP_DEPTH
+        return seam_z_fn(x, y) - depth
 
     outer_bottom = add_loop(outer_loop, seam_z_fn)
     outer_top = add_loop(outer_loop, top_z_fn)
@@ -10285,6 +10585,31 @@ def camera_bracket_guide_plate_local_bounds(camera):
         + body_tangent[1]
         + CAMERA_BRACKET_PRIMARY_TANGENTIAL_MARGIN,
     ]
+    if CAMERA_BRACKET_FRONT_LOCATOR_ENABLED and not camera_is_adjustable(camera):
+        body_front = lens_face_radius + body_radial[1]
+        _side, front_tangent_bounds = (
+            camera_bracket_front_locator_tangent_bounds()
+        )
+        front_tangent_center = (
+            camera["eye_tangent"] + sum(front_tangent_bounds) / 2.0
+        )
+        radial_bounds = (
+            radial_bounds[0],
+            max(
+                radial_bounds[1],
+                body_front
+                + CAMERA_BRACKET_FRONT_LOCATOR_CLEARANCE
+                + CAMERA_BRACKET_FRONT_LOCATOR_THICKNESS,
+            ),
+        )
+        tangent_values.extend(
+            (
+                front_tangent_center
+                - CAMERA_BRACKET_FRONT_LOCATOR_BEAM_WIDTH / 2.0,
+                front_tangent_center
+                + CAMERA_BRACKET_FRONT_LOCATOR_BEAM_WIDTH / 2.0,
+            )
+        )
     locator_specs = (
         (
             CAMERA_BRACKET_USB_SIDE_LOCATOR_ENABLED,
@@ -10450,6 +10775,7 @@ def post_is_valid(
     accepted_positions=(),
     post_diameter=FASTENER_POST_DIAMETER,
     avoid_camera_bracket_plate=False,
+    avoid_lid_fan=False,
     mechanism=None,
     validation_context=None,
 ) -> bool:
@@ -10474,6 +10800,11 @@ def post_is_valid(
     for accepted in accepted_positions:
         if math.dist(position, accepted) < minimum_center_spacing:
             return False
+    if avoid_lid_fan and circular_feature_intersects_lid_fan(
+        position,
+        post_radius,
+    ):
+        return False
     for camera in cameras:
         record = (
             validation_context["camera_records"][id(camera)]
@@ -10653,6 +10984,7 @@ def resolve_symmetric_post_pairs(
     search_step,
     label,
     avoid_camera_bracket_plate=False,
+    avoid_lid_fan=False,
     mechanism=None,
     maximum_x=None,
     validation_context=None,
@@ -10699,6 +11031,7 @@ def resolve_symmetric_post_pairs(
                 accepted,
                 post_diameter=post_diameter,
                 avoid_camera_bracket_plate=avoid_camera_bracket_plate,
+                avoid_lid_fan=avoid_lid_fan,
                 mechanism=mechanism,
                 validation_context=validation_context,
             ):
@@ -10710,6 +11043,7 @@ def resolve_symmetric_post_pairs(
                 [*accepted, first],
                 post_diameter=post_diameter,
                 avoid_camera_bracket_plate=avoid_camera_bracket_plate,
+                avoid_lid_fan=avoid_lid_fan,
                 mechanism=mechanism,
                 validation_context=validation_context,
             ):
@@ -10762,6 +11096,7 @@ def resolve_fastener_post_positions(
                 inner_loop,
                 accepted,
                 avoid_camera_bracket_plate=True,
+                avoid_lid_fan=True,
                 mechanism=mechanism,
                 validation_context=validation_context,
             ):
@@ -10782,6 +11117,7 @@ def resolve_fastener_post_positions(
             FASTENER_AUTO_GRID_STEP,
             "lid-fastener post",
             avoid_camera_bracket_plate=True,
+            avoid_lid_fan=True,
             mechanism=mechanism,
             maximum_x=maximum_x,
             validation_context=validation_context,
@@ -10815,6 +11151,7 @@ def resolve_fastener_post_positions(
                         inner_loop,
                         accepted,
                         avoid_camera_bracket_plate=True,
+                        avoid_lid_fan=True,
                         mechanism=mechanism,
                         validation_context=validation_context,
                     )
@@ -12323,6 +12660,58 @@ def camera_front_stop_tangent_bounds(
     return requested_side, feasible[requested_side]
 
 
+def camera_bracket_front_locator_tangent_bounds():
+    """Choose a flat front-body strip inside the mouth but outside the lens."""
+    _body_radial, body_tangent, _body_vertical = (
+        mission1.canonical_body_bounds(CAMERA_UPSIDE_DOWN)
+    )
+    flat_min = body_tangent[0] + mission1.BODY_CORNER_RADIUS
+    flat_max = body_tangent[1] - mission1.BODY_CORNER_RADIUS
+    mouth_half = EYE_MOUTH_WIDTH / 2.0
+    lens_half = max(
+        mission1.LENS_FACE_WIDTH / 2.0,
+        mission1.LENS_SHOULDER_WIDTH / 2.0,
+    ) + CAMERA_BRACKET_FRONT_LOCATOR_LENS_CLEARANCE
+    width = CAMERA_BRACKET_FRONT_LOCATOR_WIDTH
+    land = CAMERA_BRACKET_FRONT_LOCATOR_MOUTH_EDGE_LAND
+    candidates = {
+        "tangent_min": (
+            -mouth_half + land,
+            -mouth_half + land + width,
+        ),
+        "tangent_max": (
+            mouth_half - land - width,
+            mouth_half - land,
+        ),
+    }
+    feasible = {
+        side: bounds
+        for side, bounds in candidates.items()
+        if bounds[0] >= flat_min - 1e-6
+        and bounds[1] <= flat_max + 1e-6
+        and (
+            bounds[1] <= -lens_half + 1e-6
+            or bounds[0] >= lens_half - 1e-6
+        )
+    }
+    if not feasible:
+        raise ValueError(
+            "No fixed-bracket front-locator strip fits between the lens, "
+            "eye-mouth edge, and rounded body corners"
+        )
+    # Prefer the side with the greatest remaining flat-body land.  This also
+    # selects the only feasible side of the asymmetric upright MISSION 1 body.
+    side = max(
+        feasible,
+        key=lambda candidate: (
+            feasible[candidate][0] - flat_min
+            if candidate == "tangent_min"
+            else flat_max - feasible[candidate][1]
+        ),
+    )
+    return side, feasible[side]
+
+
 def camera_front_stop_shell_root_radius(
     footprint,
     camera,
@@ -12614,7 +13003,7 @@ def add_camera_usb_access_openings(base, cameras):
 
 
 def add_rear_fan_mounts(base, footprint, post_keepouts=()):
-    if not REAR_FANS_ENABLED:
+    if not rear_wall_fans_enabled():
         return base
     half_spacing = REAR_FAN_MOUNT_SPACING / 2.0
     air_radius = REAR_FAN_AIR_OPENING_DIAMETER / 2.0
@@ -12713,7 +13102,7 @@ def create_rear_fan_body_keepouts(
     preserve_contact_face=False,
 ):
     """Create temporary fan-frame solids including installation clearance."""
-    if not REAR_FANS_ENABLED or (
+    if not rear_wall_fans_enabled() or (
         not VALIDATE_REAR_FAN_BODY_CLEARANCE and not force
     ):
         return []
@@ -12763,7 +13152,7 @@ def create_rear_fan_body_keepouts(
 
 def create_fan_vibration_gaskets(footprint):
     """Create one connected soft gasket/screw-sleeve part per rear fan."""
-    if not (REAR_FANS_ENABLED and FAN_VIBRATION_ISOLATION_ENABLED):
+    if not (rear_wall_fans_enabled() and FAN_VIBRATION_ISOLATION_ENABLED):
         return []
     gaskets = []
     half_spacing = REAR_FAN_MOUNT_SPACING / 2.0
@@ -12899,7 +13288,7 @@ def voxel_union_printed_assembly(obj, voxel_size, label):
 
 def resolve_fan_acoustic_preliminary_geometry(footprint):
     """Resolve the post-relevant plenum envelope before hardware placement."""
-    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+    if not fan_acoustic_attenuator_enabled():
         return None
     wall = FAN_ACOUSTIC_WALL_THICKNESS
     inner_height = max(
@@ -13106,7 +13495,7 @@ def resolve_fan_acoustic_layout(
     preliminary_geometry=None,
 ):
     """Resolve the removable acoustic trough around the final fan stations."""
-    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+    if not fan_acoustic_attenuator_enabled():
         return None
     geometry = (
         preliminary_geometry
@@ -13849,7 +14238,7 @@ def create_fan_acoustic_boot_seals(layout):
 
 def create_fan_acoustic_cassette(footprint, cameras, base=None, layout=None):
     """Build an open-upward trough, sealed lid, and compliant fan boots."""
-    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+    if not fan_acoustic_attenuator_enabled():
         return None
     layout = layout or resolve_fan_acoustic_layout(footprint, cameras)
     wall = FAN_ACOUSTIC_WALL_THICKNESS
@@ -15605,10 +15994,10 @@ def add_acoustic_microphone_deflectors_to_brackets(
 ):
     """Mount each close mic deflector to its removable camera hold-down."""
     if (
-        not FAN_ACOUSTIC_ATTENUATOR_ENABLED
+        not fan_acoustic_attenuator_enabled()
         or not CAMERA_MIC_DEFLECTORS_ENABLED
     ):
-        if FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+        if fan_acoustic_attenuator_enabled():
             print(
                 "CAMERA_MIC_DEFLECTORS disabled "
                 "acoustic_labyrinth_baffles_only=True"
@@ -15901,8 +16290,10 @@ def validate_acoustic_assembly_clearances(
         for index, bracket in enumerate(camera_brackets, start=1)
     )
     if VALIDATE_TIGHTENED_BRACKET_CLEARANCES:
-        travel = camera_bracket_clamp_travel()
         for index, bracket in enumerate(camera_brackets, start=1):
+            travel = float(
+                bracket.get("clamp_travel_z", camera_bracket_clamp_travel())
+            )
             tightened = duplicate_object(
                 bracket,
                 f"Acoustic_Tightened_Bracket_{index}",
@@ -16854,12 +17245,19 @@ def create_rotating_camera_carrier(camera, mechanism):
         camera_carrier_end_guide_specs(body_radial, body_tangent),
         start=1,
     ):
+        end_guide_z1 = (
+            support_top + CAMERA_CARRIER_FRONT_KEEPER_HEIGHT
+            if end_name == "front_stop"
+            else guide_z1
+        )
+        end_guide_center_z = (guide_z0 + end_guide_z1) / 2.0
+        end_guide_depth = end_guide_z1 - guide_z0
         end_center = axis_point(
             camera["angle"],
             lens_face_radius + (end_radial_min + end_radial_max) / 2.0,
             camera["eye_tangent"]
             + (end_tangent_min + end_tangent_max) / 2.0,
-            guide_center_z,
+            end_guide_center_z,
         )
         if end_name == "front_stop":
             root_radial_min = (
@@ -16908,7 +17306,7 @@ def create_rotating_camera_carrier(camera, mechanism):
             (
                 end_radial_max - end_radial_min,
                 end_tangent_max - end_tangent_min,
-                guide_depth,
+                end_guide_depth,
             ),
             tuple(end_center),
             rotation_z=math.radians(camera["angle"]),
@@ -17493,7 +17891,7 @@ def create_carrier_service_front_stop_parts(assembled_carrier, camera):
     tray_z0 = BOTTOM_THICKNESS + CAMERA_CARRIER_BOTTOM_CLEARANCE
     tray_z1 = tray_z0 + CAMERA_CARRIER_TRAY_THICKNESS
     support_top = camera_eye_center_z() + body_vertical[0]
-    guide_z1 = support_top + CAMERA_CARRIER_GUIDE_HEIGHT
+    guide_z1 = support_top + CAMERA_CARRIER_FRONT_KEEPER_HEIGHT
     root_radial_min = end_radial_min - CAMERA_CARRIER_FRONT_STOP_ROOT_LENGTH
     tangent_center = (end_tangent_min + end_tangent_max) / 2.0
     clearance = CAMERA_CARRIER_FRONT_STOP_INTERFACE_CLEARANCE
@@ -18714,7 +19112,16 @@ def create_adjustable_carrier_member_sweep_cutters(moving_camera, prefix):
                 end_name,
                 (end_radial_min, end_radial_max),
                 (end_tangent_min, end_tangent_max),
-                (guide_z0, guide_z1),
+                (
+                    guide_z0,
+                    (
+                        camera_eye_center_z()
+                        + body_vertical[0]
+                        + CAMERA_CARRIER_FRONT_KEEPER_HEIGHT
+                        if end_name == "front_stop"
+                        else guide_z1
+                    ),
+                ),
             )
         )
         if end_name == "front_stop":
@@ -19495,7 +19902,16 @@ def add_adjustable_camera_base_hardware(base, cameras, footprint):
             end_name,
             (end_radial_min, end_radial_max),
             (end_tangent_min, end_tangent_max),
-            (guide_z0, guide_z1),
+            (
+                guide_z0,
+                (
+                    camera_eye_center_z()
+                    + body_vertical[0]
+                    + CAMERA_CARRIER_FRONT_KEEPER_HEIGHT
+                    if end_name == "front_stop"
+                    else guide_z1
+                ),
+            ),
             cutter_index,
         )
         if end_name == "front_stop":
@@ -19942,20 +20358,28 @@ def camera_bracket_z_bounds():
     return underside, underside + CAMERA_BRACKET_THICKNESS
 
 
-def camera_bracket_clamp_travel():
-    return (
+def camera_bracket_clamp_travel(camera=None):
+    travel = (
         CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z
         + CAMERA_BRACKET_CLAMP_PRELOAD_Z
     )
+    if camera is not None and not camera_is_adjustable(camera):
+        travel += CAMERA_BRACKET_FIXED_EXTRA_POST_LOWERING_Z
+    return travel
 
 
-def add_camera_bracket_posts(base, bracket_position_pairs):
+def add_camera_bracket_posts(base, cameras, bracket_position_pairs):
     if not CAMERA_BRACKETS_ENABLED:
         return base
-    positions = [position for pair in bracket_position_pairs for position in pair]
     bracket_underside, _ = camera_bracket_z_bounds()
-    post_top = bracket_underside - camera_bracket_clamp_travel()
-    for index, (x, y) in enumerate(positions, start=1):
+    post_records = []
+    for camera, pair in zip(cameras, bracket_position_pairs):
+        post_top = bracket_underside - camera_bracket_clamp_travel(camera)
+        post_records.extend((position, post_top, camera["index"]) for position in pair)
+    for index, ((x, y), post_top, camera_index) in enumerate(
+        post_records,
+        start=1,
+    ):
         post = add_tapered_cylinder_z(
             f"Camera_Bracket_Heat_Insert_Post_{index}",
             CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0,
@@ -19966,6 +20390,10 @@ def add_camera_bracket_posts(base, bracket_position_pairs):
             y,
         )
         boolean_union(base, post, f"Camera_Bracket_Post_{index}_Union")
+        print(
+            "CAMERA_BRACKET_POST_TOP "
+            f"camera={camera_index} post={index} top_z={post_top:.2f}"
+        )
 
     insert_cutters = [
         add_cylinder_z(
@@ -19976,7 +20404,10 @@ def add_camera_bracket_posts(base, bracket_position_pairs):
             x,
             y,
         )
-        for index, (x, y) in enumerate(positions, start=1)
+        for index, ((x, y), post_top, _camera_index) in enumerate(
+            post_records,
+            start=1,
+        )
     ]
     boolean_difference(base, insert_cutters, "Camera_Bracket_Heat_Insert_Holes")
     if HEAT_INSERT_LEADIN_DEPTH > 0.0:
@@ -19989,7 +20420,10 @@ def add_camera_bracket_posts(base, bracket_position_pairs):
                 x,
                 y,
             )
-            for index, (x, y) in enumerate(positions, start=1)
+            for index, ((x, y), post_top, _camera_index) in enumerate(
+                post_records,
+                start=1,
+            )
         ]
         boolean_difference(
             base,
@@ -20536,7 +20970,7 @@ def create_adjustable_camera_hold_down(camera, post_positions):
     bridge["low_friction_disk_thickness_mm"] = (
         CAMERA_HOLD_DOWN_PAD_MATERIAL_THICKNESS
     )
-    bridge["clamp_travel_z"] = camera_bracket_clamp_travel()
+    bridge["clamp_travel_z"] = camera_bracket_clamp_travel(camera)
     print(
         "ADJUSTABLE_HOLD_DOWN_INTERFACE "
         f"disk=PTFE/UHMW/acetal "
@@ -21010,6 +21444,117 @@ def create_camera_bracket(camera, post_positions):
             f"Camera_Bracket_{camera['index']}_Body_Rail_{rail_index}_Union",
         )
 
+    front_locator_bounds = None
+    front_locator_beam_bounds = None
+    if CAMERA_BRACKET_FRONT_LOCATOR_ENABLED:
+        locator_side, local_front_tangent_bounds = (
+            camera_bracket_front_locator_tangent_bounds()
+        )
+        front_tangent_min = (
+            camera["eye_tangent"] + local_front_tangent_bounds[0]
+        )
+        front_tangent_max = (
+            camera["eye_tangent"] + local_front_tangent_bounds[1]
+        )
+        front_tangent_center = (front_tangent_min + front_tangent_max) / 2.0
+        body_front = lens_face_radius + body_radial[1]
+        locator_radial_min = (
+            body_front + CAMERA_BRACKET_FRONT_LOCATOR_CLEARANCE
+        )
+        locator_radial_max = (
+            locator_radial_min + CAMERA_BRACKET_FRONT_LOCATOR_THICKNESS
+        )
+        contact_z1 = body_top - CAMERA_BRACKET_FRONT_LOCATOR_BODY_TOP_INSET
+        contact_z0 = contact_z1 - CAMERA_BRACKET_FRONT_LOCATOR_HEIGHT
+        flat_body_z_min = (
+            camera_eye_center_z()
+            + body_vertical[0]
+            + mission1.BODY_CORNER_RADIUS
+        )
+        if contact_z0 < flat_body_z_min - 1e-6:
+            raise ValueError(
+                "Fixed bracket front locator extends below the flat camera "
+                "front face"
+            )
+        locator_z1 = underside + CAMERA_BRACKET_FRONT_LOCATOR_PLATE_EMBED
+        locator_center = axis_point(
+            camera["angle"],
+            (locator_radial_min + locator_radial_max) / 2.0,
+            front_tangent_center,
+            (contact_z0 + locator_z1) / 2.0,
+        )
+        front_locator = add_beveled_box(
+            f"Camera_Bracket_{camera['index']}_Upper_Front_Locator",
+            (
+                locator_radial_max - locator_radial_min,
+                front_tangent_max - front_tangent_min,
+                locator_z1 - contact_z0,
+            ),
+            tuple(locator_center),
+            rotation_z=angle,
+            bevel=CAMERA_BRACKET_FRONT_LOCATOR_EDGE_RADIUS,
+        )
+        boolean_union(
+            bracket,
+            front_locator,
+            f"Camera_Bracket_{camera['index']}_Upper_Front_Locator_Union",
+        )
+        beam_radial_min = radial_max - CAMERA_BRACKET_FRONT_LOCATOR_PLATE_EMBED
+        beam_radial_max = locator_radial_max + BOOLEAN_OVERLAP
+        beam_tangent_min = (
+            front_tangent_center
+            - CAMERA_BRACKET_FRONT_LOCATOR_BEAM_WIDTH / 2.0
+        )
+        beam_tangent_max = (
+            front_tangent_center
+            + CAMERA_BRACKET_FRONT_LOCATOR_BEAM_WIDTH / 2.0
+        )
+        beam_center = axis_point(
+            camera["angle"],
+            (beam_radial_min + beam_radial_max) / 2.0,
+            front_tangent_center,
+            (underside + top) / 2.0,
+        )
+        front_beam = add_beveled_box(
+            f"Camera_Bracket_{camera['index']}_Front_Locator_Top_Beam",
+            (
+                beam_radial_max - beam_radial_min,
+                CAMERA_BRACKET_FRONT_LOCATOR_BEAM_WIDTH,
+                CAMERA_BRACKET_THICKNESS,
+            ),
+            tuple(beam_center),
+            rotation_z=angle,
+            bevel=min(1.0, CAMERA_BRACKET_FRONT_LOCATOR_EDGE_RADIUS),
+        )
+        boolean_union(
+            bracket,
+            front_beam,
+            f"Camera_Bracket_{camera['index']}_Front_Locator_Beam_Union",
+        )
+        front_locator_bounds = (
+            locator_radial_min,
+            locator_radial_max,
+            front_tangent_min,
+            front_tangent_max,
+            contact_z0,
+            locator_z1,
+        )
+        front_locator_beam_bounds = (
+            beam_radial_min,
+            beam_radial_max,
+            beam_tangent_min,
+            beam_tangent_max,
+            underside,
+            top,
+        )
+        print(
+            "CAMERA_BRACKET_FRONT_LOCATOR "
+            f"camera={camera['index']} side={locator_side} "
+            f"clearance={CAMERA_BRACKET_FRONT_LOCATOR_CLEARANCE:.2f} "
+            f"contact_width={CAMERA_BRACKET_FRONT_LOCATOR_WIDTH:.2f} "
+            f"contact_z=({contact_z0:.2f},{contact_z1:.2f})"
+        )
+
     usb_locator_bounds = None
     usb_gusset_bounds = None
     if CAMERA_BRACKET_USB_SIDE_LOCATOR_ENABLED:
@@ -21282,7 +21827,25 @@ def create_camera_bracket(camera, post_positions):
         bracket[f"arm_{arm_index}_length"] = length
         bracket[f"arm_{arm_index}_angle"] = arm_angle
     bracket["contact_rail_bottom_z"] = rail_bottom
-    bracket["clamp_travel_z"] = camera_bracket_clamp_travel()
+    bracket["clamp_travel_z"] = camera_bracket_clamp_travel(camera)
+    bracket["front_locator_enabled"] = front_locator_bounds is not None
+    if front_locator_bounds is not None:
+        (
+            bracket["front_locator_radial_min"],
+            bracket["front_locator_radial_max"],
+            bracket["front_locator_tangent_min"],
+            bracket["front_locator_tangent_max"],
+            bracket["front_locator_z_min"],
+            bracket["front_locator_z_max"],
+        ) = front_locator_bounds
+        (
+            bracket["front_locator_beam_radial_min"],
+            bracket["front_locator_beam_radial_max"],
+            bracket["front_locator_beam_tangent_min"],
+            bracket["front_locator_beam_tangent_max"],
+            bracket["front_locator_beam_z_min"],
+            bracket["front_locator_beam_z_max"],
+        ) = front_locator_beam_bounds
     bracket["usb_side_locator_enabled"] = usb_locator_bounds is not None
     if usb_locator_bounds is not None:
         (
@@ -21368,6 +21931,29 @@ def camera_bracket_mutual_clearance_tools(bracket):
             top + clearance,
         )
     )
+    if bracket.get("front_locator_enabled", False):
+        tools.append(
+            local_box(
+                "Camera_Bracket_Front_Locator_Clearance",
+                bracket["front_locator_radial_min"] - clearance,
+                bracket["front_locator_radial_max"] + clearance,
+                bracket["front_locator_tangent_min"] - clearance,
+                bracket["front_locator_tangent_max"] + clearance,
+                bracket["front_locator_z_min"] - clearance,
+                bracket["front_locator_z_max"] + clearance,
+            )
+        )
+        tools.append(
+            local_box(
+                "Camera_Bracket_Front_Locator_Beam_Clearance",
+                bracket["front_locator_beam_radial_min"] - clearance,
+                bracket["front_locator_beam_radial_max"] + clearance,
+                bracket["front_locator_beam_tangent_min"] - clearance,
+                bracket["front_locator_beam_tangent_max"] + clearance,
+                bracket["front_locator_beam_z_min"] - clearance,
+                bracket["front_locator_beam_z_max"] + clearance,
+            )
+        )
     if bracket.get("usb_side_locator_enabled", False):
         tools.append(
             local_box(
@@ -21537,15 +22123,20 @@ def create_camera_brackets(cameras, bracket_position_pairs):
             CAMERA_UPSIDE_DOWN
         )[2][1]
         plate_underside, _ = camera_bracket_z_bounds()
-        travel = camera_bracket_clamp_travel()
-        print(
-            "CAMERA_CLAMP_STACK "
-            f"body_top={body_top:.2f} loose_rail_gap="
-            f"{CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z:.2f} "
-            f"tightening_travel={travel:.2f} preload="
-            f"{CAMERA_BRACKET_CLAMP_PRELOAD_Z:.2f} "
-            f"final_plate_underside={plate_underside - travel:.2f}"
-        )
+        for camera, bracket in zip(cameras, brackets):
+            travel = float(bracket["clamp_travel_z"])
+            print(
+                "CAMERA_CLAMP_STACK "
+                f"camera={camera['index']} "
+                f"kind={'adjustable' if camera_is_adjustable(camera) else 'fixed'} "
+                f"body_top={body_top:.2f} loose_rail_gap="
+                f"{CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z:.2f} "
+                f"tightening_travel={travel:.2f} preload="
+                f"{CAMERA_BRACKET_CLAMP_PRELOAD_Z:.2f} "
+                f"fixed_extra="
+                f"{(0.0 if camera_is_adjustable(camera) else CAMERA_BRACKET_FIXED_EXTRA_POST_LOWERING_Z):.2f} "
+                f"final_plate_underside={plate_underside - travel:.2f}"
+            )
     return brackets
 
 
@@ -21754,7 +22345,7 @@ def create_base(
     )
     add_fan_acoustic_base_posts(base, acoustic_layout)
     add_fastener_posts(base, positions)
-    add_camera_bracket_posts(base, bracket_position_pairs)
+    add_camera_bracket_posts(base, cameras, bracket_position_pairs)
     add_bottom_mount_hole(base, bottom_mount_hole_position)
     add_bottom_keystone_mounts(base, bottom_keystone_positions)
     add_adjustable_carrier_top_loading_chimney(base, cameras, footprint)
@@ -21960,7 +22551,14 @@ def add_lid_camera_bracket_reliefs(lid, cameras):
         seam_values = [
             local_base_seam_z(point.x, point.y) for point in corner_points
         ]
-        z0 = min(seam_values) - LID_LIP_DEPTH - BOOLEAN_OVERLAP
+        z0 = min(seam_values) - max(
+            LID_LIP_DEPTH,
+            (
+                LID_FRONT_INSERT_LIP_DEPTH
+                if LID_FRONT_INSERT_LIP_ENABLED
+                else LID_LIP_DEPTH
+            ),
+        ) - BOOLEAN_OVERLAP
         z1 = max(seam_values) + BOOLEAN_OVERLAP
         center = axis_point(
             camera["angle"],
@@ -21994,7 +22592,7 @@ def add_lid_camera_bracket_reliefs(lid, cameras):
             )
             relief_z0 = (
                 bracket_underside
-                - camera_bracket_clamp_travel()
+                - camera_bracket_clamp_travel(camera)
                 - clearance
                 - BOOLEAN_OVERLAP
             )
@@ -22082,6 +22680,107 @@ def add_lid_fastener_seating_islands(lid, positions):
     return lid
 
 
+def add_single_lid_fan_mount(lid, footprint):
+    """Add one flat, reinforced external-fan seat and its airflow opening."""
+    if not lid_fan_enabled():
+        return lid
+    dimensions = lid_fan_reference_dimensions()
+    seat_size = lid_fan_flat_seat_size()
+    half_seat = seat_size / 2.0
+    center_x = float(LID_FAN_CENTER_X)
+    center_y = float(LID_FAN_CENTER_Y)
+    plan_samples = tuple(
+        (
+            center_x + x_factor * half_seat,
+            center_y + y_factor * half_seat,
+        )
+        for x_factor, y_factor in (
+            (-1.0, -1.0),
+            (-1.0, 0.0),
+            (-1.0, 1.0),
+            (0.0, -1.0),
+            (0.0, 0.0),
+            (0.0, 1.0),
+            (1.0, -1.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+        )
+    )
+    if VALIDATE_LID_FAN_FIT:
+        for point in plan_samples:
+            if not point_in_polygon(point, footprint):
+                raise ValueError(
+                    f"Lid fan seat sample {point} falls outside the lid; "
+                    "move LID_FAN_CENTER_X/Y or select a smaller fan"
+                )
+            edge_distance = polygon_boundary_distance(point, footprint)
+            if edge_distance < LID_FAN_EDGE_CLEARANCE:
+                raise ValueError(
+                    "Lid fan seat leaves only "
+                    f"{edge_distance:.2f} mm to the lid edge; require "
+                    f"{LID_FAN_EDGE_CLEARANCE:.2f} mm"
+                )
+    local_tops = [local_lid_top_z(x, y) for x, y in plan_samples]
+    seat_z0 = min(local_tops) - LID_FAN_FLAT_SEAT_EMBED
+    seat_z1 = max(local_tops) + LID_FAN_FLAT_SEAT_EXTRA_THICKNESS
+    seat = add_beveled_box(
+        "Single_Lid_Fan_Flat_Reinforced_Seat",
+        (seat_size, seat_size, seat_z1 - seat_z0),
+        (center_x, center_y, (seat_z0 + seat_z1) / 2.0),
+        bevel=min(LID_FAN_FLAT_SEAT_CORNER_RADIUS, half_seat),
+    )
+    boolean_union(lid, seat, "Single_Lid_Fan_Flat_Seat_Union")
+
+    cutter_z0 = min(
+        local_base_seam_z(x, y) for x, y in plan_samples
+    ) - max(LID_LIP_DEPTH, LID_FRONT_INSERT_LIP_DEPTH) - BOOLEAN_OVERLAP
+    cutter_z1 = seat_z1 + BOOLEAN_OVERLAP
+    opening = add_cylinder_z(
+        "Single_Lid_Fan_Air_Opening",
+        dimensions["opening"] / 2.0,
+        cutter_z0,
+        cutter_z1,
+        center_x,
+        center_y,
+    )
+    boolean_difference(lid, [opening], "Single_Lid_Fan_Air_Opening_Cut")
+    mount_holes = [
+        add_cylinder_z(
+            f"Single_Lid_Fan_Mount_Hole_{index}",
+            LID_FAN_MOUNT_HOLE_DIAMETER / 2.0,
+            cutter_z0,
+            cutter_z1,
+            x,
+            y,
+        )
+        for index, (x, y) in enumerate(lid_fan_mount_centers(), start=1)
+    ]
+    boolean_difference(
+        lid,
+        mount_holes,
+        "Single_Lid_Fan_Mount_Holes_Cut",
+    )
+    lid["fan_mount_mode"] = "lid_single"
+    lid["lid_fan_frame_size_mm"] = dimensions["frame"]
+    lid["lid_fan_depth_mm"] = dimensions["depth"]
+    lid["lid_fan_mount_spacing_mm"] = dimensions["mount_spacing"]
+    lid["lid_fan_air_opening_mm"] = dimensions["opening"]
+    lid["lid_fan_airflow_direction"] = LID_FAN_AIRFLOW_DIRECTION
+    lid["lid_fan_external_mount"] = True
+    print(
+        "LID_FAN_MOUNT "
+        f"reference=Noctua_{int(dimensions['frame'])}mm "
+        f"frame={dimensions['frame']:.1f}x{dimensions['frame']:.1f}x"
+        f"{dimensions['depth']:.1f} "
+        f"mount_spacing={dimensions['mount_spacing']:.1f} "
+        f"opening={dimensions['opening']:.1f} "
+        f"center=({center_x:.1f},{center_y:.1f}) external=True "
+        f"airflow={LID_FAN_AIRFLOW_DIRECTION} "
+        f"flat_seat_z=({seat_z0:.2f},{seat_z1:.2f})"
+    )
+    return lid
+
+
 def create_lid(positions, footprint, cameras):
     mesh_break_x = height_taper_mesh_break_x()
     cap_center_x = (
@@ -22142,6 +22841,7 @@ def create_lid(positions, footprint, cameras):
     add_camera_eye_body_reliefs(lid, cameras, "Lid")
     add_lid_camera_bracket_reliefs(lid, cameras)
     add_lid_fastener_seating_islands(lid, positions)
+    add_single_lid_fan_mount(lid, footprint)
 
     if FASTENERS_ENABLED:
         clearance_cutters = [
@@ -22182,6 +22882,12 @@ def create_lid(positions, footprint, cameras):
             "front land or use adaptive supports"
         )
     lid.name = "Hockeymom_3_Cam_Cover_Flat_Lid"
+    lid["front_insert_lip_enabled"] = LID_FRONT_INSERT_LIP_ENABLED
+    lid["front_insert_lip_depth_mm"] = (
+        LID_FRONT_INSERT_LIP_DEPTH
+        if LID_FRONT_INSERT_LIP_ENABLED
+        else LID_LIP_DEPTH
+    )
     return lid
 
 
@@ -23001,8 +23707,10 @@ def validate_split_worm_caps(
         for index, target in enumerate(service_hardware)
     )
     if VALIDATE_TIGHTENED_BRACKET_CLEARANCES:
-        travel = camera_bracket_clamp_travel()
         for index, bracket in enumerate(camera_brackets, start=1):
+            travel = float(
+                bracket.get("clamp_travel_z", camera_bracket_clamp_travel())
+            )
             tightened = duplicate_object(
                 bracket,
                 f"Worm_Cap_Tightened_Bracket_{index}",
@@ -25024,7 +25732,7 @@ def validate_adjustable_camera_range(
     )
     fixed_envelope = convex_hull_2d(camera_xy_corners(fixed_camera))
     required_lens_edge_clearance = CAMERA_LENS_OPENING_CLEARANCE
-    if REAR_FANS_ENABLED:
+    if rear_wall_fans_enabled():
         required_lens_edge_clearance = max(
             required_lens_edge_clearance,
             CAMERA_COOLING_MIN_EYE_EDGE_GAP,
@@ -25528,8 +26236,10 @@ def validate_assembly_clearances(base, lid, camera_brackets, camera_mockups):
         or len(camera_mockups) != 2
     ):
         return
-    travel = camera_bracket_clamp_travel()
     for index, bracket in enumerate(camera_brackets):
+        travel = float(
+            bracket.get("clamp_travel_z", camera_bracket_clamp_travel())
+        )
         tightened = duplicate_object(
             bracket,
             f"Tightened_Bracket_{index + 1}",
@@ -25604,8 +26314,18 @@ def validate_assembly_clearances(base, lid, camera_brackets, camera_mockups):
         camera_brackets[1],
         "Tightened_Bracket_2_Pair_Check",
     )
-    tightened_first.location.z -= travel
-    tightened_second.location.z -= travel
+    tightened_first.location.z -= float(
+        camera_brackets[0].get(
+            "clamp_travel_z",
+            camera_bracket_clamp_travel(),
+        )
+    )
+    tightened_second.location.z -= float(
+        camera_brackets[1].get(
+            "clamp_travel_z",
+            camera_bracket_clamp_travel(),
+        )
+    )
     bpy.context.view_layer.update()
     _, _, pair_volume = intersection_metrics(
         tightened_first,
@@ -25980,12 +26700,12 @@ def build_original_style_cover():
     # With the optional labyrinth installed, the fans no longer discharge
     # directly at the cameras; its final outlet geometry is validated after
     # the cassette mesh exists.
-    if not FAN_ACOUSTIC_ATTENUATOR_ENABLED:
+    if not fan_acoustic_attenuator_enabled():
         validate_forced_air_camera_wash(footprint, cameras)
     automatic_post_targets = FASTENER_POST_TARGETS_XY
     resolved_post_max_x = None
     if (
-        REAR_FANS_ENABLED
+        rear_wall_fans_enabled()
         and FASTENER_POST_PLACEMENT == "auto"
         and REAR_FAN_AUTO_LID_POST_MAX_X is not None
     ):
@@ -26289,7 +27009,7 @@ def build_original_style_cover():
                     ),
                 )
             )
-        if REAR_FANS_ENABLED:
+        if rear_wall_fans_enabled():
             for fan_index, tangent_offset in enumerate(
                 rear_fan_center_tangents(),
                 start=1,
@@ -26468,7 +27188,7 @@ def build_original_style_cover():
             or VALIDATE_CAMERA_USB_ACCESS
             or VALIDATE_CAMERA_INSTALLATION_PATH
             or VALIDATE_REAR_FAN_BODY_CLEARANCE
-            or FAN_ACOUSTIC_ATTENUATOR_ENABLED
+            or fan_acoustic_attenuator_enabled()
         ),
     )
     moving_camera_mockup = next(

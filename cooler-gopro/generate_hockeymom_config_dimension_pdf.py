@@ -288,7 +288,11 @@ FEATURE_RULES = (
         "lid_fasteners",
         "Lid, locating lip, fasteners and heat inserts",
         "Main lid stack, locating lip, four-post placement, screw sinks and heat-set inserts.",
-        (r"^(?:LID|FASTENER|HEAT_INSERT|M3)_", r"^MANUAL_FASTENER_"),
+        (
+            r"^LID_(?!FAN_)",
+            r"^(?:FASTENER|HEAT_INSERT|M3)_",
+            r"^MANUAL_FASTENER_",
+        ),
     ),
     FeatureRule(
         "carrier",
@@ -322,9 +326,9 @@ FEATURE_RULES = (
     ),
     FeatureRule(
         "rear_fans",
-        "Rear fans, pads and vibration gaskets",
-        "Fan stations, local-wall alignment, openings, screw pattern and compliant gasket geometry.",
-        (r"^REAR_FAN_", r"^FAN_GASKET_"),
+        "Rear-wall and lid fans, pads and vibration gaskets",
+        "Selectable fan stations, mounting seats, openings, screw patterns and compliant gasket geometry.",
+        (r"^(?:REAR|LID)_FAN_", r"^FAN_GASKET_"),
     ),
     FeatureRule(
         "bottom_mount",
@@ -394,6 +398,10 @@ OPTIONAL_DIMENSION_NAMES = {
     "EYE_CENTER_Z",
     "CAMERA_LENS_OFFSET_Z",
     "CAMERA_ENVELOPE_TANGENTIAL_OFFSET",
+    "LID_FAN_AIR_OPENING_DIAMETER_MM",
+    "LID_FAN_DEPTH_MM",
+    "LID_FAN_HUB_DIAMETER_MM",
+    "LID_FAN_MOUNT_SPACING_MM",
     "REAR_FAN_CENTER_TANGENTS",
 }
 
