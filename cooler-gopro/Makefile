@@ -1,8 +1,16 @@
 BLENDER ?= $(shell command -v blender 2>/dev/null || command -v /home/colivier/Apps/Blender/blender 2>/dev/null || printf '%s' blender)
 BLENDER_FLAGS ?= --background --factory-startup
-PDF_PYTHON ?= $(shell command -v /home/colivier/miniforge3/bin/python 2>/dev/null || command -v python3 2>/dev/null || printf '%s' python3)
+PDF_PYTHON ?= $(shell \
+	for py in /home/colivier/miniforge3/bin/python /home/colivier-local/miniforge3/bin/python python3; do \
+		if command -v $$py >/dev/null 2>&1 && $$py -c "import matplotlib" >/dev/null 2>&1; then \
+			printf '%s' "$$py"; \
+			exit 0; \
+		fi; \
+	done; \
+	command -v /home/colivier/miniforge3/bin/python 2>/dev/null || command -v python3 2>/dev/null || printf '%s' python3)
 
 DIMENSION_PDF := hockeymom_3_cam_cover_configuration_dimensions.pdf
+FAN_CASE_DIMENSION_PDF := gopro_fan_case_configuration_dimensions.pdf
 
 FLAT_FAN_COVER_STLS := flat-fan-cover.stl
 WRAPPING_FAN_COVER_STLS := wrapping-fan-cover.stl
@@ -55,15 +63,18 @@ STL_FILES := \
 .DELETE_ON_ERROR:
 
 .PHONY: \
-	all print_targets dim-pdf check-dim-pdf-sync \
+	all print_targets dim-pdf check-dim-pdf-sync fan-case-dim-pdf check-fan-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-case hockeymom-cover \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover clean-dim-pdf
+	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover \
+	clean-dim-pdf clean-fan-case-dim-pdf
 
-# Keep the generated dimension guide synchronized with both model sources.
+# Keep the generated dimension guides synchronized with their model sources.
 # The PDF target below also depends on its generator, so any configuration or
 # documentation-layout change is reflected by the next normal `make all`.
-all: $(STL_FILES) $(HOCKEYMOM_COVER_STLS) $(DIMENSION_PDF) check-dim-pdf-sync
+all: $(STL_FILES) $(HOCKEYMOM_COVER_STLS) \
+	$(DIMENSION_PDF) check-dim-pdf-sync \
+	$(FAN_CASE_DIMENSION_PDF) check-fan-case-dim-pdf-sync
 
 print_targets:
 	@printf '%s\n' \
@@ -84,6 +95,8 @@ print_targets:
 		'-------------' \
 		'dim-pdf                   Build the HOCKEYMOM 3 configuration dimension PDF.' \
 		'check-dim-pdf-sync        Verify the PDF matches its model and generator sources.' \
+		'fan-case-dim-pdf          Build the GoPro fan-case configuration dimension PDF.' \
+		'check-fan-case-dim-pdf-sync Verify the fan-case PDF matches its generator source.' \
 		'' \
 		'Cleanup' \
 		'-------' \
@@ -96,6 +109,7 @@ print_targets:
 		'clean-fan-case            Remove all fan-case STLs.' \
 		'clean-hockeymom-cover     Remove all HOCKEYMOM 3 camera-cover STLs.' \
 		'clean-dim-pdf             Remove the HOCKEYMOM 3 configuration dimension PDF.' \
+		'clean-fan-case-dim-pdf    Remove the GoPro fan-case configuration dimension PDF.' \
 		'' \
 		'Meta' \
 		'----' \
@@ -108,12 +122,20 @@ mission1-dummy: $(MISSION1_DUMMY_STLS)
 dual-fan: $(DUAL_FAN_STLS)
 fan-case: $(FAN_CASE_STLS)
 dim-pdf: $(DIMENSION_PDF)
+fan-case-dim-pdf: $(FAN_CASE_DIMENSION_PDF)
 
 check-dim-pdf-sync: $(DIMENSION_PDF)
 	$(PDF_PYTHON) generate_hockeymom_config_dimension_pdf.py --check-sync
 
+check-fan-case-dim-pdf-sync: $(FAN_CASE_DIMENSION_PDF)
+	$(PDF_PYTHON) generate_fan_case_config_dimension_pdf.py --check-sync
+
 $(DIMENSION_PDF): generate_hockeymom_config_dimension_pdf.py \
 	hockeymom_3_cam_cover_original_style_blender.py gopro_mission1_dummy_blender.py
+	$(PDF_PYTHON) $<
+
+$(FAN_CASE_DIMENSION_PDF): generate_fan_case_config_dimension_pdf.py \
+	gopro_fan_case_parametric_blender.py
 	$(PDF_PYTHON) $<
 
 # Load a generator without triggering its __main__ block, build its selected
@@ -164,7 +186,8 @@ $(HOCKEYMOM_COVER_STLS) &: hockeymom_3_cam_cover_original_style_blender.py gopro
 hockeymom-cover: $(HOCKEYMOM_COVER_STLS)
 
 clean: clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover clean-dim-pdf
+	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover \
+	clean-dim-pdf clean-fan-case-dim-pdf
 
 clean-flat-fan-cover:
 	$(RM) $(FLAT_FAN_COVER_STLS)
@@ -189,3 +212,6 @@ clean-hockeymom-cover:
 
 clean-dim-pdf:
 	$(RM) $(DIMENSION_PDF)
+
+clean-fan-case-dim-pdf:
+	$(RM) $(FAN_CASE_DIMENSION_PDF)

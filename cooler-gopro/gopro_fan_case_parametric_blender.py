@@ -65,10 +65,12 @@ BOOLEAN_MINIMUM_VOLUME_CHANGE = 1.0e-6
 
 # Rear fan/socket shell. Y=0 is its smooth front surface.
 BACK_OUTER_WIDTH = 96.65
-BACK_OUTER_HEIGHT = 65.74
+BACK_OUTER_HEIGHT = 66.95
 BACK_DEPTH = 21.2
 BACK_CORNER_RADIUS = 10.0
 BACK_FACE_THICKNESS = 3.0
+BACK_SOCKET_MIN_OUTER_WALL_X = 2.40
+BACK_SOCKET_MIN_OUTER_WALL_Z = 2.40
 
 # Optional smooth exterior dome. The central fan pad remains an exact flat
 # rectangle at the dome's rearmost Y position. The full-width front rim ends
@@ -88,6 +90,14 @@ BACK_DOME_LOOP_POINTS = 128
 FIT_CLEARANCE_X = 0.30
 FIT_CLEARANCE_Z = 0.30
 INSERTION_DEPTH = 3.4
+
+# Short all-around capture slot at the front of the rear socket. TPU prints
+# benefit from this because the insert's sleeve edge bears into a groove
+# instead of relying only on screw preload against a flat rear-socket face.
+INSERT_SOCKET_SLOT_ENABLED = True
+INSERT_SOCKET_SLOT_DEPTH = 1.40
+INSERT_SOCKET_SLOT_INNER_CLEARANCE = 0.20
+INSERT_SOCKET_SLOT_EDGE_THICKNESS = 0.70
 
 # Smooth fan opening and screw pattern on the rear shell.
 FAN_OPENING_ENABLED = True
@@ -441,6 +451,21 @@ def socket_height() -> float:
     return INSERT_FRONT_HEIGHT + 2.0 * FIT_CLEARANCE_Z
 
 
+def socket_outer_wall_x() -> float:
+    return (BACK_OUTER_WIDTH - socket_width()) / 2.0
+
+
+def socket_outer_wall_z() -> float:
+    return (BACK_OUTER_HEIGHT - socket_height()) / 2.0
+
+
+def insert_inner_corner_radius() -> float:
+    return max(
+        INSERT_OUTER_CORNER_RADIUS - max(INSERT_WALL_X, INSERT_WALL_Z),
+        0.5,
+    )
+
+
 def insert_inner_width() -> float:
     return INSERT_FRONT_WIDTH - 2.0 * INSERT_WALL_X
 
@@ -449,12 +474,52 @@ def insert_inner_height() -> float:
     return INSERT_FRONT_HEIGHT - 2.0 * INSERT_WALL_Z
 
 
+def insert_socket_slot_enabled() -> bool:
+    return bool(INSERT_SOCKET_SLOT_ENABLED)
+
+
+def insert_socket_slot_back_y() -> float:
+    return insert_start_y() + INSERT_SOCKET_SLOT_DEPTH
+
+
+def insert_socket_slot_inner_width() -> float:
+    return insert_inner_width() - 2.0 * INSERT_SOCKET_SLOT_INNER_CLEARANCE
+
+
+def insert_socket_slot_inner_height() -> float:
+    return insert_inner_height() - 2.0 * INSERT_SOCKET_SLOT_INNER_CLEARANCE
+
+
+def insert_socket_slot_inner_radius() -> float:
+    return max(
+        insert_inner_corner_radius() - INSERT_SOCKET_SLOT_INNER_CLEARANCE,
+        0.5,
+    )
+
+
+def insert_socket_slot_opening_width() -> float:
+    return insert_socket_slot_inner_width() - 2.0 * INSERT_SOCKET_SLOT_EDGE_THICKNESS
+
+
+def insert_socket_slot_opening_height() -> float:
+    return insert_socket_slot_inner_height() - 2.0 * INSERT_SOCKET_SLOT_EDGE_THICKNESS
+
+
+def insert_socket_slot_opening_radius() -> float:
+    return max(
+        insert_socket_slot_inner_radius() - INSERT_SOCKET_SLOT_EDGE_THICKNESS,
+        0.5,
+    )
+
+
 def validate_config() -> None:
     positive = {
         "BACK_OUTER_WIDTH": BACK_OUTER_WIDTH,
         "BACK_OUTER_HEIGHT": BACK_OUTER_HEIGHT,
         "BACK_DEPTH": BACK_DEPTH,
         "BACK_FACE_THICKNESS": BACK_FACE_THICKNESS,
+        "BACK_SOCKET_MIN_OUTER_WALL_X": BACK_SOCKET_MIN_OUTER_WALL_X,
+        "BACK_SOCKET_MIN_OUTER_WALL_Z": BACK_SOCKET_MIN_OUTER_WALL_Z,
         "BACK_DOME_DEPTH": BACK_DOME_DEPTH,
         "BACK_DOME_FAN_PAD_WIDTH": BACK_DOME_FAN_PAD_WIDTH,
         "BACK_DOME_FAN_PAD_HEIGHT": BACK_DOME_FAN_PAD_HEIGHT,
@@ -494,11 +559,20 @@ def validate_config() -> None:
         "BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT": (
             BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT
         ),
+        "INSERT_SOCKET_SLOT_EDGE_THICKNESS": INSERT_SOCKET_SLOT_EDGE_THICKNESS,
         "LENS_CLEARANCE_CUTTER_MARGIN": LENS_CLEARANCE_CUTTER_MARGIN,
     }
     for name, value in positive.items():
         if value <= 0.0:
             raise ValueError(f"{name} must be positive")
+
+    non_negative = {
+        "INSERT_SOCKET_SLOT_DEPTH": INSERT_SOCKET_SLOT_DEPTH,
+        "INSERT_SOCKET_SLOT_INNER_CLEARANCE": INSERT_SOCKET_SLOT_INNER_CLEARANCE,
+    }
+    for name, value in non_negative.items():
+        if value < 0.0:
+            raise ValueError(f"{name} cannot be negative")
 
     if LAYOUT_MODE not in {"assembled", "print_bed"}:
         raise ValueError('LAYOUT_MODE must be "assembled" or "print_bed"')
@@ -555,6 +629,40 @@ def validate_config() -> None:
         raise ValueError("Insert wall thickness leaves no interior opening")
     if socket_width() >= BACK_OUTER_WIDTH or socket_height() >= BACK_OUTER_HEIGHT:
         raise ValueError("The mating socket does not fit inside the rear shell")
+    if socket_outer_wall_x() < BACK_SOCKET_MIN_OUTER_WALL_X:
+        raise ValueError(
+            "BACK_OUTER_WIDTH leaves too little wall outside the insert socket"
+        )
+    if socket_outer_wall_z() < BACK_SOCKET_MIN_OUTER_WALL_Z:
+        raise ValueError(
+            "BACK_OUTER_HEIGHT leaves too little wall outside the insert socket"
+        )
+    if insert_socket_slot_enabled():
+        if not 0.0 < INSERT_SOCKET_SLOT_DEPTH < INSERTION_DEPTH:
+            raise ValueError(
+                "INSERT_SOCKET_SLOT_DEPTH must fit inside the insertion overlap"
+            )
+        if insert_socket_slot_inner_width() <= 0.0 or insert_socket_slot_inner_height() <= 0.0:
+            raise ValueError("The insert socket slot inner clearance is too large")
+        if (
+            insert_socket_slot_inner_width() >= socket_width()
+            or insert_socket_slot_inner_height() >= socket_height()
+        ):
+            raise ValueError("The insert socket slot cannot form an annular groove")
+        if (
+            insert_socket_slot_opening_width() <= 0.0
+            or insert_socket_slot_opening_height() <= 0.0
+        ):
+            raise ValueError(
+                "INSERT_SOCKET_SLOT_EDGE_THICKNESS leaves no inner through-opening"
+            )
+        if (
+            insert_socket_slot_opening_width() < BACK_DOME_FAN_PAD_WIDTH
+            or insert_socket_slot_opening_height() < BACK_DOME_FAN_PAD_HEIGHT
+        ):
+            raise ValueError(
+                "The insert socket slot opening must remain at least as large as the fan pad"
+            )
     if FAN_OPENING_DIAMETER >= min(BACK_OUTER_WIDTH, BACK_OUTER_HEIGHT):
         raise ValueError("FAN_OPENING_DIAMETER is too large for the rear shell")
     fan_mount_radius = max(
@@ -991,6 +1099,72 @@ def annular_cylinder_y(
     return create_mesh_object(name, vertices, faces)
 
 
+def rounded_rectangle_annular_prism_y(
+    name: str,
+    outer_width: float,
+    outer_height: float,
+    outer_radius: float,
+    inner_width: float,
+    inner_height: float,
+    inner_radius: float,
+    y0: float,
+    y1: float,
+):
+    if y1 <= y0:
+        raise ValueError("A rounded rectangle annular prism needs positive depth")
+    if inner_width >= outer_width or inner_height >= outer_height:
+        raise ValueError("The inner loop must fit inside the outer loop")
+
+    outer_loop = rounded_rectangle_loop(outer_width, outer_height, outer_radius)
+    inner_loop = rounded_rectangle_loop(inner_width, inner_height, inner_radius)
+    if len(inner_loop) != len(outer_loop):
+        inner_loop = resample_closed_loop(inner_loop, len(outer_loop))
+
+    count = len(outer_loop)
+    vertices = []
+    vertices.extend((x, y0, z) for x, z in outer_loop)
+    vertices.extend((x, y1, z) for x, z in outer_loop)
+    vertices.extend((x, y0, z) for x, z in inner_loop)
+    vertices.extend((x, y1, z) for x, z in inner_loop)
+
+    outer_front = 0
+    outer_back = count
+    inner_front = 2 * count
+    inner_back = 3 * count
+    faces = []
+    for index in range(count):
+        next_index = (index + 1) % count
+        faces.extend(
+            (
+                (
+                    outer_front + index,
+                    outer_back + index,
+                    outer_back + next_index,
+                    outer_front + next_index,
+                ),
+                (
+                    inner_front + index,
+                    inner_front + next_index,
+                    inner_back + next_index,
+                    inner_back + index,
+                ),
+                (
+                    outer_front + index,
+                    outer_front + next_index,
+                    inner_front + next_index,
+                    inner_front + index,
+                ),
+                (
+                    outer_back + index,
+                    inner_back + index,
+                    inner_back + next_index,
+                    outer_back + next_index,
+                ),
+            )
+        )
+    return create_mesh_object(name, vertices, faces)
+
+
 def rounded_rectangle_prism_x(
     name: str,
     width_y: float,
@@ -1157,7 +1331,15 @@ def create_back_dome_cavity(
     socket_radius: float,
     inner_surface_offset_y: float = 0.0,
     name: str = "Rear_Domed_Socket_Cavity",
+    terminal_width: float | None = None,
+    terminal_height: float | None = None,
+    terminal_radius: float | None = None,
+    terminal_y: float | None = None,
 ):
+    terminal_width = socket_width() if terminal_width is None else terminal_width
+    terminal_height = socket_height() if terminal_height is None else terminal_height
+    terminal_radius = socket_radius if terminal_radius is None else terminal_radius
+    terminal_y = BACK_DEPTH + BOOLEAN_OVERLAP if terminal_y is None else terminal_y
     inner_loop = resample_closed_loop(
         rounded_rectangle_path_from_top(
             BACK_DOME_FAN_PAD_WIDTH,
@@ -1172,9 +1354,9 @@ def create_back_dome_cavity(
     ]
     socket_loop = resample_closed_loop(
         rounded_rectangle_path_from_top(
-            socket_width(),
-            socket_height(),
-            socket_radius,
+            terminal_width,
+            terminal_height,
+            terminal_radius,
             CORNER_SEGMENTS,
         ),
         BACK_DOME_LOOP_POINTS,
@@ -1203,7 +1385,7 @@ def create_back_dome_cavity(
             + (outer_surface_y - inner_surface_y) * height_t
         )
     section_loops.append(socket_loop)
-    y_positions.append(BACK_DEPTH + BOOLEAN_OVERLAP)
+    y_positions.append(terminal_y)
 
     vertices = []
     for y, loop in zip(y_positions, section_loops):
@@ -1236,7 +1418,7 @@ def create_back_dome_cavity(
         )
     )
     front_center = len(vertices)
-    vertices.append((0.0, BACK_DEPTH + BOOLEAN_OVERLAP, 0.0))
+    vertices.append((0.0, terminal_y, 0.0))
     last_section = len(section_loops) - 1
     for index in range(loop_count):
         next_index = index + 1
@@ -1261,15 +1443,11 @@ def create_insert_tube():
         outer_loops.append(
             rounded_rectangle_loop(width, height, INSERT_OUTER_CORNER_RADIUS)
         )
-        inner_radius = max(
-            INSERT_OUTER_CORNER_RADIUS - max(INSERT_WALL_X, INSERT_WALL_Z),
-            0.5,
-        )
         inner_loops.append(
             rounded_rectangle_loop(
                 insert_inner_width(),
                 insert_inner_height(),
-                inner_radius,
+                insert_inner_corner_radius(),
             )
         )
 
@@ -1604,6 +1782,70 @@ def create_camera_stop_back_volume(socket_radius: float):
     )
 
 
+def create_rear_socket_cut_steps(socket_radius: float):
+    if not insert_socket_slot_enabled():
+        if BACK_DOME_ENABLED:
+            cavity = create_back_dome_cavity(socket_radius)
+        else:
+            cavity = rounded_rectangle_prism_y(
+                "Rear_Socket_Cavity",
+                socket_width(),
+                socket_height(),
+                socket_radius,
+                BACK_FACE_THICKNESS,
+                BACK_DEPTH + BOOLEAN_OVERLAP,
+            )
+        return (("Rear_Socket", (cavity,)),)
+
+    slot_back_y = insert_socket_slot_back_y()
+    if BACK_DOME_ENABLED:
+        inner_opening = create_back_dome_cavity(
+            insert_socket_slot_opening_radius(),
+            name="Rear_Socket_Inner_Opening",
+            terminal_width=insert_socket_slot_opening_width(),
+            terminal_height=insert_socket_slot_opening_height(),
+            terminal_radius=insert_socket_slot_opening_radius(),
+            terminal_y=slot_back_y + BOOLEAN_OVERLAP,
+        )
+    else:
+        inner_opening = rounded_rectangle_prism_y(
+            "Rear_Socket_Inner_Opening",
+            insert_socket_slot_opening_width(),
+            insert_socket_slot_opening_height(),
+            insert_socket_slot_opening_radius(),
+            BACK_FACE_THICKNESS,
+            slot_back_y + BOOLEAN_OVERLAP,
+        )
+    edge_slot = rounded_rectangle_annular_prism_y(
+        "Rear_Insert_Edge_Slot",
+        socket_width(),
+        socket_height(),
+        socket_radius,
+        insert_socket_slot_inner_width(),
+        insert_socket_slot_inner_height(),
+        insert_socket_slot_inner_radius(),
+        insert_start_y() - BOOLEAN_OVERLAP,
+        slot_back_y + BOOLEAN_OVERLAP,
+    )
+    # The capture groove starts at insert_start_y(), the same datum where the
+    # insert fastener bosses start.  The back fastener bosses still end there
+    # when BACK_FASTENER_TO_INSERT_SOCKET_GAP is zero, so the cylinders butt
+    # flush while the sleeve wall enters the surrounding slot.
+    rear_lead_in = rounded_rectangle_prism_y(
+        "Rear_Socket_Lead_In",
+        socket_width(),
+        socket_height(),
+        socket_radius,
+        slot_back_y - BOOLEAN_OVERLAP,
+        BACK_DEPTH + BOOLEAN_OVERLAP,
+    )
+    return (
+        ("Rear_Inner_Opening", (inner_opening,)),
+        ("Rear_Insert_Edge_Slot", (edge_slot,)),
+        ("Rear_Socket_Lead_In", (rear_lead_in,)),
+    )
+
+
 def create_camera_stops(back_volume):
     if not CAMERA_STOPS_ENABLED:
         return None
@@ -1801,23 +2043,13 @@ def create_back_shell():
     if dome is not None:
         boolean_union(back, dome, "Rear_Dome_Union")
     socket_radius = max(INSERT_OUTER_CORNER_RADIUS + max(FIT_CLEARANCE_X, FIT_CLEARANCE_Z), 0.5)
-    if BACK_DOME_ENABLED:
-        cavity = create_back_dome_cavity(socket_radius)
-    else:
-        cavity = rounded_rectangle_prism_y(
-            "Rear_Socket_Cavity",
-            socket_width(),
-            socket_height(),
-            socket_radius,
-            BACK_FACE_THICKNESS,
-            BACK_DEPTH + BOOLEAN_OVERLAP,
-        )
     camera_stop_back_volume = (
         create_camera_stop_back_volume(socket_radius)
         if CAMERA_STOPS_ENABLED
         else None
     )
-    boolean_difference(back, [cavity], "Rear_Socket")
+    for label, cutters in create_rear_socket_cut_steps(socket_radius):
+        boolean_difference(back, cutters, label)
     camera_stops = create_camera_stops(camera_stop_back_volume)
     clear_camera_stop_fastener_access(camera_stops)
 
@@ -2304,6 +2536,15 @@ def build_gopro_fan_case():
         f"tab_projection={BACK_FASTENER_RETENTION_TAB_PROTRUSION:.2f}mm "
         f"axial_preload={back_fastener_retention_axial_preload():.2f}mm"
     )
+    if insert_socket_slot_enabled():
+        print(
+            "INSERT_SOCKET_SLOT "
+            f"depth={INSERT_SOCKET_SLOT_DEPTH:.2f}mm "
+            f"edge={INSERT_SOCKET_SLOT_EDGE_THICKNESS:.2f}mm "
+            f"inner_clearance={INSERT_SOCKET_SLOT_INNER_CLEARANCE:.2f}mm "
+            f"fastener_boss_gap={BACK_FASTENER_TO_INSERT_SOCKET_GAP:.2f}mm "
+            f"outer_wall=({socket_outer_wall_x():.2f}, {socket_outer_wall_z():.2f})mm"
+        )
     if CLEAR_SCENE:
         clear_scene()
     set_units()
