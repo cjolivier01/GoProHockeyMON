@@ -34,7 +34,8 @@ PRINT_BED_GAP = 12.0
 # Select the rear-shell fastener-retention geometry for the printed material.
 # TPU keeps the same snug final seat as rigid plastic, but uses deeper snap
 # tabs so elastic deformation cannot release the three captured hex parts.
-MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
+# MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
+MATERIAL_MODE = "TPU"
 
 # Post-build viewport/render visibility. Geometry is still built, validated,
 # and exported when hidden, making it easy to inspect either part by itself.
@@ -72,7 +73,7 @@ BACK_FACE_THICKNESS = 3.0
 # Optional smooth exterior dome. The central fan pad remains an exact flat
 # rectangle at the dome's rearmost Y position. The full-width front rim ends
 # just behind the camera stops so adjacent cases have more swivel clearance.
-BACK_DOME_ENABLED = False
+BACK_DOME_ENABLED = True
 BACK_DOME_DEPTH = 10.0
 BACK_DOME_START_BEHIND_CAMERA_STOPS = 0.5
 # Keep the three narrow screw chimneys at the former rear-face plane so the
