@@ -1206,10 +1206,10 @@ REAR_FAN_MOUNT_SPACING = 32.0
 REAR_FAN_MOUNT_HOLE_DIAMETER = 3.4
 REAR_FAN_AIR_OPENING_DIAMETER = 36.0
 REAR_FAN_FRAME_SIZE = 40.0
-# Configured model is a 40 x 40 x 20 mm fan mounted inside and blowing inward.
+# Configured model is a 40 x 40 x 10 mm fan mounted inside and blowing inward.
 # The keepout is validated against both camera stations and every cartridge
 # yaw pose; use 10 mm for the original slim-fan layout.
-REAR_FAN_DEPTH = 20.0
+REAR_FAN_DEPTH = 10.0
 REAR_FAN_HUB_DIAMETER = 20.0
 REAR_FAN_BODY_CLEARANCE = 1.0
 REAR_FAN_AIRFLOW_DIRECTION = "intake"
