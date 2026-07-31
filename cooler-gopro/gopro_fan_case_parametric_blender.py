@@ -31,6 +31,11 @@ CLEAR_SCENE = True
 LAYOUT_MODE = "assembled"  # "assembled" or "print_bed"
 PRINT_BED_GAP = 12.0
 
+# Select the rear-shell fastener-retention geometry for the printed material.
+# TPU keeps the same snug final seat as rigid plastic, but uses deeper snap
+# tabs so elastic deformation cannot release the three captured hex parts.
+MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
+
 # Post-build viewport/render visibility. Geometry is still built, validated,
 # and exported when hidden, making it easy to inspect either part by itself.
 SHOW_BACK_SHELL = True
@@ -129,11 +134,15 @@ BACK_FASTENER_HEX_WIDTH_X = 6.61
 BACK_FASTENER_HEX_HEIGHT_Z = 5.70
 BACK_FASTENER_HEX_SEAT_TO_INSERT = 6.2076
 BACK_FASTENER_HEX_TRANSITION_DEPTH = 0.358
+# Nominal M3 hex-nut/head thickness used to place the retaining tabs against
+# the installed part's rear face.  Measure the actual hardware before tuning.
+BACK_FASTENER_HEX_PART_THICKNESS_Y = 2.40
 BACK_FASTENER_RETENTION_TABS_ENABLED = True
 BACK_FASTENER_RETENTION_TAB_WIDTH_X = 1.0
 BACK_FASTENER_RETENTION_TAB_DEPTH_Y = 2.0
+# These two dimensions are selected by MATERIAL_PROFILES below.
 BACK_FASTENER_RETENTION_TAB_PROTRUSION = 0.30
-BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT = 6.642
+BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT = 3.30
 BACK_FASTENER_RETENTION_TAB_BEVEL = 0.12
 
 # Six rear-shell stops prevent the camera sliding past the insert frame.
@@ -278,6 +287,59 @@ BACK_COLOR = (0.10, 0.38, 0.70, 1.0)
 INSERT_COLOR = (0.88, 0.26, 0.08, 1.0)
 
 
+# Values controlled by MATERIAL_MODE.  Keep a complete rigid profile so
+# switching modes between builds in one Blender process restores rigid values.
+_RIGID_MATERIAL_PROFILE = {
+    # A 3.30 mm center offset places the seat-facing side of each 2.00 mm-deep
+    # tab 0.10 mm into a nominal 2.40 mm-thick hex part.  The small preload
+    # holds the hardware against its final seat instead of allowing axial play.
+    "BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT": 3.30,
+    "BACK_FASTENER_RETENTION_TAB_PROTRUSION": 0.30,
+}
+MATERIAL_PROFILES = {
+    "RIGID": _RIGID_MATERIAL_PROFILE,
+    "TPU": {
+        **_RIGID_MATERIAL_PROFILE,
+        # TPU can flex away from the hex part, so add another 0.20 mm of
+        # engagement while retaining clearance around the 4.0 mm shaft bore.
+        "BACK_FASTENER_RETENTION_TAB_PROTRUSION": 0.50,
+    },
+}
+_APPLIED_MATERIAL_MODE = None
+
+
+def apply_material_profile() -> None:
+    global _APPLIED_MATERIAL_MODE
+    global BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT
+    global BACK_FASTENER_RETENTION_TAB_PROTRUSION
+
+    try:
+        profile = MATERIAL_PROFILES[MATERIAL_MODE]
+    except KeyError as error:
+        choices = ", ".join(sorted(MATERIAL_PROFILES))
+        raise ValueError(
+            f"MATERIAL_MODE must be one of: {choices}; got {MATERIAL_MODE!r}"
+        ) from error
+
+    BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT = profile[
+        "BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT"
+    ]
+    BACK_FASTENER_RETENTION_TAB_PROTRUSION = profile[
+        "BACK_FASTENER_RETENTION_TAB_PROTRUSION"
+    ]
+    _APPLIED_MATERIAL_MODE = MATERIAL_MODE
+
+
+def set_material_mode(mode: str) -> None:
+    """Select a material profile while preserving later scalar overrides."""
+    global MATERIAL_MODE
+    MATERIAL_MODE = mode
+    apply_material_profile()
+
+
+set_material_mode(MATERIAL_MODE)
+
+
 # ---------------------------------------------------------------------------
 # Configuration and scene helpers
 
@@ -304,6 +366,22 @@ def back_fastener_hex_seat_y() -> float:
 
 def back_fastener_bore_start_y() -> float:
     return back_fastener_hex_seat_y() + BACK_FASTENER_HEX_TRANSITION_DEPTH
+
+
+def back_fastener_retention_tab_center_y() -> float:
+    return (
+        back_fastener_hex_seat_y()
+        - BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT
+    )
+
+
+def back_fastener_retention_axial_preload() -> float:
+    """Return tab overlap with a seated nominal hex part along Y."""
+    return (
+        BACK_FASTENER_HEX_PART_THICKNESS_Y
+        + BACK_FASTENER_RETENTION_TAB_DEPTH_Y / 2.0
+        - BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT
+    )
 
 
 def back_fastener_end_y() -> float:
@@ -400,6 +478,9 @@ def validate_config() -> None:
         "BACK_FASTENER_HEX_HEIGHT_Z": BACK_FASTENER_HEX_HEIGHT_Z,
         "BACK_FASTENER_HEX_SEAT_TO_INSERT": BACK_FASTENER_HEX_SEAT_TO_INSERT,
         "BACK_FASTENER_HEX_TRANSITION_DEPTH": BACK_FASTENER_HEX_TRANSITION_DEPTH,
+        "BACK_FASTENER_HEX_PART_THICKNESS_Y": (
+            BACK_FASTENER_HEX_PART_THICKNESS_Y
+        ),
         "BACK_FASTENER_RETENTION_TAB_WIDTH_X": (
             BACK_FASTENER_RETENTION_TAB_WIDTH_X
         ),
@@ -451,8 +532,7 @@ def validate_config() -> None:
             "BACK_DOME_FASTENER_CHIMNEY_REAR_Y must lie within the dome depth"
         )
     retention_tab_rear_y = (
-        back_fastener_hex_seat_y()
-        - BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT
+        back_fastener_retention_tab_center_y()
         - BACK_FASTENER_RETENTION_TAB_DEPTH_Y / 2.0
     )
     if (
@@ -517,6 +597,30 @@ def validate_config() -> None:
         BACK_FASTENER_HEX_HEIGHT_Z - BACK_FASTENER_HOLE_DIAMETER
     ):
         raise ValueError("The fastener retaining tabs obstruct the shaft bore")
+    if BACK_FASTENER_HEX_RETENTION_ENABLED and BACK_FASTENER_RETENTION_TABS_ENABLED:
+        tab_center_y = back_fastener_retention_tab_center_y()
+        tab_entry_face_y = (
+            tab_center_y - BACK_FASTENER_RETENTION_TAB_DEPTH_Y / 2.0
+        )
+        tab_seat_face_y = (
+            tab_center_y + BACK_FASTENER_RETENTION_TAB_DEPTH_Y / 2.0
+        )
+        if tab_entry_face_y <= back_exterior_y() + BOOLEAN_OVERLAP:
+            raise ValueError(
+                "The fastener retaining tabs do not fit inside the hex recess"
+            )
+        if tab_seat_face_y >= back_fastener_hex_seat_y():
+            raise ValueError("The fastener retaining tabs extend through the hex seat")
+        axial_preload = back_fastener_retention_axial_preload()
+        if axial_preload < 0.0:
+            raise ValueError(
+                "The fastener retaining tabs leave axial play behind the seated "
+                f"hex parts ({-axial_preload:.3f} mm gap)"
+            )
+        if axial_preload >= BACK_FASTENER_HEX_PART_THICKNESS_Y:
+            raise ValueError(
+                "The fastener retaining tabs block the hex parts from seating"
+            )
     valid_attachments = {"top", "bottom", "left", "right"}
     for spec in CAMERA_STOP_SPECS:
         name, x0, x1, z0, z1, attachment = spec
@@ -1648,10 +1752,7 @@ def add_back_fastener_retention_tabs(back):
     ):
         return back
 
-    center_y = (
-        back_fastener_hex_seat_y()
-        - BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT
-    )
+    center_y = back_fastener_retention_tab_center_y()
     half_hex_height = BACK_FASTENER_HEX_HEIGHT_Z / 2.0
     tab_height = BACK_FASTENER_RETENTION_TAB_PROTRUSION + BOOLEAN_OVERLAP
     for fastener_index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
@@ -2190,7 +2291,18 @@ def export_stl(path: Path, objects) -> None:
 
 
 def build_gopro_fan_case():
+    # A direct assignment remains convenient for callers that execute this
+    # module into a namespace and then build more than one material variant.
+    if MATERIAL_MODE != _APPLIED_MATERIAL_MODE:
+        apply_material_profile()
     validate_config()
+    print(f"MATERIAL_MODE={MATERIAL_MODE}")
+    print(
+        "BACK_FASTENER_HEX_RETENTION "
+        f"count={len(CASE_FASTENER_POSITIONS_XZ) if CASE_FASTENERS_ENABLED else 0} "
+        f"tab_projection={BACK_FASTENER_RETENTION_TAB_PROTRUSION:.2f}mm "
+        f"axial_preload={back_fastener_retention_axial_preload():.2f}mm"
+    )
     if CLEAR_SCENE:
         clear_scene()
     set_units()
