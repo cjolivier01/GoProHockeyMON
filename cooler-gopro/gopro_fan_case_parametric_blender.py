@@ -256,7 +256,8 @@ BOTTOM_ACCESS_Y_OFFSET = 3.0
 # The original has different openings on its two side walls.
 LEFT_ROUND_PORT_ENABLED = True
 LEFT_ROUND_PORT_DIAMETER = 6.1875
-LEFT_ROUND_PORT_Y_OFFSET = 14.3367
+# LEFT_ROUND_PORT_Y_OFFSET = 14.3367
+LEFT_ROUND_PORT_Y_OFFSET = 13.5867
 LEFT_ROUND_PORT_Z = -1.4828
 
 # USB opening through only the positive-X side wall.
