@@ -104,6 +104,7 @@ class ConfigEntry:
 
 
 CATEGORY_PREFIXES = (
+    ("Button actuators", ("BUTTON_",)),
     ("Build, export and viewport", ("CLEAR_", "LAYOUT_", "PRINT_BED_", "SHOW_", "EXPORT_", "COMBINED_", "BACK_STL_", "INSERT_STL_", "MATERIAL_")),
     ("Mesh and Boolean quality", ("CYLINDER_", "CORNER_", "BOOLEAN_", "WATERTIGHT_", "INSERT_DEPTH_SECTIONS")),
     ("Sleeve capture joint", ("SLEEVE_CAPTURE_", "FIT_CLEARANCE_", "INSERTION_DEPTH")),
@@ -143,6 +144,15 @@ EXACT_DESCRIPTIONS = {
     "LOCATING_TAB_SPECS": "Named X/Z bounds and attachment side for each insert locating rail.",
     "LENS_CLEARANCE_GUIDE_TAPERS": "Per-rail taper length and remaining projection at the camera-entry end.",
     "MATERIAL_MODE": "Selects RIGID or TPU fastener-retention geometry; the sleeve slot remains independently switchable.",
+    "BUTTON_STEM_DIAMETER": "Diameter of the actuator shaft that slides through each circular sleeve port.",
+    "BUTTON_TOTAL_HEIGHT": "Overall inside-to-outside actuator height, including its inner flange and exterior retention bead.",
+    "BUTTON_INNER_FLANGE_THICKNESS": "Thickness of the flat camera-side flange that prevents the actuator escaping outward.",
+    "BUTTON_INNER_FLANGE_DIAMETER": "Diameter of the camera-side contact flange and inward travel stop.",
+    "BUTTON_RETENTION_RIM_DIAMETER": "Maximum diameter of the compressible exterior TPU bead that snaps through the sleeve port.",
+    "BUTTON_RETENTION_RIM_HEIGHT": "Axial length reserved for the exterior snap-bead profile.",
+    "BUTTON_RETENTION_SHOULDER_HEIGHT": "Short inward-facing taper that resists pulling the installed button back through the port.",
+    "BUTTON_RETENTION_LEAD_IN_HEIGHT": "Tapered tip length that guides and compresses the TPU bead during inside-out installation.",
+    "BUTTON_STL_NAME": "Output filename for one canonical captive button; print two copies in TPU.",
 }
 
 
@@ -804,7 +814,7 @@ def page_insert(pdf):
     note(side, 0.04, 0.94, "SLEEVE DEPTH", [f"body depth {fmt(C['INSERT_DEPTH'])} mm", f"active leading extension {fmt(active_extension)} mm", f"rear {fmt(C['INSERT_REAR_WIDTH'])} × {fmt(C['INSERT_REAR_HEIGHT'])} mm"], ORANGE)
     note(side, 0.04, 0.70, "BOTTOM ACCESS", [f"enabled {C['BOTTOM_ACCESS_ENABLED']}", f"{fmt(C['BOTTOM_ACCESS_WIDTH'])} × {fmt(C['BOTTOM_ACCESS_DEPTH'])} mm", f"Y offset {fmt(C['BOTTOM_ACCESS_Y_OFFSET'])} mm"], BLUE)
     note(side, 0.04, 0.46, "SIDE / TOP PORTS", [f"left Ø {fmt(C['LEFT_ROUND_PORT_DIAMETER'])} mm", f"USB {fmt(C['RIGHT_USB_PORT_WIDTH_Y'])} × {fmt(C['RIGHT_USB_PORT_HEIGHT_Z'])} mm", f"top Ø {fmt(C['TOP_PORT_DIAMETER'])} mm"], GREEN)
-    note(side, 0.04, 0.22, "FIXED DATUMS", ["Port offsets and insert bosses stay", "measured from the original boss datum."], RED)
+    note(side, 0.04, 0.22, "CAPTIVE BUTTONS · PRINT 2 IN TPU", [f"stem Ø {fmt(C['BUTTON_STEM_DIAMETER'])} · height {fmt(C['BUTTON_TOTAL_HEIGHT'])} mm", f"inside flange Ø {fmt(C['BUTTON_INNER_FLANGE_DIAMETER'])} × {fmt(C['BUTTON_INNER_FLANGE_THICKNESS'])} mm", f"snap rim Ø {fmt(C['BUTTON_RETENTION_RIM_DIAMETER'])} mm · install from inside"], RED)
     pdf.savefig(fig)
     plt.close(fig)
 

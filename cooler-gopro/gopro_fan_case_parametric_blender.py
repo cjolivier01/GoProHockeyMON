@@ -43,6 +43,7 @@ MATERIAL_MODE = "TPU"
 # and exported when hidden, making it easy to inspect either part by itself.
 SHOW_BACK_SHELL = True
 SHOW_HOLLOW_INSERT = True
+SHOW_BUTTONS = True
 
 EXPORT_STL = False
 EXPORT_DIRECTORY = ""
@@ -51,6 +52,7 @@ EXPORT_SEPARATE_STLS = True
 COMBINED_STL_NAME = "gopro_fan_case_parametric.stl"
 BACK_STL_NAME = "gopro_fan_case_back.stl"
 INSERT_STL_NAME = "gopro_fan_case_insert.stl"
+BUTTON_STL_NAME = "gopro_fan_case_button.stl"
 
 # Mesh and boolean quality.
 CYLINDER_SEGMENTS = 96
@@ -275,6 +277,20 @@ TOP_PORT_DIAMETER = 6.1875
 TOP_PORT_X = 18.0
 TOP_PORT_Y_OFFSET = 14.3367
 
+# Two identical captive TPU actuators fit the left and top circular ports.
+# Install each one from inside the sleeve, tapered end first.  The exterior
+# bead compresses through the port and springs back to keep the loose button
+# with the sleeve when the camera is removed.  Print two copies in TPU even
+# when MATERIAL_MODE selects rigid geometry for the case itself.
+BUTTON_STEM_DIAMETER = 5.75
+BUTTON_TOTAL_HEIGHT = 6.83
+BUTTON_INNER_FLANGE_THICKNESS = 0.75
+BUTTON_INNER_FLANGE_DIAMETER = 8.0
+BUTTON_RETENTION_RIM_DIAMETER = 6.60
+BUTTON_RETENTION_RIM_HEIGHT = 0.85
+BUTTON_RETENTION_SHOULDER_HEIGHT = 0.10
+BUTTON_RETENTION_LEAD_IN_HEIGHT = 0.55
+
 # Six internal rails that position the camera inside the insert frame.
 LOCATING_TABS_ENABLED = True
 # Each entry is (name, x_min, x_max, z_min, z_max, attachment). These are
@@ -310,6 +326,7 @@ SNAP_EDGE_RADIUS = 0.35
 # Viewport colors only; STL files do not store these.
 BACK_COLOR = (0.10, 0.38, 0.70, 1.0)
 INSERT_COLOR = (0.88, 0.26, 0.08, 1.0)
+BUTTON_COLOR = (0.12, 0.12, 0.12, 1.0)
 
 
 # Values controlled by MATERIAL_MODE.  Keep a complete rigid profile so
@@ -682,8 +699,23 @@ def validate_config() -> None:
         "SNAP_BUMP_LENGTH_Y": SNAP_BUMP_LENGTH_Y,
         "SNAP_BUMP_LENGTH_Z": SNAP_BUMP_LENGTH_Z,
         "LEFT_ROUND_PORT_DIAMETER": LEFT_ROUND_PORT_DIAMETER,
+        "TOP_PORT_DIAMETER": TOP_PORT_DIAMETER,
         "RIGHT_USB_PORT_WIDTH_Y": RIGHT_USB_PORT_WIDTH_Y,
         "RIGHT_USB_PORT_HEIGHT_Z": RIGHT_USB_PORT_HEIGHT_Z,
+        "BUTTON_STEM_DIAMETER": BUTTON_STEM_DIAMETER,
+        "BUTTON_TOTAL_HEIGHT": BUTTON_TOTAL_HEIGHT,
+        "BUTTON_INNER_FLANGE_THICKNESS": (
+            BUTTON_INNER_FLANGE_THICKNESS
+        ),
+        "BUTTON_INNER_FLANGE_DIAMETER": BUTTON_INNER_FLANGE_DIAMETER,
+        "BUTTON_RETENTION_RIM_DIAMETER": BUTTON_RETENTION_RIM_DIAMETER,
+        "BUTTON_RETENTION_RIM_HEIGHT": BUTTON_RETENTION_RIM_HEIGHT,
+        "BUTTON_RETENTION_SHOULDER_HEIGHT": (
+            BUTTON_RETENTION_SHOULDER_HEIGHT
+        ),
+        "BUTTON_RETENTION_LEAD_IN_HEIGHT": (
+            BUTTON_RETENTION_LEAD_IN_HEIGHT
+        ),
         "BACK_FASTENER_HEX_WIDTH_X": BACK_FASTENER_HEX_WIDTH_X,
         "BACK_FASTENER_HEX_HEIGHT_Z": BACK_FASTENER_HEX_HEIGHT_Z,
         "BACK_FASTENER_HEX_SEAT_TO_INSERT": BACK_FASTENER_HEX_SEAT_TO_INSERT,
@@ -745,10 +777,74 @@ def validate_config() -> None:
 
     if LAYOUT_MODE not in {"assembled", "print_bed"}:
         raise ValueError('LAYOUT_MODE must be "assembled" or "print_bed"')
+    if not LEFT_ROUND_PORT_ENABLED or not TOP_PORT_ENABLED:
+        raise ValueError(
+            "Captive buttons require LEFT_ROUND_PORT_ENABLED and "
+            "TOP_PORT_ENABLED so both button stems have sleeve openings"
+        )
+    smallest_button_port = min(
+        LEFT_ROUND_PORT_DIAMETER,
+        TOP_PORT_DIAMETER,
+    )
+    largest_button_port = max(
+        LEFT_ROUND_PORT_DIAMETER,
+        TOP_PORT_DIAMETER,
+    )
+    if BUTTON_STEM_DIAMETER >= smallest_button_port:
+        raise ValueError(
+            "BUTTON_STEM_DIAMETER must be smaller than both captive-button "
+            f"ports; got {BUTTON_STEM_DIAMETER:.3f} mm stem and "
+            f"{smallest_button_port:.3f} mm smallest port"
+        )
+    if BUTTON_INNER_FLANGE_DIAMETER <= largest_button_port:
+        raise ValueError(
+            "BUTTON_INNER_FLANGE_DIAMETER must exceed both captive-button "
+            f"ports; got {BUTTON_INNER_FLANGE_DIAMETER:.3f} mm flange and "
+            f"{largest_button_port:.3f} mm largest port"
+        )
+    if BUTTON_RETENTION_RIM_DIAMETER <= largest_button_port:
+        raise ValueError(
+            "BUTTON_RETENTION_RIM_DIAMETER must exceed both captive-button "
+            "ports to retain the buttons after installation; got "
+            f"{BUTTON_RETENTION_RIM_DIAMETER:.3f} mm rim and "
+            f"{largest_button_port:.3f} mm largest port"
+        )
+    if BUTTON_RETENTION_RIM_DIAMETER >= BUTTON_INNER_FLANGE_DIAMETER:
+        raise ValueError(
+            "BUTTON_RETENTION_RIM_DIAMETER must be smaller than "
+            "BUTTON_INNER_FLANGE_DIAMETER"
+        )
+    if BUTTON_TOTAL_HEIGHT <= (
+        BUTTON_INNER_FLANGE_THICKNESS + BUTTON_RETENTION_RIM_HEIGHT
+    ):
+        raise ValueError(
+            "BUTTON_TOTAL_HEIGHT must leave a positive stem length between "
+            "the inner flange and exterior retention rim"
+        )
+    if (
+        BUTTON_RETENTION_SHOULDER_HEIGHT
+        + BUTTON_RETENTION_LEAD_IN_HEIGHT
+        > BUTTON_RETENTION_RIM_HEIGHT
+    ):
+        raise ValueError(
+            "BUTTON_RETENTION_SHOULDER_HEIGHT plus "
+            "BUTTON_RETENTION_LEAD_IN_HEIGHT cannot exceed "
+            "BUTTON_RETENTION_RIM_HEIGHT"
+        )
     if not 0.0 < BACK_FACE_THICKNESS < BACK_DEPTH:
         raise ValueError("BACK_FACE_THICKNESS must be less than BACK_DEPTH")
     if not 0.0 < INSERTION_DEPTH < min(BACK_DEPTH, INSERT_DEPTH):
         raise ValueError("INSERTION_DEPTH must fit inside both parts")
+    rim_start_z = BUTTON_TOTAL_HEIGHT - BUTTON_RETENTION_RIM_HEIGHT
+    minimum_rim_start_z = (
+        BUTTON_INNER_FLANGE_THICKNESS + max(INSERT_WALL_X, INSERT_WALL_Z)
+    )
+    if rim_start_z <= minimum_rim_start_z:
+        raise ValueError(
+            "The captive-button retention rim must sit completely beyond "
+            "both sleeve walls when the inner flange is seated; increase "
+            "BUTTON_TOTAL_HEIGHT or reduce BUTTON_RETENTION_RIM_HEIGHT"
+        )
     if min(FIT_CLEARANCE_X, FIT_CLEARANCE_Z) <= BOOLEAN_CLEANUP_DISTANCE:
         raise ValueError(
             "FIT_CLEARANCE_X and FIT_CLEARANCE_Z must both exceed the "
@@ -2950,6 +3046,107 @@ def create_insert_frame():
     return insert
 
 
+def create_captive_button_mesh():
+    """Create one watertight rotational button along local +Z.
+
+    The local origin is the flat inside face of the camera-side flange.  This
+    also makes the separately exported button stand on that flange without
+    needing a print-orientation transform.
+    """
+    stem_radius = BUTTON_STEM_DIAMETER / 2.0
+    flange_radius = BUTTON_INNER_FLANGE_DIAMETER / 2.0
+    rim_radius = BUTTON_RETENTION_RIM_DIAMETER / 2.0
+    rim_start_z = BUTTON_TOTAL_HEIGHT - BUTTON_RETENTION_RIM_HEIGHT
+    rim_full_z = rim_start_z + BUTTON_RETENTION_SHOULDER_HEIGHT
+    lead_in_start_z = (
+        BUTTON_TOTAL_HEIGHT - BUTTON_RETENTION_LEAD_IN_HEIGHT
+    )
+    profile = (
+        (0.0, flange_radius),
+        (BUTTON_INNER_FLANGE_THICKNESS, flange_radius),
+        (BUTTON_INNER_FLANGE_THICKNESS, stem_radius),
+        (rim_start_z, stem_radius),
+        (rim_full_z, rim_radius),
+        (lead_in_start_z, rim_radius),
+        (BUTTON_TOTAL_HEIGHT, stem_radius),
+    )
+
+    vertices = []
+    for z, radius in profile:
+        for index in range(CYLINDER_SEGMENTS):
+            angle = 2.0 * math.pi * index / CYLINDER_SEGMENTS
+            vertices.append(
+                (radius * math.cos(angle), radius * math.sin(angle), z)
+            )
+    bottom_center = len(vertices)
+    vertices.append((0.0, 0.0, 0.0))
+    top_center = len(vertices)
+    vertices.append((0.0, 0.0, BUTTON_TOTAL_HEIGHT))
+
+    def ring(profile_index: int, segment_index: int) -> int:
+        return (
+            profile_index * CYLINDER_SEGMENTS
+            + segment_index % CYLINDER_SEGMENTS
+        )
+
+    faces = []
+    for profile_index in range(len(profile) - 1):
+        for segment_index in range(CYLINDER_SEGMENTS):
+            next_index = segment_index + 1
+            faces.append(
+                (
+                    ring(profile_index, segment_index),
+                    ring(profile_index, next_index),
+                    ring(profile_index + 1, next_index),
+                    ring(profile_index + 1, segment_index),
+                )
+            )
+    last_profile_index = len(profile) - 1
+    for segment_index in range(CYLINDER_SEGMENTS):
+        next_index = segment_index + 1
+        faces.append(
+            (
+                bottom_center,
+                ring(0, next_index),
+                ring(0, segment_index),
+            )
+        )
+        faces.append(
+            (
+                top_center,
+                ring(last_profile_index, segment_index),
+                ring(last_profile_index, next_index),
+            )
+        )
+
+    button = create_mesh_object("GoPro_Captive_Button_Top", vertices, faces)
+    button.data.name = "GoPro_Captive_Button_Mesh"
+    return button
+
+
+def create_captive_buttons():
+    """Create and install the two identical buttons in their sleeve ports."""
+    top_button = create_captive_button_mesh()
+    top_button.location = (
+        TOP_PORT_X,
+        insert_start_y() + TOP_PORT_Y_OFFSET,
+        insert_inner_height() / 2.0 - BUTTON_INNER_FLANGE_THICKNESS,
+    )
+
+    left_button = top_button.copy()
+    left_button.data = top_button.data
+    left_button.name = "GoPro_Captive_Button_Left"
+    bpy.context.collection.objects.link(left_button)
+    left_button.location = (
+        -insert_inner_width() / 2.0 + BUTTON_INNER_FLANGE_THICKNESS,
+        insert_start_y() + LEFT_ROUND_PORT_Y_OFFSET,
+        LEFT_ROUND_PORT_Z,
+    )
+    # Local +Z is the insertion/outward axis.  The left port points toward -X.
+    left_button.rotation_euler = (0.0, -math.pi / 2.0, 0.0)
+    return left_button, top_button
+
+
 # ---------------------------------------------------------------------------
 # Validation, layout, materials, and export
 
@@ -3351,25 +3548,113 @@ def validate_object(obj) -> None:
         raise RuntimeError(f"{obj.name} has {shells} disconnected shells")
 
 
+def validate_captive_buttons(buttons) -> None:
+    """Check local dimensions and the assembled axes/port alignment."""
+    left_button, top_button = buttons
+    validate_object(left_button)
+    validate_object(top_button)
+
+    coordinates = [vertex.co for vertex in top_button.data.vertices]
+    minimum_z = min(coordinate.z for coordinate in coordinates)
+    maximum_z = max(coordinate.z for coordinate in coordinates)
+    maximum_radius = max(
+        math.hypot(coordinate.x, coordinate.y)
+        for coordinate in coordinates
+    )
+    expected_radius = BUTTON_INNER_FLANGE_DIAMETER / 2.0
+    dimension_tolerance = 1.0e-5
+    if (
+        abs(minimum_z) > dimension_tolerance
+        or abs(maximum_z - BUTTON_TOTAL_HEIGHT) > dimension_tolerance
+        or abs(maximum_radius - expected_radius) > dimension_tolerance
+    ):
+        raise RuntimeError(
+            "Captive-button mesh bounds do not match its configured profile: "
+            f"z=({minimum_z:.5f}, {maximum_z:.5f}) mm, "
+            f"radius={maximum_radius:.5f} mm"
+        )
+
+    expected_locations = (
+        Vector(
+            (
+                -insert_inner_width() / 2.0
+                + BUTTON_INNER_FLANGE_THICKNESS,
+                insert_start_y() + LEFT_ROUND_PORT_Y_OFFSET,
+                LEFT_ROUND_PORT_Z,
+            )
+        ),
+        Vector(
+            (
+                TOP_PORT_X,
+                insert_start_y() + TOP_PORT_Y_OFFSET,
+                insert_inner_height() / 2.0
+                - BUTTON_INNER_FLANGE_THICKNESS,
+            )
+        ),
+    )
+    expected_axes = (Vector((-1.0, 0.0, 0.0)), Vector((0.0, 0.0, 1.0)))
+    for button, expected_location, expected_axis in zip(
+        buttons,
+        expected_locations,
+        expected_axes,
+    ):
+        actual_axis = button.rotation_euler.to_matrix() @ Vector((0.0, 0.0, 1.0))
+        if (
+            (button.location - expected_location).length > dimension_tolerance
+            or (actual_axis - expected_axis).length > dimension_tolerance
+        ):
+            raise RuntimeError(
+                f"{button.name} is not aligned with its configured sleeve port"
+            )
+
+    stem_clearances = (
+        (LEFT_ROUND_PORT_DIAMETER - BUTTON_STEM_DIAMETER) / 2.0,
+        (TOP_PORT_DIAMETER - BUTTON_STEM_DIAMETER) / 2.0,
+    )
+    rim_interferences = (
+        (BUTTON_RETENTION_RIM_DIAMETER - LEFT_ROUND_PORT_DIAMETER) / 2.0,
+        (BUTTON_RETENTION_RIM_DIAMETER - TOP_PORT_DIAMETER) / 2.0,
+    )
+    print(
+        "CAPTIVE_BUTTONS PASS count=2 material=TPU "
+        f"stem_diameter={BUTTON_STEM_DIAMETER:.2f}mm "
+        f"total_height={BUTTON_TOTAL_HEIGHT:.2f}mm "
+        f"inner_flange={BUTTON_INNER_FLANGE_DIAMETER:.2f}x"
+        f"{BUTTON_INNER_FLANGE_THICKNESS:.2f}mm "
+        f"minimum_radial_stem_clearance={min(stem_clearances):.3f}mm "
+        f"minimum_radial_rim_interference={min(rim_interferences):.3f}mm"
+    )
+
+
 def assign_material(obj, name: str, color) -> None:
     material = bpy.data.materials.new(name)
     material.diffuse_color = color
     obj.data.materials.append(material)
 
 
-def apply_layout(back, insert) -> None:
+def apply_layout(back, insert, buttons) -> None:
     if LAYOUT_MODE == "assembled":
         return
     back_right_x = max(vertex.co.x for vertex in back.data.vertices)
     insert_left_x = min(vertex.co.x for vertex in insert.data.vertices)
     insert.location.x = back_right_x + PRINT_BED_GAP - insert_left_x
     insert.location.y = -insert_start_y()
+    insert_right_x = insert.location.x + max(
+        vertex.co.x for vertex in insert.data.vertices
+    )
+    button_radius = BUTTON_INNER_FLANGE_DIAMETER / 2.0
+    next_button_x = insert_right_x + PRINT_BED_GAP + button_radius
+    for button in buttons:
+        button.location = (next_button_x, 0.0, 0.0)
+        button.rotation_euler = (0.0, 0.0, 0.0)
+        next_button_x += BUTTON_INNER_FLANGE_DIAMETER + PRINT_BED_GAP
 
 
-def apply_post_build_visibility(back, insert) -> None:
+def apply_post_build_visibility(back, insert, buttons) -> None:
     for obj, visible in (
         (back, SHOW_BACK_SHELL),
         (insert, SHOW_HOLLOW_INSERT),
+        *[(button, SHOW_BUTTONS) for button in buttons],
     ):
         obj.hide_set(not visible)
         obj.hide_render = not visible
@@ -3396,6 +3681,19 @@ def export_stl(path: Path, objects) -> None:
     else:
         raise RuntimeError("No STL exporter is available in this Blender installation")
     print(f"Wrote {path}")
+
+
+def export_canonical_button_stl(path: Path, button) -> None:
+    """Export one quantity-two button upright without disturbing the scene."""
+    saved_location = button.location.copy()
+    saved_rotation = button.rotation_euler.copy()
+    try:
+        button.location = (0.0, 0.0, 0.0)
+        button.rotation_euler = (0.0, 0.0, 0.0)
+        export_stl(path, [button])
+    finally:
+        button.location = saved_location
+        button.rotation_euler = saved_rotation
 
 
 def build_gopro_fan_case():
@@ -3463,28 +3761,39 @@ def build_gopro_fan_case():
 
     back = create_back_shell()
     insert = create_insert_frame()
+    buttons = create_captive_buttons()
     validate_object(back)
     validate_object(insert)
+    validate_captive_buttons(buttons)
     validate_sleeve_capture_mesh(back, insert)
     assign_material(back, "Rear_Shell_Blue", BACK_COLOR)
     assign_material(insert, "Insert_Frame_Orange", INSERT_COLOR)
-    apply_layout(back, insert)
+    assign_material(buttons[0], "Captive_Button_TPU", BUTTON_COLOR)
+    apply_layout(back, insert, buttons)
 
     if EXPORT_STL:
         directory = export_base_directory()
         if EXPORT_COMBINED_STL:
-            export_stl(directory / COMBINED_STL_NAME, [back, insert])
+            export_stl(
+                directory / COMBINED_STL_NAME,
+                [back, insert, *buttons],
+            )
         if EXPORT_SEPARATE_STLS:
             export_stl(directory / BACK_STL_NAME, [back])
             export_stl(directory / INSERT_STL_NAME, [insert])
+            export_canonical_button_stl(
+                directory / BUTTON_STL_NAME,
+                buttons[0],
+            )
 
     bpy.ops.object.select_all(action="DESELECT")
-    apply_post_build_visibility(back, insert)
+    apply_post_build_visibility(back, insert, buttons)
     visible_objects = [
         obj
         for obj, visible in (
             (back, SHOW_BACK_SHELL),
             (insert, SHOW_HOLLOW_INSERT),
+            *[(button, SHOW_BUTTONS) for button in buttons],
         )
         if visible
     ]
