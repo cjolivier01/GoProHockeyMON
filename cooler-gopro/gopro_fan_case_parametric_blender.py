@@ -22,6 +22,8 @@ from pathlib import Path
 
 import bmesh
 import bpy
+from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +91,21 @@ FIT_CLEARANCE_X = 0.30
 FIT_CLEARANCE_Z = 0.30
 INSERTION_DEPTH = 3.4
 
+# Continuous sleeve-capture groove at the existing screw-boss assembly datum.
+# The ordinary INSERTION_DEPTH remains unchanged.  Only the sleeve wall extends
+# forward by the engagement depth; the insert and back-shell screw bosses still
+# meet at INSERTION_DEPTH's original plane.  Clearance is applied independently
+# from the structural inner lip and the material left outside the groove.
+SLEEVE_CAPTURE_SLOT_ENABLED = True
+SLEEVE_CAPTURE_ENGAGEMENT_DEPTH = 0.80
+# SLEEVE_CAPTURE_FIT_CLEARANCE = 0.25
+SLEEVE_CAPTURE_FIT_CLEARANCE = 0.20
+SLEEVE_CAPTURE_INNER_LIP_THICKNESS = 1.20
+SLEEVE_CAPTURE_BOTTOM_CLEARANCE = 0.15
+SLEEVE_CAPTURE_FLOOR_THICKNESS = 0.50
+SLEEVE_CAPTURE_MIN_OUTER_WALL_X = 1.50
+SLEEVE_CAPTURE_MIN_OUTER_WALL_Z = 1.20
+
 # Smooth fan opening and screw pattern on the rear shell.
 FAN_OPENING_ENABLED = True
 FAN_CENTER_X = -4.0
@@ -121,6 +138,9 @@ CASE_FASTENER_POSITIONS_XZ = (
 )
 BACK_FASTENER_HOLE_DIAMETER = 4.0
 BACK_FASTENER_BOSS_DIAMETER = 8.0
+# Minimum sampled common bearing area between each back/insert boss pair at
+# the assembly datum after the perimeter groove removes its required sector.
+BACK_FASTENER_MIN_DATUM_CONTACT_AREA = 15.0
 # Axial gap between the rear tube end and the insert-boss socket boundary.
 # Its distance behind the open rim is INSERTION_DEPTH plus this value.
 BACK_FASTENER_TO_INSERT_SOCKET_GAP = 0.0
@@ -220,7 +240,7 @@ INSERT_REAR_WIDTH = 90.55
 
 # Keep front/rear equal for straight walls; change either value to add taper.
 INSERT_REAR_HEIGHT = 61.45
-INSERT_DEPTH = 25.3
+INSERT_DEPTH = 26.5
 INSERT_OUTER_CORNER_RADIUS = 8.0
 INSERT_WALL_X = 2.0
 INSERT_WALL_Z = 1.8
@@ -228,8 +248,10 @@ INSERT_WALL_Z = 1.8
 # Large opening through the insert's bottom wall.
 BOTTOM_ACCESS_ENABLED = True
 BOTTOM_ACCESS_WIDTH = 50.0
-BOTTOM_ACCESS_DEPTH = 20.0
-BOTTOM_ACCESS_Y_OFFSET = 3.5
+#BOTTOM_ACCESS_DEPTH = 20.0
+#BOTTOM_ACCESS_Y_OFFSET = 3.5
+BOTTOM_ACCESS_DEPTH = 20.5
+BOTTOM_ACCESS_Y_OFFSET = 3.0
 
 # The original has different openings on its two side walls.
 LEFT_ROUND_PORT_ENABLED = True
@@ -346,7 +368,119 @@ set_material_mode(MATERIAL_MODE)
 
 
 def insert_start_y() -> float:
+    """Assembly datum where the opposing screw-boss faces meet."""
     return BACK_DEPTH - INSERTION_DEPTH
+
+
+def insert_sleeve_leading_y() -> float:
+    engagement = (
+        SLEEVE_CAPTURE_ENGAGEMENT_DEPTH
+        if SLEEVE_CAPTURE_SLOT_ENABLED
+        else 0.0
+    )
+    return insert_start_y() - engagement
+
+
+def insert_inner_corner_radius() -> float:
+    return INSERT_OUTER_CORNER_RADIUS - max(INSERT_WALL_X, INSERT_WALL_Z)
+
+
+def resolved_insert_inner_corner_radius() -> float:
+    """Mirror the legacy helper's full inner-radius clamp when slot-disabled."""
+    radius = insert_inner_corner_radius()
+    if SLEEVE_CAPTURE_SLOT_ENABLED:
+        return radius
+    return min(
+        max(radius, 0.5),
+        insert_inner_width() / 2.0,
+        insert_inner_height() / 2.0,
+    )
+
+
+def sleeve_capture_groove_outer_dimensions():
+    clearance = SLEEVE_CAPTURE_FIT_CLEARANCE
+    return (
+        INSERT_FRONT_WIDTH + 2.0 * clearance,
+        INSERT_FRONT_HEIGHT + 2.0 * clearance,
+        INSERT_OUTER_CORNER_RADIUS + clearance,
+    )
+
+
+def sleeve_capture_groove_inner_dimensions():
+    clearance = SLEEVE_CAPTURE_FIT_CLEARANCE
+    return (
+        insert_inner_width() - 2.0 * clearance,
+        insert_inner_height() - 2.0 * clearance,
+        insert_inner_corner_radius() - clearance,
+    )
+
+
+def sleeve_capture_opening_dimensions():
+    inner_width, inner_height, inner_radius = (
+        sleeve_capture_groove_inner_dimensions()
+    )
+    lip = SLEEVE_CAPTURE_INNER_LIP_THICKNESS
+    return (
+        inner_width - 2.0 * lip,
+        inner_height - 2.0 * lip,
+        inner_radius - lip,
+    )
+
+
+def sleeve_capture_outer_support_dimensions():
+    groove_width, groove_height, groove_radius = (
+        sleeve_capture_groove_outer_dimensions()
+    )
+    corner_support = max(
+        SLEEVE_CAPTURE_MIN_OUTER_WALL_X,
+        SLEEVE_CAPTURE_MIN_OUTER_WALL_Z,
+    )
+    return (
+        groove_width + 2.0 * SLEEVE_CAPTURE_MIN_OUTER_WALL_X,
+        groove_height + 2.0 * SLEEVE_CAPTURE_MIN_OUTER_WALL_Z,
+        groove_radius + corner_support,
+    )
+
+
+def effective_back_outer_dimensions():
+    """Return a shell envelope containing both the legacy and slot contours."""
+    if not SLEEVE_CAPTURE_SLOT_ENABLED:
+        return BACK_OUTER_WIDTH, BACK_OUTER_HEIGHT, BACK_CORNER_RADIUS
+
+    support_width, support_height, support_radius = (
+        sleeve_capture_outer_support_dimensions()
+    )
+    requested_corner_center = (
+        BACK_OUTER_WIDTH / 2.0 - BACK_CORNER_RADIUS,
+        BACK_OUTER_HEIGHT / 2.0 - BACK_CORNER_RADIUS,
+    )
+    support_corner_center = (
+        support_width / 2.0 - support_radius,
+        support_height / 2.0 - support_radius,
+    )
+    corner_center_distance = math.hypot(
+        requested_corner_center[0] - support_corner_center[0],
+        requested_corner_center[1] - support_corner_center[1],
+    )
+    margin = max(
+        0.0,
+        (BACK_OUTER_WIDTH - support_width) / 2.0,
+        (BACK_OUTER_HEIGHT - support_height) / 2.0,
+        BACK_CORNER_RADIUS + corner_center_distance - support_radius,
+    )
+    return (
+        support_width + 2.0 * margin,
+        support_height + 2.0 * margin,
+        support_radius + margin,
+    )
+
+
+def sleeve_capture_groove_floor_y() -> float:
+    return insert_sleeve_leading_y() - SLEEVE_CAPTURE_BOTTOM_CLEARANCE
+
+
+def sleeve_capture_ledge_start_y() -> float:
+    return sleeve_capture_groove_floor_y() - SLEEVE_CAPTURE_FLOOR_THICKNESS
 
 
 def back_exterior_y() -> float:
@@ -413,10 +547,11 @@ def smoothstep(value: float) -> float:
 def dome_surface_y_approx(x: float, z: float) -> float:
     if not BACK_DOME_ENABLED:
         return 0.0
+    back_width, back_height, _back_radius = effective_back_outer_dimensions()
     x_from_pad = max(abs(x - FAN_CENTER_X) - BACK_DOME_FAN_PAD_WIDTH / 2.0, 0.0)
     z_from_pad = max(abs(z - FAN_CENTER_Z) - BACK_DOME_FAN_PAD_HEIGHT / 2.0, 0.0)
-    x_run = max(BACK_OUTER_WIDTH / 2.0 - BACK_DOME_FAN_PAD_WIDTH / 2.0, 0.001)
-    z_run = max(BACK_OUTER_HEIGHT / 2.0 - BACK_DOME_FAN_PAD_HEIGHT / 2.0, 0.001)
+    x_run = max(back_width / 2.0 - BACK_DOME_FAN_PAD_WIDTH / 2.0, 0.001)
+    z_run = max(back_height / 2.0 - BACK_DOME_FAN_PAD_HEIGHT / 2.0, 0.001)
     radial_t = max(x_from_pad / x_run, z_from_pad / z_run)
     height_t = smoothstep(radial_t)
     return back_exterior_y() + (
@@ -441,6 +576,13 @@ def socket_height() -> float:
     return INSERT_FRONT_HEIGHT + 2.0 * FIT_CLEARANCE_Z
 
 
+def socket_corner_radius() -> float:
+    return max(
+        INSERT_OUTER_CORNER_RADIUS + max(FIT_CLEARANCE_X, FIT_CLEARANCE_Z),
+        0.5,
+    )
+
+
 def insert_inner_width() -> float:
     return INSERT_FRONT_WIDTH - 2.0 * INSERT_WALL_X
 
@@ -449,10 +591,73 @@ def insert_inner_height() -> float:
     return INSERT_FRONT_HEIGHT - 2.0 * INSERT_WALL_Z
 
 
+def insert_outer_dimensions_at_t(t: float):
+    """Return the tapered insert's outer X/Z dimensions at depth fraction t."""
+    return (
+        INSERT_FRONT_WIDTH + (INSERT_REAR_WIDTH - INSERT_FRONT_WIDTH) * t,
+        INSERT_FRONT_HEIGHT + (INSERT_REAR_HEIGHT - INSERT_FRONT_HEIGHT) * t,
+    )
+
+
+def rounded_rectangle_containment_margin(
+    outer_width: float,
+    outer_height: float,
+    outer_radius: float,
+    inner_width: float,
+    inner_height: float,
+    inner_radius: float,
+) -> float:
+    """Return the minimum radial/straight margin between centered contours.
+
+    A rounded rectangle is the Minkowski sum of a rectangle and a disk.  Its
+    support function in the first quadrant is ``a*cos + b*sin + radius``.
+    Comparing those support functions catches diagonal corner interference
+    that independent X/Z extent checks miss, without rejecting a contour that
+    tapers inward far enough for its corners to lie below the outer flats.
+    """
+    delta_a = (
+        outer_width / 2.0
+        - outer_radius
+        - (inner_width / 2.0 - inner_radius)
+    )
+    delta_b = (
+        outer_height / 2.0
+        - outer_radius
+        - (inner_height / 2.0 - inner_radius)
+    )
+    if delta_a < 0.0 and delta_b < 0.0:
+        support_delta = -math.hypot(delta_a, delta_b)
+    else:
+        support_delta = min(delta_a, delta_b)
+    return outer_radius - inner_radius + support_delta
+
+
+def validate_rounded_rectangle_dimensions(
+    name: str,
+    width: float,
+    height: float,
+    radius: float,
+) -> None:
+    """Reject contours that the mesh helpers would otherwise silently clamp."""
+    if width <= 0.0 or height <= 0.0:
+        raise ValueError(
+            f"{name} rounded rectangle must have positive width/height; "
+            f"got {width:.3f} x {height:.3f} mm"
+        )
+    maximum_radius = min(width, height) / 2.0
+    if not 0.0 < radius <= maximum_radius:
+        raise ValueError(
+            f"{name} rounded rectangle radius must be positive and no larger "
+            f"than {maximum_radius:.3f} mm for its {width:.3f} x "
+            f"{height:.3f} mm contour; got {radius:.3f} mm"
+        )
+
+
 def validate_config() -> None:
     positive = {
         "BACK_OUTER_WIDTH": BACK_OUTER_WIDTH,
         "BACK_OUTER_HEIGHT": BACK_OUTER_HEIGHT,
+        "BACK_CORNER_RADIUS": BACK_CORNER_RADIUS,
         "BACK_DEPTH": BACK_DEPTH,
         "BACK_FACE_THICKNESS": BACK_FACE_THICKNESS,
         "BACK_DOME_DEPTH": BACK_DOME_DEPTH,
@@ -466,6 +671,8 @@ def validate_config() -> None:
         "INSERT_DEPTH": INSERT_DEPTH,
         "INSERT_WALL_X": INSERT_WALL_X,
         "INSERT_WALL_Z": INSERT_WALL_Z,
+        "FIT_CLEARANCE_X": FIT_CLEARANCE_X,
+        "FIT_CLEARANCE_Z": FIT_CLEARANCE_Z,
         "FAN_OPENING_DIAMETER": FAN_OPENING_DIAMETER,
         "FAN_HOLE_DIAMETER": FAN_HOLE_DIAMETER,
         "VENT_WIDTH": VENT_WIDTH,
@@ -496,6 +703,40 @@ def validate_config() -> None:
         ),
         "LENS_CLEARANCE_CUTTER_MARGIN": LENS_CLEARANCE_CUTTER_MARGIN,
     }
+    if SLEEVE_CAPTURE_SLOT_ENABLED:
+        positive.update(
+            {
+                "SLEEVE_CAPTURE_ENGAGEMENT_DEPTH": (
+                    SLEEVE_CAPTURE_ENGAGEMENT_DEPTH
+                ),
+                "SLEEVE_CAPTURE_FIT_CLEARANCE": (
+                    SLEEVE_CAPTURE_FIT_CLEARANCE
+                ),
+                "SLEEVE_CAPTURE_INNER_LIP_THICKNESS": (
+                    SLEEVE_CAPTURE_INNER_LIP_THICKNESS
+                ),
+                "SLEEVE_CAPTURE_BOTTOM_CLEARANCE": (
+                    SLEEVE_CAPTURE_BOTTOM_CLEARANCE
+                ),
+                "SLEEVE_CAPTURE_FLOOR_THICKNESS": (
+                    SLEEVE_CAPTURE_FLOOR_THICKNESS
+                ),
+                "SLEEVE_CAPTURE_MIN_OUTER_WALL_X": (
+                    SLEEVE_CAPTURE_MIN_OUTER_WALL_X
+                ),
+                "SLEEVE_CAPTURE_MIN_OUTER_WALL_Z": (
+                    SLEEVE_CAPTURE_MIN_OUTER_WALL_Z
+                ),
+            }
+        )
+        if (
+            CASE_FASTENERS_ENABLED
+            and BACK_FASTENER_TO_INSERT_SOCKET_GAP
+            <= BOOLEAN_CLEANUP_DISTANCE
+        ):
+            positive["BACK_FASTENER_MIN_DATUM_CONTACT_AREA"] = (
+                BACK_FASTENER_MIN_DATUM_CONTACT_AREA
+            )
     for name, value in positive.items():
         if value <= 0.0:
             raise ValueError(f"{name} must be positive")
@@ -506,6 +747,11 @@ def validate_config() -> None:
         raise ValueError("BACK_FACE_THICKNESS must be less than BACK_DEPTH")
     if not 0.0 < INSERTION_DEPTH < min(BACK_DEPTH, INSERT_DEPTH):
         raise ValueError("INSERTION_DEPTH must fit inside both parts")
+    if min(FIT_CLEARANCE_X, FIT_CLEARANCE_Z) <= BOOLEAN_CLEANUP_DISTANCE:
+        raise ValueError(
+            "FIT_CLEARANCE_X and FIT_CLEARANCE_Z must both exceed the "
+            f"{BOOLEAN_CLEANUP_DISTANCE:.4f} mm mesh-cleanup tolerance"
+        )
     if INSERT_DEPTH_SECTIONS < 1:
         raise ValueError("INSERT_DEPTH_SECTIONS must be at least 1")
     if BACK_DOME_SECTIONS < 2:
@@ -546,16 +792,257 @@ def validate_config() -> None:
         raise ValueError(
             "The dome fastener chimneys must begin behind the hex retention tabs"
         )
+    effective_back_width, effective_back_height, effective_back_radius = (
+        effective_back_outer_dimensions()
+    )
+    insert_inner_radius = resolved_insert_inner_corner_radius()
+    base_contours = (
+        (
+            "Requested back shell",
+            BACK_OUTER_WIDTH,
+            BACK_OUTER_HEIGHT,
+            BACK_CORNER_RADIUS,
+        ),
+        (
+            "Insert front outer",
+            INSERT_FRONT_WIDTH,
+            INSERT_FRONT_HEIGHT,
+            INSERT_OUTER_CORNER_RADIUS,
+        ),
+        (
+            "Insert rear outer",
+            INSERT_REAR_WIDTH,
+            INSERT_REAR_HEIGHT,
+            INSERT_OUTER_CORNER_RADIUS,
+        ),
+        (
+            "Insert inner opening",
+            insert_inner_width(),
+            insert_inner_height(),
+            insert_inner_radius,
+        ),
+        (
+            "Ordinary socket",
+            socket_width(),
+            socket_height(),
+            socket_corner_radius(),
+        ),
+        (
+            "Effective back shell",
+            effective_back_width,
+            effective_back_height,
+            effective_back_radius,
+        ),
+    )
+    for name, width, height, radius in base_contours:
+        validate_rounded_rectangle_dimensions(name, width, height, radius)
+
+    for name, width, height in (
+        ("front", INSERT_FRONT_WIDTH, INSERT_FRONT_HEIGHT),
+        ("rear", INSERT_REAR_WIDTH, INSERT_REAR_HEIGHT),
+    ):
+        inner_margin = rounded_rectangle_containment_margin(
+            width,
+            height,
+            INSERT_OUTER_CORNER_RADIUS,
+            insert_inner_width(),
+            insert_inner_height(),
+            insert_inner_radius,
+        )
+        if inner_margin <= BOOLEAN_CLEANUP_DISTANCE:
+            raise ValueError(
+                f"The insert {name} outer contour does not contain its "
+                f"constant inner opening: minimum wall margin "
+                f"{inner_margin:.3f} mm; required more than "
+                f"{BOOLEAN_CLEANUP_DISTANCE:.4f} mm"
+            )
     if (
-        BACK_DOME_FAN_PAD_WIDTH >= BACK_OUTER_WIDTH
-        or BACK_DOME_FAN_PAD_HEIGHT >= BACK_OUTER_HEIGHT
+        BACK_DOME_FAN_PAD_WIDTH >= effective_back_width
+        or BACK_DOME_FAN_PAD_HEIGHT >= effective_back_height
     ):
         raise ValueError("The dome fan pad must fit inside the rear shell perimeter")
     if insert_inner_width() <= 0.0 or insert_inner_height() <= 0.0:
         raise ValueError("Insert wall thickness leaves no interior opening")
-    if socket_width() >= BACK_OUTER_WIDTH or socket_height() >= BACK_OUTER_HEIGHT:
+    if (
+        socket_width() >= effective_back_width
+        or socket_height() >= effective_back_height
+    ):
         raise ValueError("The mating socket does not fit inside the rear shell")
-    if FAN_OPENING_DIAMETER >= min(BACK_OUTER_WIDTH, BACK_OUTER_HEIGHT):
+    insertion_t = INSERTION_DEPTH / INSERT_DEPTH
+    overlap_width, overlap_height = insert_outer_dimensions_at_t(insertion_t)
+    remaining_socket_clearance_x = (socket_width() - overlap_width) / 2.0
+    remaining_socket_clearance_z = (socket_height() - overlap_height) / 2.0
+    remaining_socket_corner_clearance = rounded_rectangle_containment_margin(
+        socket_width(),
+        socket_height(),
+        socket_corner_radius(),
+        overlap_width,
+        overlap_height,
+        INSERT_OUTER_CORNER_RADIUS,
+    )
+    if min(
+        remaining_socket_clearance_x,
+        remaining_socket_clearance_z,
+        remaining_socket_corner_clearance,
+    ) <= BOOLEAN_CLEANUP_DISTANCE:
+        raise ValueError(
+            "The tapered insert does not fit through the ordinary socket for "
+            f"the full {INSERTION_DEPTH:.3f} mm insertion overlap: sleeve "
+            f"contour reaches {overlap_width:.3f} x {overlap_height:.3f} mm "
+            f"inside a {socket_width():.3f} x {socket_height():.3f} mm socket "
+            "(remaining per-face X/Z clearance "
+            f"{remaining_socket_clearance_x:.3f}/"
+            f"{remaining_socket_clearance_z:.3f} mm; minimum rounded-contour "
+            f"clearance {remaining_socket_corner_clearance:.3f} mm). Reduce "
+            "the outward "
+            "taper, enlarge the socket clearance, or keep the overlap "
+            "section straight."
+        )
+    if SLEEVE_CAPTURE_SLOT_ENABLED:
+        if SLEEVE_CAPTURE_ENGAGEMENT_DEPTH >= INSERTION_DEPTH:
+            raise ValueError(
+                "SLEEVE_CAPTURE_ENGAGEMENT_DEPTH must be smaller than the "
+                "ordinary INSERTION_DEPTH"
+            )
+        if SLEEVE_CAPTURE_FIT_CLEARANCE >= min(
+            FIT_CLEARANCE_X,
+            FIT_CLEARANCE_Z,
+        ):
+            raise ValueError(
+                "SLEEVE_CAPTURE_FIT_CLEARANCE must be smaller than both "
+                "ordinary socket clearances so the groove and socket cutters "
+                "do not have coincident outer contours"
+            )
+        groove_outer_width, groove_outer_height, groove_outer_radius = (
+            sleeve_capture_groove_outer_dimensions()
+        )
+        groove_inner_width, groove_inner_height, groove_inner_radius = (
+            sleeve_capture_groove_inner_dimensions()
+        )
+        opening_width, opening_height, opening_radius = (
+            sleeve_capture_opening_dimensions()
+        )
+        support_width, support_height, support_radius = (
+            sleeve_capture_outer_support_dimensions()
+        )
+        for name, width, height, radius in (
+            (
+                "Sleeve capture groove outer face",
+                groove_outer_width,
+                groove_outer_height,
+                groove_outer_radius,
+            ),
+            (
+                "Sleeve capture groove inner face",
+                groove_inner_width,
+                groove_inner_height,
+                groove_inner_radius,
+            ),
+            (
+                "Sleeve capture lip opening",
+                opening_width,
+                opening_height,
+                opening_radius,
+            ),
+            (
+                "Sleeve capture outer support",
+                support_width,
+                support_height,
+                support_radius,
+            ),
+        ):
+            validate_rounded_rectangle_dimensions(name, width, height, radius)
+        minimum_corner_support = min(
+            SLEEVE_CAPTURE_MIN_OUTER_WALL_X,
+            SLEEVE_CAPTURE_MIN_OUTER_WALL_Z,
+        )
+        groove_corner_center = (
+            groove_outer_width / 2.0 - groove_outer_radius,
+            groove_outer_height / 2.0 - groove_outer_radius,
+        )
+        support_corner_center = (
+            support_width / 2.0 - support_radius,
+            support_height / 2.0 - support_radius,
+        )
+        resolved_corner_support = (
+            support_radius
+            - groove_outer_radius
+            - math.hypot(
+                support_corner_center[0] - groove_corner_center[0],
+                support_corner_center[1] - groove_corner_center[1],
+            )
+        )
+        if (
+            resolved_corner_support
+            < minimum_corner_support - BOOLEAN_CLEANUP_DISTANCE
+        ):
+            raise ValueError(
+                "The sleeve capture outer-support contour leaves only "
+                f"{resolved_corner_support:.3f} mm at a rounded corner; "
+                f"required {minimum_corner_support:.3f} mm"
+            )
+        effective_corner_center = (
+            effective_back_width / 2.0 - effective_back_radius,
+            effective_back_height / 2.0 - effective_back_radius,
+        )
+        support_containment = (
+            effective_back_radius
+            - support_radius
+            - math.hypot(
+                effective_corner_center[0] - support_corner_center[0],
+                effective_corner_center[1] - support_corner_center[1],
+            )
+        )
+        if support_containment < -BOOLEAN_CLEANUP_DISTANCE:
+            raise ValueError(
+                "The effective back-shell contour does not contain the "
+                "sleeve-capture support contour"
+            )
+        requested_corner_center = (
+            BACK_OUTER_WIDTH / 2.0 - BACK_CORNER_RADIUS,
+            BACK_OUTER_HEIGHT / 2.0 - BACK_CORNER_RADIUS,
+        )
+        requested_containment = (
+            effective_back_radius
+            - BACK_CORNER_RADIUS
+            - math.hypot(
+                effective_corner_center[0] - requested_corner_center[0],
+                effective_corner_center[1] - requested_corner_center[1],
+            )
+        )
+        if requested_containment < -BOOLEAN_CLEANUP_DISTANCE:
+            raise ValueError(
+                "The effective back-shell contour does not contain the "
+                "requested legacy back-shell contour"
+            )
+        if min(
+            groove_inner_width,
+            groove_inner_height,
+            groove_inner_radius,
+            opening_width,
+            opening_height,
+            opening_radius,
+        ) <= 0.0:
+            raise ValueError(
+                "The sleeve capture clearance/lip leaves an invalid inner "
+                "opening or rounded-corner radius"
+            )
+        if not (
+            sleeve_capture_ledge_start_y()
+            < sleeve_capture_groove_floor_y()
+            < insert_sleeve_leading_y()
+            < insert_start_y()
+        ):
+            raise ValueError(
+                "The sleeve capture floor, bottom clearance, leading edge, "
+                "and screw-boss datum are not in assembly order"
+            )
+        if sleeve_capture_ledge_start_y() <= back_exterior_y():
+            raise ValueError(
+                "The sleeve capture groove breaks through the front of the "
+                "back shell; reduce its depth/clearance or deepen the shell"
+            )
+    if FAN_OPENING_DIAMETER >= min(effective_back_width, effective_back_height):
         raise ValueError("FAN_OPENING_DIAMETER is too large for the rear shell")
     fan_mount_radius = max(
         FAN_HOLE_DIAMETER / 2.0,
@@ -582,6 +1069,29 @@ def validate_config() -> None:
         raise ValueError("The snap bump must remain within the insertion overlap")
     if BACK_FASTENER_TO_INSERT_SOCKET_GAP < 0.0:
         raise ValueError("BACK_FASTENER_TO_INSERT_SOCKET_GAP cannot be negative")
+    if (
+        SLEEVE_CAPTURE_SLOT_ENABLED
+        and CASE_FASTENERS_ENABLED
+        and BACK_FASTENER_TO_INSERT_SOCKET_GAP
+        <= BOOLEAN_CLEANUP_DISTANCE
+    ):
+        common_boss_radius = min(
+            BACK_FASTENER_BOSS_DIAMETER,
+            INSERT_FASTENER_BOSS_DIAMETER,
+        ) / 2.0
+        common_bore_radius = max(
+            BACK_FASTENER_HOLE_DIAMETER,
+            INSERT_FASTENER_HOLE_DIAMETER,
+        ) / 2.0
+        maximum_boss_contact_area = math.pi * (
+            common_boss_radius**2 - common_bore_radius**2
+        )
+        if BACK_FASTENER_MIN_DATUM_CONTACT_AREA >= maximum_boss_contact_area:
+            raise ValueError(
+                "BACK_FASTENER_MIN_DATUM_CONTACT_AREA must be smaller than "
+                "the common boss annulus area "
+                f"({maximum_boss_contact_area:.2f} mm2)"
+            )
     if CAMERA_STOP_TO_INSERT_SOCKET_GAP < 0.0:
         raise ValueError("CAMERA_STOP_TO_INSERT_SOCKET_GAP cannot be negative")
     if CAMERA_STOP_FASTENER_CLEARANCE < 0.0:
@@ -733,6 +1243,76 @@ def cleanup_boolean_mesh(obj) -> None:
     bm.to_mesh(obj.data)
     bm.free()
     obj.data.update()
+
+
+def cleanup_opposing_triangle_pairs(obj, label: str) -> int:
+    """Remove zero-thickness face pairs exposed by final mesh tessellation.
+
+    Blender's Boolean result can be manifold as polygons while two adjacent
+    n-gons tessellate to the same tiny triangle with opposite winding.  That
+    pair is a zero-thickness flap in the exported STL.  Tessellate explicitly,
+    remove only exact opposing triangle pairs, and require the resulting mesh
+    to remain closed.
+    """
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.triangulate(
+        bm,
+        faces=list(bm.faces),
+        quad_method="BEAUTY",
+        ngon_method="BEAUTY",
+    )
+    bm.verts.ensure_lookup_table()
+    bm.verts.index_update()
+    bm.faces.ensure_lookup_table()
+
+    faces_by_vertices = {}
+    for face in bm.faces:
+        face.normal_update()
+        key = tuple(sorted(vertex.index for vertex in face.verts))
+        faces_by_vertices.setdefault(key, []).append(face)
+
+    remove_faces = set()
+    for coincident_faces in faces_by_vertices.values():
+        available = list(coincident_faces)
+        while available:
+            face = available.pop()
+            opposing_index = next(
+                (
+                    index
+                    for index, candidate in enumerate(available)
+                    if face.normal.dot(candidate.normal) < -0.999999
+                ),
+                None,
+            )
+            if opposing_index is not None:
+                remove_faces.add(face)
+                remove_faces.add(available.pop(opposing_index))
+
+    if remove_faces:
+        bmesh.ops.delete(bm, geom=list(remove_faces), context="FACES")
+
+    non_manifold_edges = sum(
+        len(edge.link_faces) != 2 for edge in bm.edges
+    )
+    if non_manifold_edges:
+        bm.free()
+        raise RuntimeError(
+            f"{label} tessellation cleanup left {non_manifold_edges} "
+            "non-manifold edges"
+        )
+
+    removed_count = len(remove_faces)
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+    recalc_normals(obj)
+    if removed_count:
+        print(
+            f"TESSELLATION_CLEANUP {label}: "
+            f"removed_opposing_triangles={removed_count}"
+        )
+    return removed_count
 
 
 def remove_tiny_mesh_components(obj, minimum_faces: int = 8) -> None:
@@ -923,6 +1503,95 @@ def rounded_rectangle_prism_y(
     )
 
 
+def rounded_rectangle_ring_prism_y(
+    name: str,
+    outer_width: float,
+    outer_height: float,
+    outer_radius: float,
+    inner_width: float,
+    inner_height: float,
+    inner_radius: float,
+    y0: float,
+    y1: float,
+):
+    """Create one closed rounded-rectangle annulus without a broad membrane."""
+    validate_rounded_rectangle_dimensions(
+        f"{name} outer",
+        outer_width,
+        outer_height,
+        outer_radius,
+    )
+    validate_rounded_rectangle_dimensions(
+        f"{name} inner",
+        inner_width,
+        inner_height,
+        inner_radius,
+    )
+    if not (
+        outer_width > inner_width > 0.0
+        and outer_height > inner_height > 0.0
+        and outer_radius > inner_radius > 0.0
+        and y1 > y0
+    ):
+        raise ValueError(f"Invalid rounded-rectangle ring dimensions for {name}")
+
+    outer_loop = rounded_rectangle_loop(
+        outer_width,
+        outer_height,
+        outer_radius,
+    )
+    inner_loop = rounded_rectangle_loop(
+        inner_width,
+        inner_height,
+        inner_radius,
+    )
+    if len(outer_loop) != len(inner_loop):
+        raise RuntimeError(f"Rounded-rectangle ring loops do not align for {name}")
+
+    count = len(outer_loop)
+    vertices = [(x, y0, z) for x, z in outer_loop]
+    vertices.extend((x, y1, z) for x, z in outer_loop)
+    vertices.extend((x, y0, z) for x, z in inner_loop)
+    vertices.extend((x, y1, z) for x, z in inner_loop)
+    outer_low = 0
+    outer_high = count
+    inner_low = 2 * count
+    inner_high = 3 * count
+
+    faces = []
+    for index in range(count):
+        next_index = (index + 1) % count
+        faces.extend(
+            (
+                (
+                    outer_low + index,
+                    outer_high + index,
+                    outer_high + next_index,
+                    outer_low + next_index,
+                ),
+                (
+                    inner_low + next_index,
+                    inner_high + next_index,
+                    inner_high + index,
+                    inner_low + index,
+                ),
+                (
+                    outer_low + next_index,
+                    outer_low + index,
+                    inner_low + index,
+                    inner_low + next_index,
+                ),
+                (
+                    outer_high + index,
+                    outer_high + next_index,
+                    inner_high + next_index,
+                    inner_high + index,
+                ),
+            )
+        )
+    return create_mesh_object(name, vertices, faces)
+
+
 def annular_cylinder_y(
     name: str,
     outer_radius: float,
@@ -1093,11 +1762,12 @@ def create_back_dome():
     inner_loop = [
         (x + FAN_CENTER_X, z + FAN_CENTER_Z) for x, z in inner_loop
     ]
+    back_width, back_height, back_radius = effective_back_outer_dimensions()
     outer_loop = resample_closed_loop(
         rounded_rectangle_path_from_top(
-            BACK_OUTER_WIDTH,
-            BACK_OUTER_HEIGHT,
-            BACK_CORNER_RADIUS,
+            back_width,
+            back_height,
+            back_radius,
             CORNER_SEGMENTS,
         ),
         BACK_DOME_LOOP_POINTS,
@@ -1252,19 +1922,29 @@ def create_back_dome_cavity(
 
 
 def create_insert_tube():
+    sections = []
+    if SLEEVE_CAPTURE_SLOT_ENABLED:
+        # The added groove engagement is a straight continuation of the
+        # configured front contour.  Keep the original taper's t=0 section at
+        # the screw-boss datum so changing INSERT_REAR_* cannot change socket
+        # or groove fit there.
+        sections.append((insert_sleeve_leading_y(), 0.0))
+    sections.extend(
+        (
+            insert_start_y() + INSERT_DEPTH * section / INSERT_DEPTH_SECTIONS,
+            section / INSERT_DEPTH_SECTIONS,
+        )
+        for section in range(INSERT_DEPTH_SECTIONS + 1)
+    )
+
     outer_loops = []
     inner_loops = []
-    for section in range(INSERT_DEPTH_SECTIONS + 1):
-        t = section / INSERT_DEPTH_SECTIONS
-        width = INSERT_FRONT_WIDTH + (INSERT_REAR_WIDTH - INSERT_FRONT_WIDTH) * t
-        height = INSERT_FRONT_HEIGHT + (INSERT_REAR_HEIGHT - INSERT_FRONT_HEIGHT) * t
+    for _y, t in sections:
+        width, height = insert_outer_dimensions_at_t(t)
         outer_loops.append(
             rounded_rectangle_loop(width, height, INSERT_OUTER_CORNER_RADIUS)
         )
-        inner_radius = max(
-            INSERT_OUTER_CORNER_RADIUS - max(INSERT_WALL_X, INSERT_WALL_Z),
-            0.5,
-        )
+        inner_radius = resolved_insert_inner_corner_radius()
         inner_loops.append(
             rounded_rectangle_loop(
                 insert_inner_width(),
@@ -1275,10 +1955,13 @@ def create_insert_tube():
 
     loop_count = len(outer_loops[0])
     vertices = []
-    for section in range(INSERT_DEPTH_SECTIONS + 1):
-        y = insert_start_y() + INSERT_DEPTH * section / INSERT_DEPTH_SECTIONS
-        vertices.extend((x, y, z) for x, z in outer_loops[section])
-        vertices.extend((x, y, z) for x, z in inner_loops[section])
+    for (y, _t), outer_loop, inner_loop in zip(
+        sections,
+        outer_loops,
+        inner_loops,
+    ):
+        vertices.extend((x, y, z) for x, z in outer_loop)
+        vertices.extend((x, y, z) for x, z in inner_loop)
 
     stride = loop_count * 2
 
@@ -1289,7 +1972,7 @@ def create_insert_tube():
         return section * stride + loop_count + index % loop_count
 
     faces = []
-    for section in range(INSERT_DEPTH_SECTIONS):
+    for section in range(len(sections) - 1):
         for i in range(loop_count):
             j = i + 1
             faces.append(
@@ -1299,7 +1982,7 @@ def create_insert_tube():
                 [inner(section, j), inner(section + 1, j), inner(section + 1, i), inner(section, i)]
             )
 
-    last = INSERT_DEPTH_SECTIONS
+    last = len(sections) - 1
     for i in range(loop_count):
         j = i + 1
         faces.append([outer(0, j), outer(0, i), inner(0, i), inner(0, j)])
@@ -1788,19 +2471,81 @@ def add_back_fastener_retention_tabs(back):
     return back
 
 
+def add_sleeve_capture_ledge(back):
+    if not SLEEVE_CAPTURE_SLOT_ENABLED:
+        return back
+    support_width, support_height, support_radius = (
+        sleeve_capture_outer_support_dimensions()
+    )
+    opening_width, opening_height, opening_radius = (
+        sleeve_capture_opening_dimensions()
+    )
+    ledge = rounded_rectangle_ring_prism_y(
+        "Sleeve_Capture_Ledge",
+        support_width,
+        support_height,
+        support_radius,
+        opening_width,
+        opening_height,
+        opening_radius,
+        sleeve_capture_ledge_start_y(),
+        insert_start_y() + BOOLEAN_OVERLAP,
+    )
+    return boolean_union(
+        back,
+        ledge,
+        "Sleeve_Capture_Ledge_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+
+
+def cut_sleeve_capture_groove(back):
+    if not SLEEVE_CAPTURE_SLOT_ENABLED:
+        return back
+    groove_outer_width, groove_outer_height, groove_outer_radius = (
+        sleeve_capture_groove_outer_dimensions()
+    )
+    groove_inner_width, groove_inner_height, groove_inner_radius = (
+        sleeve_capture_groove_inner_dimensions()
+    )
+    cutter = rounded_rectangle_ring_prism_y(
+        "Sleeve_Capture_Groove_Cutter",
+        groove_outer_width,
+        groove_outer_height,
+        groove_outer_radius,
+        groove_inner_width,
+        groove_inner_height,
+        groove_inner_radius,
+        sleeve_capture_groove_floor_y(),
+        insert_start_y() + 2.0 * BOOLEAN_OVERLAP,
+    )
+    apply_boolean(
+        back,
+        cutter,
+        "DIFFERENCE",
+        "Sleeve_Capture_Groove",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+    cleanup_opposing_triangle_pairs(back, "Sleeve_Capture_Groove")
+    return back
+
+
 def create_back_shell():
+    back_width, back_height, back_radius = effective_back_outer_dimensions()
     back = rounded_rectangle_prism_y(
         "Rear_Fan_Shell",
-        BACK_OUTER_WIDTH,
-        BACK_OUTER_HEIGHT,
-        BACK_CORNER_RADIUS,
+        back_width,
+        back_height,
+        back_radius,
         rear_shell_start_y(),
         BACK_DEPTH,
     )
     dome = create_back_dome()
     if dome is not None:
         boolean_union(back, dome, "Rear_Dome_Union")
-    socket_radius = max(INSERT_OUTER_CORNER_RADIUS + max(FIT_CLEARANCE_X, FIT_CLEARANCE_Z), 0.5)
+    socket_radius = socket_corner_radius()
     if BACK_DOME_ENABLED:
         cavity = create_back_dome_cavity(socket_radius)
     else:
@@ -1818,6 +2563,7 @@ def create_back_shell():
         else None
     )
     boolean_difference(back, [cavity], "Rear_Socket")
+    add_sleeve_capture_ledge(back)
     camera_stops = create_camera_stops(camera_stop_back_volume)
     clear_camera_stop_fastener_access(camera_stops)
 
@@ -1964,6 +2710,10 @@ def create_back_shell():
             solver=WATERTIGHT_DETAIL_UNION_SOLVER,
             require_geometry_change=True,
         )
+
+    # Cut last so later camera-stop and boss unions cannot bridge any portion
+    # of the continuous four-sided groove.
+    cut_sleeve_capture_groove(back)
 
     back.name = "GoPro_Fan_Case_Back"
     back.data.name = "GoPro_Fan_Case_Back_Mesh"
@@ -2125,7 +2875,7 @@ def create_insert_frame():
                 add_cylinder_y(
                     f"Insert_Fastener_Hole_{index}",
                     INSERT_FASTENER_HOLE_DIAMETER / 2.0,
-                    insert_start_y() - BOOLEAN_OVERLAP,
+                    insert_sleeve_leading_y() - BOOLEAN_OVERLAP,
                     insert_start_y() + INSERT_DEPTH + BOOLEAN_OVERLAP,
                     x=x,
                     z=z,
@@ -2229,6 +2979,361 @@ def connected_shell_count(obj) -> int:
     return shells
 
 
+def mesh_bvh(obj):
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bvh = BVHTree.FromBMesh(bm)
+    bm.free()
+    return bvh
+
+
+def bvh_point_is_inside(bvh, point) -> bool:
+    """Classify a point by majority parity along three non-axial rays."""
+    votes = []
+    for coordinates in (
+        (0.87317, 0.39821, 0.27943),
+        (-0.71311, 0.49137, 0.25719),
+        (0.18329, -0.92317, 0.33741),
+    ):
+        direction = Vector(coordinates).normalized()
+        origin = Vector(point)
+        intersections = 0
+        for _ in range(256):
+            location, _normal, _face_index, _distance = bvh.ray_cast(
+                origin,
+                direction,
+                1000.0,
+            )
+            if location is None:
+                break
+            intersections += 1
+            origin = location + direction * 1.0e-4
+        else:
+            raise RuntimeError(
+                "Mesh point-classification ray did not leave the model"
+            )
+        votes.append(bool(intersections % 2))
+    return sum(votes) >= 2
+
+
+def sampled_fastener_datum_contact_area(back_bvh, insert_bvh, x, z) -> float:
+    """Estimate common boss bearing area immediately across the datum."""
+    radius = min(
+        BACK_FASTENER_BOSS_DIAMETER,
+        INSERT_FASTENER_BOSS_DIAMETER,
+    ) / 2.0
+    grid_size = 36
+    cell_size = 2.0 * radius / grid_size
+    plane_offset = min(0.01, SLEEVE_CAPTURE_ENGAGEMENT_DEPTH / 10.0)
+    common_cells = 0
+    for x_index in range(grid_size):
+        sample_x = x - radius + (x_index + 0.5) * cell_size
+        for z_index in range(grid_size):
+            sample_z = z - radius + (z_index + 0.5) * cell_size
+            if (sample_x - x) ** 2 + (sample_z - z) ** 2 > radius**2:
+                continue
+            back_inside = bvh_point_is_inside(
+                back_bvh,
+                (sample_x, insert_start_y() - plane_offset, sample_z),
+            )
+            insert_inside = bvh_point_is_inside(
+                insert_bvh,
+                (sample_x, insert_start_y() + plane_offset, sample_z),
+            )
+            common_cells += back_inside and insert_inside
+    return common_cells * cell_size**2
+
+
+def validate_sleeve_capture_mesh(back, insert) -> None:
+    """Prove the final meshes contain the complete captured sleeve joint."""
+    if not SLEEVE_CAPTURE_SLOT_ENABLED:
+        return
+
+    outer_width, outer_height, outer_radius = (
+        sleeve_capture_groove_outer_dimensions()
+    )
+    inner_width, inner_height, inner_radius = (
+        sleeve_capture_groove_inner_dimensions()
+    )
+    opening_width, opening_height, opening_radius = (
+        sleeve_capture_opening_dimensions()
+    )
+    support_width, support_height, support_radius = (
+        sleeve_capture_outer_support_dimensions()
+    )
+    axial_probe = min(
+        SLEEVE_CAPTURE_BOTTOM_CLEARANCE,
+        SLEEVE_CAPTURE_FLOOR_THICKNESS,
+        SLEEVE_CAPTURE_ENGAGEMENT_DEPTH,
+    ) / 4.0
+    floor_below_y = sleeve_capture_groove_floor_y() - axial_probe
+    floor_above_y = sleeve_capture_groove_floor_y() + axial_probe
+    leading_before_y = insert_sleeve_leading_y() - axial_probe
+    leading_after_y = insert_sleeve_leading_y() + axial_probe
+    sleeve_y = (
+        insert_sleeve_leading_y() + insert_start_y()
+    ) / 2.0
+
+    groove_outer_loop = rounded_rectangle_loop(
+        outer_width,
+        outer_height,
+        outer_radius,
+    )
+    groove_inner_loop = rounded_rectangle_loop(
+        inner_width,
+        inner_height,
+        inner_radius,
+    )
+    opening_loop = rounded_rectangle_loop(
+        opening_width,
+        opening_height,
+        opening_radius,
+    )
+    support_loop = rounded_rectangle_loop(
+        support_width,
+        support_height,
+        support_radius,
+    )
+    sleeve_outer_loop = rounded_rectangle_loop(
+        INSERT_FRONT_WIDTH,
+        INSERT_FRONT_HEIGHT,
+        INSERT_OUTER_CORNER_RADIUS,
+    )
+    sleeve_inner_loop = rounded_rectangle_loop(
+        insert_inner_width(),
+        insert_inner_height(),
+        insert_inner_corner_radius(),
+    )
+
+    loop_lengths = {
+        len(loop)
+        for loop in (
+            groove_outer_loop,
+            groove_inner_loop,
+            opening_loop,
+            support_loop,
+            sleeve_outer_loop,
+            sleeve_inner_loop,
+        )
+    }
+    if len(loop_lengths) != 1:
+        raise RuntimeError("Sleeve-capture validation contours do not align")
+
+    back_samples = [("open_interior", (0.0, sleeve_y, 0.0), False)]
+    insert_samples = []
+    for index, points in enumerate(
+        zip(
+            groove_outer_loop,
+            groove_inner_loop,
+            opening_loop,
+            support_loop,
+            sleeve_outer_loop,
+            sleeve_inner_loop,
+        ),
+        start=1,
+    ):
+        (
+            groove_outer_point,
+            groove_inner_point,
+            opening_point,
+            support_point,
+            sleeve_outer_point,
+            sleeve_inner_point,
+        ) = points
+        groove_point = (
+            (groove_outer_point[0] + groove_inner_point[0]) / 2.0,
+            (groove_outer_point[1] + groove_inner_point[1]) / 2.0,
+        )
+        lip_point = (
+            (groove_inner_point[0] + opening_point[0]) / 2.0,
+            (groove_inner_point[1] + opening_point[1]) / 2.0,
+        )
+        support_point_mid = (
+            (support_point[0] + groove_outer_point[0]) / 2.0,
+            (support_point[1] + groove_outer_point[1]) / 2.0,
+        )
+        sleeve_point = (
+            (sleeve_outer_point[0] + sleeve_inner_point[0]) / 2.0,
+            (sleeve_outer_point[1] + sleeve_inner_point[1]) / 2.0,
+        )
+        outer_face_clearance_point = (
+            (sleeve_outer_point[0] + groove_outer_point[0]) / 2.0,
+            (sleeve_outer_point[1] + groove_outer_point[1]) / 2.0,
+        )
+        inner_face_clearance_point = (
+            (sleeve_inner_point[0] + groove_inner_point[0]) / 2.0,
+            (sleeve_inner_point[1] + groove_inner_point[1]) / 2.0,
+        )
+        back_samples.extend(
+            (
+                (
+                    f"continuous_floor_solid_{index}",
+                    (groove_point[0], floor_below_y, groove_point[1]),
+                    True,
+                ),
+                (
+                    f"continuous_floor_clearance_{index}",
+                    (groove_point[0], floor_above_y, groove_point[1]),
+                    False,
+                ),
+                (
+                    f"continuous_leading_clearance_{index}",
+                    (groove_point[0], leading_before_y, groove_point[1]),
+                    False,
+                ),
+                (
+                    f"continuous_entered_groove_{index}",
+                    (groove_point[0], leading_after_y, groove_point[1]),
+                    False,
+                ),
+                (
+                    f"continuous_outer_face_clearance_leading_{index}",
+                    (
+                        outer_face_clearance_point[0],
+                        leading_after_y,
+                        outer_face_clearance_point[1],
+                    ),
+                    False,
+                ),
+                (
+                    f"continuous_inner_face_clearance_leading_{index}",
+                    (
+                        inner_face_clearance_point[0],
+                        leading_after_y,
+                        inner_face_clearance_point[1],
+                    ),
+                    False,
+                ),
+                (
+                    f"continuous_outer_face_clearance_mid_{index}",
+                    (
+                        outer_face_clearance_point[0],
+                        sleeve_y,
+                        outer_face_clearance_point[1],
+                    ),
+                    False,
+                ),
+                (
+                    f"continuous_inner_face_clearance_mid_{index}",
+                    (
+                        inner_face_clearance_point[0],
+                        sleeve_y,
+                        inner_face_clearance_point[1],
+                    ),
+                    False,
+                ),
+                (
+                    f"continuous_deep_lip_{index}",
+                    (lip_point[0], floor_above_y, lip_point[1]),
+                    True,
+                ),
+                (
+                    f"continuous_deep_support_{index}",
+                    (
+                        support_point_mid[0],
+                        floor_above_y,
+                        support_point_mid[1],
+                    ),
+                    True,
+                ),
+            )
+        )
+        insert_samples.extend(
+            (
+                (
+                    f"continuous_sleeve_before_leading_{index}",
+                    (sleeve_point[0], leading_before_y, sleeve_point[1]),
+                    False,
+                ),
+                (
+                    f"continuous_sleeve_after_leading_{index}",
+                    (sleeve_point[0], leading_after_y, sleeve_point[1]),
+                    True,
+                ),
+            )
+        )
+
+    if CASE_FASTENERS_ENABLED:
+        passage_radius = INSERT_FASTENER_HOLE_DIAMETER * 0.4
+        passage_y_positions = (leading_after_y, sleeve_y)
+        for fastener_index, (x, z) in enumerate(
+            CASE_FASTENER_POSITIONS_XZ,
+            start=1,
+        ):
+            for y_index, passage_y in enumerate(passage_y_positions, start=1):
+                for angle_index in range(16):
+                    angle = 2.0 * math.pi * angle_index / 16.0
+                    insert_samples.append(
+                        (
+                            f"fastener_{fastener_index}_passage_"
+                            f"plane_{y_index}_ring_{angle_index + 1}",
+                            (
+                                x + passage_radius * math.cos(angle),
+                                passage_y,
+                                z + passage_radius * math.sin(angle),
+                            ),
+                            False,
+                        )
+                    )
+
+    back_bvh = mesh_bvh(back)
+    insert_bvh = mesh_bvh(insert)
+    for obj, bvh, samples in (
+        (back, back_bvh, back_samples),
+        (insert, insert_bvh, insert_samples),
+    ):
+        failures = []
+        for name, point, expected_inside in samples:
+            actual_inside = bvh_point_is_inside(bvh, point)
+            if actual_inside != expected_inside:
+                failures.append(
+                    f"{name} expected={'solid' if expected_inside else 'open'} "
+                    f"actual={'solid' if actual_inside else 'open'} point={point}"
+                )
+        if failures:
+            displayed_failures = failures[:12]
+            if len(failures) > len(displayed_failures):
+                displayed_failures.append(
+                    f"... {len(failures) - len(displayed_failures)} more "
+                    "sample failures"
+                )
+            raise RuntimeError(
+                f"Final {obj.name} sleeve-capture mesh validation failed: "
+                + "; ".join(displayed_failures)
+            )
+
+    contact_areas = []
+    if (
+        CASE_FASTENERS_ENABLED
+        and BACK_FASTENER_TO_INSERT_SOCKET_GAP <= BOOLEAN_CLEANUP_DISTANCE
+    ):
+        for fastener_index, (x, z) in enumerate(
+            CASE_FASTENER_POSITIONS_XZ,
+            start=1,
+        ):
+            area = sampled_fastener_datum_contact_area(
+                back_bvh,
+                insert_bvh,
+                x,
+                z,
+            )
+            contact_areas.append(area)
+            if area < BACK_FASTENER_MIN_DATUM_CONTACT_AREA:
+                raise RuntimeError(
+                    "Final sleeve-capture groove leaves insufficient boss "
+                    f"contact at fastener {fastener_index}: sampled "
+                    f"{area:.2f} mm2; required "
+                    f"{BACK_FASTENER_MIN_DATUM_CONTACT_AREA:.2f} mm2"
+                )
+
+    print(
+        "SLEEVE_CAPTURE_FINAL_MESH PASS "
+        f"back_samples={len(back_samples)} insert_samples={len(insert_samples)} "
+        f"minimum_boss_contact_area="
+        f"{min(contact_areas) if contact_areas else 0.0:.2f}mm2"
+    )
+
+
 def validate_object(obj) -> None:
     recalc_normals(obj)
     non_manifold = non_manifold_edge_count(obj)
@@ -2253,9 +3358,9 @@ def assign_material(obj, name: str, color) -> None:
 def apply_layout(back, insert) -> None:
     if LAYOUT_MODE == "assembled":
         return
-    insert.location.x = (
-        BACK_OUTER_WIDTH / 2.0 + INSERT_REAR_WIDTH / 2.0 + PRINT_BED_GAP
-    )
+    back_right_x = max(vertex.co.x for vertex in back.data.vertices)
+    insert_left_x = min(vertex.co.x for vertex in insert.data.vertices)
+    insert.location.x = back_right_x + PRINT_BED_GAP - insert_left_x
     insert.location.y = -insert_start_y()
 
 
@@ -2304,6 +3409,52 @@ def build_gopro_fan_case():
         f"tab_projection={BACK_FASTENER_RETENTION_TAB_PROTRUSION:.2f}mm "
         f"axial_preload={back_fastener_retention_axial_preload():.2f}mm"
     )
+    if SLEEVE_CAPTURE_SLOT_ENABLED:
+        groove_outer_width, groove_outer_height, groove_outer_radius = (
+            sleeve_capture_groove_outer_dimensions()
+        )
+        support_width, support_height, support_radius = (
+            sleeve_capture_outer_support_dimensions()
+        )
+        back_width, back_height, back_radius = effective_back_outer_dimensions()
+        envelope_margin_x = (back_width - groove_outer_width) / 2.0
+        envelope_margin_z = (back_height - groove_outer_height) / 2.0
+        groove_corner_center = (
+            groove_outer_width / 2.0 - groove_outer_radius,
+            groove_outer_height / 2.0 - groove_outer_radius,
+        )
+        support_corner_center = (
+            support_width / 2.0 - support_radius,
+            support_height / 2.0 - support_radius,
+        )
+        corner_support = (
+            support_radius
+            - groove_outer_radius
+            - math.hypot(
+                support_corner_center[0] - groove_corner_center[0],
+                support_corner_center[1] - groove_corner_center[1],
+            )
+        )
+        print(
+            "SLEEVE_CAPTURE_SLOT enabled=True "
+            f"boss_datum_y={insert_start_y():.2f}mm "
+            f"ordinary_overlap={INSERTION_DEPTH:.2f}mm "
+            f"engagement={SLEEVE_CAPTURE_ENGAGEMENT_DEPTH:.2f}mm "
+            f"fit_clearance_per_face={SLEEVE_CAPTURE_FIT_CLEARANCE:.2f}mm "
+            f"bottom_clearance={SLEEVE_CAPTURE_BOTTOM_CLEARANCE:.2f}mm "
+            f"inner_lip={SLEEVE_CAPTURE_INNER_LIP_THICKNESS:.2f}mm "
+            f"floor={SLEEVE_CAPTURE_FLOOR_THICKNESS:.2f}mm "
+            f"deep_groove_support_x={SLEEVE_CAPTURE_MIN_OUTER_WALL_X:.2f}mm "
+            f"deep_groove_support_z={SLEEVE_CAPTURE_MIN_OUTER_WALL_Z:.2f}mm "
+            f"deep_groove_corner_support={corner_support:.2f}mm "
+            f"overall_envelope_margin_x={envelope_margin_x:.2f}mm "
+            f"overall_envelope_margin_z={envelope_margin_z:.2f}mm "
+            f"effective_back_outer={back_width:.2f}x{back_height:.2f}mm "
+            f"effective_back_corner_radius={back_radius:.2f}mm "
+            f"boss_face_gap={BACK_FASTENER_TO_INSERT_SOCKET_GAP:.2f}mm"
+        )
+    else:
+        print("SLEEVE_CAPTURE_SLOT enabled=False")
     if CLEAR_SCENE:
         clear_scene()
     set_units()
@@ -2312,6 +3463,7 @@ def build_gopro_fan_case():
     insert = create_insert_frame()
     validate_object(back)
     validate_object(insert)
+    validate_sleeve_capture_mesh(back, insert)
     assign_material(back, "Rear_Shell_Blue", BACK_COLOR)
     assign_material(insert, "Insert_Frame_Orange", INSERT_COLOR)
     apply_layout(back, insert)
