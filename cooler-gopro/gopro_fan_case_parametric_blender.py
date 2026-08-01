@@ -41,7 +41,7 @@ MATERIAL_MODE = "TPU"
 
 # Post-build viewport/render visibility. Geometry is still built, validated,
 # and exported when hidden, making it easy to inspect either part by itself.
-SHOW_BACK_SHELL = True
+SHOW_BACK_SHELL = False
 SHOW_HOLLOW_INSERT = True
 
 EXPORT_STL = False
@@ -248,8 +248,10 @@ INSERT_WALL_Z = 1.8
 # Large opening through the insert's bottom wall.
 BOTTOM_ACCESS_ENABLED = True
 BOTTOM_ACCESS_WIDTH = 50.0
-BOTTOM_ACCESS_DEPTH = 20.0
-BOTTOM_ACCESS_Y_OFFSET = 3.5
+#BOTTOM_ACCESS_DEPTH = 20.0
+#BOTTOM_ACCESS_Y_OFFSET = 3.5
+BOTTOM_ACCESS_DEPTH = 20.5
+BOTTOM_ACCESS_Y_OFFSET = 3.0
 
 # The original has different openings on its two side walls.
 LEFT_ROUND_PORT_ENABLED = True
