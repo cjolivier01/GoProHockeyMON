@@ -33,11 +33,14 @@ CLEAR_SCENE = True
 LAYOUT_MODE = "assembled"  # "assembled" or "print_bed"
 PRINT_BED_GAP = 12.0
 
-# Select the rear-shell fastener-retention geometry for the printed material.
-# TPU keeps the same snug final seat as rigid plastic, but uses deeper snap
-# tabs so elastic deformation cannot release the three captured hex parts.
-# MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
-MATERIAL_MODE = "TPU"
+# Select each printed assembly piece independently.  The back shell includes
+# the dome and carries the captured hex hardware; its TPU profile uses deeper
+# snap tabs.  The sleeve has no material-specific dimensions yet, while the
+# retainer profile resolves thicker TPU gate/keeper geometry.  The two captive
+# press-through buttons remain TPU-only.
+BACK_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
+SLEEVE_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
+RETAINER_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
 
 # Post-build viewport/render visibility. Geometry is still built, validated,
 # and exported when hidden, making it easy to inspect either part by itself.
@@ -49,6 +52,11 @@ SHOW_FRONT_RETAINER = True
 # The front plate depends on the case fasteners, but remains optional so the
 # pre-existing fastener-disabled sleeve configuration can still be built.
 RETAINER_ENABLED = True
+# Select the assembled camera-retention mechanism.  Both printable options are
+# exported: SWING_GATE rides on all three M3 shafts and stays captive on the
+# upper-right shaft; ROTATING_KEEPERS puts one indexed 180-degree cam under
+# each existing thumbnut.
+RETAINER_STYLE = "SWING_GATE"  # "SWING_GATE" or "ROTATING_KEEPERS"
 
 EXPORT_STL = False
 EXPORT_DIRECTORY = ""
@@ -59,6 +67,7 @@ BACK_STL_NAME = "gopro_fan_case_back.stl"
 INSERT_STL_NAME = "gopro_fan_case_insert.stl"
 BUTTON_STL_NAME = "gopro_fan_case_button.stl"
 RETAINER_STL_NAME = "gopro_fan_case_front_retainer.stl"
+RETAINER_KEEPER_STL_NAME = "gopro_fan_case_rotating_keeper.stl"
 
 # Mesh and boolean quality.
 CYLINDER_SEGMENTS = 96
@@ -169,7 +178,7 @@ BACK_FASTENER_HEX_PART_THICKNESS_Y = 2.40
 BACK_FASTENER_RETENTION_TABS_ENABLED = True
 BACK_FASTENER_RETENTION_TAB_WIDTH_X = 1.0
 BACK_FASTENER_RETENTION_TAB_DEPTH_Y = 2.0
-# These two dimensions are selected by MATERIAL_PROFILES below.
+# These two dimensions are selected by BACK_MATERIAL_PROFILES below.
 BACK_FASTENER_RETENTION_TAB_PROTRUSION = 0.30
 BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT = 3.30
 BACK_FASTENER_RETENTION_TAB_BEVEL = 0.12
@@ -286,24 +295,26 @@ TOP_PORT_Y_OFFSET = 14.3367
 # Two identical captive TPU actuators fit the left and top circular ports.
 # Install each one from inside the sleeve, tapered end first.  The exterior
 # bead compresses through the port and springs back to keep the loose button
-# with the sleeve when the camera is removed.  Print two copies in TPU even
-# when MATERIAL_MODE selects rigid geometry for the case itself.
+# with the sleeve when the camera is removed.  Print two copies in TPU,
+# independently of the back, sleeve, and retainer material selections.
 BUTTON_STEM_DIAMETER = 5.75
 BUTTON_TOTAL_HEIGHT = 6.83
 BUTTON_INNER_FLANGE_THICKNESS = 0.75
 BUTTON_INNER_FLANGE_DIAMETER = 8.0
-BUTTON_RETENTION_RIM_DIAMETER = 6.60
-BUTTON_RETENTION_RIM_HEIGHT = 0.85
+#BUTTON_RETENTION_RIM_DIAMETER = 6.60
+#BUTTON_RETENTION_RIM_HEIGHT = 0.85
+BUTTON_RETENTION_RIM_DIAMETER = 6.70
+BUTTON_RETENTION_RIM_HEIGHT = 0.95
 BUTTON_RETENTION_SHOULDER_HEIGHT = 0.10
 BUTTON_RETENTION_LEAD_IN_HEIGHT = 0.55
 
-# Removable front plate that uses the three case fasteners to keep the camera
-# from sliding out of the sleeve's open end.  Its clean parametric outline
-# follows the legacy gopro-dual-fan-retainer.stl: a scalloped lower bar and a
-# narrow upright at the single upper fastener.  The live case-fastener axes,
-# rather than the legacy mesh's slightly displaced holes, control alignment.
-RETAINER_THICKNESS_Y = 2.0
-RETAINER_HOLE_DIAMETER = 3.4
+# Captive swing-away front gate.  It rides directly on the three existing M3
+# bolt shafts, behind the ordinary thumbnuts.  The upper-right bolt is its
+# closed pivot; curved tracks clear the two lower bolts during the first part
+# of the swing.  Loosen all three thumbnuts slightly, swing the gate without
+# removing any hardware, then close it and retighten the clamp nuts.
+RETAINER_GATE_RIGID_THICKNESS_Y = 2.5
+RETAINER_GATE_TPU_THICKNESS_Y = 4.0
 RETAINER_HORIZONTAL_END_MARGIN_X = 8.0
 RETAINER_HORIZONTAL_BAR_HEIGHT_Z = 13.15
 RETAINER_LOWER_EDGE_MARGIN_Z = 4.20
@@ -314,6 +325,41 @@ RETAINER_RELIEF_CENTER_X = -3.0
 RETAINER_RELIEF_CENTER_Z = 27.75
 RETAINER_RELIEF_RADIUS = 54.75
 RETAINER_MIN_HOLE_WEB = 2.0
+
+# M3 running fit and the curved lower-bolt release tracks.  A 7 mm washer (or
+# a thumbnut with at least that bearing diameter) spreads clamp load over the
+# locally slotted gate.
+RETAINER_GATE_BOLT_TRACK_DIAMETER = 3.6
+RETAINER_GATE_MIN_NUT_BEARING_DIAMETER = 7.0
+RETAINER_GATE_LOWER_LEFT_RELEASE_ANGLE_DEG = 11.0
+RETAINER_GATE_LOWER_RIGHT_RELEASE_ANGLE_DEG = 22.0
+RETAINER_GATE_SWEEP_STEP_DEG = 2.0
+
+# Three alternate 180-degree keeper cams use the same M3 bolt shafts and
+# ordinary thumbnuts.  In the closed position their rounded lobes overlap the
+# camera envelope.  Turned outward, their circular hubs stay behind the
+# sleeve's camera-support runners so the camera can slide past.  TPU receives
+# extra Y thickness because clamp load can otherwise curl the flexible lobe.
+RETAINER_KEEPER_BOLT_HOLE_DIAMETER = 3.6
+RETAINER_KEEPER_HUB_DIAMETER = 5.9
+RETAINER_KEEPER_MIN_HOLE_WEB = 1.0
+RETAINER_KEEPER_LOBE_WIDTH_X = 5.9
+RETAINER_KEEPER_CLOSED_PROJECTION_Z = 9.0
+RETAINER_KEEPER_RIGID_THICKNESS_Y = 3.0
+RETAINER_KEEPER_TPU_THICKNESS_Y = 4.5
+
+# Two shallow slots on the keeper's sleeve-facing side engage two matching
+# keys on each insert fastener boss.  The diametrically opposed keys index both
+# the closed and 180-degree-open positions.  Loosen and lift the keeper by the
+# recess depth before turning it; the thumbnut remains on the M3 shaft.
+RETAINER_KEEPER_INDEX_ENABLED = True
+RETAINER_KEEPER_INDEX_RADIAL_OFFSET = 2.40
+RETAINER_KEEPER_INDEX_KEY_WIDTH_X = 1.50
+RETAINER_KEEPER_INDEX_KEY_HEIGHT_Z = 0.45
+RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y = 0.40
+RETAINER_KEEPER_INDEX_FIT_CLEARANCE = 0.10
+RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y = 0.55
+RETAINER_KEEPER_INDEX_KEY_BEVEL = 0.08
 
 # Six internal rails that position the camera inside the insert frame.
 LOCATING_TABS_ENABLED = True
@@ -352,40 +398,43 @@ BACK_COLOR = (0.10, 0.38, 0.70, 1.0)
 INSERT_COLOR = (0.88, 0.26, 0.08, 1.0)
 BUTTON_COLOR = (0.12, 0.12, 0.12, 1.0)
 RETAINER_COLOR = (0.18, 0.62, 0.30, 1.0)
+RETAINER_KEEPER_COLOR = (0.56, 0.24, 0.68, 1.0)
 
 
-# Values controlled by MATERIAL_MODE.  Keep a complete rigid profile so
-# switching modes between builds in one Blender process restores rigid values.
-_RIGID_MATERIAL_PROFILE = {
+# Back-shell values controlled by BACK_MATERIAL_MODE.  Keep a complete rigid
+# profile so switching modes between builds in one Blender process restores
+# rigid values.
+_RIGID_BACK_MATERIAL_PROFILE = {
     # A 3.30 mm center offset places the seat-facing side of each 2.00 mm-deep
     # tab 0.10 mm into a nominal 2.40 mm-thick hex part.  The small preload
     # holds the hardware against its final seat instead of allowing axial play.
     "BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT": 3.30,
     "BACK_FASTENER_RETENTION_TAB_PROTRUSION": 0.30,
 }
-MATERIAL_PROFILES = {
-    "RIGID": _RIGID_MATERIAL_PROFILE,
+BACK_MATERIAL_PROFILES = {
+    "RIGID": _RIGID_BACK_MATERIAL_PROFILE,
     "TPU": {
-        **_RIGID_MATERIAL_PROFILE,
+        **_RIGID_BACK_MATERIAL_PROFILE,
         # TPU can flex away from the hex part, so add another 0.20 mm of
         # engagement while retaining clearance around the 4.0 mm shaft bore.
         "BACK_FASTENER_RETENTION_TAB_PROTRUSION": 0.50,
     },
 }
-_APPLIED_MATERIAL_MODE = None
+_APPLIED_BACK_MATERIAL_MODE = None
 
 
-def apply_material_profile() -> None:
-    global _APPLIED_MATERIAL_MODE
+def apply_back_material_profile() -> None:
+    global _APPLIED_BACK_MATERIAL_MODE
     global BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT
     global BACK_FASTENER_RETENTION_TAB_PROTRUSION
 
     try:
-        profile = MATERIAL_PROFILES[MATERIAL_MODE]
+        profile = BACK_MATERIAL_PROFILES[BACK_MATERIAL_MODE]
     except KeyError as error:
-        choices = ", ".join(sorted(MATERIAL_PROFILES))
+        choices = ", ".join(sorted(BACK_MATERIAL_PROFILES))
         raise ValueError(
-            f"MATERIAL_MODE must be one of: {choices}; got {MATERIAL_MODE!r}"
+            "BACK_MATERIAL_MODE must be one of: "
+            f"{choices}; got {BACK_MATERIAL_MODE!r}"
         ) from error
 
     BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT = profile[
@@ -394,17 +443,17 @@ def apply_material_profile() -> None:
     BACK_FASTENER_RETENTION_TAB_PROTRUSION = profile[
         "BACK_FASTENER_RETENTION_TAB_PROTRUSION"
     ]
-    _APPLIED_MATERIAL_MODE = MATERIAL_MODE
+    _APPLIED_BACK_MATERIAL_MODE = BACK_MATERIAL_MODE
 
 
-def set_material_mode(mode: str) -> None:
-    """Select a material profile while preserving later scalar overrides."""
-    global MATERIAL_MODE
-    MATERIAL_MODE = mode
-    apply_material_profile()
+def set_back_material_mode(mode: str) -> None:
+    """Select the back-shell profile while preserving scalar overrides."""
+    global BACK_MATERIAL_MODE
+    BACK_MATERIAL_MODE = mode
+    apply_back_material_profile()
 
 
-set_material_mode(MATERIAL_MODE)
+set_back_material_mode(BACK_MATERIAL_MODE)
 
 
 # ---------------------------------------------------------------------------
@@ -636,7 +685,7 @@ def insert_inner_height() -> float:
 
 
 def resolved_retainer_layout():
-    """Resolve the reference-style L plate from the three fastener axes."""
+    """Resolve the reference-style swing-gate outline from fastener axes."""
     ordered = sorted(CASE_FASTENER_POSITIONS_XZ, key=lambda point: point[1])
     lower_left, lower_right = sorted(ordered[:2], key=lambda point: point[0])
     upper = ordered[2]
@@ -658,10 +707,70 @@ def resolved_retainer_layout():
         "bar_bottom_z": bar_bottom_z,
         "bar_top_z": bar_top_z,
         "bar_center_z": (bar_bottom_z + bar_top_z) / 2.0,
+        "bar_left_x": minimum_x - RETAINER_HORIZONTAL_END_MARGIN_X,
+        "bar_right_x": maximum_x + RETAINER_HORIZONTAL_END_MARGIN_X,
         "upright_center_z": (bar_bottom_z + upright_top_z) / 2.0,
         "upright_height": upright_top_z - bar_bottom_z,
         "upright_top_z": upright_top_z,
     }
+
+
+def retainer_assembly_face_y() -> float:
+    return insert_start_y() + INSERT_DEPTH
+
+
+def retainer_gate_assembled_y() -> float:
+    return retainer_assembly_face_y()
+
+
+def retainer_bolt_sweep_point(bolt, pivot, angle_deg: float):
+    """Return a fixed bolt's coordinates in a gate rotated by angle_deg."""
+    angle = math.radians(angle_deg)
+    delta_x = bolt[0] - pivot[0]
+    delta_z = bolt[1] - pivot[1]
+    return (
+        pivot[0]
+        + math.cos(angle) * delta_x
+        + math.sin(angle) * delta_z,
+        pivot[1]
+        - math.sin(angle) * delta_x
+        + math.cos(angle) * delta_z,
+    )
+
+
+def retainer_bolt_sweep_angles(end_angle_deg: float):
+    steps = max(
+        1,
+        int(math.ceil(end_angle_deg / RETAINER_GATE_SWEEP_STEP_DEG)),
+    )
+    return [end_angle_deg * index / steps for index in range(steps + 1)]
+
+
+def retainer_keeper_thickness_y() -> float:
+    if RETAINER_MATERIAL_MODE == "TPU":
+        return RETAINER_KEEPER_TPU_THICKNESS_Y
+    return RETAINER_KEEPER_RIGID_THICKNESS_Y
+
+
+def retainer_gate_thickness_y() -> float:
+    if RETAINER_MATERIAL_MODE == "TPU":
+        return RETAINER_GATE_TPU_THICKNESS_Y
+    return RETAINER_GATE_RIGID_THICKNESS_Y
+
+
+def retainer_index_key_centers(x: float, z: float):
+    return (
+        (x, z - RETAINER_KEEPER_INDEX_RADIAL_OFFSET),
+        (x, z + RETAINER_KEEPER_INDEX_RADIAL_OFFSET),
+    )
+
+
+def retainer_index_recess_dimensions():
+    clearance = 2.0 * RETAINER_KEEPER_INDEX_FIT_CLEARANCE
+    return (
+        RETAINER_KEEPER_INDEX_KEY_WIDTH_X + clearance,
+        RETAINER_KEEPER_INDEX_KEY_HEIGHT_Z + clearance,
+    )
 
 
 def insert_outer_dimensions_at_t(t: float):
@@ -727,7 +836,7 @@ def validate_rounded_rectangle_dimensions(
 
 
 def validate_retainer_config() -> None:
-    """Validate geometry that is relevant only when the plate is enabled."""
+    """Validate geometry shared by both front-retainer options."""
     if not RETAINER_ENABLED:
         return
     if not CASE_FASTENERS_ENABLED:
@@ -737,8 +846,13 @@ def validate_retainer_config() -> None:
         )
     if len(CASE_FASTENER_POSITIONS_XZ) != 3:
         raise ValueError(
-            "The reference-style front camera retainer requires exactly "
-            "three CASE_FASTENER_POSITIONS_XZ entries"
+            "The swing-away front camera gate requires exactly three "
+            "CASE_FASTENER_POSITIONS_XZ entries"
+        )
+    if RETAINER_STYLE not in {"SWING_GATE", "ROTATING_KEEPERS"}:
+        raise ValueError(
+            "RETAINER_STYLE must be SWING_GATE or ROTATING_KEEPERS; got "
+            f"{RETAINER_STYLE!r}"
         )
 
     layout = resolved_retainer_layout()
@@ -747,37 +861,33 @@ def validate_retainer_config() -> None:
     upper = layout["upper"]
     if abs(lower_left[1] - lower_right[1]) > 0.25:
         raise ValueError(
-            "The front camera retainer requires its two lower fasteners to "
+            "The front camera gate requires its two lower fasteners to "
             "share a horizontal row within 0.25 mm"
         )
     if upper[1] <= max(lower_left[1], lower_right[1]):
         raise ValueError(
-            "The front camera retainer requires one fastener above the two "
+            "The front camera gate requires one fastener above the two "
             "lower fasteners"
+        )
+    if RETAINER_GATE_BOLT_TRACK_DIAMETER < INSERT_FASTENER_HOLE_DIAMETER:
+        raise ValueError(
+            "RETAINER_GATE_BOLT_TRACK_DIAMETER must pass the same M3 shafts "
+            "as INSERT_FASTENER_HOLE_DIAMETER"
         )
     required_upright_width = 2.0 * (
         abs(upper[0] - lower_right[0])
-        + RETAINER_HOLE_DIAMETER / 2.0
+        + RETAINER_GATE_BOLT_TRACK_DIAMETER / 2.0
         + RETAINER_MIN_HOLE_WEB
     )
     if RETAINER_UPRIGHT_WIDTH_X < required_upright_width:
         raise ValueError(
             "RETAINER_UPRIGHT_WIDTH_X cannot provide the configured minimum "
-            "web around both right-side fasteners; need at least "
+            "web around the upper-right M3 pivot; need at least "
             f"{required_upright_width:.3f} mm"
         )
-    if RETAINER_HOLE_DIAMETER > INSERT_FASTENER_HOLE_DIAMETER + 1.0:
-        raise ValueError(
-            "RETAINER_HOLE_DIAMETER is more than 1.0 mm larger than the "
-            "insert fastener bore and may provide insufficient screw bearing"
-        )
-    if RETAINER_HOLE_DIAMETER < INSERT_FASTENER_HOLE_DIAMETER:
-        raise ValueError(
-            "RETAINER_HOLE_DIAMETER must be at least as large as "
-            "INSERT_FASTENER_HOLE_DIAMETER so the same screws pass through"
-        )
     required_edge_margin = (
-        RETAINER_HOLE_DIAMETER / 2.0 + RETAINER_MIN_HOLE_WEB
+        RETAINER_GATE_BOLT_TRACK_DIAMETER / 2.0
+        + RETAINER_MIN_HOLE_WEB
     )
     if min(
         RETAINER_HORIZONTAL_END_MARGIN_X,
@@ -786,9 +896,15 @@ def validate_retainer_config() -> None:
         RETAINER_TOP_EDGE_MARGIN_Z,
     ) < required_edge_margin:
         raise ValueError(
-            "The front-retainer edge margins must preserve "
-            f"{RETAINER_MIN_HOLE_WEB:.3f} mm of material outside every "
-            "fastener hole"
+            "The gate edge margins must preserve "
+            f"{RETAINER_MIN_HOLE_WEB:.3f} mm outside each closed bolt pocket"
+        )
+    if RETAINER_GATE_MIN_NUT_BEARING_DIAMETER <= (
+        RETAINER_GATE_BOLT_TRACK_DIAMETER
+    ):
+        raise ValueError(
+            "RETAINER_GATE_MIN_NUT_BEARING_DIAMETER must exceed the bolt-track "
+            "diameter so the thumbnuts can clamp the gate"
         )
     if RETAINER_CORNER_RADIUS > min(
         RETAINER_HORIZONTAL_BAR_HEIGHT_Z,
@@ -812,12 +928,172 @@ def validate_retainer_config() -> None:
     )
     if not minimum_center_strap_top < relief_bottom_z < layout["bar_top_z"]:
         raise ValueError(
-            "The front-retainer relief must cut the horizontal bar while "
-            "leaving at least RETAINER_MIN_HOLE_WEB of central strap"
+            "The gate relief must cut the horizontal bar while leaving at "
+            "least RETAINER_MIN_HOLE_WEB of central strap"
         )
+    if not (
+        0.0 < RETAINER_GATE_LOWER_LEFT_RELEASE_ANGLE_DEG < 45.0
+        and 0.0 < RETAINER_GATE_LOWER_RIGHT_RELEASE_ANGLE_DEG < 45.0
+    ):
+        raise ValueError(
+            "Both lower-bolt release angles must lie between 0 and 45 degrees"
+        )
+    if RETAINER_GATE_SWEEP_STEP_DEG > min(
+        RETAINER_GATE_LOWER_LEFT_RELEASE_ANGLE_DEG,
+        RETAINER_GATE_LOWER_RIGHT_RELEASE_ANGLE_DEG,
+    ):
+        raise ValueError(
+            "RETAINER_GATE_SWEEP_STEP_DEG is too coarse for the release tracks"
+        )
+
+    left_release = retainer_bolt_sweep_point(
+        lower_left,
+        upper,
+        RETAINER_GATE_LOWER_LEFT_RELEASE_ANGLE_DEG,
+    )
+    if left_release[0] >= layout["bar_left_x"]:
+        raise ValueError(
+            "The lower-left bolt track does not reach the gate edge"
+        )
+    right_release = retainer_bolt_sweep_point(
+        lower_right,
+        upper,
+        RETAINER_GATE_LOWER_RIGHT_RELEASE_ANGLE_DEG,
+    )
+    if (
+        (right_release[0] - RETAINER_RELIEF_CENTER_X) ** 2
+        + (right_release[1] - RETAINER_RELIEF_CENTER_Z) ** 2
+        >= RETAINER_RELIEF_RADIUS**2
+    ):
+        raise ValueError(
+            "The lower-right bolt track does not reach the camera relief"
+        )
+
+    keeper_radius = RETAINER_KEEPER_HUB_DIAMETER / 2.0
+    keeper_hole_radius = RETAINER_KEEPER_BOLT_HOLE_DIAMETER / 2.0
+    if RETAINER_KEEPER_BOLT_HOLE_DIAMETER < INSERT_FASTENER_HOLE_DIAMETER:
+        raise ValueError(
+            "RETAINER_KEEPER_BOLT_HOLE_DIAMETER must pass the same M3 shafts "
+            "as INSERT_FASTENER_HOLE_DIAMETER"
+        )
+    if keeper_radius <= keeper_hole_radius + RETAINER_KEEPER_MIN_HOLE_WEB:
+        raise ValueError(
+            "RETAINER_KEEPER_HUB_DIAMETER leaves too little material around "
+            "the M3 running hole; increase the hub diameter or reduce "
+            "RETAINER_KEEPER_MIN_HOLE_WEB"
+        )
+    if RETAINER_KEEPER_LOBE_WIDTH_X > RETAINER_KEEPER_HUB_DIAMETER:
+        raise ValueError(
+            "RETAINER_KEEPER_LOBE_WIDTH_X must not exceed the hub diameter; "
+            "otherwise the open keeper can project beyond the camera runners"
+        )
+    if RETAINER_KEEPER_CLOSED_PROJECTION_Z <= keeper_radius:
+        raise ValueError(
+            "RETAINER_KEEPER_CLOSED_PROJECTION_Z must extend beyond the hub"
+        )
+
+    bottom_runner_z = max(
+        spec[4] for spec in LOCATING_TAB_SPECS if spec[5] == "bottom"
+    )
+    top_runner_z = min(
+        spec[3] for spec in LOCATING_TAB_SPECS if spec[5] == "top"
+    )
+    lower_open_clearance = min(
+        bottom_runner_z - point[1] - keeper_radius
+        for point in (lower_left, lower_right)
+    )
+    upper_open_clearance = upper[1] - keeper_radius - top_runner_z
+    if min(lower_open_clearance, upper_open_clearance) <= 0.0:
+        raise ValueError(
+            "The rotating-keeper hub projects past a camera-support runner in "
+            "the open position; reduce RETAINER_KEEPER_HUB_DIAMETER"
+        )
+    lower_closed_overlap = min(
+        point[1] + RETAINER_KEEPER_CLOSED_PROJECTION_Z - bottom_runner_z
+        for point in (lower_left, lower_right)
+    )
+    upper_closed_overlap = (
+        top_runner_z
+        - (upper[1] - RETAINER_KEEPER_CLOSED_PROJECTION_Z)
+    )
+    if min(lower_closed_overlap, upper_closed_overlap) <= 0.0:
+        raise ValueError(
+            "The rotating-keeper lobe does not project inward beyond the "
+            "camera-support runners when closed"
+        )
+    if RETAINER_GATE_RIGID_THICKNESS_Y >= RETAINER_GATE_TPU_THICKNESS_Y:
+        raise ValueError(
+            "RETAINER_GATE_TPU_THICKNESS_Y must exceed the rigid gate thickness"
+        )
+    if RETAINER_KEEPER_RIGID_THICKNESS_Y >= RETAINER_KEEPER_TPU_THICKNESS_Y:
+        raise ValueError(
+            "RETAINER_KEEPER_TPU_THICKNESS_Y must exceed the rigid thickness"
+        )
+    if (
+        RETAINER_KEEPER_RIGID_THICKNESS_Y
+        <= RETAINER_GATE_RIGID_THICKNESS_Y
+        or RETAINER_KEEPER_TPU_THICKNESS_Y
+        <= RETAINER_GATE_TPU_THICKNESS_Y
+    ):
+        raise ValueError(
+            "Each rotating-keeper thickness must exceed the matching "
+            "swing-gate thickness"
+        )
+    if RETAINER_KEEPER_INDEX_ENABLED:
+        recess_width, recess_height = retainer_index_recess_dimensions()
+        recess_inner_radius = (
+            RETAINER_KEEPER_INDEX_RADIAL_OFFSET - recess_height / 2.0
+        )
+        recess_outer_radius = math.hypot(
+            recess_width / 2.0,
+            RETAINER_KEEPER_INDEX_RADIAL_OFFSET + recess_height / 2.0,
+        )
+        if recess_inner_radius <= keeper_hole_radius:
+            raise ValueError(
+                "The keeper index recesses overlap the M3 running hole"
+            )
+        if recess_outer_radius >= keeper_radius:
+            raise ValueError(
+                "The keeper index recesses do not fit inside the circular hub"
+            )
+        if (
+            RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y
+            >= RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y
+        ):
+            raise ValueError(
+                "RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y must exceed the sleeve "
+                "key projection so a clamped keeper can seat fully"
+            )
+        if (
+            RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y
+            >= RETAINER_KEEPER_RIGID_THICKNESS_Y
+        ):
+            raise ValueError(
+                "The keeper index recess must leave material in the thinner "
+                "rigid keeper"
+            )
+        key_outer_radius = math.hypot(
+            RETAINER_KEEPER_INDEX_KEY_WIDTH_X / 2.0,
+            RETAINER_KEEPER_INDEX_RADIAL_OFFSET
+            + RETAINER_KEEPER_INDEX_KEY_HEIGHT_Z / 2.0,
+        )
+        if key_outer_radius >= INSERT_FASTENER_BOSS_DIAMETER / 2.0:
+            raise ValueError(
+                "The keeper index keys do not fit on the insert fastener boss"
+            )
 
 
 def validate_config() -> None:
+    material_choices = {"RIGID", "TPU"}
+    for name, mode in (
+        ("BACK_MATERIAL_MODE", BACK_MATERIAL_MODE),
+        ("SLEEVE_MATERIAL_MODE", SLEEVE_MATERIAL_MODE),
+        ("RETAINER_MATERIAL_MODE", RETAINER_MATERIAL_MODE),
+    ):
+        if mode not in material_choices:
+            raise ValueError(
+                f"{name} must be RIGID or TPU; got {mode!r}"
+            )
     positive = {
         "BACK_OUTER_WIDTH": BACK_OUTER_WIDTH,
         "BACK_OUTER_HEIGHT": BACK_OUTER_HEIGHT,
@@ -919,8 +1195,12 @@ def validate_config() -> None:
     if RETAINER_ENABLED:
         positive.update(
             {
-                "RETAINER_THICKNESS_Y": RETAINER_THICKNESS_Y,
-                "RETAINER_HOLE_DIAMETER": RETAINER_HOLE_DIAMETER,
+                "RETAINER_GATE_RIGID_THICKNESS_Y": (
+                    RETAINER_GATE_RIGID_THICKNESS_Y
+                ),
+                "RETAINER_GATE_TPU_THICKNESS_Y": (
+                    RETAINER_GATE_TPU_THICKNESS_Y
+                ),
                 "RETAINER_HORIZONTAL_END_MARGIN_X": (
                     RETAINER_HORIZONTAL_END_MARGIN_X
                 ),
@@ -935,8 +1215,66 @@ def validate_config() -> None:
                 "RETAINER_CORNER_RADIUS": RETAINER_CORNER_RADIUS,
                 "RETAINER_RELIEF_RADIUS": RETAINER_RELIEF_RADIUS,
                 "RETAINER_MIN_HOLE_WEB": RETAINER_MIN_HOLE_WEB,
+                "RETAINER_GATE_BOLT_TRACK_DIAMETER": (
+                    RETAINER_GATE_BOLT_TRACK_DIAMETER
+                ),
+                "RETAINER_GATE_MIN_NUT_BEARING_DIAMETER": (
+                    RETAINER_GATE_MIN_NUT_BEARING_DIAMETER
+                ),
+                "RETAINER_GATE_LOWER_LEFT_RELEASE_ANGLE_DEG": (
+                    RETAINER_GATE_LOWER_LEFT_RELEASE_ANGLE_DEG
+                ),
+                "RETAINER_GATE_LOWER_RIGHT_RELEASE_ANGLE_DEG": (
+                    RETAINER_GATE_LOWER_RIGHT_RELEASE_ANGLE_DEG
+                ),
+                "RETAINER_GATE_SWEEP_STEP_DEG": (
+                    RETAINER_GATE_SWEEP_STEP_DEG
+                ),
+                "RETAINER_KEEPER_BOLT_HOLE_DIAMETER": (
+                    RETAINER_KEEPER_BOLT_HOLE_DIAMETER
+                ),
+                "RETAINER_KEEPER_HUB_DIAMETER": RETAINER_KEEPER_HUB_DIAMETER,
+                "RETAINER_KEEPER_MIN_HOLE_WEB": (
+                    RETAINER_KEEPER_MIN_HOLE_WEB
+                ),
+                "RETAINER_KEEPER_LOBE_WIDTH_X": RETAINER_KEEPER_LOBE_WIDTH_X,
+                "RETAINER_KEEPER_CLOSED_PROJECTION_Z": (
+                    RETAINER_KEEPER_CLOSED_PROJECTION_Z
+                ),
+                "RETAINER_KEEPER_RIGID_THICKNESS_Y": (
+                    RETAINER_KEEPER_RIGID_THICKNESS_Y
+                ),
+                "RETAINER_KEEPER_TPU_THICKNESS_Y": (
+                    RETAINER_KEEPER_TPU_THICKNESS_Y
+                ),
             }
         )
+        if RETAINER_KEEPER_INDEX_ENABLED:
+            positive.update(
+                {
+                    "RETAINER_KEEPER_INDEX_RADIAL_OFFSET": (
+                        RETAINER_KEEPER_INDEX_RADIAL_OFFSET
+                    ),
+                    "RETAINER_KEEPER_INDEX_KEY_WIDTH_X": (
+                        RETAINER_KEEPER_INDEX_KEY_WIDTH_X
+                    ),
+                    "RETAINER_KEEPER_INDEX_KEY_HEIGHT_Z": (
+                        RETAINER_KEEPER_INDEX_KEY_HEIGHT_Z
+                    ),
+                    "RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y": (
+                        RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y
+                    ),
+                    "RETAINER_KEEPER_INDEX_FIT_CLEARANCE": (
+                        RETAINER_KEEPER_INDEX_FIT_CLEARANCE
+                    ),
+                    "RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y": (
+                        RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y
+                    ),
+                    "RETAINER_KEEPER_INDEX_KEY_BEVEL": (
+                        RETAINER_KEEPER_INDEX_KEY_BEVEL
+                    ),
+                }
+            )
     for name, value in positive.items():
         if value <= 0.0:
             raise ValueError(f"{name} must be positive")
@@ -1747,6 +2085,41 @@ def polygon_prism_y(name: str, loop, y0: float, y1: float, offset=(0.0, 0.0)):
         faces.append([front_center, i, j])
         faces.append([rear_center, count + j, count + i])
     return create_mesh_object(name, vertices, faces)
+
+
+def capsule_prism_y(name: str, point0, point1, radius: float, y0: float, y1: float):
+    """Create a continuous round-ended slot cutter between two X/Z points."""
+    delta_x = point1[0] - point0[0]
+    delta_z = point1[1] - point0[1]
+    if math.hypot(delta_x, delta_z) <= BOOLEAN_CLEANUP_DISTANCE:
+        return add_cylinder_y(
+            name,
+            radius,
+            y0,
+            y1,
+            x=point0[0],
+            z=point0[1],
+        )
+    direction_angle = math.atan2(delta_z, delta_x)
+    cap_segments = max(12, CYLINDER_SEGMENTS // 2)
+    loop = []
+    for index in range(cap_segments + 1):
+        angle = direction_angle - math.pi / 2.0 + math.pi * index / cap_segments
+        loop.append(
+            (
+                point1[0] + radius * math.cos(angle),
+                point1[1] + radius * math.sin(angle),
+            )
+        )
+    for index in range(cap_segments + 1):
+        angle = direction_angle + math.pi / 2.0 + math.pi * index / cap_segments
+        loop.append(
+            (
+                point0[0] + radius * math.cos(angle),
+                point0[1] + radius * math.sin(angle),
+            )
+        )
+    return polygon_prism_y(name, loop, y0, y1)
 
 
 def rounded_rectangle_prism_y(
@@ -3115,6 +3488,45 @@ def create_snap_bumps(insert):
     return insert
 
 
+def add_retainer_index_keys(insert):
+    """Add two shallow 0/180-degree index keys at each sleeve fastener."""
+    if not (RETAINER_ENABLED and RETAINER_KEEPER_INDEX_ENABLED):
+        return insert
+    face_y = retainer_assembly_face_y()
+    key_depth = RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y + BOOLEAN_OVERLAP
+    center_y = (
+        face_y
+        + RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y / 2.0
+        - BOOLEAN_OVERLAP / 2.0
+    )
+    for fastener_index, (bolt_x, bolt_z) in enumerate(
+        CASE_FASTENER_POSITIONS_XZ,
+        start=1,
+    ):
+        for key_index, (key_x, key_z) in enumerate(
+            retainer_index_key_centers(bolt_x, bolt_z),
+            start=1,
+        ):
+            key = add_beveled_box(
+                f"Retainer_Index_Key_{fastener_index}_{key_index}",
+                (
+                    RETAINER_KEEPER_INDEX_KEY_WIDTH_X,
+                    key_depth,
+                    RETAINER_KEEPER_INDEX_KEY_HEIGHT_Z,
+                ),
+                (key_x, center_y, key_z),
+                RETAINER_KEEPER_INDEX_KEY_BEVEL,
+            )
+            boolean_union(
+                insert,
+                key,
+                f"Retainer_Index_Key_{fastener_index}_{key_index}_Union",
+                solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+                require_geometry_change=True,
+            )
+    return insert
+
+
 def create_insert_frame():
     insert = create_insert_tube()
 
@@ -3129,6 +3541,8 @@ def create_insert_frame():
                 z=z,
             )
             boolean_union(insert, boss, "Insert_Fastener_Boss_Union")
+
+    add_retainer_index_keys(insert)
 
     create_locating_tabs(insert)
     create_snap_bumps(insert)
@@ -3314,16 +3728,40 @@ def create_captive_buttons():
     return left_button, top_button
 
 
+def create_retainer_index_recess_cutters(name_prefix: str, bolt_centers):
+    """Create rear-face pockets for the sleeve's paired index keys."""
+    if not RETAINER_KEEPER_INDEX_ENABLED:
+        return []
+    recess_width, recess_height = retainer_index_recess_dimensions()
+    y0 = -BOOLEAN_OVERLAP
+    y1 = RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y
+    cutters = []
+    for bolt_index, (bolt_x, bolt_z) in enumerate(bolt_centers, start=1):
+        for recess_index, (recess_x, recess_z) in enumerate(
+            retainer_index_key_centers(bolt_x, bolt_z),
+            start=1,
+        ):
+            cutters.append(
+                add_box(
+                    f"{name_prefix}_{bolt_index}_{recess_index}",
+                    (recess_width, y1 - y0, recess_height),
+                    (recess_x, (y0 + y1) / 2.0, recess_z),
+                )
+            )
+    return cutters
+
+
 def create_front_retainer():
-    """Create the removable three-fastener camera-retaining front plate."""
+    """Create the direct-M3 captive swing gate and lower-bolt tracks."""
     layout = resolved_retainer_layout()
+    thickness = retainer_gate_thickness_y()
     retainer = rounded_rectangle_prism_y(
         "Front_Retainer_Lower_Bar",
         layout["bar_width"],
         RETAINER_HORIZONTAL_BAR_HEIGHT_Z,
         RETAINER_CORNER_RADIUS,
         0.0,
-        RETAINER_THICKNESS_Y,
+        thickness,
         center_x=layout["bar_center_x"],
         center_z=layout["bar_center_z"],
     )
@@ -3332,7 +3770,7 @@ def create_front_retainer():
         "Front_Retainer_Camera_Relief",
         RETAINER_RELIEF_RADIUS,
         -BOOLEAN_OVERLAP,
-        RETAINER_THICKNESS_Y + BOOLEAN_OVERLAP,
+        thickness + BOOLEAN_OVERLAP,
         x=RETAINER_RELIEF_CENTER_X,
         z=RETAINER_RELIEF_CENTER_Z,
     )
@@ -3344,7 +3782,7 @@ def create_front_retainer():
         layout["upright_height"],
         RETAINER_CORNER_RADIUS,
         0.0,
-        RETAINER_THICKNESS_Y,
+        thickness,
         center_x=layout["upper"][0],
         center_z=layout["upright_center_z"],
     )
@@ -3356,34 +3794,171 @@ def create_front_retainer():
         require_geometry_change=True,
     )
 
-    holes = []
-    hole_phase = math.pi / CYLINDER_SEGMENTS
-    for index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
-        hole = add_cylinder_y(
-            f"Front_Retainer_Fastener_Hole_{index}",
-            RETAINER_HOLE_DIAMETER / 2.0,
-            -BOOLEAN_OVERLAP,
-            RETAINER_THICKNESS_Y + BOOLEAN_OVERLAP,
-            x=x,
-            z=z,
+    cutter_y0 = -BOOLEAN_OVERLAP
+    cutter_y1 = thickness + BOOLEAN_OVERLAP
+    clearance_radius = RETAINER_GATE_BOLT_TRACK_DIAMETER / 2.0
+    lower_left = layout["lower_left"]
+    lower_right = layout["lower_right"]
+    pivot = layout["upper"]
+    cutters = []
+
+    # The upper-right M3 bolt remains through this closed bearing at all times.
+    cutters.append(
+        add_cylinder_y(
+            "Front_Retainer_Pivot_Bearing",
+            clearance_radius,
+            cutter_y0,
+            cutter_y1,
+            x=pivot[0],
+            z=pivot[1],
         )
-        # Rotate the retainer's polygonal hole approximation by half a
-        # segment relative to the insert bore.  The nominal axes/diameters
-        # remain identical, but the assembled reference STL does not acquire
-        # coincident four-face edges where two independent parts meet.
-        select_only(hole)
-        bpy.ops.object.transform_apply(
-            location=False,
-            rotation=True,
-            scale=False,
+    )
+
+    # Both lower M3 bolts follow full-width tracks as the loosened gate begins
+    # to swing.  The left track exits the edge; the right reaches the relief.
+    left_angles = retainer_bolt_sweep_angles(
+        RETAINER_GATE_LOWER_LEFT_RELEASE_ANGLE_DEG
+    )
+    left_points = [
+        retainer_bolt_sweep_point(lower_left, pivot, angle)
+        for angle in left_angles
+    ]
+    for index, (point0, point1) in enumerate(
+        zip(left_points, left_points[1:]),
+        start=1,
+    ):
+        cutters.append(
+            capsule_prism_y(
+                f"Front_Retainer_Lower_Left_Bolt_Track_{index}",
+                point0,
+                point1,
+                clearance_radius,
+                cutter_y0,
+                cutter_y1,
+            )
         )
-        hole.rotation_euler.y = hole_phase
-        holes.append(hole)
-    boolean_difference(retainer, holes, "Front_Retainer_Fastener_Holes")
-    retainer.name = "GoPro_Fan_Case_Front_Retainer"
-    retainer.data.name = "GoPro_Fan_Case_Front_Retainer_Mesh"
-    retainer.location.y = insert_start_y() + INSERT_DEPTH
+
+    right_angles = retainer_bolt_sweep_angles(
+        RETAINER_GATE_LOWER_RIGHT_RELEASE_ANGLE_DEG
+    )
+    right_points = [
+        retainer_bolt_sweep_point(lower_right, pivot, angle)
+        for angle in right_angles
+    ]
+    for index, (point0, point1) in enumerate(
+        zip(right_points, right_points[1:]),
+        start=1,
+    ):
+        cutters.append(
+            capsule_prism_y(
+                f"Front_Retainer_Lower_Right_Bolt_Track_{index}",
+                point0,
+                point1,
+                clearance_radius,
+                cutter_y0,
+                cutter_y1,
+            )
+        )
+
+    # These cutters deliberately overlap to form smooth cam tracks.  Applying
+    # them sequentially avoids Blender EXACT treating their joined internal
+    # faces as one self-intersecting compound and deleting the whole gate.
+    for index, cutter in enumerate(cutters, start=1):
+        boolean_difference(
+            retainer,
+            [cutter],
+            f"Front_Retainer_Bolt_Track_{index}",
+        )
+
+    # The common insert carries paired low-profile keeper-index keys.  Matching
+    # shallow pockets let this gate clamp flush too.  Lift the loosened gate by
+    # the pocket depth before swinging it so the fixed keys clear the rear face.
+    index_cutters = create_retainer_index_recess_cutters(
+        "Front_Retainer_Index_Recess",
+        CASE_FASTENER_POSITIONS_XZ,
+    )
+    for index, cutter in enumerate(index_cutters, start=1):
+        boolean_difference(
+            retainer,
+            [cutter],
+            f"Front_Retainer_Index_Recess_{index}",
+        )
+    retainer.name = "GoPro_Fan_Case_Swing_Gate"
+    retainer.data.name = "GoPro_Fan_Case_Swing_Gate_Mesh"
+    retainer.location.y = retainer_gate_assembled_y()
     return retainer
+
+
+def create_rotating_keeper_mesh():
+    """Create one indexed keeper with its closed lobe pointing along local +Z."""
+    thickness = retainer_keeper_thickness_y()
+    hub_radius = RETAINER_KEEPER_HUB_DIAMETER / 2.0
+    lobe = rounded_rectangle_prism_y(
+        "Rotating_Keeper_Lobe",
+        RETAINER_KEEPER_LOBE_WIDTH_X,
+        RETAINER_KEEPER_CLOSED_PROJECTION_Z,
+        RETAINER_KEEPER_LOBE_WIDTH_X / 2.0,
+        0.0,
+        thickness,
+        center_z=RETAINER_KEEPER_CLOSED_PROJECTION_Z / 2.0,
+    )
+    hub = add_cylinder_y(
+        "Rotating_Keeper_Hub",
+        hub_radius,
+        0.0,
+        thickness,
+    )
+    boolean_union(
+        lobe,
+        hub,
+        "Rotating_Keeper_Hub_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+    shaft_hole = add_cylinder_y(
+        "Rotating_Keeper_M3_Hole",
+        RETAINER_KEEPER_BOLT_HOLE_DIAMETER / 2.0,
+        -BOOLEAN_OVERLAP,
+        thickness + BOOLEAN_OVERLAP,
+    )
+    boolean_difference(lobe, [shaft_hole], "Rotating_Keeper_M3_Hole")
+    index_cutters = create_retainer_index_recess_cutters(
+        "Rotating_Keeper_Index_Recess",
+        ((0.0, 0.0),),
+    )
+    for index, cutter in enumerate(index_cutters, start=1):
+        boolean_difference(
+            lobe,
+            [cutter],
+            f"Rotating_Keeper_Index_Recess_{index}",
+        )
+    lobe.name = "GoPro_Fan_Case_Rotating_Keeper_Lower_Left"
+    lobe.data.name = "GoPro_Fan_Case_Rotating_Keeper_Mesh"
+    return lobe
+
+
+def create_rotating_keepers():
+    """Install one closed keeper on each existing M3 case-fastener shaft."""
+    layout = resolved_retainer_layout()
+    positions = (
+        ("Lower_Left", layout["lower_left"], 0.0),
+        ("Lower_Right", layout["lower_right"], 0.0),
+        ("Upper_Right", layout["upper"], math.pi),
+    )
+    base = create_rotating_keeper_mesh()
+    keepers = []
+    for index, (name, (x, z), rotation_y) in enumerate(positions):
+        if index == 0:
+            keeper = base
+        else:
+            keeper = base.copy()
+            keeper.data = base.data
+            bpy.context.collection.objects.link(keeper)
+        keeper.name = f"GoPro_Fan_Case_Rotating_Keeper_{name}"
+        keeper.location = (x, retainer_assembly_face_y(), z)
+        keeper.rotation_euler = (0.0, rotation_y, 0.0)
+        keepers.append(keeper)
+    return tuple(keepers)
 
 
 # ---------------------------------------------------------------------------
@@ -3866,10 +4441,11 @@ def validate_captive_buttons(buttons) -> None:
 
 
 def validate_front_retainer(retainer) -> None:
-    """Validate the final retainer mesh, screw passages, and assembly datum."""
+    """Validate the final swing-gate mesh, tracks, and assembly datum."""
     validate_object(retainer)
     tolerance = 1.0e-4
-    expected_y = insert_start_y() + INSERT_DEPTH
+    thickness = retainer_gate_thickness_y()
+    expected_y = retainer_gate_assembled_y()
     if (
         abs(retainer.location.x) > tolerance
         or abs(retainer.location.y - expected_y) > tolerance
@@ -3877,52 +4453,108 @@ def validate_front_retainer(retainer) -> None:
         or any(abs(angle) > tolerance for angle in retainer.rotation_euler)
     ):
         raise RuntimeError(
-            "The front camera retainer is not seated at the insert entry face"
+            "The front camera swing gate is not on its M3-shaft bearing plane"
         )
 
     minimum_y = min(vertex.co.y for vertex in retainer.data.vertices)
     maximum_y = max(vertex.co.y for vertex in retainer.data.vertices)
     if (
         abs(minimum_y) > tolerance
-        or abs(maximum_y - RETAINER_THICKNESS_Y) > tolerance
+        or abs(maximum_y - thickness) > tolerance
     ):
         raise RuntimeError(
-            "Front-retainer mesh thickness does not match "
-            f"RETAINER_THICKNESS_Y: y=({minimum_y:.5f}, {maximum_y:.5f}) mm"
+            "Swing-gate mesh thickness does not match "
+            "resolved retainer gate thickness: "
+            f"y=({minimum_y:.5f}, {maximum_y:.5f}) mm"
         )
 
     bvh = mesh_bvh(retainer)
-    sample_y = RETAINER_THICKNESS_Y / 2.0
+    sample_y = thickness / 2.0
+    failures = []
+    layout = resolved_retainer_layout()
+    for fastener_index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
+        if bvh_point_is_inside(bvh, (x, sample_y, z)):
+            failures.append(f"bolt_{fastener_index}_axis_is_blocked")
+        if RETAINER_KEEPER_INDEX_ENABLED:
+            for recess_index, (recess_x, recess_z) in enumerate(
+                retainer_index_key_centers(x, z),
+                start=1,
+            ):
+                if bvh_point_is_inside(
+                    bvh,
+                    (
+                        recess_x,
+                        RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y / 2.0,
+                        recess_z,
+                    ),
+                ):
+                    failures.append(
+                        f"bolt_{fastener_index}_index_recess_{recess_index}"
+                    )
+
     bearing_sample_radius = (
-        RETAINER_HOLE_DIAMETER / 2.0
+        RETAINER_GATE_BOLT_TRACK_DIAMETER / 2.0
         + RETAINER_MIN_HOLE_WEB
         - 10.0 * BOOLEAN_CLEANUP_DISTANCE
     )
-    failures = []
-    for fastener_index, (x, z) in enumerate(
-        CASE_FASTENER_POSITIONS_XZ,
-        start=1,
+    pivot_x, pivot_z = layout["upper"]
+    for angle_index in range(24):
+        angle = 2.0 * math.pi * angle_index / 24.0
+        point = (
+            pivot_x + bearing_sample_radius * math.cos(angle),
+            sample_y,
+            pivot_z + bearing_sample_radius * math.sin(angle),
+        )
+        if not bvh_point_is_inside(bvh, point):
+            failures.append(f"pivot_bearing_web_{angle_index + 1}")
+
+    # Check the full M3 shaft envelope, including angles between the rounded
+    # capsule chords and the free swing after each track exits.
+    shaft_radius = INSERT_FASTENER_HOLE_DIAMETER / 2.0
+    for name, bolt, release_angle in (
+        (
+            "lower_left",
+            layout["lower_left"],
+            RETAINER_GATE_LOWER_LEFT_RELEASE_ANGLE_DEG,
+        ),
+        (
+            "lower_right",
+            layout["lower_right"],
+            RETAINER_GATE_LOWER_RIGHT_RELEASE_ANGLE_DEG,
+        ),
     ):
-        if bvh_point_is_inside(bvh, (x, sample_y, z)):
-            failures.append(f"fastener_{fastener_index}_axis_is_blocked")
-        for angle_index in range(16):
-            angle = 2.0 * math.pi * angle_index / 16.0
-            point = (
-                x + bearing_sample_radius * math.cos(angle),
-                sample_y,
-                z + bearing_sample_radius * math.sin(angle),
+        validation_steps = max(1, int(math.ceil(90.0 / 1.0)))
+        for step in range(validation_steps + 1):
+            gate_angle = 90.0 * step / validation_steps
+            bolt_x, bolt_z = retainer_bolt_sweep_point(
+                bolt,
+                layout["upper"],
+                gate_angle,
             )
-            if not bvh_point_is_inside(bvh, point):
-                failures.append(
-                    f"fastener_{fastener_index}_bearing_web_{angle_index + 1}"
+            for radial_index in range(12):
+                radial_angle = 2.0 * math.pi * radial_index / 12.0
+                point = (
+                    bolt_x + shaft_radius * math.cos(radial_angle),
+                    sample_y,
+                    bolt_z + shaft_radius * math.sin(radial_angle),
                 )
+                if bvh_point_is_inside(bvh, point):
+                    phase = "track" if gate_angle <= release_angle else "swing"
+                    failures.append(
+                        f"{name}_{phase}_{gate_angle:.1f}deg_"
+                        f"radial_{radial_index + 1}"
+                    )
+                    break
+            if len(failures) >= 12:
+                break
+        if len(failures) >= 12:
+            break
     if failures:
         raise RuntimeError(
-            "Front-retainer fastener alignment/bearing validation failed: "
+            "Swing-gate direct-M3 track validation failed: "
             + ", ".join(failures[:12])
         )
 
-    layout = resolved_retainer_layout()
     bounds_x = (
         min(vertex.co.x for vertex in retainer.data.vertices),
         max(vertex.co.x for vertex in retainer.data.vertices),
@@ -3937,12 +4569,183 @@ def validate_front_retainer(retainer) -> None:
         - layout["bar_bottom_z"]
     )
     print(
-        "FRONT_CAMERA_RETAINER PASS fasteners=3 "
+        "FRONT_CAMERA_SWING_GATE PASS bolts=3 direct_on_m3=True "
         f"assembled_y={expected_y:.2f}mm "
         f"dimensions=({bounds_x[1] - bounds_x[0]:.2f}x"
-        f"{bounds_z[1] - bounds_z[0]:.2f}x{RETAINER_THICKNESS_Y:.2f})mm "
-        f"hole_diameter={RETAINER_HOLE_DIAMETER:.2f}mm "
+        f"{bounds_z[1] - bounds_z[0]:.2f}x{thickness:.2f})mm "
+        f"material={RETAINER_MATERIAL_MODE} "
+        f"bolt_track_diameter={RETAINER_GATE_BOLT_TRACK_DIAMETER:.2f}mm "
+        f"minimum_nut_bearing={RETAINER_GATE_MIN_NUT_BEARING_DIAMETER:.2f}mm "
+        f"left_release={RETAINER_GATE_LOWER_LEFT_RELEASE_ANGLE_DEG:.1f}deg "
+        f"right_release={RETAINER_GATE_LOWER_RIGHT_RELEASE_ANGLE_DEG:.1f}deg "
         f"minimum_center_strap={center_strap_height:.2f}mm"
+    )
+
+
+def validate_retainer_index_keys(insert) -> None:
+    """Verify that the sleeve face carries all six keeper index keys."""
+    if not RETAINER_KEEPER_INDEX_ENABLED:
+        return
+    bvh = mesh_bvh(insert)
+    sample_y = (
+        retainer_assembly_face_y()
+        + RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y / 2.0
+    )
+    failures = []
+    for fastener_index, (bolt_x, bolt_z) in enumerate(
+        CASE_FASTENER_POSITIONS_XZ,
+        start=1,
+    ):
+        for key_index, (key_x, key_z) in enumerate(
+            retainer_index_key_centers(bolt_x, bolt_z),
+            start=1,
+        ):
+            if not bvh_point_is_inside(bvh, (key_x, sample_y, key_z)):
+                failures.append(f"key_{fastener_index}_{key_index}")
+    if failures:
+        raise RuntimeError(
+            "Sleeve keeper-index key validation failed: "
+            + ", ".join(failures)
+        )
+    print(
+        "FRONT_CAMERA_RETAINER_INDEX_KEYS PASS count=6 "
+        f"projection={RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y:.2f}mm "
+        f"keeper_lift_to_turn={RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y:.2f}mm"
+    )
+
+
+def validate_rotating_keepers(keepers) -> None:
+    """Validate the three material-specific indexed 180-degree keepers."""
+    if len(keepers) != len(CASE_FASTENER_POSITIONS_XZ):
+        raise RuntimeError("Rotating-keeper mode requires exactly three pieces")
+    layout = resolved_retainer_layout()
+    expected = (
+        (layout["lower_left"], Vector((0.0, 0.0, 1.0))),
+        (layout["lower_right"], Vector((0.0, 0.0, 1.0))),
+        (layout["upper"], Vector((0.0, 0.0, -1.0))),
+    )
+    thickness = retainer_keeper_thickness_y()
+    tolerance = 1.0e-4
+    for index, (keeper, ((expected_x, expected_z), expected_direction)) in enumerate(
+        zip(keepers, expected),
+        start=1,
+    ):
+        validate_object(keeper)
+        expected_location = Vector(
+            (expected_x, retainer_assembly_face_y(), expected_z)
+        )
+        actual_direction = (
+            keeper.rotation_euler.to_matrix() @ Vector((0.0, 0.0, 1.0))
+        )
+        if (keeper.location - expected_location).length > tolerance:
+            raise RuntimeError(
+                f"Rotating keeper {index} is not aligned to its M3 shaft"
+            )
+        if (actual_direction - expected_direction).length > tolerance:
+            raise RuntimeError(
+                f"Rotating keeper {index} does not point inward when closed"
+            )
+        minimum_y = min(vertex.co.y for vertex in keeper.data.vertices)
+        maximum_y = max(vertex.co.y for vertex in keeper.data.vertices)
+        if abs(minimum_y) > tolerance or abs(maximum_y - thickness) > tolerance:
+            raise RuntimeError(
+                f"Rotating keeper {index} thickness mismatch: "
+                f"y=({minimum_y:.5f}, {maximum_y:.5f}) mm"
+            )
+
+    bvh = mesh_bvh(keepers[0])
+    probe_failures = []
+    probes = [
+        (
+            "shaft_axis",
+            (0.0, thickness / 2.0, 0.0),
+            False,
+        ),
+        (
+            "hub_wall",
+            (
+                (
+                    RETAINER_KEEPER_BOLT_HOLE_DIAMETER
+                    + RETAINER_KEEPER_HUB_DIAMETER
+                )
+                / 4.0,
+                thickness / 2.0,
+                0.0,
+            ),
+            True,
+        ),
+        (
+            "closed_lobe",
+            (
+                0.0,
+                thickness / 2.0,
+                RETAINER_KEEPER_CLOSED_PROJECTION_Z - 0.5,
+            ),
+            True,
+        ),
+    ]
+    if RETAINER_KEEPER_INDEX_ENABLED:
+        for direction in (-1.0, 1.0):
+            probes.extend(
+                (
+                    (
+                        f"index_recess_{direction:+.0f}",
+                        (
+                            0.0,
+                            RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y / 2.0,
+                            direction * RETAINER_KEEPER_INDEX_RADIAL_OFFSET,
+                        ),
+                        False,
+                    ),
+                    (
+                        f"index_recess_floor_{direction:+.0f}",
+                        (
+                            0.0,
+                            RETAINER_KEEPER_INDEX_RECESS_DEPTH_Y + 0.15,
+                            direction * RETAINER_KEEPER_INDEX_RADIAL_OFFSET,
+                        ),
+                        True,
+                    ),
+                )
+            )
+    for name, point, expected_inside in probes:
+        if bvh_point_is_inside(bvh, point) != expected_inside:
+            probe_failures.append(name)
+    if probe_failures:
+        raise RuntimeError(
+            "Rotating-keeper internal-geometry validation failed: "
+            + ", ".join(probe_failures)
+        )
+
+    bottom_runner_z = max(
+        spec[4] for spec in LOCATING_TAB_SPECS if spec[5] == "bottom"
+    )
+    top_runner_z = min(
+        spec[3] for spec in LOCATING_TAB_SPECS if spec[5] == "top"
+    )
+    hub_radius = RETAINER_KEEPER_HUB_DIAMETER / 2.0
+    lower_open_clearance = min(
+        bottom_runner_z - point[1] - hub_radius
+        for point in (layout["lower_left"], layout["lower_right"])
+    )
+    upper_open_clearance = layout["upper"][1] - hub_radius - top_runner_z
+    minimum_open_clearance = min(lower_open_clearance, upper_open_clearance)
+    lower_closed_overlap = min(
+        point[1] + RETAINER_KEEPER_CLOSED_PROJECTION_Z - bottom_runner_z
+        for point in (layout["lower_left"], layout["lower_right"])
+    )
+    upper_closed_overlap = top_runner_z - (
+        layout["upper"][1] - RETAINER_KEEPER_CLOSED_PROJECTION_Z
+    )
+    minimum_closed_overlap = min(lower_closed_overlap, upper_closed_overlap)
+    print(
+        "FRONT_CAMERA_ROTATING_KEEPERS PASS count=3 direct_on_m3=True "
+        f"material={RETAINER_MATERIAL_MODE} thickness={thickness:.2f}mm "
+        f"hub_diameter={RETAINER_KEEPER_HUB_DIAMETER:.2f}mm "
+        f"closed_projection={RETAINER_KEEPER_CLOSED_PROJECTION_Z:.2f}mm "
+        f"minimum_closed_runner_overlap={minimum_closed_overlap:.3f}mm "
+        f"minimum_open_runner_clearance={minimum_open_clearance:.3f}mm "
+        f"indexed_positions={'2' if RETAINER_KEEPER_INDEX_ENABLED else '0'}"
     )
 
 
@@ -3952,7 +4755,15 @@ def assign_material(obj, name: str, color) -> None:
     obj.data.materials.append(material)
 
 
-def apply_layout(back, insert, buttons, retainer) -> None:
+def active_retainer_objects(gate, keepers):
+    if not RETAINER_ENABLED:
+        return ()
+    if RETAINER_STYLE == "ROTATING_KEEPERS":
+        return tuple(keepers)
+    return (gate,)
+
+
+def apply_layout(back, insert, buttons, gate, keepers) -> None:
     if LAYOUT_MODE == "assembled":
         return
     back_right_x = max(vertex.co.x for vertex in back.data.vertices)
@@ -3968,27 +4779,41 @@ def apply_layout(back, insert, buttons, retainer) -> None:
         button.location = (next_button_x, 0.0, 0.0)
         button.rotation_euler = (0.0, 0.0, 0.0)
         next_button_x += BUTTON_INNER_FLANGE_DIAMETER + PRINT_BED_GAP
-    if retainer is None:
+    if gate is None:
         return
-    retainer_width = max(
-        vertex.co.x for vertex in retainer.data.vertices
-    ) - min(vertex.co.x for vertex in retainer.data.vertices)
-    retainer.location = (
-        next_button_x + retainer_width / 2.0,
+    gate_min_x = min(vertex.co.x for vertex in gate.data.vertices)
+    gate_max_x = max(vertex.co.x for vertex in gate.data.vertices)
+    gate.location = (
+        next_button_x - gate_min_x,
         0.0,
         0.0,
     )
-    retainer.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
+    gate.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
+    next_keeper_x = gate.location.x + gate_max_x + PRINT_BED_GAP
+    keeper_width = RETAINER_KEEPER_HUB_DIAMETER
+    for keeper in keepers:
+        keeper.location = (
+            next_keeper_x + keeper_width / 2.0,
+            0.0,
+            0.0,
+        )
+        keeper.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
+        next_keeper_x += keeper_width + PRINT_BED_GAP
 
 
-def apply_post_build_visibility(back, insert, buttons, retainer) -> None:
+def apply_post_build_visibility(back, insert, buttons, gate, keepers) -> None:
     visibility = [
         (back, SHOW_BACK_SHELL),
         (insert, SHOW_HOLLOW_INSERT),
         *[(button, SHOW_BUTTONS) for button in buttons],
     ]
-    if retainer is not None:
-        visibility.append((retainer, SHOW_FRONT_RETAINER))
+    if gate is not None:
+        active = set(active_retainer_objects(gate, keepers))
+        visibility.append((gate, SHOW_FRONT_RETAINER and gate in active))
+        visibility.extend(
+            (keeper, SHOW_FRONT_RETAINER and keeper in active)
+            for keeper in keepers
+        )
     for obj, visible in visibility:
         obj.hide_set(not visible)
         obj.hide_render = not visible
@@ -4030,8 +4855,21 @@ def export_canonical_button_stl(path: Path, button) -> None:
         button.rotation_euler = saved_rotation
 
 
+def export_canonical_component_stl(path: Path, component) -> None:
+    """Export an assembled-coordinate component despite print-bed layout."""
+    saved_location = component.location.copy()
+    saved_rotation = component.rotation_euler.copy()
+    try:
+        component.location = (0.0, 0.0, 0.0)
+        component.rotation_euler = (0.0, 0.0, 0.0)
+        export_stl(path, [component])
+    finally:
+        component.location = saved_location
+        component.rotation_euler = saved_rotation
+
+
 def export_canonical_retainer_stl(path: Path, retainer) -> None:
-    """Export the retainer flat with its insert-facing surface on the bed."""
+    """Export the swing gate flat with its rear surface on the bed."""
     saved_location = retainer.location.copy()
     saved_rotation = retainer.rotation_euler.copy()
     try:
@@ -4043,13 +4881,34 @@ def export_canonical_retainer_stl(path: Path, retainer) -> None:
         retainer.rotation_euler = saved_rotation
 
 
+def export_canonical_retainer_keeper_stl(path: Path, keeper) -> None:
+    """Export one quantity-three keeper flat with its rear face on the bed."""
+    saved_location = keeper.location.copy()
+    saved_rotation = keeper.rotation_euler.copy()
+    try:
+        keeper.location = (0.0, 0.0, 0.0)
+        keeper.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
+        export_stl(path, [keeper])
+    finally:
+        keeper.location = saved_location
+        keeper.rotation_euler = saved_rotation
+
+
 def build_gopro_fan_case():
     # A direct assignment remains convenient for callers that execute this
     # module into a namespace and then build more than one material variant.
-    if MATERIAL_MODE != _APPLIED_MATERIAL_MODE:
-        apply_material_profile()
+    if BACK_MATERIAL_MODE != _APPLIED_BACK_MATERIAL_MODE:
+        apply_back_material_profile()
     validate_config()
-    print(f"MATERIAL_MODE={MATERIAL_MODE}")
+    print(
+        "MATERIAL_MODES "
+        f"back={BACK_MATERIAL_MODE} sleeve={SLEEVE_MATERIAL_MODE} "
+        f"retainer={RETAINER_MATERIAL_MODE} buttons=TPU"
+    )
+    print(
+        f"FRONT_CAMERA_RETAINER enabled={RETAINER_ENABLED} "
+        f"assembled_style={RETAINER_STYLE}"
+    )
     print(
         "BACK_FASTENER_HEX_RETENTION "
         f"count={len(CASE_FASTENER_POSITIONS_XZ) if CASE_FASTENERS_ENABLED else 0} "
@@ -4109,52 +4968,73 @@ def build_gopro_fan_case():
     back = create_back_shell()
     insert = create_insert_frame()
     buttons = create_captive_buttons()
-    retainer = create_front_retainer() if RETAINER_ENABLED else None
+    gate = create_front_retainer() if RETAINER_ENABLED else None
+    keepers = create_rotating_keepers() if RETAINER_ENABLED else ()
     validate_object(back)
     validate_object(insert)
     validate_captive_buttons(buttons)
-    if retainer is not None:
-        validate_front_retainer(retainer)
+    if gate is not None:
+        validate_front_retainer(gate)
+        validate_retainer_index_keys(insert)
+        validate_rotating_keepers(keepers)
     validate_sleeve_capture_mesh(back, insert)
-    assign_material(back, "Rear_Shell_Blue", BACK_COLOR)
-    assign_material(insert, "Insert_Frame_Orange", INSERT_COLOR)
+    assign_material(back, f"Rear_Shell_{BACK_MATERIAL_MODE}", BACK_COLOR)
+    assign_material(insert, f"Insert_Frame_{SLEEVE_MATERIAL_MODE}", INSERT_COLOR)
     assign_material(buttons[0], "Captive_Button_TPU", BUTTON_COLOR)
-    if retainer is not None:
-        assign_material(retainer, "Front_Retainer_Green", RETAINER_COLOR)
-    apply_layout(back, insert, buttons, retainer)
+    if gate is not None:
+        assign_material(
+            gate,
+            f"Front_Retainer_{RETAINER_MATERIAL_MODE}",
+            RETAINER_COLOR,
+        )
+        assign_material(
+            keepers[0],
+            f"Rotating_Keeper_{RETAINER_MATERIAL_MODE}",
+            RETAINER_KEEPER_COLOR,
+        )
+    apply_layout(back, insert, buttons, gate, keepers)
 
     if EXPORT_STL:
         directory = export_base_directory()
         if EXPORT_COMBINED_STL:
             combined_objects = [back, insert, *buttons]
-            if retainer is not None:
-                combined_objects.append(retainer)
+            if gate is not None:
+                combined_objects.extend(active_retainer_objects(gate, keepers))
             export_stl(
                 directory / COMBINED_STL_NAME,
                 combined_objects,
             )
         if EXPORT_SEPARATE_STLS:
-            export_stl(directory / BACK_STL_NAME, [back])
-            export_stl(directory / INSERT_STL_NAME, [insert])
+            export_canonical_component_stl(directory / BACK_STL_NAME, back)
+            export_canonical_component_stl(directory / INSERT_STL_NAME, insert)
             export_canonical_button_stl(
                 directory / BUTTON_STL_NAME,
                 buttons[0],
             )
-            if retainer is not None:
+            if gate is not None:
                 export_canonical_retainer_stl(
                     directory / RETAINER_STL_NAME,
-                    retainer,
+                    gate,
+                )
+                export_canonical_retainer_keeper_stl(
+                    directory / RETAINER_KEEPER_STL_NAME,
+                    keepers[0],
                 )
 
     bpy.ops.object.select_all(action="DESELECT")
-    apply_post_build_visibility(back, insert, buttons, retainer)
+    apply_post_build_visibility(back, insert, buttons, gate, keepers)
     visibility = [
         (back, SHOW_BACK_SHELL),
         (insert, SHOW_HOLLOW_INSERT),
         *[(button, SHOW_BUTTONS) for button in buttons],
     ]
-    if retainer is not None:
-        visibility.append((retainer, SHOW_FRONT_RETAINER))
+    if gate is not None:
+        active = set(active_retainer_objects(gate, keepers))
+        visibility.append((gate, SHOW_FRONT_RETAINER and gate in active))
+        visibility.extend(
+            (keeper, SHOW_FRONT_RETAINER and keeper in active)
+            for keeper in keepers
+        )
     visible_objects = [obj for obj, visible in visibility if visible]
     for obj in visible_objects:
         obj.select_set(True)
