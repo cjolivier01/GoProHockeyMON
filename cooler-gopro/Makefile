@@ -12,16 +12,28 @@ MISSION1_DUMMY_STLS := gopro_mission1_dummy_recreated.stl
 DUAL_FAN_STLS := \
 	gopro_dual_fan_parametric.stl \
 	gopro_dual_fan_adapter.stl
-FAN_CASE_STLS := \
+BAFFLE_CARTRIDGE_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_ENABLED' for target in node.targets)))")
+BAFFLE_CARTRIDGE_MATERIAL_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_MATERIAL_MODE' for target in node.targets)))")
+FAN_CASE_CORE_STLS := \
 	gopro_fan_case_parametric.stl \
 	gopro_fan_case_back.stl \
 	gopro_fan_case_insert.stl \
 	gopro_fan_case_button.stl \
-	gopro_fan_case_baffle_tray.stl \
-	gopro_fan_case_baffle_lid.stl \
-	gopro_fan_case_baffle_gasket.stl \
 	gopro_fan_case_front_retainer.stl \
 	gopro_fan_case_rotating_keeper.stl
+FAN_CASE_BAFFLE_BODY_STLS := \
+	gopro_fan_case_baffle_tray.stl \
+	gopro_fan_case_baffle_lid.stl
+FAN_CASE_BAFFLE_GASKET_STLS := gopro_fan_case_baffle_gasket.stl
+FAN_CASE_BAFFLE_STLS := $(FAN_CASE_BAFFLE_BODY_STLS) $(FAN_CASE_BAFFLE_GASKET_STLS)
+ifeq ($(BAFFLE_CARTRIDGE_ENABLED),True)
+FAN_CASE_ACTIVE_BAFFLE_STLS := $(FAN_CASE_BAFFLE_BODY_STLS)
+ifeq ($(BAFFLE_CARTRIDGE_MATERIAL_MODE),RIGID)
+FAN_CASE_ACTIVE_BAFFLE_STLS += $(FAN_CASE_BAFFLE_GASKET_STLS)
+endif
+endif
+FAN_CASE_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_ACTIVE_BAFFLE_STLS)
+FAN_CASE_ALL_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_BAFFLE_STLS)
 HOCKEYMOM_COVER_STLS := \
 	hockeymom_3_cam_cover_original_style_base.stl \
 	hockeymom_3_cam_cover_original_style_lid.stl \
@@ -88,7 +100,7 @@ print_targets:
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
 		'dual-fan                  Build the parametric dual-fan STL.' \
-		'fan-case                  Build the case, buttons, baffle tray/lid/gasket, swing gate, and keeper STLs.' \
+		'fan-case                  Build the case, buttons, baffle tray/lid/seal, swing gate, and keeper STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
 		'' \
 		'Documentation' \
@@ -171,6 +183,7 @@ $(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py
 
 # Grouped targets tell make that one Blender run creates every listed file.
 $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py
+	$(RM) $(FAN_CASE_ALL_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
 		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_gopro_fan_case']()"
 
@@ -205,7 +218,7 @@ clean-dual-fan:
 	$(RM) $(DUAL_FAN_STLS)
 
 clean-fan-case:
-	$(RM) $(FAN_CASE_STLS)
+	$(RM) $(FAN_CASE_ALL_STLS)
 
 clean-hockeymom-cover:
 	$(RM) $(HOCKEYMOM_COVER_STLS) $(HOCKEYMOM_OPTIONAL_STLS)
