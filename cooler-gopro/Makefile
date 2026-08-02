@@ -17,7 +17,8 @@ FAN_CASE_STLS := \
 	gopro_fan_case_back.stl \
 	gopro_fan_case_insert.stl \
 	gopro_fan_case_button.stl \
-	gopro_fan_case_front_retainer.stl
+	gopro_fan_case_front_retainer.stl \
+	gopro_fan_case_rotating_keeper.stl
 HOCKEYMOM_COVER_STLS := \
 	hockeymom_3_cam_cover_original_style_base.stl \
 	hockeymom_3_cam_cover_original_style_lid.stl \
@@ -84,7 +85,7 @@ print_targets:
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
 		'dual-fan                  Build the parametric dual-fan STL.' \
-		'fan-case                  Build the fan case, back, insert, button, and front-retainer STLs.' \
+		'fan-case                  Build the fan case, buttons, swing gate, and rotating-keeper STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
 		'' \
 		'Documentation' \
@@ -92,7 +93,7 @@ print_targets:
 		'dim-pdf                   Build the HOCKEYMOM 3 configuration dimension PDF.' \
 		'check-dim-pdf-sync        Verify the PDF matches its model and generator sources.' \
 		'fan-case-dim-pdf          Build the fan-case configuration dimension PDF.' \
-		'check-fan-case-dim-pdf-sync  Verify the fan-case PDF source synchronization.' \
+		'check-fan-case-dim-pdf-sync  Verify PDF synchronization and engineering-drawing coverage.' \
 		'' \
 		'Cleanup' \
 		'-------' \
@@ -131,7 +132,7 @@ $(DIMENSION_PDF): generate_hockeymom_config_dimension_pdf.py \
 	$(PDF_PYTHON) $<
 
 $(FAN_CASE_DIMENSION_PDF): generate_fan_case_config_dimension_pdf.py \
-	gopro_fan_case_parametric_blender.py
+	gopro_fan_case_parametric_blender.py $(FAN_CASE_STLS)
 	$(PDF_PYTHON) $<
 
 # Load a generator without triggering its __main__ block, build its selected
