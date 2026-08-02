@@ -130,7 +130,7 @@ CATEGORY_PREFIXES = (
 
 
 EXACT_DESCRIPTIONS = {
-    "BAFFLE_CARTRIDGE_MATERIAL_MODE": "Selects RIGID or TPU wall, internal-baffle, lid and lid-carried snap-tongue geometry for the removable acoustic cartridge.",
+    "BAFFLE_CARTRIDGE_MATERIAL_MODE": "Selects RIGID or TPU wall, internal-baffle, lid and tray-carried snap-tongue geometry for the removable acoustic cartridge.",
     "BAFFLE_CARTRIDGE_ENABLED": "Builds the removable Offset-S acoustic cartridge and its two small back-shell snap receivers.",
     "BAFFLE_REAR_Y": "Rear body plane of the cartridge, immediately forward of the fan-pad inlet seal.",
     "BAFFLE_FRONT_Y": "Forward outlet plane of the cartridge; camera and sleeve clearances are measured from this face.",
@@ -138,7 +138,7 @@ EXACT_DESCRIPTIONS = {
     "BAFFLE_FRONT_WIDTH": "Cartridge width at the wider camera-facing outlet end.",
     "BAFFLE_BODY_HEIGHT": "Common top-to-bottom cartridge envelope at every axial station.",
     "BAFFLE_STOP_CLEARANCE": "Clearance around the existing large bottom-left camera stop, formed as a keyed corner relief.",
-    "BAFFLE_MIN_EDGE_OVERLAP_Z": "Minimum projected overlap between successive airway edges that blocks direct fan-to-camera line of sight.",
+    "BAFFLE_MIN_EDGE_OVERLAP_Z": "Minimum projected overlap between successive airway edges, supplemented by finite-thickness visibility validation.",
     "BAFFLE_MIN_THROAT_AREA": "Minimum accepted open flow area at either internal turn or the forward outlet.",
     "BAFFLE_INLET_SLOT_COUNT": "Number of pointed, self-supporting slots spanning the circular fan inlet.",
     "BAFFLE_INLET_SEPARATOR_THICKNESS_Z": "Vertical rib thickness between adjacent pointed fan-inlet slots.",
@@ -147,11 +147,12 @@ EXACT_DESCRIPTIONS = {
     "BAFFLE_OUTLET_SLOT_COUNT": "Number of pointed, self-supporting slots in the camera-facing outlet.",
     "BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z": "Vertical rib thickness between adjacent pointed outlet slots.",
     "BAFFLE_OUTLET_ROOF_RUN_X": "X run from each outlet-slot shoulder to its pointed roof apex.",
-    "BAFFLE_MIN_ROOF_ANGLE_DEG": "Minimum roof angle in the exported tray orientation for supportless slicing.",
+    "BAFFLE_MIN_ROOF_ANGLE_DEG": "Minimum pointed-slot roof angle in the exported tray orientation; localized support can still be advisable elsewhere.",
     "BAFFLE_LID_FIT_CLEARANCE": "Per-edge running clearance for fitting the keyed side lid into the side-open tray.",
     "BAFFLE_SNAP_INTERFERENCE_Z": "Configured elastic overtravel between each cartridge hook and its back-shell receiver rib.",
+    "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": "Axial distance the seated cartridge hook rests behind the receiver crest to preserve gasket preload.",
     "BAFFLE_TRAY_STL_NAME": "Output filename for the side-open acoustic labyrinth tray with one controlled stop-relief bridge.",
-    "BAFFLE_LID_STL_NAME": "Output filename for the separately printed keyed side lid and its two snap tongues.",
+    "BAFFLE_LID_STL_NAME": "Output filename for the separately printed keyed side lid.",
     "BAFFLE_GASKET_STL_NAME": "Output filename for the TPU annular fan-inlet gasket.",
     "BACK_OUTER_WIDTH": "Requested legacy back-shell width; the enabled capture joint may expand the effective envelope to contain its support contour.",
     "BACK_OUTER_HEIGHT": "Requested legacy back-shell height; the enabled capture joint may expand the effective envelope to contain its support contour.",
@@ -504,6 +505,17 @@ def drawing_view_for(entry: ConfigEntry) -> str:
             "BAFFLE_OUTLET_HEIGHT",
             "BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z",
             "BAFFLE_OUTLET_ROOF_RUN_X",
+            "BAFFLE_LID_PLATE_THICKNESS_X",
+            "BAFFLE_LID_KEY_DEPTH_X",
+            "BAFFLE_LID_FIT_CLEARANCE",
+            "BAFFLE_SNAP_RECEIVER_WIDTH_X",
+            "BAFFLE_SNAP_RECEIVER_PROJECTION_Z",
+            "BAFFLE_SNAP_RECEIVER_BEVEL",
+            "BAFFLE_SNAP_TONGUE_WIDTH_X",
+            "BAFFLE_SNAP_TONGUE_THICKNESS_Z",
+            "BAFFLE_SNAP_TONGUE_WALL_OFFSET",
+            "BAFFLE_SNAP_HOOK_PROTRUSION_Z",
+            "BAFFLE_SNAP_INTERFERENCE_Z",
         }:
             return "baffle_front"
         if name in {
@@ -517,7 +529,7 @@ def drawing_view_for(entry: ConfigEntry) -> str:
             "BAFFLE_SECOND_Y",
         }:
             return "baffle_side"
-        if name.startswith(("BAFFLE_LID_", "BAFFLE_SNAP_")):
+        if name.startswith("BAFFLE_SNAP_"):
             return "baffle_snap"
         return "baffle_airway"
     if name == "PRINT_BED_GAP":
@@ -966,12 +978,15 @@ def page_cover(pdf):
         ("5", "Back-shell, dome, fan and vent layout"),
         ("6", "Insert sleeve, walls, ports and access"),
         ("7", "Fasteners, hex capture, stops and snaps"),
+        ("8", "Removable acoustic baffle cartridge"),
         (
-            f"8–{7 + DRAWING_PAGE_COUNT}",
+            f"{2 + CURATED_PAGE_COUNT}–"
+            f"{1 + CURATED_PAGE_COUNT + DRAWING_PAGE_COUNT}",
             "STL-derived engineering views with every dimensional CONFIG callout",
         ),
         (
-            f"{8 + DRAWING_PAGE_COUNT}–{TOTAL_PAGES - 1}",
+            f"{2 + CURATED_PAGE_COUNT + DRAWING_PAGE_COUNT}–"
+            f"{TOTAL_PAGES - 1}",
             "Non-dimensional settings appendix with actual assembly references",
         ),
         (str(TOTAL_PAGES), "Coverage and synchronization proof"),
@@ -1308,7 +1323,7 @@ def page_baffle_cartridge(pdf):
         fig,
         [0.05, 0.12, 0.43, 0.72],
         "AXIAL SECTION — OFFSET-S AIRWAY",
-        "The alternating blockers preserve flow area while removing direct acoustic line of sight",
+        "Finite-thickness alternating blockers preserve flow area",
     )
     rear_y = float(C["BAFFLE_REAR_Y"])
     front_y = float(C["BAFFLE_FRONT_Y"])
@@ -1425,7 +1440,7 @@ def page_baffle_cartridge(pdf):
         zorder=9,
     )
     tray_ax.set_xlim(rear_y - 1.5, front_y + 1.5)
-    tray_ax.set_ylim(bottom_z - 2.0, top_z + 3.0)
+    tray_ax.set_ylim(bottom_z - 2.0, top_z + 6.0)
     tray_ax.set_aspect("equal", adjustable="box")
 
     side_ax = panel(
@@ -1487,7 +1502,11 @@ def page_baffle_cartridge(pdf):
     )
     sleeve_clearance = (
         boss_assembly_datum_y()
-        - float(C["SLEEVE_CAPTURE_ENGAGEMENT_DEPTH"])
+        - (
+            float(C["SLEEVE_CAPTURE_ENGAGEMENT_DEPTH"])
+            if C["SLEEVE_CAPTURE_SLOT_ENABLED"]
+            else 0.0
+        )
         - float(C["BAFFLE_FRONT_Y"])
     )
     fan_inner_y = -float(C["BACK_DOME_DEPTH"]) + float(C["BACK_FACE_THICKNESS"])
@@ -1521,8 +1540,9 @@ def page_baffle_cartridge(pdf):
         "AIRWAY AND PRINTING",
         [
             f"minimum throat {fmt(C['BAFFLE_MIN_THROAT_AREA'])} mm²; pointed-slot outlet {outlet_area:.0f} mm²",
-            f"projected edge overlap {fmt(C['BAFFLE_MIN_EDGE_OVERLAP_Z'])} mm blocks direct line of sight",
-            f"tray/lid/gasket need no generated supports; tray stop-relief bridge {float(C['BAFFLE_FRONT_Y']) - float(C['BAFFLE_REAR_Y']):.1f} mm",
+            f"finite-thickness Offset-S validation blocks direct fan-to-camera line of sight",
+            f"no bulk/internal supports; one {float(C['BAFFLE_FRONT_Y']) - float(C['BAFFLE_REAR_Y']):.1f} mm stop-relief bridge",
+            "small local support can help the snap roots, especially in TPU",
         ],
         ORANGE,
     )
@@ -1533,10 +1553,10 @@ def page_baffle_cartridge(pdf):
 VIEW_TITLES = {
     "back_front": "BACK SHELL / DOME — ACTUAL FRONT PROJECTION",
     "back_side": "BACK SHELL / DOME — ACTUAL SIDE PROJECTION",
-    "baffle_front": "BAFFLE CARTRIDGE — ACTUAL OPEN-SIDE PROJECTION",
-    "baffle_side": "BAFFLE CARTRIDGE — ACTUAL PRINTED EDGE PROJECTION",
-    "baffle_airway": "OFFSET-S AIRWAY — ACTUAL TRAY PROJECTION",
-    "baffle_snap": "CARTRIDGE LID AND SNAP FEATURES — ACTUAL PRINT PROJECTIONS",
+    "baffle_front": "BAFFLE CARTRIDGE — ACTUAL ASSEMBLED FRONT PROJECTION",
+    "baffle_side": "BAFFLE CARTRIDGE — ACTUAL ASSEMBLED SIDE PROJECTION",
+    "baffle_airway": "OFFSET-S AIRWAY — ACTUAL ASSEMBLED SIDE PROJECTION",
+    "baffle_snap": "TRAY SNAP FEATURES + KEYED LID — ACTUAL SIDE PROJECTIONS",
     "capture_joint": "ASSEMBLED BACK + SLEEVE — ACTUAL FRONT PROJECTION",
     "capture_section": "SLEEVE CAPTURE — ACTUAL AXIAL SECTION PROJECTION",
     "fastener_detail": "CASE FASTENERS ON ACTUAL BACK + SLEEVE PROJECTION",
@@ -1609,6 +1629,74 @@ def projected_part_geometry(part: str, plane: str, flip_vertical: bool = False):
     if flip_vertical:
         geometry = affinity.scale(geometry, xfact=1.0, yfact=-1.0, origin=(0, 0))
     return geometry
+
+
+def rotation_matrix_between_vectors(source, target) -> np.ndarray:
+    """Return the same shortest-arc rotation used by Blender quaternions."""
+    source = np.asarray(source, dtype=float)
+    target = np.asarray(target, dtype=float)
+    source /= np.linalg.norm(source)
+    target /= np.linalg.norm(target)
+    quaternion = np.concatenate(
+        (
+            np.asarray((1.0 + float(np.dot(source, target)),)),
+            np.cross(source, target),
+        )
+    )
+    quaternion /= np.linalg.norm(quaternion)
+    w, x, y, z = quaternion
+    return np.asarray(
+        (
+            (1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - z * w), 2.0 * (x * z + y * w)),
+            (2.0 * (x * y + z * w), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - x * w)),
+            (2.0 * (x * z - y * w), 2.0 * (y * z + x * w), 1.0 - 2.0 * (x * x + y * y)),
+        )
+    )
+
+
+@lru_cache(maxsize=None)
+def baffle_assembly_triangles(part: str) -> np.ndarray:
+    """Undo each canonical face-down STL rotation for assembly projections."""
+    depth = float(C["BAFFLE_FRONT_Y"]) - float(C["BAFFLE_REAR_Y"])
+    if part == "baffle_tray":
+        rear_left = float(C["FAN_CENTER_X"]) - float(C["BAFFLE_REAR_WIDTH"]) / 2.0
+        front_left = -float(C["BAFFLE_FRONT_WIDTH"]) / 2.0
+        slope = (front_left - rear_left) / depth
+        outward_normal = (-1.0, slope, 0.0)
+    elif part == "baffle_lid":
+        rear_right = float(C["FAN_CENTER_X"]) + float(C["BAFFLE_REAR_WIDTH"]) / 2.0
+        front_right = float(C["BAFFLE_FRONT_WIDTH"]) / 2.0
+        slope = (front_right - rear_right) / depth
+        outward_normal = (1.0, -slope, 0.0)
+    elif part == "baffle_gasket":
+        outward_normal = (0.0, -1.0, 0.0)
+    else:
+        raise ValueError(f"Not a baffle component: {part}")
+    face_down = rotation_matrix_between_vectors(
+        outward_normal,
+        (0.0, 0.0, -1.0),
+    )
+    return load_stl_triangles(part) @ face_down
+
+
+@lru_cache(maxsize=None)
+def projected_baffle_assembly_geometry(part: str, plane: str):
+    coordinate_axes = PROJECTION_AXES[plane]
+    polygons = []
+    for triangle in baffle_assembly_triangles(part):
+        points = triangle[:, coordinate_axes]
+        area_twice = abs(
+            (points[1, 0] - points[0, 0]) * (points[2, 1] - points[0, 1])
+            - (points[1, 1] - points[0, 1]) * (points[2, 0] - points[0, 0])
+        )
+        if area_twice <= 1.0e-8:
+            continue
+        polygon = ShapelyPolygon(points)
+        if polygon.is_valid and polygon.area > 1.0e-8:
+            polygons.append(polygon)
+    if not polygons:
+        raise RuntimeError(f"No assembly projection for {part} in {plane}")
+    return unary_union(polygons)
 
 
 def geometry_polygons(geometry):
@@ -1699,6 +1787,43 @@ def retainer_layout_for_drawings():
         "upright_right_x": float(upper[0]) + float(C["RETAINER_UPRIGHT_WIDTH_X"]) / 2.0,
         "upright_top_z": upright_top_z,
     }
+
+
+def baffle_body_bounds_for_drawings(y: float):
+    rear_y = float(C["BAFFLE_REAR_Y"])
+    front_y = float(C["BAFFLE_FRONT_Y"])
+    fraction = min(max((y - rear_y) / (front_y - rear_y), 0.0), 1.0)
+    rear_left = float(C["FAN_CENTER_X"]) - float(C["BAFFLE_REAR_WIDTH"]) / 2.0
+    rear_right = float(C["FAN_CENTER_X"]) + float(C["BAFFLE_REAR_WIDTH"]) / 2.0
+    front_left = -float(C["BAFFLE_FRONT_WIDTH"]) / 2.0
+    front_right = float(C["BAFFLE_FRONT_WIDTH"]) / 2.0
+    return (
+        rear_left + (front_left - rear_left) * fraction,
+        rear_right + (front_right - rear_right) * fraction,
+        -float(C["BAFFLE_BODY_HEIGHT"]) / 2.0,
+        float(C["BAFFLE_BODY_HEIGHT"]) / 2.0,
+    )
+
+
+def baffle_dome_half_height_for_drawings(y: float) -> float:
+    fan_pad_inner_y = -float(C["BACK_DOME_DEPTH"]) + float(C["BACK_FACE_THICKNESS"])
+    transition_y = boss_assembly_datum_y() - float(C["CAMERA_STOP_TO_INSERT_SOCKET_GAP"])
+    target = min(max((y - fan_pad_inner_y) / (transition_y - fan_pad_inner_y), 0.0), 1.0)
+    lower = 0.0
+    upper = 1.0
+    for _iteration in range(48):
+        middle = (lower + upper) / 2.0
+        smooth = middle * middle * (3.0 - 2.0 * middle)
+        if smooth < target:
+            lower = middle
+        else:
+            upper = middle
+    radial = (lower + upper) / 2.0
+    fan_half = float(C["BACK_DOME_FAN_PAD_HEIGHT"]) / 2.0
+    socket_half = (
+        float(C["INSERT_FRONT_HEIGHT"]) + 2.0 * float(C["FIT_CLEARANCE_Z"])
+    ) / 2.0
+    return fan_half + (socket_half - fan_half) * radial
 
 
 def capture_joint_detail_points(bounds):
@@ -1993,7 +2118,8 @@ def draw_actual_view(ax, view: str):
         )
         return back.bounds
     if view in {"baffle_front", "baffle_airway"}:
-        tray = projected_part_geometry("baffle_tray", "xy")
+        plane = "xz" if view == "baffle_front" else "yz"
+        tray = projected_baffle_assembly_geometry("baffle_tray", plane)
         draw_projected_geometry(
             ax,
             tray,
@@ -2003,24 +2129,34 @@ def draw_actual_view(ax, view: str):
         )
         if view == "baffle_airway":
             minimum_x, minimum_y, maximum_x, maximum_y = tray.bounds
-            flow_y = minimum_y + 0.52 * (maximum_y - minimum_y)
-            for start_fraction, end_fraction in (
-                (0.08, 0.36),
-                (0.37, 0.64),
-                (0.65, 0.92),
+            internal = float(C["BAFFLE_INTERNAL_THICKNESS_Y"])
+            first_y = float(C["BAFFLE_FIRST_Y"])
+            second_y = float(C["BAFFLE_SECOND_Y"])
+            body_half = float(C["BAFFLE_BODY_HEIGHT"]) / 2.0
+            wall = float(C["BAFFLE_WALL_THICKNESS"])
+            first_half = float(C["BAFFLE_FIRST_BLOCKER_HEIGHT_Z"]) / 2.0
+            second_half = float(C["BAFFLE_SECOND_OPENING_HEIGHT_Z"]) / 2.0
+            for patch in (
+                Rectangle((first_y - internal / 2.0, -first_half), internal, 2.0 * first_half),
+                Rectangle((second_y - internal / 2.0, second_half), internal, body_half - wall - second_half),
+                Rectangle((second_y - internal / 2.0, -body_half + wall), internal, body_half - wall - second_half),
             ):
+                patch.set_facecolor("#efb692")
+                patch.set_edgecolor(RED)
+                patch.set_linewidth(0.75)
+                patch.set_alpha(0.85)
+                patch.set_zorder(7)
+                ax.add_patch(patch)
+            flow_segments = (
+                ((float(C["BAFFLE_REAR_Y"]) + wall, 0.0), (first_y - internal / 2.0, 14.0)),
+                ((first_y + internal / 2.0, 14.0), (second_y - internal / 2.0, 0.0)),
+                ((second_y + internal / 2.0, 0.0), (float(C["BAFFLE_FRONT_Y"]) - wall, 0.0)),
+            )
+            for start, end in flow_segments:
                 ax.add_patch(
                     FancyArrowPatch(
-                        (
-                            minimum_x
-                            + start_fraction * (maximum_x - minimum_x),
-                            flow_y,
-                        ),
-                        (
-                            minimum_x
-                            + end_fraction * (maximum_x - minimum_x),
-                            flow_y,
-                        ),
+                        start,
+                        end,
                         arrowstyle="-|>",
                         mutation_scale=8,
                         linewidth=0.9,
@@ -2042,7 +2178,7 @@ def draw_actual_view(ax, view: str):
             )
         return tray.bounds
     if view == "baffle_side":
-        tray = projected_part_geometry("baffle_tray", "xz")
+        tray = projected_baffle_assembly_geometry("baffle_tray", "yz")
         draw_projected_geometry(
             ax,
             tray,
@@ -2052,8 +2188,8 @@ def draw_actual_view(ax, view: str):
         )
         return tray.bounds
     if view == "baffle_snap":
-        tray = projected_part_geometry("baffle_tray", "xy")
-        lid_base = projected_part_geometry("baffle_lid", "xy")
+        tray = projected_baffle_assembly_geometry("baffle_tray", "yz")
+        lid_base = projected_baffle_assembly_geometry("baffle_lid", "yz")
         lid = affinity.translate(
             lid_base,
             xoff=tray.bounds[2] - lid_base.bounds[0] + 8.0,
@@ -3088,6 +3224,177 @@ def draw_specific_graphical_annotation(
         )
         record_graphical_primitive(entry, primitive_kind, anchor, text_position)
         return True
+
+    if view == "baffle_front":
+        fan_x = float(C["FAN_CENTER_X"])
+        body_half = float(C["BAFFLE_BODY_HEIGHT"]) / 2.0
+        rear_half_width = float(C["BAFFLE_REAR_WIDTH"]) / 2.0
+        front_half_width = float(C["BAFFLE_FRONT_WIDTH"]) / 2.0
+        inlet_half = float(C["BAFFLE_INLET_DIAMETER"]) / 2.0
+        outlet_half_width = float(C["BAFFLE_OUTLET_WIDTH"]) / 2.0
+        outlet_half_height = float(C["BAFFLE_OUTLET_HEIGHT"]) / 2.0
+        if name == "BAFFLE_REAR_WIDTH":
+            return linear((fan_x - rear_half_width, 16.0), (fan_x + rear_half_width, 16.0), False, 2.0)
+        if name == "BAFFLE_FRONT_WIDTH":
+            return linear((-front_half_width, -16.0), (front_half_width, -16.0), False, -2.0)
+        if name == "BAFFLE_BODY_HEIGHT":
+            return linear((front_half_width, -body_half), (front_half_width, body_half), True, 2.0)
+        if name == "BAFFLE_STOP_CLEARANCE":
+            stop = next(spec for spec in C["CAMERA_STOP_SPECS"] if spec[0] == "Bottom_Left_Large")
+            start = (float(stop[2]), float(stop[4]) + float(entry.value))
+            end = (float(stop[2]) + float(entry.value), start[1])
+            return linear(start, end, False, -1.0)
+        if name in {
+            "BAFFLE_INLET_DIAMETER",
+            "BAFFLE_GASKET_INNER_DIAMETER",
+            "BAFFLE_GASKET_OUTER_DIAMETER",
+        }:
+            diameter = float(entry.value)
+            z = {"BAFFLE_GASKET_OUTER_DIAMETER": 4.0, "BAFFLE_GASKET_INNER_DIAMETER": -4.0}.get(name, 0.0)
+            return linear((fan_x - diameter / 2.0, z), (fan_x + diameter / 2.0, z), False, 1.2, f"{label} DIA")
+        if name == "BAFFLE_INLET_SEPARATOR_THICKNESS_Z":
+            count = int(C["BAFFLE_INLET_SLOT_COUNT"])
+            separator = float(entry.value)
+            slot_height = (float(C["BAFFLE_INLET_DIAMETER"]) - (count - 1) * separator) / count
+            bottom = -inlet_half + slot_height
+            return linear((fan_x, bottom), (fan_x, bottom + separator), True, -2.0)
+        if name == "BAFFLE_INLET_ROOF_APEX_X":
+            return linear((fan_x, inlet_half - 2.5), (fan_x + float(entry.value), inlet_half - 2.5), False, 1.0)
+        if name == "BAFFLE_INLET_ROOF_RUN_X":
+            apex = fan_x + float(C["BAFFLE_INLET_ROOF_APEX_X"])
+            return linear((apex - float(entry.value), inlet_half - 5.0), (apex, inlet_half - 5.0), False, 1.0)
+        if name == "BAFFLE_GASKET_BOSS_CLEARANCE":
+            boss_x = fan_x + float(C["FAN_HOLE_SPACING_X"]) / 2.0
+            boss_z = float(C["FAN_CENTER_Z"]) + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
+            radius_value = float(C["FAN_HOLE_BOSS_DIAMETER"]) / 2.0
+            return linear((boss_x + radius_value, boss_z), (boss_x + radius_value + float(entry.value), boss_z), False, 0.8, f"{label} CLR")
+        if name == "BAFFLE_OUTLET_WIDTH":
+            return linear((-outlet_half_width, 0.0), (outlet_half_width, 0.0), False, -2.0)
+        if name == "BAFFLE_OUTLET_HEIGHT":
+            return linear((0.0, -outlet_half_height), (0.0, outlet_half_height), True, 2.0)
+        if name == "BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z":
+            separator = float(entry.value)
+            return linear((0.0, -separator / 2.0), (0.0, separator / 2.0), True, -2.0)
+        if name == "BAFFLE_OUTLET_ROOF_RUN_X":
+            return linear((outlet_half_width - float(entry.value), outlet_half_height - 2.0), (outlet_half_width, outlet_half_height - 2.0), False, 1.0)
+
+        receiver_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
+        hook_y = receiver_y - float(C["BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y"])
+        receiver_dome = baffle_dome_half_height_for_drawings(receiver_y)
+        hook_dome = baffle_dome_half_height_for_drawings(hook_y)
+        receiver_tip = receiver_dome - float(C["BAFFLE_SNAP_RECEIVER_PROJECTION_Z"])
+        tongue_outer = hook_dome - float(C["BAFFLE_SNAP_TONGUE_WALL_OFFSET"])
+        hook_tip = tongue_outer + float(C["BAFFLE_SNAP_HOOK_PROTRUSION_Z"])
+        if name in {"BAFFLE_LID_PLATE_THICKNESS_X", "BAFFLE_LID_KEY_DEPTH_X"}:
+            right = baffle_body_bounds_for_drawings(float(C["BAFFLE_FRONT_Y"]))[1]
+            if name == "BAFFLE_LID_PLATE_THICKNESS_X":
+                return linear((right - float(entry.value), -15.0), (right, -15.0), False, -1.2)
+            inner_right = right - float(C["BAFFLE_WALL_THICKNESS"])
+            return linear((inner_right - float(entry.value), 15.0), (inner_right, 15.0), False, 1.2)
+        if name == "BAFFLE_LID_FIT_CLEARANCE":
+            top_inner = body_half - float(C["BAFFLE_WALL_THICKNESS"])
+            return linear((front_half_width - 3.0, top_inner - float(entry.value)), (front_half_width - 3.0, top_inner), True, 1.0)
+        if name in {"BAFFLE_SNAP_RECEIVER_WIDTH_X", "BAFFLE_SNAP_TONGUE_WIDTH_X"}:
+            width_value = float(entry.value)
+            z = receiver_tip if name == "BAFFLE_SNAP_RECEIVER_WIDTH_X" else tongue_outer
+            offset = -3.0 if name == "BAFFLE_SNAP_RECEIVER_WIDTH_X" else -5.0
+            return linear((-width_value / 2.0, z), (width_value / 2.0, z), False, offset)
+        if name == "BAFFLE_SNAP_RECEIVER_PROJECTION_Z":
+            return linear((-8.0, receiver_tip), (-8.0, receiver_dome), True, -1.0)
+        if name == "BAFFLE_SNAP_RECEIVER_BEVEL":
+            anchor = (
+                float(C["BAFFLE_SNAP_RECEIVER_WIDTH_X"]) / 2.0
+                - float(entry.value),
+                receiver_tip + float(entry.value),
+            )
+            return leader(anchor, (12.0, body_half - 6.0), f"{label} R", "radius")
+        if name == "BAFFLE_SNAP_TONGUE_THICKNESS_Z":
+            center_z = tongue_outer - float(entry.value) / 2.0
+            return linear((-4.0, center_z - float(entry.value) / 2.0), (-4.0, center_z + float(entry.value) / 2.0), True, -1.0)
+        if name == "BAFFLE_SNAP_TONGUE_WALL_OFFSET":
+            return linear((10.0, tongue_outer), (10.0, hook_dome), True, 1.0)
+        if name == "BAFFLE_SNAP_HOOK_PROTRUSION_Z":
+            return linear((-12.0, tongue_outer), (-12.0, hook_tip), True, -1.0)
+        if name == "BAFFLE_SNAP_INTERFERENCE_Z":
+            return linear((14.0, receiver_tip), (14.0, hook_tip), True, 0.8)
+
+    if view in {"baffle_side", "baffle_airway", "baffle_snap"}:
+        rear_y = float(C["BAFFLE_REAR_Y"])
+        front_y = float(C["BAFFLE_FRONT_Y"])
+        body_half = float(C["BAFFLE_BODY_HEIGHT"]) / 2.0
+        first_y = float(C["BAFFLE_FIRST_Y"])
+        second_y = float(C["BAFFLE_SECOND_Y"])
+        if name == "BAFFLE_REAR_Y":
+            return linear((0.0, -18.0), (rear_y, -18.0), False, -1.0)
+        if name == "BAFFLE_FRONT_Y":
+            return linear((0.0, 18.0), (front_y, 18.0), False, 1.0)
+        if name == "BAFFLE_BODY_DEPTH_SECTIONS":
+            return leader(((rear_y + front_y) / 2.0, body_half), ((rear_y + front_y) / 2.0, body_half + 7.0), f"{label} LOFT STATIONS", "construction")
+        if name == "BAFFLE_WALL_THICKNESS":
+            return linear((rear_y + 2.0, body_half - float(entry.value)), (rear_y + 2.0, body_half), True, -1.0)
+        if name == "BAFFLE_INTERNAL_THICKNESS_Y":
+            half = float(entry.value) / 2.0
+            return linear((first_y - half, 0.0), (first_y + half, 0.0), False, -1.2)
+        if name == "BAFFLE_GASKET_THICKNESS_Y":
+            fan_inner = -float(C["BACK_DOME_DEPTH"]) + float(C["BACK_FACE_THICKNESS"])
+            return linear((fan_inner, 16.0), (fan_inner + float(entry.value), 16.0), False, 1.0)
+        if name in {"BAFFLE_FIRST_Y", "BAFFLE_SECOND_Y"}:
+            y_value = float(entry.value)
+            z = -14.0 if name == "BAFFLE_FIRST_Y" else 14.0
+            return linear((0.0, z), (y_value, z), False, -1.0 if z < 0 else 1.0)
+        if name == "BAFFLE_FIRST_BLOCKER_HEIGHT_Z":
+            half = float(entry.value) / 2.0
+            return linear((first_y, -half), (first_y, half), True, -1.0)
+        if name == "BAFFLE_SECOND_OPENING_HEIGHT_Z":
+            half = float(entry.value) / 2.0
+            return linear((second_y, -half), (second_y, half), True, 1.0)
+        if name == "BAFFLE_MIN_EDGE_OVERLAP_Z":
+            second_half = float(C["BAFFLE_SECOND_OPENING_HEIGHT_Z"]) / 2.0
+            return linear(((first_y + second_y) / 2.0, second_half), ((first_y + second_y) / 2.0, second_half + float(entry.value)), True, 0.0)
+        if name == "BAFFLE_MIN_THROAT_AREA":
+            return leader((second_y, 0.0), (front_y - 3.0, -13.0), f"{label} MIN FLOW AREA", "construction")
+        if name == "BAFFLE_MIN_ROOF_ANGLE_DEG":
+            arc_center = (rear_y + 4.0, -13.0)
+            arc_radius = 3.5
+            angle_value = float(entry.value)
+            ax.add_patch(
+                Arc(
+                    arc_center,
+                    2.0 * arc_radius,
+                    2.0 * arc_radius,
+                    theta1=0.0,
+                    theta2=angle_value,
+                    color=RED,
+                    linewidth=0.9,
+                    zorder=18,
+                )
+            )
+            return leader(
+                (
+                    arc_center[0]
+                    + arc_radius * math.cos(math.radians(angle_value)),
+                    arc_center[1]
+                    + arc_radius * math.sin(math.radians(angle_value)),
+                ),
+                (rear_y + 8.0, -7.0),
+                label,
+                "arc",
+            )
+
+        receiver_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
+        hook_y = receiver_y - float(C["BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y"])
+        snap_z = baffle_dome_half_height_for_drawings(receiver_y)
+        if name in {"BAFFLE_SNAP_RECEIVER_Y", "BAFFLE_SNAP_TONGUE_ROOT_Y"}:
+            y_value = float(entry.value)
+            z = 18.0 if name == "BAFFLE_SNAP_RECEIVER_Y" else -18.0
+            return linear((0.0, z), (y_value, z), False, 1.0 if z > 0 else -1.0)
+        if name in {"BAFFLE_SNAP_RECEIVER_DEPTH_Y", "BAFFLE_SNAP_ROOT_DEPTH_Y"}:
+            center_y = receiver_y if name == "BAFFLE_SNAP_RECEIVER_DEPTH_Y" else float(C["BAFFLE_SNAP_TONGUE_ROOT_Y"])
+            half = float(entry.value) / 2.0
+            z = snap_z if name == "BAFFLE_SNAP_RECEIVER_DEPTH_Y" else -snap_z
+            return linear((center_y - half, z), (center_y + half, z), False, 1.0 if z > 0 else -1.0)
+        if name == "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y":
+            return linear((hook_y, snap_z - 4.0), (receiver_y, snap_z - 4.0), False, -1.0)
 
     if view == "back_front":
         fan_x = float(C["FAN_CENTER_X"])

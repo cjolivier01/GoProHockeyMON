@@ -88,7 +88,7 @@ print_targets:
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
 		'dual-fan                  Build the parametric dual-fan STL.' \
-		'fan-case                  Build the fan case, buttons, swing gate, and rotating-keeper STLs.' \
+		'fan-case                  Build the case, buttons, baffle tray/lid/gasket, swing gate, and keeper STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
 		'' \
 		'Documentation' \
