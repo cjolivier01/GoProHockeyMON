@@ -2977,14 +2977,17 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
         if entry.name == "PRINT_BED_GAP":
             back = projected_part_geometry("back", "xz")
             insert_minimum = back.bounds[2] + float(C["PRINT_BED_GAP"])
+            start = (back.bounds[2], minimum_y)
+            end = (insert_minimum, minimum_y)
             draw_linear_annotation(
                 ax,
-                (back.bounds[2], minimum_y),
-                (insert_minimum, minimum_y),
+                start,
+                end,
                 label,
                 -lane * height,
                 False,
             )
+            record_graphical_primitive(entry, "linear", start, end)
         elif view == "snap_detail" and kind == "axial_linear" and numeric_value > 1.0e-9:
             snap_start_y = boss_assembly_datum_y()
             if entry.name == "SNAP_BUMP_Y_OFFSET":
@@ -3001,6 +3004,12 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
                 lane_sign * lane * width,
                 True,
             )
+            record_graphical_primitive(
+                entry,
+                "linear",
+                (anchor[0], start_y),
+                (anchor[0], end_y),
+            )
         elif view in {"gate_side", "keeper_side"} and kind == "axial_linear" and numeric_value > 1.0e-9:
             draw_linear_annotation(
                 ax,
@@ -3009,6 +3018,12 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
                 label,
                 lane_sign * lane * width,
                 True,
+            )
+            record_graphical_primitive(
+                entry,
+                "linear",
+                (anchor[0], 0.0),
+                (anchor[0], numeric_value),
             )
         elif kind == "angular_arc":
             radius = max((0.11 + index * 0.08) * min(width, height), 4.0 + index * 3.0)
@@ -3050,17 +3065,30 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
                 bbox={"facecolor": WHITE, "edgecolor": "none", "alpha": 0.9, "pad": 0.5},
                 zorder=20,
             )
+            record_graphical_primitive(
+                entry,
+                "arc",
+                anchor,
+                (anchor[0] + radius, anchor[1]),
+                (
+                    anchor[0] + radius * math.cos(math.radians(angle)),
+                    anchor[1] + radius * math.sin(math.radians(angle)),
+                ),
+            )
         elif kind == "diameter_dimension":
             span = max(numeric_value, 0.08 * width)
             diameter_offset = lane_sign * lane * height
+            start = (anchor[0] - span / 2.0, anchor[1])
+            end = (anchor[0] + span / 2.0, anchor[1])
             draw_linear_annotation(
                 ax,
-                (anchor[0] - span / 2.0, anchor[1]),
-                (anchor[0] + span / 2.0, anchor[1]),
+                start,
+                end,
                 f"{label} DIA",
                 diameter_offset,
                 False,
             )
+            record_graphical_primitive(entry, "diameter", start, end)
         elif kind == "radius_leader" and numeric_value > 1.0e-9:
             endpoint = draw_radius_annotation(ax, anchor, numeric_value, 45.0, label)
             record_graphical_primitive(entry, "radius", anchor, endpoint)
@@ -3079,6 +3107,12 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
                 lane_sign * lane * height,
                 False,
             )
+            record_graphical_primitive(
+                entry,
+                "linear",
+                (start_x, anchor[1]),
+                (end_x, anchor[1]),
+            )
         elif kind in {"vertical_linear", "z_ordinate"} and numeric_value > 1.0e-9:
             if kind == "z_ordinate":
                 start_y, end_y = 0.0, float(entry.value)
@@ -3093,6 +3127,12 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
                 label,
                 lane_sign * lane * width,
                 True,
+            )
+            record_graphical_primitive(
+                entry,
+                "linear",
+                (anchor[0], start_y),
+                (anchor[0], end_y),
             )
         else:
             label_positions = (
@@ -3116,15 +3156,11 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
                 arrowprops={"arrowstyle": "->", "color": RED, "linewidth": 0.8},
                 zorder=20,
             )
-        if entry.name not in GRAPHICAL_PRIMITIVE_RECORDS:
             record_graphical_primitive(
                 entry,
-                kind,
+                "leader",
                 anchor,
-                (
-                    anchor[0] + max(width * 0.01, 1.0e-6),
-                    anchor[1] + max(height * 0.01, 1.0e-6),
-                ),
+                label_positions[index % len(label_positions)],
             )
         GRAPHICALLY_ANNOTATED_NAMES.add(entry.name)
         GRAPHICAL_ANNOTATION_KINDS[entry.name] = kind
