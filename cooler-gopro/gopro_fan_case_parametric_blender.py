@@ -203,9 +203,15 @@ BAFFLE_MIN_ROOF_ANGLE_DEG = 60.0
 
 # The +X side lid replaces the removed side wall.  Its broad outer plate sits
 # flush with the tray while a shallow inner key locates it for bonding after
-# the airway is inspected and cleaned.
+# the airway is inspected and cleaned.  In the TPU profile, a shallow open
+# groove in that key captures a matching extension on the first (center-height)
+# blocker so its flexible free edge cannot wobble away from the lid.
 BAFFLE_LID_KEY_DEPTH_X = 0.80
 BAFFLE_LID_FIT_CLEARANCE = 0.25
+BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X = 0.60
+BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X = 0.35
+BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y = 0.20
+BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z = 0.25
 
 # Top/bottom cartridge retention. Each long tongue is carried at the tray's
 # centerline, clear of the existing left/right camera stops. The tongues follow
@@ -1634,6 +1640,18 @@ def validate_baffle_cartridge_config() -> None:
         "BAFFLE_MIN_ROOF_ANGLE_DEG": BAFFLE_MIN_ROOF_ANGLE_DEG,
         "BAFFLE_LID_KEY_DEPTH_X": BAFFLE_LID_KEY_DEPTH_X,
         "BAFFLE_LID_FIT_CLEARANCE": BAFFLE_LID_FIT_CLEARANCE,
+        "BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X": (
+            BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X
+        ),
+        "BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X": (
+            BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X
+        ),
+        "BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y": (
+            BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y
+        ),
+        "BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z": (
+            BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z
+        ),
         "BAFFLE_SNAP_RECEIVER_WIDTH_X": BAFFLE_SNAP_RECEIVER_WIDTH_X,
         "BAFFLE_SNAP_RECEIVER_DEPTH_Y": BAFFLE_SNAP_RECEIVER_DEPTH_Y,
         "BAFFLE_SNAP_RECEIVER_PROJECTION_Z": (
@@ -1711,6 +1729,52 @@ def validate_baffle_cartridge_config() -> None:
         BAFFLE_REAR_WIDTH / 2.0
     ):
         raise ValueError("The baffle lid key consumes the rear airway")
+    if BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X >= BAFFLE_LID_KEY_DEPTH_X:
+        raise ValueError(
+            "The TPU blocker slot must leave a closed floor in the lid key"
+        )
+    if (
+        BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X
+        >= BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X
+    ):
+        raise ValueError(
+            "The TPU blocker tab needs clearance before the slot floor"
+        )
+    if baffle_gasket_is_integral():
+        slot_half_y = (
+            BAFFLE_INTERNAL_THICKNESS_Y / 2.0
+            + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y
+        )
+        slot_half_z = (
+            BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+            + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z
+        )
+        key_start_y = (
+            BAFFLE_REAR_Y
+            + BAFFLE_WALL_THICKNESS
+            + BAFFLE_LID_FIT_CLEARANCE
+        )
+        key_end_y = (
+            BAFFLE_FRONT_Y
+            - BAFFLE_WALL_THICKNESS
+            - BAFFLE_LID_FIT_CLEARANCE
+        )
+        if not (
+            key_start_y < BAFFLE_FIRST_Y - slot_half_y
+            < BAFFLE_FIRST_Y + slot_half_y < key_end_y
+        ):
+            raise ValueError(
+                "The TPU blocker slot does not fit within the lid key length"
+            )
+        key_half_height = (
+            BAFFLE_BODY_HEIGHT / 2.0
+            - BAFFLE_WALL_THICKNESS
+            - BAFFLE_LID_FIT_CLEARANCE
+        )
+        if slot_half_z >= key_half_height:
+            raise ValueError(
+                "The TPU blocker slot consumes the top/bottom lid key"
+            )
     if not (
         BAFFLE_GASKET_OUTER_DIAMETER
         > BAFFLE_GASKET_INNER_DIAMETER
@@ -4315,12 +4379,7 @@ def create_baffle_side_opening_cutter():
             / BAFFLE_BODY_DEPTH_SECTIONS
         )
         _left, right, bottom, top = baffle_body_bounds_at_y(y)
-        inner_right = right - BAFFLE_WALL_THICKNESS
-        cutter_left = (
-            inner_right
-            - BAFFLE_LID_KEY_DEPTH_X
-            - BAFFLE_LID_FIT_CLEARANCE
-        )
+        cutter_left = baffle_tray_side_opening_x_at_y(y)
         loops.append(
             [
                 (cutter_left, bottom - cut_margin),
@@ -4351,6 +4410,17 @@ def create_baffle_side_opening_cutter():
 def baffle_boolean_join_overlap() -> float:
     """Return a bevel-safe overlap for the cartridge's Boolean joints."""
     return max(0.45, 5.0 * BOOLEAN_OVERLAP)
+
+
+def baffle_lid_key_inner_x_at_y(y: float) -> float:
+    """Return the airway-facing surface of the lid's shallow locating key."""
+    right = baffle_body_bounds_at_y(y)[1]
+    return right - BAFFLE_WALL_THICKNESS - BAFFLE_LID_KEY_DEPTH_X
+
+
+def baffle_tray_side_opening_x_at_y(y: float) -> float:
+    """Return the open edge shared by the tray wall and internal blockers."""
+    return baffle_lid_key_inner_x_at_y(y) - BAFFLE_LID_FIT_CLEARANCE
 
 
 def baffle_internal_member_x_bounds(center_y: float):
@@ -4436,6 +4506,57 @@ def add_baffle_internal_members(tray):
         tray,
         bottom_member,
         "Baffle_Second_Bottom_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+    return tray
+
+
+def add_baffle_tpu_lid_blocker_tab(tray):
+    """Extend the flexible first blocker into its shallow lid-side slot."""
+    if not baffle_gasket_is_integral():
+        return tray
+
+    half_y = BAFFLE_INTERNAL_THICKNESS_Y / 2.0
+    half_z = BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+    y_positions = (BAFFLE_FIRST_Y - half_y, BAFFLE_FIRST_Y + half_y)
+    join_overlap = baffle_boolean_join_overlap()
+    loops = []
+    for y in y_positions:
+        tray_edge_x = baffle_tray_side_opening_x_at_y(y)
+        slot_entry_x = baffle_lid_key_inner_x_at_y(y)
+        loops.append(
+            [
+                (tray_edge_x - join_overlap, -half_z),
+                (
+                    slot_entry_x
+                    + BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X,
+                    -half_z,
+                ),
+                (
+                    slot_entry_x
+                    + BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X,
+                    half_z,
+                ),
+                (tray_edge_x - join_overlap, half_z),
+            ]
+        )
+    tab = loft_through_loops_y(
+        "Baffle_TPU_First_Blocker_Lid_Tab",
+        loops,
+        y_positions,
+        cap_centers=tuple(
+            (
+                sum(point[0] for point in loop) / len(loop),
+                sum(point[1] for point in loop) / len(loop),
+            )
+            for loop in loops
+        ),
+    )
+    boolean_union(
+        tray,
+        tab,
+        "Baffle_TPU_First_Blocker_Lid_Tab_Union",
         solver=WATERTIGHT_DETAIL_UNION_SOLVER,
         require_geometry_change=True,
     )
@@ -4665,6 +4786,7 @@ def create_baffle_tray():
         solver=WATERTIGHT_DETAIL_UNION_SOLVER,
         require_geometry_change=True,
     )
+    add_baffle_tpu_lid_blocker_tab(tray)
     add_baffle_snap_tongues(tray)
     if baffle_gasket_is_integral():
         integral_seal = create_baffle_seal_ring(
@@ -4717,6 +4839,51 @@ def baffle_lid_key_loop_at_y(y: float):
     ]
 
 
+def create_baffle_tpu_lid_blocker_slot_cutter():
+    """Create an upward-open, support-free groove for the flexible blocker."""
+    slot_half_y = (
+        BAFFLE_INTERNAL_THICKNESS_Y / 2.0
+        + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y
+    )
+    slot_half_z = (
+        BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+        + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z
+    )
+    y_positions = (
+        BAFFLE_FIRST_Y - slot_half_y,
+        BAFFLE_FIRST_Y + slot_half_y,
+    )
+    loops = []
+    for y in y_positions:
+        slot_entry_x = baffle_lid_key_inner_x_at_y(y)
+        loops.append(
+            [
+                (slot_entry_x - BOOLEAN_OVERLAP, -slot_half_z),
+                (
+                    slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X,
+                    -slot_half_z,
+                ),
+                (
+                    slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X,
+                    slot_half_z,
+                ),
+                (slot_entry_x - BOOLEAN_OVERLAP, slot_half_z),
+            ]
+        )
+    return loft_through_loops_y(
+        "Baffle_TPU_First_Blocker_Lid_Slot",
+        loops,
+        y_positions,
+        cap_centers=tuple(
+            (
+                sum(point[0] for point in loop) / len(loop),
+                sum(point[1] for point in loop) / len(loop),
+            )
+            for loop in loops
+        ),
+    )
+
+
 def create_baffle_lid():
     outer_loops = (
         baffle_lid_outer_loop_at_y(BAFFLE_REAR_Y),
@@ -4767,6 +4934,16 @@ def create_baffle_lid():
         solver=WATERTIGHT_DETAIL_UNION_SOLVER,
         require_geometry_change=True,
     )
+    if baffle_gasket_is_integral():
+        slot = create_baffle_tpu_lid_blocker_slot_cutter()
+        apply_boolean(
+            outer,
+            slot,
+            "DIFFERENCE",
+            "Baffle_TPU_First_Blocker_Lid_Slot",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
     outer.name = "GoPro_Fan_Case_Baffle_Lid"
     outer.data.name = "GoPro_Fan_Case_Baffle_Lid_Mesh"
     return outer
@@ -6177,6 +6354,7 @@ def validate_baffle_cartridge(back, components) -> None:
         )
 
     tray_bvh = mesh_bvh(tray)
+    lid_bvh = mesh_bvh(lid)
     first_left, first_right, _bottom, _top = (
         baffle_effective_airway_bounds_at_y(BAFFLE_FIRST_Y)
     )
@@ -6275,6 +6453,79 @@ def validate_baffle_cartridge(back, components) -> None:
         raise RuntimeError(
             "Baffle tray internal-geometry validation failed: "
             + ", ".join(failures)
+        )
+
+    if baffle_gasket_is_integral():
+        slot_entry_x = baffle_lid_key_inner_x_at_y(BAFFLE_FIRST_Y)
+        tab_probe = (
+            slot_entry_x
+            + BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X / 2.0,
+            BAFFLE_FIRST_Y,
+            0.0,
+        )
+        slot_probe = (
+            slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X / 2.0,
+            BAFFLE_FIRST_Y,
+            0.0,
+        )
+        blind_clearance_probe = (
+            slot_entry_x
+            + (
+                BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X
+                + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X
+            )
+            / 2.0,
+            BAFFLE_FIRST_Y,
+            0.0,
+        )
+        slot_floor_probe = (
+            slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X + 0.10,
+            BAFFLE_FIRST_Y,
+            0.0,
+        )
+        side_wall_y = (
+            BAFFLE_FIRST_Y
+            + BAFFLE_INTERNAL_THICKNESS_Y / 2.0
+            + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y
+            + 0.10
+        )
+        side_wall_probe = (
+            baffle_lid_key_inner_x_at_y(side_wall_y)
+            + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X / 2.0,
+            side_wall_y,
+            0.0,
+        )
+        end_wall_probe = (
+            slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X / 2.0,
+            BAFFLE_FIRST_Y,
+            BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+            + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z
+            + 0.10,
+        )
+        if not bvh_point_is_inside(tray_bvh, tab_probe):
+            raise RuntimeError("The TPU first-blocker lid tab is missing")
+        if bvh_point_is_inside(lid_bvh, slot_probe):
+            raise RuntimeError("The TPU lid blocker locating slot is missing")
+        if (
+            bvh_point_is_inside(tray_bvh, blind_clearance_probe)
+            or bvh_point_is_inside(lid_bvh, blind_clearance_probe)
+        ):
+            raise RuntimeError(
+                "The TPU blocker tab lacks clearance before the slot floor"
+            )
+        if not all(
+            bvh_point_is_inside(lid_bvh, point)
+            for point in (slot_floor_probe, side_wall_probe, end_wall_probe)
+        ):
+            raise RuntimeError(
+                "The TPU lid blocker slot lacks a closed floor or locating wall"
+            )
+        print(
+            "BAFFLE_TPU_LID_BLOCKER_SLOT PASS "
+            f"depth={BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X:.2f}mm "
+            f"engagement={BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X:.2f}mm "
+            f"clearance_y={BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y:.2f}mm "
+            f"clearance_z={BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z:.2f}mm"
         )
 
     seal = tray if gasket is None else gasket
