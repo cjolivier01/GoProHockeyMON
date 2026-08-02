@@ -1,4 +1,4 @@
-"""Clean parametric two-piece GoPro fan case for Blender.
+"""Clean parametric GoPro fan case and removable accessories for Blender.
 
 Run inside Blender:
 
@@ -6,8 +6,11 @@ Run inside Blender:
 
 All dimensions are millimeters. The defaults follow ``gopro-fan-case.stl``
 without reproducing its internal scraps or jagged hole edges. The generated
-objects are two independent manifold shells: a shallow fan/socket shell and
-an open frame that snaps into it.
+objects include the rear shell, removable insert, captive buttons, selected
+front retainer, and—when enabled—the acoustic tray and keyed lid. Rigid
+cartridges add a groove-located TPU gasket; TPU cartridges carry the same seal
+as an integral rear bead. Every exported printable object is validated as an
+independent manifold shell.
 
 Axes:
     X - case width
@@ -41,6 +44,7 @@ PRINT_BED_GAP = 12.0
 BACK_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
 SLEEVE_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
 RETAINER_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
+BAFFLE_CARTRIDGE_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
 
 # Post-build viewport/render visibility. Geometry is still built, validated,
 # and exported when hidden, making it easy to inspect either part by itself.
@@ -48,6 +52,7 @@ SHOW_BACK_SHELL = True
 SHOW_HOLLOW_INSERT = True
 SHOW_BUTTONS = True
 SHOW_FRONT_RETAINER = True
+SHOW_BAFFLE_CARTRIDGE = True
 
 # The front plate depends on the case fasteners, but remains optional so the
 # pre-existing fastener-disabled sleeve configuration can still be built.
@@ -68,6 +73,9 @@ INSERT_STL_NAME = "gopro_fan_case_insert.stl"
 BUTTON_STL_NAME = "gopro_fan_case_button.stl"
 RETAINER_STL_NAME = "gopro_fan_case_front_retainer.stl"
 RETAINER_KEEPER_STL_NAME = "gopro_fan_case_rotating_keeper.stl"
+BAFFLE_TRAY_STL_NAME = "gopro_fan_case_baffle_tray.stl"
+BAFFLE_LID_STL_NAME = "gopro_fan_case_baffle_lid.stl"
+BAFFLE_GASKET_STL_NAME = "gopro_fan_case_baffle_gasket.stl"
 
 # Mesh and boolean quality.
 CYLINDER_SEGMENTS = 96
@@ -134,6 +142,89 @@ FAN_HOLE_DIAMETER = 3.6
 FAN_HOLE_BOSSES_ENABLED = True
 FAN_HOLE_BOSS_DIAMETER = 7.0
 FAN_HOLE_BOSS_HEIGHT = 1.0
+
+# Optional removable Offset-S acoustic cartridge.  It occupies only the
+# existing domed rear cavity: a sealed inlet gasket feeds two alternating
+# full-width baffles, whose projected edges overlap to remove every straight
+# fan-to-camera sound path. The cartridge is a side-open tray plus a separately
+# printed keyed lid; it avoids bulk internal supports but retains one controlled
+# bridge across the existing-camera-stop relief. A groove-located TPU gasket,
+# or an integral bead when the tray itself is TPU, seals the circular inlet.
+# Two compliant top/bottom tongues engage shallow receiver ribs added to the
+# back shell without changing its exterior envelope.
+BAFFLE_CARTRIDGE_ENABLED = True
+BAFFLE_REAR_Y = -5.20
+BAFFLE_FRONT_Y = 14.00
+BAFFLE_REAR_WIDTH = 44.0
+BAFFLE_FRONT_WIDTH = 70.0
+BAFFLE_BODY_HEIGHT = 44.0
+BAFFLE_BODY_DEPTH_SECTIONS = 8
+BAFFLE_STOP_CLEARANCE = 0.80
+# These four dimensions are selected by BAFFLE_CARTRIDGE_MATERIAL_PROFILES.
+BAFFLE_WALL_THICKNESS = 1.60
+BAFFLE_INTERNAL_THICKNESS_Y = 1.80
+BAFFLE_LID_PLATE_THICKNESS_X = 1.20
+BAFFLE_SNAP_TONGUE_THICKNESS_Z = 1.00
+
+# Rear inlet stack. Three pointed slots retain most of the fan-circle area
+# while keeping every closing roof safely self-supporting in print space. The
+# thin separator ribs also stiffen the rear face. A rigid cartridge locates its
+# separately printed TPU gasket in a shallow annular rear groove. A continuous
+# gasket-shaped floor land backs the seal even where the pointed inlet cutters
+# extend beyond the circular bore. With the TPU cartridge profile, the same
+# exposed sealing ring is unioned directly to the tray. Four scallops register
+# either seal around the fan bosses.
+BAFFLE_INLET_DIAMETER = 37.0
+BAFFLE_INLET_SLOT_COUNT = 3
+BAFFLE_INLET_SEPARATOR_THICKNESS_Z = 2.00
+BAFFLE_INLET_ROOF_APEX_X = 21.0
+BAFFLE_INLET_ROOF_RUN_X = 12.0
+BAFFLE_GASKET_OUTER_DIAMETER = 39.0
+BAFFLE_GASKET_INNER_DIAMETER = 37.0
+BAFFLE_GASKET_THICKNESS_Y = 2.40
+BAFFLE_GASKET_BOSS_CLEARANCE = 0.15
+BAFFLE_GASKET_GROOVE_DEPTH_Y = 0.40
+BAFFLE_GASKET_GROOVE_RADIAL_CLEARANCE = 0.20
+
+# Alternating baffles and broad forward outlet.  The first blocker leaves top
+# and bottom lanes; the second closes those lanes and leaves a center throat.
+BAFFLE_FIRST_Y = 4.80
+BAFFLE_FIRST_BLOCKER_HEIGHT_Z = 22.0
+BAFFLE_SECOND_Y = 11.40
+BAFFLE_SECOND_OPENING_HEIGHT_Z = 14.2
+BAFFLE_MIN_EDGE_OVERLAP_Z = 2.0
+BAFFLE_MIN_THROAT_AREA = 870.0
+BAFFLE_OUTLET_WIDTH = 64.0
+BAFFLE_OUTLET_HEIGHT = 18.0
+BAFFLE_OUTLET_SLOT_COUNT = 2
+BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z = 2.00
+BAFFLE_OUTLET_ROOF_RUN_X = 14.0
+BAFFLE_MIN_ROOF_ANGLE_DEG = 60.0
+
+# The +X side lid replaces the removed side wall.  Its broad outer plate sits
+# flush with the tray while a shallow inner key locates it for bonding after
+# the airway is inspected and cleaned.
+BAFFLE_LID_KEY_DEPTH_X = 0.80
+BAFFLE_LID_FIT_CLEARANCE = 0.25
+
+# Top/bottom cartridge retention. Each long tongue is carried at the tray's
+# centerline, clear of the existing left/right camera stops. The tongues follow
+# the dome wall, snap past shallow back-shell receiver ribs, and remain
+# accessible from the front after the sleeve is removed. Their hooks seat just
+# behind the receiver crests, maintaining gasket preload until deliberately
+# flexed toward the cartridge center for removal.
+BAFFLE_SNAP_RECEIVER_Y = 12.20
+BAFFLE_SNAP_RECEIVER_WIDTH_X = 8.0
+BAFFLE_SNAP_RECEIVER_DEPTH_Y = 2.20
+BAFFLE_SNAP_RECEIVER_PROJECTION_Z = 1.25
+BAFFLE_SNAP_RECEIVER_BEVEL = 0.25
+BAFFLE_SNAP_TONGUE_ROOT_Y = 4.00
+BAFFLE_SNAP_TONGUE_WIDTH_X = 10.0
+BAFFLE_SNAP_TONGUE_WALL_OFFSET = 1.30
+BAFFLE_SNAP_ROOT_DEPTH_Y = 1.80
+BAFFLE_SNAP_HOOK_PROTRUSION_Z = 0.70
+BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y = 1.00
+BAFFLE_SNAP_INTERFERENCE_Z = 0.45
 
 # Smooth rectangular vent and diagonal louvers to the fan's right.
 VENT_ENABLED = False
@@ -399,6 +490,9 @@ INSERT_COLOR = (0.88, 0.26, 0.08, 1.0)
 BUTTON_COLOR = (0.12, 0.12, 0.12, 1.0)
 RETAINER_COLOR = (0.18, 0.62, 0.30, 1.0)
 RETAINER_KEEPER_COLOR = (0.56, 0.24, 0.68, 1.0)
+BAFFLE_TRAY_COLOR = (0.93, 0.42, 0.12, 1.0)
+BAFFLE_LID_COLOR = (1.00, 0.64, 0.25, 1.0)
+BAFFLE_GASKET_COLOR = (0.12, 0.46, 0.24, 1.0)
 
 
 # Back-shell values controlled by BACK_MATERIAL_MODE.  Keep a complete rigid
@@ -454,6 +548,67 @@ def set_back_material_mode(mode: str) -> None:
 
 
 set_back_material_mode(BACK_MATERIAL_MODE)
+
+
+_RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE = {
+    "BAFFLE_WALL_THICKNESS": 1.60,
+    "BAFFLE_INTERNAL_THICKNESS_Y": 1.80,
+    "BAFFLE_LID_PLATE_THICKNESS_X": 1.20,
+    "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 1.00,
+}
+BAFFLE_CARTRIDGE_MATERIAL_PROFILES = {
+    "RIGID": _RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE,
+    "TPU": {
+        **_RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE,
+        "BAFFLE_WALL_THICKNESS": 2.00,
+        "BAFFLE_INTERNAL_THICKNESS_Y": 2.40,
+        "BAFFLE_LID_PLATE_THICKNESS_X": 2.00,
+        "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 1.60,
+    },
+}
+_APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = None
+
+
+def apply_baffle_cartridge_material_profile() -> None:
+    global _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE
+    global BAFFLE_WALL_THICKNESS
+    global BAFFLE_INTERNAL_THICKNESS_Y
+    global BAFFLE_LID_PLATE_THICKNESS_X
+    global BAFFLE_SNAP_TONGUE_THICKNESS_Z
+
+    try:
+        profile = BAFFLE_CARTRIDGE_MATERIAL_PROFILES[
+            BAFFLE_CARTRIDGE_MATERIAL_MODE
+        ]
+    except KeyError as error:
+        choices = ", ".join(sorted(BAFFLE_CARTRIDGE_MATERIAL_PROFILES))
+        raise ValueError(
+            "BAFFLE_CARTRIDGE_MATERIAL_MODE must be one of: "
+            f"{choices}; got {BAFFLE_CARTRIDGE_MATERIAL_MODE!r}"
+        ) from error
+
+    BAFFLE_WALL_THICKNESS = profile["BAFFLE_WALL_THICKNESS"]
+    BAFFLE_INTERNAL_THICKNESS_Y = profile[
+        "BAFFLE_INTERNAL_THICKNESS_Y"
+    ]
+    BAFFLE_LID_PLATE_THICKNESS_X = profile[
+        "BAFFLE_LID_PLATE_THICKNESS_X"
+    ]
+    BAFFLE_SNAP_TONGUE_THICKNESS_Z = profile[
+        "BAFFLE_SNAP_TONGUE_THICKNESS_Z"
+    ]
+    _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = (
+        BAFFLE_CARTRIDGE_MATERIAL_MODE
+    )
+
+
+def set_baffle_cartridge_material_mode(mode: str) -> None:
+    global BAFFLE_CARTRIDGE_MATERIAL_MODE
+    BAFFLE_CARTRIDGE_MATERIAL_MODE = mode
+    apply_baffle_cartridge_material_profile()
+
+
+set_baffle_cartridge_material_mode(BAFFLE_CARTRIDGE_MATERIAL_MODE)
 
 
 # ---------------------------------------------------------------------------
@@ -682,6 +837,359 @@ def insert_inner_width() -> float:
 
 def insert_inner_height() -> float:
     return INSERT_FRONT_HEIGHT - 2.0 * INSERT_WALL_Z
+
+
+def baffle_depth_fraction(y: float) -> float:
+    return (y - BAFFLE_REAR_Y) / (BAFFLE_FRONT_Y - BAFFLE_REAR_Y)
+
+
+def baffle_body_bounds_at_y(y: float):
+    """Return the linearly tapered cartridge's left/right/bottom/top bounds."""
+    t = min(max(baffle_depth_fraction(y), 0.0), 1.0)
+    rear_left = FAN_CENTER_X - BAFFLE_REAR_WIDTH / 2.0
+    rear_right = FAN_CENTER_X + BAFFLE_REAR_WIDTH / 2.0
+    front_left = -BAFFLE_FRONT_WIDTH / 2.0
+    front_right = BAFFLE_FRONT_WIDTH / 2.0
+    left = rear_left + (front_left - rear_left) * t
+    right = rear_right + (front_right - rear_right) * t
+    return left, right, -BAFFLE_BODY_HEIGHT / 2.0, BAFFLE_BODY_HEIGHT / 2.0
+
+
+def baffle_bottom_left_stop_spec():
+    for spec in CAMERA_STOP_SPECS:
+        if spec[0] == "Bottom_Left_Large":
+            return spec
+    raise ValueError(
+        "BAFFLE_CARTRIDGE_ENABLED requires the Bottom_Left_Large camera stop"
+    )
+
+
+def baffle_stop_relief_corner():
+    _name, _x0, x1, _z0, z1, _attachment = baffle_bottom_left_stop_spec()
+    return x1 + BAFFLE_STOP_CLEARANCE, z1 + BAFFLE_STOP_CLEARANCE
+
+
+def baffle_outer_loop_at_y(y: float):
+    left, right, bottom, top = baffle_body_bounds_at_y(y)
+    step_x, step_z = baffle_stop_relief_corner()
+    return [
+        (left, top),
+        (right, top),
+        (right, bottom),
+        (step_x, bottom),
+        (step_x, step_z),
+        (left, step_z),
+    ]
+
+
+def baffle_inner_loop_at_y(y: float):
+    left, right, bottom, top = baffle_body_bounds_at_y(y)
+    step_x, step_z = baffle_stop_relief_corner()
+    wall = BAFFLE_WALL_THICKNESS
+    return [
+        (left + wall, top - wall),
+        (right - wall, top - wall),
+        (right - wall, bottom + wall),
+        (step_x + wall, bottom + wall),
+        (step_x + wall, step_z + wall),
+        (left + wall, step_z + wall),
+    ]
+
+
+def baffle_effective_airway_bounds_at_y(y: float):
+    left, right, bottom, top = baffle_body_bounds_at_y(y)
+    return (
+        left + BAFFLE_WALL_THICKNESS,
+        right
+        - BAFFLE_WALL_THICKNESS
+        - BAFFLE_LID_KEY_DEPTH_X,
+        bottom + BAFFLE_WALL_THICKNESS,
+        top - BAFFLE_WALL_THICKNESS,
+    )
+
+
+def baffle_slot_spans(
+    total_height: float,
+    count: int,
+    separator_thickness: float,
+    center_z: float = 0.0,
+):
+    open_height = total_height - (count - 1) * separator_thickness
+    slot_height = open_height / count
+    first_bottom = center_z - total_height / 2.0
+    return tuple(
+        (
+            first_bottom + index * (slot_height + separator_thickness),
+            first_bottom
+            + index * (slot_height + separator_thickness)
+            + slot_height,
+        )
+        for index in range(count)
+    )
+
+
+def baffle_pointed_slot_loops(
+    left_x: float,
+    roof_apex_x: float,
+    roof_run_x: float,
+    spans,
+):
+    """Return broad inlet/outlet slots with self-supporting pointed roofs."""
+    shoulder_x = roof_apex_x - roof_run_x
+    return tuple(
+        [
+            (left_x, bottom),
+            (shoulder_x, bottom),
+            (roof_apex_x, (bottom + top) / 2.0),
+            (shoulder_x, top),
+            (left_x, top),
+        ]
+        for bottom, top in spans
+    )
+
+
+def baffle_inlet_loops():
+    radius = BAFFLE_INLET_DIAMETER / 2.0
+    return baffle_pointed_slot_loops(
+        FAN_CENTER_X - radius,
+        FAN_CENTER_X + BAFFLE_INLET_ROOF_APEX_X,
+        BAFFLE_INLET_ROOF_RUN_X,
+        baffle_slot_spans(
+            BAFFLE_INLET_DIAMETER,
+            BAFFLE_INLET_SLOT_COUNT,
+            BAFFLE_INLET_SEPARATOR_THICKNESS_Z,
+            FAN_CENTER_Z,
+        ),
+    )
+
+
+def baffle_outlet_loops():
+    half_width = BAFFLE_OUTLET_WIDTH / 2.0
+    return baffle_pointed_slot_loops(
+        -half_width,
+        half_width,
+        BAFFLE_OUTLET_ROOF_RUN_X,
+        baffle_slot_spans(
+            BAFFLE_OUTLET_HEIGHT,
+            BAFFLE_OUTLET_SLOT_COUNT,
+            BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z,
+        ),
+    )
+
+
+def baffle_inlet_effective_area() -> float:
+    """Numerically integrate fan-circle area retained by the pointed slots."""
+    radius = BAFFLE_INLET_DIAMETER / 2.0
+    spans = baffle_slot_spans(
+        BAFFLE_INLET_DIAMETER,
+        BAFFLE_INLET_SLOT_COUNT,
+        BAFFLE_INLET_SEPARATOR_THICKNESS_Z,
+    )
+    slices = 4096
+    slice_height = 2.0 * radius / slices
+    area = 0.0
+    for index in range(slices):
+        z = -radius + (index + 0.5) * slice_height
+        circle_half_width = math.sqrt(max(radius * radius - z * z, 0.0))
+        for bottom, top in spans:
+            if bottom <= z <= top:
+                half_slot_height = (top - bottom) / 2.0
+                slot_center_z = (bottom + top) / 2.0
+                roof_x = BAFFLE_INLET_ROOF_APEX_X - (
+                    BAFFLE_INLET_ROOF_RUN_X
+                    * abs(z - slot_center_z)
+                    / half_slot_height
+                )
+                area += (
+                    min(circle_half_width, roof_x)
+                    + circle_half_width
+                ) * slice_height
+                break
+    return area
+
+
+def baffle_throat_areas():
+    first_left, first_right, first_bottom, first_top = (
+        baffle_effective_airway_bounds_at_y(BAFFLE_FIRST_Y)
+    )
+    step_x, step_z = baffle_stop_relief_corner()
+    step_inner_x = step_x + BAFFLE_WALL_THICKNESS
+    step_inner_z = step_z + BAFFLE_WALL_THICKNESS
+    first_width = first_right - first_left
+    first_height = first_top - first_bottom
+    first_area = (
+        first_width * (first_height - BAFFLE_FIRST_BLOCKER_HEIGHT_Z)
+    )
+    lower_lane_top = -BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+    if step_inner_z < lower_lane_top:
+        first_area -= max(step_inner_x - first_left, 0.0) * max(
+            step_inner_z - first_bottom,
+            0.0,
+        )
+
+    second_left, second_right, _bottom, _top = (
+        baffle_effective_airway_bounds_at_y(BAFFLE_SECOND_Y)
+    )
+    second_area = (
+        (second_right - second_left)
+        * BAFFLE_SECOND_OPENING_HEIGHT_Z
+    )
+    outlet_open_height = BAFFLE_OUTLET_HEIGHT - (
+        (BAFFLE_OUTLET_SLOT_COUNT - 1)
+        * BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z
+    )
+    outlet_area = (
+        BAFFLE_OUTLET_WIDTH - BAFFLE_OUTLET_ROOF_RUN_X / 2.0
+    ) * outlet_open_height
+    return first_area, second_area, outlet_area
+
+
+def baffle_gasket_is_integral() -> bool:
+    return BAFFLE_CARTRIDGE_MATERIAL_MODE == "TPU"
+
+
+def baffle_gasket_exposed_height() -> float:
+    """Free seal height projecting behind the cartridge rear face."""
+    return BAFFLE_GASKET_THICKNESS_Y - BAFFLE_GASKET_GROOVE_DEPTH_Y
+
+
+def baffle_gasket_installed_gap() -> float:
+    """Installed space occupied by the seal, including a rigid-tray groove."""
+    surface_gap = BAFFLE_REAR_Y - fan_pad_inner_y()
+    if baffle_gasket_is_integral():
+        return surface_gap
+    return surface_gap + BAFFLE_GASKET_GROOVE_DEPTH_Y
+
+
+def baffle_gasket_compression() -> float:
+    free_height = (
+        baffle_gasket_exposed_height()
+        if baffle_gasket_is_integral()
+        else BAFFLE_GASKET_THICKNESS_Y
+    )
+    return free_height - baffle_gasket_installed_gap()
+
+
+def baffle_camera_clearance() -> float:
+    return camera_stop_end_y() - BAFFLE_FRONT_Y
+
+
+def baffle_sleeve_clearance() -> float:
+    return insert_sleeve_leading_y() - BAFFLE_FRONT_Y
+
+
+def dome_cavity_radial_t_at_y(y: float) -> float:
+    """Invert the inner dome's smoothstep Y mapping for fit features."""
+    if y <= fan_pad_inner_y():
+        return 0.0
+    if y >= dome_inner_transition_y():
+        return 1.0
+    target = (
+        (y - fan_pad_inner_y())
+        / (dome_inner_transition_y() - fan_pad_inner_y())
+    )
+    lower = 0.0
+    upper = 1.0
+    for _iteration in range(48):
+        middle = (lower + upper) / 2.0
+        if smoothstep(middle) < target:
+            lower = middle
+        else:
+            upper = middle
+    return (lower + upper) / 2.0
+
+
+def dome_cavity_half_height_at_y(y: float) -> float:
+    t = dome_cavity_radial_t_at_y(y)
+    return (
+        BACK_DOME_FAN_PAD_HEIGHT / 2.0
+        + (socket_height() / 2.0 - BACK_DOME_FAN_PAD_HEIGHT / 2.0) * t
+    )
+
+
+def baffle_snap_tongue_front_y() -> float:
+    return BAFFLE_FRONT_Y - BAFFLE_WALL_THICKNESS / 2.0
+
+
+def baffle_snap_tongue_center_x_at_y(y: float) -> float:
+    del y
+    return 0.0
+
+
+def baffle_snap_auxiliary_center_x_at_y(y: float, axial_depth: float) -> float:
+    del axial_depth
+    return baffle_snap_tongue_center_x_at_y(y)
+
+
+def baffle_snap_hook_y() -> float:
+    return BAFFLE_SNAP_RECEIVER_Y - BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y
+
+
+def baffle_snap_tongue_center_z_at_y(y: float, side: float) -> float:
+    root_y = BAFFLE_SNAP_TONGUE_ROOT_Y
+    front_y = baffle_snap_tongue_front_y()
+    t = min(max((y - root_y) / (front_y - root_y), 0.0), 1.0)
+    root_center = (
+        dome_cavity_half_height_at_y(root_y)
+        - BAFFLE_SNAP_TONGUE_WALL_OFFSET
+        - BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
+    )
+    front_center = (
+        dome_cavity_half_height_at_y(front_y)
+        - BAFFLE_SNAP_TONGUE_WALL_OFFSET
+        - BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
+    )
+    return side * (root_center + (front_center - root_center) * t)
+
+
+def baffle_snap_tongue_angle(side: float) -> float:
+    root_y = BAFFLE_SNAP_TONGUE_ROOT_Y
+    front_y = baffle_snap_tongue_front_y()
+    delta_z = (
+        baffle_snap_tongue_center_z_at_y(front_y, side)
+        - baffle_snap_tongue_center_z_at_y(root_y, side)
+    )
+    return math.atan2(delta_z, front_y - root_y)
+
+
+def baffle_snap_resolved_interference() -> float:
+    """Return seated hook overtravel past the back-shell receiver crest."""
+    hook_outer_z = (
+        abs(baffle_snap_tongue_center_z_at_y(baffle_snap_hook_y(), 1.0))
+        + BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
+        + BAFFLE_SNAP_HOOK_PROTRUSION_Z
+    )
+    receiver_inner_z = (
+        dome_cavity_half_height_at_y(BAFFLE_SNAP_RECEIVER_Y)
+        - BAFFLE_SNAP_RECEIVER_PROJECTION_Z
+    )
+    return hook_outer_z - receiver_inner_z
+
+
+def baffle_acoustic_visibility_required_inlet_z(
+    internal_thickness_y: float | None = None,
+) -> float:
+    """Minimum inlet |Z| for a ray to thread both finite-thickness baffles.
+
+    The least-demanding ray grazes the first blocker's forward edge and the
+    second blocker's rear edge on the same side of the airway. Extrapolating
+    that segment back to the inlet produces a conservative visibility bound;
+    any sign-changing ray is necessarily steeper and needs still more inlet
+    height.
+    """
+    if internal_thickness_y is None:
+        internal_thickness_y = BAFFLE_INTERNAL_THICKNESS_Y
+    half_depth = internal_thickness_y / 2.0
+    first_front_y = BAFFLE_FIRST_Y + half_depth
+    second_rear_y = BAFFLE_SECOND_Y - half_depth
+    first_edge_z = BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+    second_edge_z = BAFFLE_SECOND_OPENING_HEIGHT_Z / 2.0
+    turn_gap = second_rear_y - first_front_y
+    return first_edge_z + (
+        (first_edge_z - second_edge_z)
+        * (first_front_y - BAFFLE_REAR_Y)
+        / turn_gap
+    )
 
 
 def resolved_retainer_layout():
@@ -1083,12 +1591,326 @@ def validate_retainer_config() -> None:
             )
 
 
+def validate_baffle_cartridge_config() -> None:
+    if not BAFFLE_CARTRIDGE_ENABLED:
+        return
+    if not (BACK_DOME_ENABLED and FAN_OPENING_ENABLED and CAMERA_STOPS_ENABLED):
+        raise ValueError(
+            "BAFFLE_CARTRIDGE_ENABLED requires the rear dome, fan opening, "
+            "and camera stops"
+        )
+    positive = {
+        "BAFFLE_REAR_WIDTH": BAFFLE_REAR_WIDTH,
+        "BAFFLE_FRONT_WIDTH": BAFFLE_FRONT_WIDTH,
+        "BAFFLE_BODY_HEIGHT": BAFFLE_BODY_HEIGHT,
+        "BAFFLE_WALL_THICKNESS": BAFFLE_WALL_THICKNESS,
+        "BAFFLE_INTERNAL_THICKNESS_Y": BAFFLE_INTERNAL_THICKNESS_Y,
+        "BAFFLE_LID_PLATE_THICKNESS_X": BAFFLE_LID_PLATE_THICKNESS_X,
+        "BAFFLE_STOP_CLEARANCE": BAFFLE_STOP_CLEARANCE,
+        "BAFFLE_INLET_DIAMETER": BAFFLE_INLET_DIAMETER,
+        "BAFFLE_INLET_SEPARATOR_THICKNESS_Z": (
+            BAFFLE_INLET_SEPARATOR_THICKNESS_Z
+        ),
+        "BAFFLE_INLET_ROOF_APEX_X": BAFFLE_INLET_ROOF_APEX_X,
+        "BAFFLE_INLET_ROOF_RUN_X": BAFFLE_INLET_ROOF_RUN_X,
+        "BAFFLE_GASKET_OUTER_DIAMETER": BAFFLE_GASKET_OUTER_DIAMETER,
+        "BAFFLE_GASKET_INNER_DIAMETER": BAFFLE_GASKET_INNER_DIAMETER,
+        "BAFFLE_GASKET_THICKNESS_Y": BAFFLE_GASKET_THICKNESS_Y,
+        "BAFFLE_GASKET_BOSS_CLEARANCE": BAFFLE_GASKET_BOSS_CLEARANCE,
+        "BAFFLE_GASKET_GROOVE_DEPTH_Y": BAFFLE_GASKET_GROOVE_DEPTH_Y,
+        "BAFFLE_GASKET_GROOVE_RADIAL_CLEARANCE": (
+            BAFFLE_GASKET_GROOVE_RADIAL_CLEARANCE
+        ),
+        "BAFFLE_FIRST_BLOCKER_HEIGHT_Z": BAFFLE_FIRST_BLOCKER_HEIGHT_Z,
+        "BAFFLE_SECOND_OPENING_HEIGHT_Z": BAFFLE_SECOND_OPENING_HEIGHT_Z,
+        "BAFFLE_MIN_EDGE_OVERLAP_Z": BAFFLE_MIN_EDGE_OVERLAP_Z,
+        "BAFFLE_MIN_THROAT_AREA": BAFFLE_MIN_THROAT_AREA,
+        "BAFFLE_OUTLET_WIDTH": BAFFLE_OUTLET_WIDTH,
+        "BAFFLE_OUTLET_HEIGHT": BAFFLE_OUTLET_HEIGHT,
+        "BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z": (
+            BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z
+        ),
+        "BAFFLE_OUTLET_ROOF_RUN_X": BAFFLE_OUTLET_ROOF_RUN_X,
+        "BAFFLE_MIN_ROOF_ANGLE_DEG": BAFFLE_MIN_ROOF_ANGLE_DEG,
+        "BAFFLE_LID_KEY_DEPTH_X": BAFFLE_LID_KEY_DEPTH_X,
+        "BAFFLE_LID_FIT_CLEARANCE": BAFFLE_LID_FIT_CLEARANCE,
+        "BAFFLE_SNAP_RECEIVER_WIDTH_X": BAFFLE_SNAP_RECEIVER_WIDTH_X,
+        "BAFFLE_SNAP_RECEIVER_DEPTH_Y": BAFFLE_SNAP_RECEIVER_DEPTH_Y,
+        "BAFFLE_SNAP_RECEIVER_PROJECTION_Z": (
+            BAFFLE_SNAP_RECEIVER_PROJECTION_Z
+        ),
+        "BAFFLE_SNAP_RECEIVER_BEVEL": BAFFLE_SNAP_RECEIVER_BEVEL,
+        "BAFFLE_SNAP_TONGUE_WIDTH_X": BAFFLE_SNAP_TONGUE_WIDTH_X,
+        "BAFFLE_SNAP_TONGUE_THICKNESS_Z": (
+            BAFFLE_SNAP_TONGUE_THICKNESS_Z
+        ),
+        "BAFFLE_SNAP_TONGUE_WALL_OFFSET": (
+            BAFFLE_SNAP_TONGUE_WALL_OFFSET
+        ),
+        "BAFFLE_SNAP_ROOT_DEPTH_Y": BAFFLE_SNAP_ROOT_DEPTH_Y,
+        "BAFFLE_SNAP_HOOK_PROTRUSION_Z": (
+            BAFFLE_SNAP_HOOK_PROTRUSION_Z
+        ),
+        "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": (
+            BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y
+        ),
+        "BAFFLE_SNAP_INTERFERENCE_Z": BAFFLE_SNAP_INTERFERENCE_Z,
+    }
+    for name, value in positive.items():
+        if value <= 0.0:
+            raise ValueError(f"{name} must be positive")
+    if BAFFLE_BODY_DEPTH_SECTIONS < 2:
+        raise ValueError("BAFFLE_BODY_DEPTH_SECTIONS must be at least 2")
+    if BAFFLE_INLET_SLOT_COUNT < 1 or BAFFLE_OUTLET_SLOT_COUNT < 1:
+        raise ValueError("The baffle inlet/outlet slot counts must be positive")
+    if (
+        (BAFFLE_INLET_SLOT_COUNT - 1)
+        * BAFFLE_INLET_SEPARATOR_THICKNESS_Z
+        >= BAFFLE_INLET_DIAMETER
+        or (BAFFLE_OUTLET_SLOT_COUNT - 1)
+        * BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z
+        >= BAFFLE_OUTLET_HEIGHT
+    ):
+        raise ValueError("The baffle separators consume their openings")
+    if not (
+        fan_boss_end_y()
+        < BAFFLE_REAR_Y
+        < BAFFLE_FIRST_Y
+        < BAFFLE_SECOND_Y
+        < BAFFLE_FRONT_Y
+        < insert_sleeve_leading_y()
+        and BAFFLE_FRONT_Y < camera_stop_end_y()
+    ):
+        raise ValueError(
+            "The baffle gasket, body, baffles, sleeve, and camera-stop "
+            "clearances are not in assembly order"
+        )
+    if abs(BAFFLE_INLET_DIAMETER - FAN_OPENING_DIAMETER) > 1.0e-6:
+        raise ValueError(
+            "BAFFLE_INLET_DIAMETER must match FAN_OPENING_DIAMETER for a "
+            "sealed transition"
+        )
+    if BAFFLE_REAR_WIDTH >= BACK_DOME_FAN_PAD_WIDTH:
+        raise ValueError("The baffle rear width must fit inside the fan pad")
+    if BAFFLE_BODY_HEIGHT >= BACK_DOME_FAN_PAD_HEIGHT:
+        raise ValueError("The baffle body height must fit inside the fan pad")
+    if BAFFLE_FRONT_WIDTH >= socket_width():
+        raise ValueError("The baffle front width must fit inside the back socket")
+    if BAFFLE_BODY_HEIGHT >= socket_height():
+        raise ValueError("The baffle body height must fit inside the back socket")
+    if BAFFLE_WALL_THICKNESS * 2.0 >= min(
+        BAFFLE_REAR_WIDTH,
+        BAFFLE_BODY_HEIGHT,
+    ):
+        raise ValueError("BAFFLE_WALL_THICKNESS consumes the cartridge airway")
+    if BAFFLE_LID_PLATE_THICKNESS_X > BAFFLE_WALL_THICKNESS:
+        raise ValueError(
+            "BAFFLE_LID_PLATE_THICKNESS_X cannot exceed the side wall"
+        )
+    if BAFFLE_LID_KEY_DEPTH_X + BAFFLE_LID_FIT_CLEARANCE >= (
+        BAFFLE_REAR_WIDTH / 2.0
+    ):
+        raise ValueError("The baffle lid key consumes the rear airway")
+    if not (
+        BAFFLE_GASKET_OUTER_DIAMETER
+        > BAFFLE_GASKET_INNER_DIAMETER
+        >= BAFFLE_INLET_DIAMETER
+    ):
+        raise ValueError("The baffle gasket diameters do not surround the inlet")
+    if BAFFLE_GASKET_GROOVE_DEPTH_Y >= min(
+        BAFFLE_GASKET_THICKNESS_Y,
+        BAFFLE_WALL_THICKNESS,
+    ):
+        raise ValueError(
+            "The gasket groove must leave both gasket exposure and rear-wall "
+            "floor thickness"
+        )
+    if BAFFLE_WALL_THICKNESS - BAFFLE_GASKET_GROOVE_DEPTH_Y < 0.80:
+        raise ValueError(
+            "The gasket groove must retain at least 0.80 mm of rear-wall floor"
+        )
+    if (
+        BAFFLE_GASKET_INNER_DIAMETER
+        - 2.0 * BAFFLE_GASKET_GROOVE_RADIAL_CLEARANCE
+        <= 0.0
+    ):
+        raise ValueError("The gasket groove clearance consumes its inner bore")
+    inlet_shoulder_x = (
+        BAFFLE_INLET_ROOF_APEX_X - BAFFLE_INLET_ROOF_RUN_X
+    )
+    if not (
+        -BAFFLE_INLET_DIAMETER / 2.0
+        < inlet_shoulder_x
+        < BAFFLE_INLET_ROOF_APEX_X
+    ):
+        raise ValueError("The baffle inlet roof shoulder is invalid")
+    rear_left, rear_right, _rear_bottom, _rear_top = (
+        baffle_body_bounds_at_y(BAFFLE_REAR_Y)
+    )
+    if FAN_CENTER_X + BAFFLE_INLET_ROOF_APEX_X >= rear_right:
+        raise ValueError("The pointed inlet roof consumes the rear right wall")
+    if BAFFLE_OUTLET_ROOF_RUN_X >= BAFFLE_OUTLET_WIDTH:
+        raise ValueError("BAFFLE_OUTLET_ROOF_RUN_X consumes the outlet")
+    front_left_for_print = baffle_body_bounds_at_y(BAFFLE_FRONT_Y)[0]
+    print_vertical_x_factor = 1.0 / math.sqrt(
+        1.0
+        + (
+            (front_left_for_print - rear_left)
+            / (BAFFLE_FRONT_Y - BAFFLE_REAR_Y)
+        ) ** 2
+    )
+    inlet_slot_half_height = (
+        BAFFLE_INLET_DIAMETER
+        - (BAFFLE_INLET_SLOT_COUNT - 1)
+        * BAFFLE_INLET_SEPARATOR_THICKNESS_Z
+    ) / (2.0 * BAFFLE_INLET_SLOT_COUNT)
+    outlet_slot_half_height = (
+        BAFFLE_OUTLET_HEIGHT
+        - (BAFFLE_OUTLET_SLOT_COUNT - 1)
+        * BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z
+    ) / (2.0 * BAFFLE_OUTLET_SLOT_COUNT)
+    inlet_downward_normal = (
+        print_vertical_x_factor
+        * inlet_slot_half_height
+        / math.hypot(inlet_slot_half_height, BAFFLE_INLET_ROOF_RUN_X)
+    )
+    outlet_downward_normal = (
+        print_vertical_x_factor
+        * outlet_slot_half_height
+        / math.hypot(outlet_slot_half_height, BAFFLE_OUTLET_ROOF_RUN_X)
+    )
+    maximum_downward_normal = math.cos(
+        math.radians(BAFFLE_MIN_ROOF_ANGLE_DEG)
+    )
+    if (
+        inlet_downward_normal > maximum_downward_normal
+        or outlet_downward_normal > maximum_downward_normal
+    ):
+        raise ValueError(
+            "The pointed inlet/outlet roofs are below BAFFLE_MIN_ROOF_ANGLE_DEG "
+            "in the exported tray orientation"
+        )
+    compression = baffle_gasket_compression()
+    if not 0.0 < compression < baffle_gasket_exposed_height() / 2.0:
+        raise ValueError(
+            "The baffle seal stack needs positive compression below half its "
+            "exposed free height"
+        )
+    overlap = (
+        BAFFLE_FIRST_BLOCKER_HEIGHT_Z
+        - BAFFLE_SECOND_OPENING_HEIGHT_Z
+    ) / 2.0
+    if overlap < BAFFLE_MIN_EDGE_OVERLAP_Z:
+        raise ValueError(
+            "The alternating baffles do not provide the configured acoustic "
+            "line-of-sight overlap"
+        )
+    rear_wall_plane_y = BAFFLE_REAR_Y
+    front_wall_plane_y = BAFFLE_FRONT_Y
+    thickness_cases = [("ACTIVE", BAFFLE_INTERNAL_THICKNESS_Y)]
+    thickness_cases.extend(
+        (material_mode, profile["BAFFLE_INTERNAL_THICKNESS_Y"])
+        for material_mode, profile in BAFFLE_CARTRIDGE_MATERIAL_PROFILES.items()
+        if abs(
+            profile["BAFFLE_INTERNAL_THICKNESS_Y"]
+            - BAFFLE_INTERNAL_THICKNESS_Y
+        )
+        > 1.0e-9
+    )
+    for material_mode, internal_thickness in thickness_cases:
+        half_internal = internal_thickness / 2.0
+        first_rear_y = BAFFLE_FIRST_Y - half_internal
+        first_front_y = BAFFLE_FIRST_Y + half_internal
+        second_rear_y = BAFFLE_SECOND_Y - half_internal
+        second_front_y = BAFFLE_SECOND_Y + half_internal
+        if not (
+            rear_wall_plane_y
+            < first_rear_y
+            < first_front_y
+            < second_rear_y
+            < second_front_y
+            < front_wall_plane_y
+        ):
+            raise ValueError(
+                f"The {material_mode} finite-thickness baffles overlap a "
+                "wall or each other"
+            )
+        turn_gap = second_rear_y - first_front_y
+        if turn_gap <= max(BAFFLE_WALL_THICKNESS, internal_thickness):
+            raise ValueError(
+                f"The {material_mode} baffles leave only {turn_gap:.3f} mm "
+                "for the acoustic turn"
+            )
+        required_inlet_z = baffle_acoustic_visibility_required_inlet_z(
+            internal_thickness
+        )
+        if required_inlet_z <= BAFFLE_INLET_DIAMETER / 2.0:
+            raise ValueError(
+                f"The {material_mode} baffles permit direct acoustic line "
+                f"of sight: required inlet |Z|={required_inlet_z:.3f} mm"
+            )
+    inlet_area = baffle_inlet_effective_area()
+    first_area, second_area, outlet_area = baffle_throat_areas()
+    if min(inlet_area, first_area, second_area, outlet_area) < (
+        BAFFLE_MIN_THROAT_AREA
+    ):
+        raise ValueError(
+            "The baffle airway is below BAFFLE_MIN_THROAT_AREA: "
+            f"inlet={inlet_area:.2f} first={first_area:.2f} "
+            f"second={second_area:.2f} outlet={outlet_area:.2f} mm2"
+        )
+    front_left, front_right, front_bottom, front_top = (
+        baffle_effective_airway_bounds_at_y(BAFFLE_FRONT_Y)
+    )
+    if (
+        BAFFLE_OUTLET_WIDTH >= front_right - front_left
+        or BAFFLE_OUTLET_HEIGHT >= front_top - front_bottom
+    ):
+        raise ValueError("The baffle outlet does not fit in the forward face")
+    if not (
+        BAFFLE_SNAP_TONGUE_ROOT_Y
+        < baffle_snap_hook_y()
+        < BAFFLE_SNAP_RECEIVER_Y
+        < baffle_snap_tongue_front_y()
+    ):
+        raise ValueError(
+            "The seated hook and receiver must lie in order along each tongue"
+        )
+    if BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y <= compression:
+        raise ValueError(
+            "The snap latch travel must exceed the inlet-gasket compression"
+        )
+    resolved_interference = baffle_snap_resolved_interference()
+    if abs(resolved_interference - BAFFLE_SNAP_INTERFERENCE_Z) > 0.02:
+        raise ValueError(
+            "BAFFLE_SNAP_INTERFERENCE_Z does not match the receiver/hook "
+            f"stack; resolved {resolved_interference:.3f} mm"
+        )
+    step_x, step_z = baffle_stop_relief_corner()
+    rear_left, rear_right, rear_bottom, rear_top = baffle_body_bounds_at_y(
+        BAFFLE_REAR_Y
+    )
+    if not (
+        rear_left + BAFFLE_WALL_THICKNESS
+        < step_x
+        < rear_right - BAFFLE_WALL_THICKNESS
+        and rear_bottom + BAFFLE_WALL_THICKNESS
+        < step_z
+        < rear_top - BAFFLE_WALL_THICKNESS
+    ):
+        raise ValueError("The bottom-left stop relief collapses the rear body")
+
+
 def validate_config() -> None:
     material_choices = {"RIGID", "TPU"}
     for name, mode in (
         ("BACK_MATERIAL_MODE", BACK_MATERIAL_MODE),
         ("SLEEVE_MATERIAL_MODE", SLEEVE_MATERIAL_MODE),
         ("RETAINER_MATERIAL_MODE", RETAINER_MATERIAL_MODE),
+        (
+            "BAFFLE_CARTRIDGE_MATERIAL_MODE",
+            BAFFLE_CARTRIDGE_MATERIAL_MODE,
+        ),
     ):
         if mode not in material_choices:
             raise ValueError(
@@ -1336,6 +2158,7 @@ def validate_config() -> None:
             "BUTTON_RETENTION_RIM_HEIGHT"
         )
     validate_retainer_config()
+    validate_baffle_cartridge_config()
     if not 0.0 < BACK_FACE_THICKNESS < BACK_DEPTH:
         raise ValueError("BACK_FACE_THICKNESS must be less than BACK_DEPTH")
     if not 0.0 < INSERTION_DEPTH < min(BACK_DEPTH, INSERT_DEPTH):
@@ -2336,6 +3159,7 @@ def loft_through_loops_y(
     y_positions,
     center_x: float = 0.0,
     center_z: float = 0.0,
+    cap_centers=None,
 ):
     if len(loops) != len(y_positions) or len(loops) < 2:
         raise ValueError("A loft needs matching loops/Y positions and two sections")
@@ -2366,10 +3190,27 @@ def loft_through_loops_y(
                 ]
             )
 
+    if cap_centers is None:
+        low_cap_center = (0.0, 0.0)
+        high_cap_center = (0.0, 0.0)
+    else:
+        low_cap_center, high_cap_center = cap_centers
     low_center = len(vertices)
-    vertices.append((center_x, y_positions[0], center_z))
+    vertices.append(
+        (
+            low_cap_center[0] + center_x,
+            y_positions[0],
+            low_cap_center[1] + center_z,
+        )
+    )
     high_center = len(vertices)
-    vertices.append((center_x, y_positions[-1], center_z))
+    vertices.append(
+        (
+            high_cap_center[0] + center_x,
+            y_positions[-1],
+            high_cap_center[1] + center_z,
+        )
+    )
     last_section = len(sampled_loops) - 1
     for index in range(count):
         next_index = index + 1
@@ -2642,8 +3483,14 @@ def add_box(name: str, dimensions, location, rotation=(0.0, 0.0, 0.0)):
     return obj
 
 
-def add_beveled_box(name: str, dimensions, location, bevel: float):
-    obj = add_box(name, dimensions, location)
+def add_beveled_box(
+    name: str,
+    dimensions,
+    location,
+    bevel: float,
+    rotation=(0.0, 0.0, 0.0),
+):
+    obj = add_box(name, dimensions, location, rotation=rotation)
     modifier = obj.modifiers.new(name + "_Bevel", "BEVEL")
     modifier.width = min(bevel, min(dimensions) / 2.1)
     modifier.segments = 3
@@ -2725,6 +3572,32 @@ def mesh_volume(obj) -> float:
     volume = abs(bm.calc_volume(signed=True)) if bm.faces else 0.0
     bm.free()
     return volume
+
+
+def mesh_intersection_volume(first, second, label: str) -> float:
+    """Measure an exact Boolean intersection without changing source objects."""
+    first_copy = first.copy()
+    first_copy.data = first.data.copy()
+    bpy.context.collection.objects.link(first_copy)
+    second_copy = second.copy()
+    second_copy.data = second.data.copy()
+    bpy.context.collection.objects.link(second_copy)
+    first_name = first_copy.name
+    second_name = second_copy.name
+    try:
+        apply_boolean(
+            first_copy,
+            second_copy,
+            "INTERSECT",
+            label,
+            solver=BOOLEAN_SOLVER,
+        )
+        return mesh_volume(first_copy)
+    finally:
+        for object_name in (first_name, second_name):
+            temporary = bpy.data.objects.get(object_name)
+            if temporary is not None:
+                bpy.data.objects.remove(temporary, do_unlink=True)
 
 
 def available_boolean_solvers(modifier):
@@ -3170,6 +4043,47 @@ def cut_sleeve_capture_groove(back):
     return back
 
 
+def add_baffle_snap_receivers(back):
+    if not BAFFLE_CARTRIDGE_ENABLED:
+        return back
+    half_height = dome_cavity_half_height_at_y(BAFFLE_SNAP_RECEIVER_Y)
+    receiver_height = (
+        BAFFLE_SNAP_RECEIVER_PROJECTION_Z + BOOLEAN_OVERLAP
+    )
+    for side in (-1.0, 1.0):
+        receiver = add_beveled_box(
+            f"Baffle_Snap_Receiver_{'Top' if side > 0 else 'Bottom'}",
+            (
+                BAFFLE_SNAP_RECEIVER_WIDTH_X,
+                BAFFLE_SNAP_RECEIVER_DEPTH_Y,
+                receiver_height,
+            ),
+            (
+                baffle_snap_auxiliary_center_x_at_y(
+                    BAFFLE_SNAP_RECEIVER_Y,
+                    BAFFLE_SNAP_RECEIVER_DEPTH_Y
+                    + 2.0 * baffle_boolean_join_overlap(),
+                ),
+                BAFFLE_SNAP_RECEIVER_Y,
+                side
+                * (
+                    half_height
+                    - BAFFLE_SNAP_RECEIVER_PROJECTION_Z / 2.0
+                    + BOOLEAN_OVERLAP / 2.0
+                ),
+            ),
+            BAFFLE_SNAP_RECEIVER_BEVEL,
+        )
+        boolean_union(
+            back,
+            receiver,
+            f"Baffle_Snap_Receiver_{'Top' if side > 0 else 'Bottom'}_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+    return back
+
+
 def create_back_shell():
     back_width, back_height, back_radius = effective_back_outer_dimensions()
     back = rounded_rectangle_prism_y(
@@ -3349,6 +4263,8 @@ def create_back_shell():
             require_geometry_change=True,
         )
 
+    add_baffle_snap_receivers(back)
+
     # Cut last so later camera-stop and boss unions cannot bridge any portion
     # of the continuous four-sided groove.
     cut_sleeve_capture_groove(back)
@@ -3356,6 +4272,567 @@ def create_back_shell():
     back.name = "GoPro_Fan_Case_Back"
     back.data.name = "GoPro_Fan_Case_Back_Mesh"
     return back
+
+
+# ---------------------------------------------------------------------------
+# Removable fan acoustic baffle cartridge
+
+
+def baffle_shell_sections(inner=False):
+    wall = BAFFLE_WALL_THICKNESS
+    if inner:
+        start_y = BAFFLE_REAR_Y + wall
+        end_y = BAFFLE_FRONT_Y - wall
+        loop_at_y = baffle_inner_loop_at_y
+    else:
+        start_y = BAFFLE_REAR_Y
+        end_y = BAFFLE_FRONT_Y
+        loop_at_y = baffle_outer_loop_at_y
+    return tuple(
+        (
+            start_y
+            + (end_y - start_y) * section / BAFFLE_BODY_DEPTH_SECTIONS,
+            loop_at_y(
+                start_y
+                + (end_y - start_y)
+                * section
+                / BAFFLE_BODY_DEPTH_SECTIONS
+            ),
+        )
+        for section in range(BAFFLE_BODY_DEPTH_SECTIONS + 1)
+    )
+
+
+def create_baffle_side_opening_cutter():
+    loops = []
+    y_positions = []
+    cut_margin = max(1.5, 2.0 * BOOLEAN_OVERLAP)
+    for section in range(BAFFLE_BODY_DEPTH_SECTIONS + 1):
+        y = (
+            BAFFLE_REAR_Y
+            + (BAFFLE_FRONT_Y - BAFFLE_REAR_Y)
+            * section
+            / BAFFLE_BODY_DEPTH_SECTIONS
+        )
+        _left, right, bottom, top = baffle_body_bounds_at_y(y)
+        inner_right = right - BAFFLE_WALL_THICKNESS
+        cutter_left = (
+            inner_right
+            - BAFFLE_LID_KEY_DEPTH_X
+            - BAFFLE_LID_FIT_CLEARANCE
+        )
+        loops.append(
+            [
+                (cutter_left, bottom - cut_margin),
+                (right + cut_margin, bottom - cut_margin),
+                (right + cut_margin, top + cut_margin),
+                (cutter_left, top + cut_margin),
+            ]
+        )
+        if section == 0:
+            y -= cut_margin
+        elif section == BAFFLE_BODY_DEPTH_SECTIONS:
+            y += cut_margin
+        y_positions.append(y)
+    return loft_through_loops_y(
+        "Baffle_Tray_Side_Opening",
+        loops,
+        y_positions,
+        cap_centers=tuple(
+            (
+                sum(point[0] for point in loop) / len(loop),
+                sum(point[1] for point in loop) / len(loop),
+            )
+            for loop in (loops[0], loops[-1])
+        ),
+    )
+
+
+def baffle_boolean_join_overlap() -> float:
+    """Return a bevel-safe overlap for the cartridge's Boolean joints."""
+    return max(0.45, 5.0 * BOOLEAN_OVERLAP)
+
+
+def baffle_internal_member_x_bounds(center_y: float):
+    """Keep an axial baffle inside the tapered side walls over its depth."""
+    half_depth = BAFFLE_INTERNAL_THICKNESS_Y / 2.0
+    low_bounds = baffle_body_bounds_at_y(center_y - half_depth)
+    high_bounds = baffle_body_bounds_at_y(center_y + half_depth)
+    wall_inset = BAFFLE_WALL_THICKNESS / 4.0
+    left = max(low_bounds[0], high_bounds[0]) + wall_inset
+    right = min(low_bounds[1], high_bounds[1]) - wall_inset
+    if right <= left:
+        raise ValueError("The tapered baffle has no printable X span")
+    return left, right
+
+
+def add_baffle_internal_members(tray):
+    left, right = baffle_internal_member_x_bounds(BAFFLE_FIRST_Y)
+    first = add_beveled_box(
+        "Baffle_First_Center_Blocker",
+        (
+            right - left,
+            BAFFLE_INTERNAL_THICKNESS_Y,
+            BAFFLE_FIRST_BLOCKER_HEIGHT_Z,
+        ),
+        (
+            (left + right) / 2.0,
+            BAFFLE_FIRST_Y,
+            0.0,
+        ),
+        min(BAFFLE_INTERNAL_THICKNESS_Y / 2.5, 0.70),
+    )
+    boolean_union(
+        tray,
+        first,
+        "Baffle_First_Blocker_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+
+    left, right = baffle_internal_member_x_bounds(BAFFLE_SECOND_Y)
+    _outer_left, _outer_right, bottom, top = baffle_body_bounds_at_y(
+        BAFFLE_SECOND_Y
+    )
+    half_opening = BAFFLE_SECOND_OPENING_HEIGHT_Z / 2.0
+    top_member = add_beveled_box(
+        "Baffle_Second_Top_Member",
+        (
+            right - left,
+            BAFFLE_INTERNAL_THICKNESS_Y,
+            top - half_opening + BOOLEAN_OVERLAP,
+        ),
+        (
+            (left + right) / 2.0,
+            BAFFLE_SECOND_Y,
+            (top + half_opening) / 2.0,
+        ),
+        min(BAFFLE_INTERNAL_THICKNESS_Y / 2.5, 0.70),
+    )
+    boolean_union(
+        tray,
+        top_member,
+        "Baffle_Second_Top_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+
+    step_x, step_z = baffle_stop_relief_corner()
+    bottom_loop = [
+        (left, -half_opening),
+        (right, -half_opening),
+        (right, bottom + BAFFLE_WALL_THICKNESS / 4.0),
+        (step_x + BAFFLE_WALL_THICKNESS / 4.0, bottom + BAFFLE_WALL_THICKNESS / 4.0),
+        (step_x + BAFFLE_WALL_THICKNESS / 4.0, step_z + BAFFLE_WALL_THICKNESS / 4.0),
+        (left, step_z + BAFFLE_WALL_THICKNESS / 4.0),
+    ]
+    bottom_member = polygon_prism_y(
+        "Baffle_Second_Bottom_Member",
+        bottom_loop,
+        BAFFLE_SECOND_Y - BAFFLE_INTERNAL_THICKNESS_Y / 2.0,
+        BAFFLE_SECOND_Y + BAFFLE_INTERNAL_THICKNESS_Y / 2.0,
+    )
+    boolean_union(
+        tray,
+        bottom_member,
+        "Baffle_Second_Bottom_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+    return tray
+
+
+def add_baffle_snap_tongues(component):
+    root_y = BAFFLE_SNAP_TONGUE_ROOT_Y
+    front_y = baffle_snap_tongue_front_y()
+    # The tongue pieces are beveled independently before they are unioned.
+    # A coincident or BOOLEAN_OVERLAP-sized joint can therefore be shaved
+    # away at the bevel and survive the union as a disconnected shell. Bury
+    # each piece far enough into its neighbours to leave a robust printable
+    # neck after beveling and Boolean cleanup.
+    join_overlap = baffle_boolean_join_overlap()
+    for side in (-1.0, 1.0):
+        arm_y_positions = (
+            root_y - join_overlap,
+            front_y + join_overlap,
+        )
+        arm_loops = []
+        for y in arm_y_positions:
+            center_x = baffle_snap_tongue_center_x_at_y(y)
+            center_z = baffle_snap_tongue_center_z_at_y(y, side)
+            half_width = BAFFLE_SNAP_TONGUE_WIDTH_X / 2.0
+            half_thickness = BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
+            arm_loops.append(
+                [
+                    (center_x - half_width, center_z + half_thickness),
+                    (center_x + half_width, center_z + half_thickness),
+                    (center_x + half_width, center_z - half_thickness),
+                    (center_x - half_width, center_z - half_thickness),
+                ]
+            )
+        arm = loft_through_loops_y(
+            f"Baffle_Snap_Tongue_{'Top' if side > 0 else 'Bottom'}",
+            tuple(arm_loops),
+            arm_y_positions,
+            cap_centers=tuple(
+                (
+                    sum(point[0] for point in loop) / len(loop),
+                    sum(point[1] for point in loop) / len(loop),
+                )
+                for loop in arm_loops
+            ),
+        )
+
+        root_z = baffle_snap_tongue_center_z_at_y(root_y, side)
+        angle = baffle_snap_tongue_angle(side)
+
+        body_surface_z = side * BAFFLE_BODY_HEIGHT / 2.0
+        arm_inner_z = root_z - side * BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
+        root_bridge_height = (
+            abs(arm_inner_z - body_surface_z) + 2.0 * join_overlap
+        )
+        root_bridge = add_box(
+            f"Baffle_Snap_Root_{'Top' if side > 0 else 'Bottom'}",
+            (
+                BAFFLE_SNAP_TONGUE_WIDTH_X,
+                BAFFLE_SNAP_ROOT_DEPTH_Y + 2.0 * join_overlap,
+                root_bridge_height,
+            ),
+            (
+                baffle_snap_auxiliary_center_x_at_y(
+                    root_y,
+                    BAFFLE_SNAP_ROOT_DEPTH_Y + 2.0 * join_overlap,
+                ),
+                root_y,
+                (body_surface_z + arm_inner_z) / 2.0,
+            ),
+        )
+        boolean_union(
+            component,
+            root_bridge,
+            f"Baffle_Snap_Root_{'Top' if side > 0 else 'Bottom'}_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+        boolean_union(
+            component,
+            arm,
+            f"Baffle_Snap_Tongue_{'Top' if side > 0 else 'Bottom'}_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+
+        hook_y = baffle_snap_hook_y()
+        hook_center_z = (
+            baffle_snap_tongue_center_z_at_y(
+                hook_y,
+                side,
+            )
+            + side
+            * (
+                BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
+                + BAFFLE_SNAP_HOOK_PROTRUSION_Z / 2.0
+                - join_overlap
+            )
+        )
+        hook = add_beveled_box(
+            f"Baffle_Snap_Hook_{'Top' if side > 0 else 'Bottom'}",
+            (
+                BAFFLE_SNAP_TONGUE_WIDTH_X,
+                BAFFLE_SNAP_RECEIVER_DEPTH_Y + 2.0 * join_overlap,
+                BAFFLE_SNAP_HOOK_PROTRUSION_Z + 2.0 * join_overlap,
+            ),
+            (
+                baffle_snap_auxiliary_center_x_at_y(
+                    hook_y,
+                    BAFFLE_SNAP_RECEIVER_DEPTH_Y
+                    + 2.0 * join_overlap,
+                ),
+                hook_y,
+                hook_center_z,
+            ),
+            min(BAFFLE_SNAP_RECEIVER_BEVEL, 0.20),
+            rotation=(angle, 0.0, 0.0),
+        )
+        boolean_union(
+            component,
+            hook,
+            f"Baffle_Snap_Hook_{'Top' if side > 0 else 'Bottom'}_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+    return component
+
+
+def create_baffle_tray():
+    outer_sections = baffle_shell_sections(inner=False)
+    tray = loft_through_loops_y(
+        "Baffle_Cartridge_Outer_Solid",
+        tuple(loop for _y, loop in outer_sections),
+        tuple(y for y, _loop in outer_sections),
+    )
+    inner_sections = baffle_shell_sections(inner=True)
+    cavity = loft_through_loops_y(
+        "Baffle_Cartridge_Inner_Cavity",
+        tuple(loop for _y, loop in inner_sections),
+        tuple(y for y, _loop in inner_sections),
+    )
+    join_overlap = baffle_boolean_join_overlap()
+    for index, loop in enumerate(baffle_inlet_loops(), start=1):
+        inlet = polygon_prism_y(
+            f"Baffle_Inlet_Opening_{index}",
+            loop,
+            BAFFLE_REAR_Y - BOOLEAN_OVERLAP,
+            BAFFLE_REAR_Y
+            + BAFFLE_WALL_THICKNESS
+            + join_overlap
+            + BOOLEAN_OVERLAP,
+        )
+        boolean_union(
+            cavity,
+            inlet,
+            f"Baffle_Cavity_Inlet_Cutter_{index}_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+    # Include the inlet neck in the cavity cutter so the first subtraction
+    # opens the airway to the exterior. An entirely enclosed cavity surface
+    # is vulnerable to orientation inversion in Blender's Exact solver when
+    # a later operation first pierces it.
+    apply_boolean(
+        tray,
+        cavity,
+        "DIFFERENCE",
+        "Baffle_Cavity_And_Inlet",
+        solver=BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
+    for index, loop in enumerate(baffle_outlet_loops(), start=1):
+        outlet = polygon_prism_y(
+            f"Baffle_Forward_Outlet_{index}",
+            loop,
+            BAFFLE_FRONT_Y
+            - BAFFLE_WALL_THICKNESS
+            - join_overlap
+            - BOOLEAN_OVERLAP,
+            BAFFLE_FRONT_Y + BOOLEAN_OVERLAP,
+        )
+        apply_boolean(
+            tray,
+            outlet,
+            "DIFFERENCE",
+            f"Baffle_Outlet_{index}",
+            solver=BOOLEAN_SOLVER,
+            require_geometry_change=True,
+        )
+
+    if not baffle_gasket_is_integral():
+        groove = create_baffle_seal_ring(
+            "Baffle_Gasket_Locating_Groove",
+            BAFFLE_REAR_Y - BOOLEAN_OVERLAP,
+            BAFFLE_REAR_Y + BAFFLE_GASKET_GROOVE_DEPTH_Y,
+            locating_clearance=BAFFLE_GASKET_GROOVE_RADIAL_CLEARANCE,
+        )
+        apply_boolean(
+            tray,
+            groove,
+            "DIFFERENCE",
+            "Baffle_Gasket_Locating_Groove",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+        groove_floor = create_baffle_seal_ring(
+            "Baffle_Gasket_Continuous_Groove_Floor",
+            BAFFLE_REAR_Y
+            + BAFFLE_GASKET_GROOVE_DEPTH_Y,
+            BAFFLE_REAR_Y + BAFFLE_WALL_THICKNESS,
+        )
+        boolean_union(
+            tray,
+            groove_floor,
+            "Baffle_Gasket_Continuous_Groove_Floor_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+
+    add_baffle_internal_members(tray)
+    side_opening = create_baffle_side_opening_cutter()
+    apply_boolean(
+        tray,
+        side_opening,
+        "DIFFERENCE",
+        "Baffle_Tray_Side_Opening",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+    add_baffle_snap_tongues(tray)
+    if baffle_gasket_is_integral():
+        integral_seal = create_baffle_seal_ring(
+            "Baffle_Integral_TPU_Inlet_Seal",
+            BAFFLE_REAR_Y - baffle_gasket_exposed_height(),
+            BAFFLE_REAR_Y + baffle_boolean_join_overlap(),
+        )
+        boolean_union(
+            tray,
+            integral_seal,
+            "Baffle_Integral_TPU_Inlet_Seal_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+    tray.name = "GoPro_Fan_Case_Baffle_Tray"
+    tray.data.name = "GoPro_Fan_Case_Baffle_Tray_Mesh"
+    return tray
+
+
+def baffle_lid_outer_loop_at_y(y: float):
+    _left, right, bottom, top = baffle_body_bounds_at_y(y)
+    return [
+        (right - BAFFLE_LID_PLATE_THICKNESS_X, bottom),
+        (right, bottom),
+        (right, top),
+        (right - BAFFLE_LID_PLATE_THICKNESS_X, top),
+    ]
+
+
+def baffle_lid_key_loop_at_y(y: float):
+    _left, right, bottom, top = baffle_body_bounds_at_y(y)
+    inner_right = right - BAFFLE_WALL_THICKNESS
+    return [
+        (
+            inner_right - BAFFLE_LID_KEY_DEPTH_X,
+            bottom + BAFFLE_WALL_THICKNESS + BAFFLE_LID_FIT_CLEARANCE,
+        ),
+        (
+            right - BAFFLE_LID_PLATE_THICKNESS_X + BOOLEAN_OVERLAP,
+            bottom + BAFFLE_WALL_THICKNESS + BAFFLE_LID_FIT_CLEARANCE,
+        ),
+        (
+            right - BAFFLE_LID_PLATE_THICKNESS_X + BOOLEAN_OVERLAP,
+            top - BAFFLE_WALL_THICKNESS - BAFFLE_LID_FIT_CLEARANCE,
+        ),
+        (
+            inner_right - BAFFLE_LID_KEY_DEPTH_X,
+            top - BAFFLE_WALL_THICKNESS - BAFFLE_LID_FIT_CLEARANCE,
+        ),
+    ]
+
+
+def create_baffle_lid():
+    outer_loops = (
+        baffle_lid_outer_loop_at_y(BAFFLE_REAR_Y),
+        baffle_lid_outer_loop_at_y(BAFFLE_FRONT_Y),
+    )
+    outer = loft_through_loops_y(
+        "Baffle_Lid_Outer_Plate",
+        outer_loops,
+        (BAFFLE_REAR_Y, BAFFLE_FRONT_Y),
+        cap_centers=tuple(
+            (
+                sum(point[0] for point in loop) / len(loop),
+                sum(point[1] for point in loop) / len(loop),
+            )
+            for loop in outer_loops
+        ),
+    )
+    key_start_y = (
+        BAFFLE_REAR_Y
+        + BAFFLE_WALL_THICKNESS
+        + BAFFLE_LID_FIT_CLEARANCE
+    )
+    key_end_y = (
+        BAFFLE_FRONT_Y
+        - BAFFLE_WALL_THICKNESS
+        - BAFFLE_LID_FIT_CLEARANCE
+    )
+    key_loops = (
+        baffle_lid_key_loop_at_y(key_start_y),
+        baffle_lid_key_loop_at_y(key_end_y),
+    )
+    key = loft_through_loops_y(
+        "Baffle_Lid_Inner_Key",
+        key_loops,
+        (key_start_y, key_end_y),
+        cap_centers=tuple(
+            (
+                sum(point[0] for point in loop) / len(loop),
+                sum(point[1] for point in loop) / len(loop),
+            )
+            for loop in key_loops
+        ),
+    )
+    boolean_union(
+        outer,
+        key,
+        "Baffle_Lid_Key_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+    outer.name = "GoPro_Fan_Case_Baffle_Lid"
+    outer.data.name = "GoPro_Fan_Case_Baffle_Lid_Mesh"
+    return outer
+
+
+def create_baffle_seal_ring(
+    name: str,
+    y0: float,
+    y1: float,
+    locating_clearance: float = 0.0,
+):
+    outer_radius = (
+        BAFFLE_GASKET_OUTER_DIAMETER / 2.0 + locating_clearance
+    )
+    inner_radius = (
+        BAFFLE_GASKET_INNER_DIAMETER / 2.0 - locating_clearance
+    )
+    ring = annular_cylinder_y(
+        name,
+        outer_radius,
+        inner_radius,
+        y0,
+        y1,
+        x=FAN_CENTER_X,
+        z=FAN_CENTER_Z,
+    )
+    scallop_clearance = max(
+        BAFFLE_GASKET_BOSS_CLEARANCE - locating_clearance,
+        0.0,
+    )
+    scallops = []
+    for index, (x, z) in enumerate(fan_hole_positions(), start=1):
+        scallops.append(
+            add_cylinder_y(
+                f"{name}_Fan_Boss_Clearance_{index}",
+                FAN_HOLE_BOSS_DIAMETER / 2.0
+                + scallop_clearance,
+                y0 - BOOLEAN_OVERLAP,
+                y1 + BOOLEAN_OVERLAP,
+                x=x,
+                z=z,
+            )
+        )
+    boolean_difference(ring, scallops, f"{name}_Boss_Scallops")
+    return ring
+
+
+def create_baffle_gasket():
+    gasket = create_baffle_seal_ring(
+        "Baffle_TPU_Inlet_Gasket",
+        fan_pad_inner_y(),
+        fan_pad_inner_y() + BAFFLE_GASKET_THICKNESS_Y,
+    )
+    gasket.name = "GoPro_Fan_Case_Baffle_Gasket"
+    gasket.data.name = "GoPro_Fan_Case_Baffle_Gasket_Mesh"
+    return gasket
+
+
+def create_baffle_cartridge():
+    if not BAFFLE_CARTRIDGE_ENABLED:
+        return ()
+    tray = create_baffle_tray()
+    lid = create_baffle_lid()
+    if baffle_gasket_is_integral():
+        return tray, lid
+    return tray, lid, create_baffle_gasket()
 
 
 # ---------------------------------------------------------------------------
@@ -4000,6 +5477,88 @@ def mesh_bvh(obj):
     return bvh
 
 
+def bvh_segment_is_blocked(bvhs, start, end) -> bool:
+    """Return whether any mesh surface intersects the finite segment."""
+    origin = Vector(start)
+    delta = Vector(end) - origin
+    distance = delta.length
+    if distance <= 1.0e-9:
+        raise ValueError("Cannot test a zero-length mesh segment")
+    direction = delta / distance
+    for bvh in bvhs:
+        location, _normal, _face_index, hit_distance = bvh.ray_cast(
+            origin,
+            direction,
+            distance,
+        )
+        if location is not None and hit_distance < distance - 1.0e-5:
+            return True
+    return False
+
+
+def point_in_polygon_xz(point, polygon) -> bool:
+    """Classify an X/Z point against a simple polygon by odd/even parity."""
+    x, z = point
+    inside = False
+    previous_x, previous_z = polygon[-1]
+    for current_x, current_z in polygon:
+        crosses = (current_z > z) != (previous_z > z)
+        if crosses:
+            crossing_x = (
+                (previous_x - current_x)
+                * (z - current_z)
+                / (previous_z - current_z)
+                + current_x
+            )
+            if x < crossing_x:
+                inside = not inside
+        previous_x, previous_z = current_x, current_z
+    return inside
+
+
+def sampled_opening_points(loops, spacing: float, predicate=None):
+    """Return inset grid samples spanning each actual inlet/outlet polygon."""
+    samples = []
+    for loop in loops:
+        minimum_x = min(point[0] for point in loop)
+        maximum_x = max(point[0] for point in loop)
+        minimum_z = min(point[1] for point in loop)
+        maximum_z = max(point[1] for point in loop)
+        x_count = max(1, math.ceil((maximum_x - minimum_x) / spacing))
+        z_count = max(1, math.ceil((maximum_z - minimum_z) / spacing))
+        for x_index in range(x_count):
+            x = minimum_x + (x_index + 0.5) * (
+                maximum_x - minimum_x
+            ) / x_count
+            for z_index in range(z_count):
+                z = minimum_z + (z_index + 0.5) * (
+                    maximum_z - minimum_z
+                ) / z_count
+                point = (x, z)
+                if point_in_polygon_xz(point, loop) and (
+                    predicate is None or predicate(point)
+                ):
+                    samples.append(point)
+    return tuple(samples)
+
+
+def face_down_contact_area(obj, outward_normal) -> float:
+    """Measure the coplanar bed face used by face-down STL export."""
+    normal = Vector(outward_normal).normalized()
+    projections = [normal.dot(vertex.co) for vertex in obj.data.vertices]
+    support_plane = max(projections)
+    tolerance = 1.0e-4
+    return sum(
+        polygon.area
+        for polygon in obj.data.polygons
+        if all(
+            abs(normal.dot(obj.data.vertices[index].co) - support_plane)
+            <= tolerance
+            for index in polygon.vertices
+        )
+    )
+
+
 def bvh_point_is_inside(bvh, point) -> bool:
     """Classify a point by majority parity along three non-axial rays."""
     votes = []
@@ -4360,6 +5919,529 @@ def validate_object(obj) -> None:
         raise RuntimeError(f"{obj.name} has {non_manifold} non-manifold edges")
     if shells != 1:
         raise RuntimeError(f"{obj.name} has {shells} disconnected shells")
+
+
+def validate_baffle_line_of_sight(back, tray, lid) -> None:
+    """Prove the installed finite baffles block sampled inlet/outlet rays."""
+    inlet_radius = BAFFLE_INLET_DIAMETER / 2.0
+    inlet_points = sampled_opening_points(
+        baffle_inlet_loops(),
+        3.0,
+        predicate=lambda point: math.hypot(
+            point[0] - FAN_CENTER_X,
+            point[1] - FAN_CENTER_Z,
+        )
+        < inlet_radius - 0.05,
+    )
+    outlet_points = sampled_opening_points(baffle_outlet_loops(), 4.0)
+    if not inlet_points or not outlet_points:
+        raise RuntimeError("The acoustic visibility sampler found no openings")
+
+    tray_bvh = mesh_bvh(tray)
+    lid_bvh = mesh_bvh(lid)
+    cartridge_bvhs = (tray_bvh, lid_bvh)
+    reviewer_rays = (
+        ((-4.0, -5.21, 14.0), (-4.0, 14.01, 3.0)),
+        ((0.0, -5.30, 18.0), (0.0, 14.10, 2.0)),
+        ((-4.0, -5.21, 17.4), (-4.0, 14.01, 5.3)),
+    )
+    for index, (start, end) in enumerate(reviewer_rays, start=1):
+        if not bvh_segment_is_blocked(cartridge_bvhs, start, end):
+            raise RuntimeError(
+                f"Acoustic reviewer ray {index} bypasses the cartridge: "
+                f"{start} -> {end}"
+            )
+
+    assembled_bvhs = (mesh_bvh(back), tray_bvh, lid_bvh)
+    rear_y = BAFFLE_REAR_Y - 0.10
+    front_y = BAFFLE_FRONT_Y + 0.10
+    tested_segments = 0
+    for inlet_x, inlet_z in inlet_points:
+        start = (inlet_x, rear_y, inlet_z)
+        for outlet_x, outlet_z in outlet_points:
+            end = (outlet_x, front_y, outlet_z)
+            tested_segments += 1
+            if not bvh_segment_is_blocked(assembled_bvhs, start, end):
+                raise RuntimeError(
+                    "A sampled direct acoustic path bypasses the installed "
+                    f"cartridge: {start} -> {end}"
+                )
+
+    step_x, _step_z = baffle_stop_relief_corner()
+    relief_inlet = (FAN_CENTER_X - 13.0, rear_y, -12.5)
+    relief_outlet = (
+        max(-BAFFLE_OUTLET_WIDTH / 2.0 + 0.25, step_x - 4.0),
+        front_y,
+        -BAFFLE_OUTLET_HEIGHT / 2.0 + 0.5,
+    )
+    if not bvh_segment_is_blocked(assembled_bvhs, relief_inlet, relief_outlet):
+        raise RuntimeError(
+            "The camera-stop relief corner permits a direct acoustic path"
+        )
+    print(
+        "BAFFLE_LINE_OF_SIGHT PASS "
+        f"sampled_segments={tested_segments} "
+        f"required_inlet_abs_z="
+        f"{baffle_acoustic_visibility_required_inlet_z():.2f}mm "
+        f"available_inlet_radius={inlet_radius:.2f}mm"
+    )
+
+
+def validate_baffle_assembled_collisions(back, tray, lid) -> None:
+    """Reject shell/cartridge intersections outside latches and TPU seal."""
+    tongue_left = -BAFFLE_SNAP_TONGUE_WIDTH_X / 2.0
+    tongue_right = BAFFLE_SNAP_TONGUE_WIDTH_X / 2.0
+    for name, x0, x1, _z0, _z1, attachment in CAMERA_STOP_SPECS:
+        if attachment not in {"top", "bottom"}:
+            continue
+        if max(tongue_left, x0) < min(tongue_right, x1):
+            raise RuntimeError(
+                f"The centerline baffle snap overlaps camera stop {name}"
+            )
+
+    back_bvh = mesh_bvh(back)
+    intentional_pairs = 0
+    intentional_seal_pairs = 0
+    unexpected = []
+    join_overlap = baffle_boolean_join_overlap()
+    allowed_y_min = (
+        baffle_snap_hook_y()
+        - BAFFLE_SNAP_RECEIVER_DEPTH_Y / 2.0
+        - join_overlap
+        - 0.50
+    )
+    allowed_y_max = (
+        BAFFLE_SNAP_RECEIVER_Y
+        + BAFFLE_SNAP_RECEIVER_DEPTH_Y / 2.0
+        + join_overlap
+        + 0.50
+    )
+    for component in (tray, lid):
+        pairs = mesh_bvh(component).overlap(back_bvh)
+        for component_face_index, _back_face_index in pairs:
+            if component_face_index >= len(component.data.polygons):
+                unexpected.append((component.name, component_face_index))
+                continue
+            center = component.data.polygons[component_face_index].center
+            intentional_latch_overlap = (
+                component is tray
+                and abs(center.x)
+                <= BAFFLE_SNAP_TONGUE_WIDTH_X / 2.0 + 0.50
+                and allowed_y_min <= center.y <= allowed_y_max
+                and abs(center.z) >= BAFFLE_BODY_HEIGHT / 2.0
+            )
+            seal_radius = math.hypot(
+                center.x - FAN_CENTER_X,
+                center.z - FAN_CENTER_Z,
+            )
+            intentional_integral_seal_overlap = (
+                component is tray
+                and baffle_gasket_is_integral()
+                and center.y <= BAFFLE_REAR_Y + join_overlap
+                and BAFFLE_GASKET_INNER_DIAMETER / 2.0 - 0.50
+                <= seal_radius
+                <= BAFFLE_GASKET_OUTER_DIAMETER / 2.0 + 0.50
+            )
+            if intentional_latch_overlap:
+                intentional_pairs += 1
+            elif intentional_integral_seal_overlap:
+                intentional_seal_pairs += 1
+            else:
+                unexpected.append(
+                    (
+                        component.name,
+                        component_face_index,
+                        tuple(round(value, 3) for value in center),
+                    )
+                )
+    tray_lid_pairs = mesh_bvh(tray).overlap(mesh_bvh(lid))
+    if tray_lid_pairs:
+        unexpected.append(("tray_lid", len(tray_lid_pairs)))
+    if unexpected:
+        raise RuntimeError(
+            "The assembled baffle has non-latch mesh collisions: "
+            f"{unexpected[:8]}"
+        )
+    if intentional_pairs == 0:
+        raise RuntimeError("The assembled baffle snap does not engage its receivers")
+    if baffle_gasket_is_integral() and intentional_seal_pairs == 0:
+        raise RuntimeError("The integral TPU seal has no fan-pad compression")
+    print(
+        "BAFFLE_ASSEMBLED_COLLISIONS PASS "
+        f"intentional_latch_triangle_pairs={intentional_pairs} "
+        f"intentional_seal_triangle_pairs={intentional_seal_pairs} "
+        "unexpected_triangle_pairs=0"
+    )
+
+
+def validate_baffle_cartridge(back, components) -> None:
+    if not BAFFLE_CARTRIDGE_ENABLED:
+        if components:
+            raise RuntimeError("Disabled baffle cartridge unexpectedly built parts")
+        return
+    expected_parts = 2 if baffle_gasket_is_integral() else 3
+    if len(components) != expected_parts:
+        raise RuntimeError(
+            "The baffle cartridge requires tray/lid and, for a rigid tray, "
+            "a separate TPU gasket"
+        )
+    tray, lid = components[:2]
+    gasket = components[2] if len(components) == 3 else None
+    for component in components:
+        validate_object(component)
+    validate_baffle_line_of_sight(back, tray, lid)
+    validate_baffle_assembled_collisions(back, tray, lid)
+
+    print_contact_areas = [
+        face_down_contact_area(tray, baffle_left_face_outward_normal()),
+        face_down_contact_area(lid, baffle_right_face_outward_normal()),
+    ]
+    minimum_contact_areas = [600.0, 600.0]
+    if gasket is not None:
+        print_contact_areas.append(
+            face_down_contact_area(gasket, (0.0, -1.0, 0.0))
+        )
+        minimum_contact_areas.append(90.0)
+    if any(
+        actual < minimum
+        for actual, minimum in zip(
+            print_contact_areas,
+            minimum_contact_areas,
+        )
+    ):
+        raise RuntimeError(
+            "A baffle component does not have its intended broad print-bed "
+            "print-bed face: "
+            f"areas={print_contact_areas}, minimums={minimum_contact_areas}"
+        )
+
+    tolerance = 1.0e-4
+    key_start_y = (
+        BAFFLE_REAR_Y
+        + BAFFLE_WALL_THICKNESS
+        + BAFFLE_LID_FIT_CLEARANCE
+    )
+    key_end_y = (
+        BAFFLE_FRONT_Y
+        - BAFFLE_WALL_THICKNESS
+        - BAFFLE_LID_FIT_CLEARANCE
+    )
+    lid_loops = (
+        baffle_lid_outer_loop_at_y(BAFFLE_REAR_Y),
+        baffle_lid_outer_loop_at_y(BAFFLE_FRONT_Y),
+        baffle_lid_key_loop_at_y(key_start_y),
+        baffle_lid_key_loop_at_y(key_end_y),
+    )
+    expected_lid_bounds = (
+        min(point[0] for loop in lid_loops for point in loop),
+        BAFFLE_REAR_Y,
+        min(point[1] for loop in lid_loops for point in loop),
+        max(point[0] for loop in lid_loops for point in loop),
+        BAFFLE_FRONT_Y,
+        max(point[1] for loop in lid_loops for point in loop),
+    )
+    lid_coordinates = [vertex.co for vertex in lid.data.vertices]
+    actual_lid_bounds = (
+        min(coordinate.x for coordinate in lid_coordinates),
+        min(coordinate.y for coordinate in lid_coordinates),
+        min(coordinate.z for coordinate in lid_coordinates),
+        max(coordinate.x for coordinate in lid_coordinates),
+        max(coordinate.y for coordinate in lid_coordinates),
+        max(coordinate.z for coordinate in lid_coordinates),
+    )
+    lid_bounds_mismatch = any(
+        abs(actual_lid_bounds[index] - expected_lid_bounds[index])
+        > tolerance
+        for index in range(6)
+    )
+    if lid_bounds_mismatch:
+        raise RuntimeError(
+            "Baffle lid bounds do not match its plate/key profiles: "
+            f"actual={actual_lid_bounds}, expected={expected_lid_bounds}"
+        )
+
+    tray_min_y = min(vertex.co.y for vertex in tray.data.vertices)
+    tray_max_y = max(vertex.co.y for vertex in tray.data.vertices)
+    expected_tray_min_y = (
+        BAFFLE_REAR_Y - baffle_gasket_exposed_height()
+        if baffle_gasket_is_integral()
+        else BAFFLE_REAR_Y
+    )
+    if (
+        abs(tray_min_y - expected_tray_min_y) > tolerance
+        or abs(tray_max_y - BAFFLE_FRONT_Y) > tolerance
+    ):
+        raise RuntimeError(
+            "Baffle tray axial bounds do not match rear/front planes: "
+            f"y=({tray_min_y:.5f}, {tray_max_y:.5f}) mm"
+        )
+
+    tray_bvh = mesh_bvh(tray)
+    first_left, first_right, _bottom, _top = (
+        baffle_effective_airway_bounds_at_y(BAFFLE_FIRST_Y)
+    )
+    probe_x = (first_left + first_right) / 2.0
+    inlet_probe_span = baffle_slot_spans(
+        BAFFLE_INLET_DIAMETER,
+        BAFFLE_INLET_SLOT_COUNT,
+        BAFFLE_INLET_SEPARATOR_THICKNESS_Z,
+        FAN_CENTER_Z,
+    )[0]
+    inlet_probe_z = sum(inlet_probe_span) / 2.0
+    outlet_probe_span = baffle_slot_spans(
+        BAFFLE_OUTLET_HEIGHT,
+        BAFFLE_OUTLET_SLOT_COUNT,
+        BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z,
+    )[0]
+    outlet_probe_z = sum(outlet_probe_span) / 2.0
+    probes = (
+        (
+            "rear_inlet_open",
+            (
+                FAN_CENTER_X,
+                BAFFLE_REAR_Y + BAFFLE_WALL_THICKNESS / 2.0,
+                inlet_probe_z,
+            ),
+            False,
+        ),
+        (
+            "rear_face_solid",
+            (
+                FAN_CENTER_X,
+                BAFFLE_REAR_Y + BAFFLE_WALL_THICKNESS / 2.0,
+                BAFFLE_BODY_HEIGHT / 2.0 - BAFFLE_WALL_THICKNESS / 2.0,
+            ),
+            True,
+        ),
+        (
+            "first_blocker_solid",
+            (probe_x, BAFFLE_FIRST_Y, 0.0),
+            True,
+        ),
+        (
+            "first_top_lane_open",
+            (
+                probe_x,
+                BAFFLE_FIRST_Y,
+                BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+                + (
+                    BAFFLE_BODY_HEIGHT
+                    - 2.0 * BAFFLE_WALL_THICKNESS
+                    - BAFFLE_FIRST_BLOCKER_HEIGHT_Z
+                )
+                / 4.0,
+            ),
+            False,
+        ),
+        (
+            "second_center_lane_open",
+            (probe_x, BAFFLE_SECOND_Y, 0.0),
+            False,
+        ),
+        (
+            "second_top_member_solid",
+            (
+                probe_x,
+                BAFFLE_SECOND_Y,
+                BAFFLE_SECOND_OPENING_HEIGHT_Z / 2.0 + 2.0,
+            ),
+            True,
+        ),
+        (
+            "forward_outlet_open",
+            (
+                0.0,
+                BAFFLE_FRONT_Y - BAFFLE_WALL_THICKNESS / 2.0,
+                outlet_probe_z,
+            ),
+            False,
+        ),
+        (
+            "forward_face_solid",
+            (
+                0.0,
+                BAFFLE_FRONT_Y - BAFFLE_WALL_THICKNESS / 2.0,
+                BAFFLE_OUTLET_HEIGHT / 2.0 + 2.0,
+            ),
+            True,
+        ),
+    )
+    failures = [
+        name
+        for name, point, expected_inside in probes
+        if bvh_point_is_inside(tray_bvh, point) != expected_inside
+    ]
+    if failures:
+        raise RuntimeError(
+            "Baffle tray internal-geometry validation failed: "
+            + ", ".join(failures)
+        )
+
+    seal = tray if gasket is None else gasket
+    gasket_bvh = mesh_bvh(seal)
+    gasket_mid_y = (
+        BAFFLE_REAR_Y - baffle_gasket_exposed_height() / 2.0
+        if gasket is None
+        else fan_pad_inner_y() + BAFFLE_GASKET_THICKNESS_Y / 2.0
+    )
+    if bvh_point_is_inside(
+        gasket_bvh,
+        (FAN_CENTER_X, gasket_mid_y, FAN_CENTER_Z),
+    ):
+        raise RuntimeError("The baffle gasket obstructs the fan inlet")
+    seal_probe_z = (
+        BAFFLE_GASKET_OUTER_DIAMETER
+        + BAFFLE_GASKET_INNER_DIAMETER
+    ) / 4.0
+    if not bvh_point_is_inside(
+        gasket_bvh,
+        (FAN_CENTER_X, gasket_mid_y, seal_probe_z),
+    ):
+        raise RuntimeError("The baffle inlet seal ring is missing")
+    for index, (x, z) in enumerate(fan_hole_positions(), start=1):
+        if bvh_point_is_inside(gasket_bvh, (x, gasket_mid_y, z)):
+            raise RuntimeError(
+                f"The baffle gasket does not clear fan boss {index}"
+            )
+    if gasket is not None:
+        gasket_cross_section_area = (
+            mesh_volume(gasket) / BAFFLE_GASKET_THICKNESS_Y
+        )
+        expected_compression_volume = (
+            gasket_cross_section_area * baffle_gasket_compression()
+        )
+        actual_compression_volume = mesh_intersection_volume(
+            tray,
+            gasket,
+            "Baffle_Gasket_Tray_Compression_Validation",
+        )
+        compression_volume_tolerance = max(
+            0.01,
+            expected_compression_volume * 0.005,
+        )
+        if (
+            abs(actual_compression_volume - expected_compression_volume)
+            > compression_volume_tolerance
+        ):
+            raise RuntimeError(
+                "The groove floor does not back the rigid-tray gasket at its "
+                "configured compression: "
+                f"actual={actual_compression_volume:.6f} mm3 "
+                f"expected={expected_compression_volume:.6f} mm3"
+            )
+        print(
+            "BAFFLE_GASKET_GROOVE_SUPPORT PASS "
+            f"compression_volume={actual_compression_volume:.6f}mm3 "
+            f"expected={expected_compression_volume:.6f}mm3"
+        )
+    if not baffle_gasket_is_integral():
+        groove_mid_y = BAFFLE_REAR_Y + BAFFLE_GASKET_GROOVE_DEPTH_Y / 2.0
+        groove_floor_probe_y = (
+            BAFFLE_REAR_Y
+            + BAFFLE_GASKET_GROOVE_DEPTH_Y
+            + (
+                BAFFLE_WALL_THICKNESS
+                - BAFFLE_GASKET_GROOVE_DEPTH_Y
+            )
+            / 2.0
+        )
+        groove_probe = (FAN_CENTER_X, groove_mid_y, seal_probe_z)
+        groove_outer_wall_probe = (
+            FAN_CENTER_X,
+            groove_mid_y,
+            BAFFLE_GASKET_OUTER_DIAMETER / 2.0
+            + BAFFLE_GASKET_GROOVE_RADIAL_CLEARANCE
+            + 0.10,
+        )
+        floor_probe = (FAN_CENTER_X, groove_floor_probe_y, seal_probe_z)
+        if bvh_point_is_inside(tray_bvh, groove_probe):
+            raise RuntimeError("The rigid tray gasket locating groove is missing")
+        if not bvh_point_is_inside(tray_bvh, groove_outer_wall_probe):
+            raise RuntimeError(
+                "The rigid tray gasket groove lacks its outer locating wall"
+            )
+        if not bvh_point_is_inside(tray_bvh, floor_probe):
+            raise RuntimeError("The rigid tray gasket groove lacks a solid floor")
+        seal_mid_radius = (
+            BAFFLE_GASKET_OUTER_DIAMETER
+            + BAFFLE_GASKET_INNER_DIAMETER
+        ) / 4.0
+        floor_support_y = (
+            BAFFLE_REAR_Y + BAFFLE_GASKET_GROOVE_DEPTH_Y + 0.10
+        )
+        supported_samples = 0
+        for sample_index in range(72):
+            angle = 2.0 * math.pi * sample_index / 72.0
+            x = FAN_CENTER_X + seal_mid_radius * math.cos(angle)
+            z = FAN_CENTER_Z + seal_mid_radius * math.sin(angle)
+            inside_boss_scallop = any(
+                math.hypot(x - boss_x, z - boss_z)
+                <= FAN_HOLE_BOSS_DIAMETER / 2.0
+                + BAFFLE_GASKET_BOSS_CLEARANCE
+                for boss_x, boss_z in fan_hole_positions()
+            )
+            if inside_boss_scallop:
+                continue
+            supported_samples += 1
+            if bvh_point_is_inside(tray_bvh, (x, groove_mid_y, z)):
+                raise RuntimeError(
+                    "The rigid tray gasket groove channel is obstructed"
+                )
+            if not bvh_point_is_inside(
+                tray_bvh,
+                (x, floor_support_y, z),
+            ):
+                raise RuntimeError(
+                    "The rigid tray gasket is not continuously backed by its "
+                    "groove floor"
+                )
+        if supported_samples < 48:
+            raise RuntimeError("Too few gasket-floor support samples were tested")
+
+    back_bvh = mesh_bvh(back)
+    receiver_half_height = dome_cavity_half_height_at_y(
+        BAFFLE_SNAP_RECEIVER_Y
+    )
+    for side in (-1.0, 1.0):
+        receiver_probe = (
+            baffle_snap_auxiliary_center_x_at_y(
+                BAFFLE_SNAP_RECEIVER_Y,
+                BAFFLE_SNAP_RECEIVER_DEPTH_Y
+                + 2.0 * baffle_boolean_join_overlap(),
+            ),
+            BAFFLE_SNAP_RECEIVER_Y,
+            side
+            * (
+                receiver_half_height
+                - BAFFLE_SNAP_RECEIVER_PROJECTION_Z / 2.0
+            ),
+        )
+        if not bvh_point_is_inside(back_bvh, receiver_probe):
+            raise RuntimeError("A back-shell baffle receiver is missing")
+
+    inlet_area = baffle_inlet_effective_area()
+    first_area, second_area, outlet_area = baffle_throat_areas()
+    print(
+        "FAN_ACOUSTIC_BAFFLE_CARTRIDGE PASS "
+        f"material={BAFFLE_CARTRIDGE_MATERIAL_MODE} "
+        f"parts={len(components)} seal="
+        f"{'integral_TPU' if gasket is None else 'groove_located_TPU'} "
+        "bulk_internal_supports_avoided=True "
+        f"localized_support_advisory=stop_relief_bridge_and_snap_roots "
+        f"stop_relief_bridge={BAFFLE_FRONT_Y - BAFFLE_REAR_Y:.2f}mm "
+        f"body_depth={BAFFLE_FRONT_Y - BAFFLE_REAR_Y:.2f}mm "
+        f"camera_clearance={baffle_camera_clearance():.2f}mm "
+        f"sleeve_clearance={baffle_sleeve_clearance():.2f}mm "
+        f"line_of_sight_required_inlet_abs_z="
+        f"{baffle_acoustic_visibility_required_inlet_z():.2f}mm "
+        f"throat_areas=({inlet_area:.1f},{first_area:.1f},{second_area:.1f},"
+        f"{outlet_area:.1f})mm2 gasket_compression="
+        f"{baffle_gasket_compression():.2f}mm "
+        f"snap_interference={baffle_snap_resolved_interference():.2f}mm "
+        "print_bed_contact_areas=("
+        + ",".join(f"{area:.1f}" for area in print_contact_areas)
+        + ")mm2"
+    )
 
 
 def validate_captive_buttons(buttons) -> None:
@@ -4763,7 +6845,7 @@ def active_retainer_objects(gate, keepers):
     return (gate,)
 
 
-def apply_layout(back, insert, buttons, gate, keepers) -> None:
+def apply_layout(back, insert, buttons, gate, keepers, baffle_components) -> None:
     if LAYOUT_MODE == "assembled":
         return
     back_right_x = max(vertex.co.x for vertex in back.data.vertices)
@@ -4779,33 +6861,112 @@ def apply_layout(back, insert, buttons, gate, keepers) -> None:
         button.location = (next_button_x, 0.0, 0.0)
         button.rotation_euler = (0.0, 0.0, 0.0)
         next_button_x += BUTTON_INNER_FLANGE_DIAMETER + PRINT_BED_GAP
-    if gate is None:
-        return
-    gate_min_x = min(vertex.co.x for vertex in gate.data.vertices)
-    gate_max_x = max(vertex.co.x for vertex in gate.data.vertices)
-    gate.location = (
-        next_button_x - gate_min_x,
-        0.0,
-        0.0,
-    )
-    gate.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
-    next_keeper_x = gate.location.x + gate_max_x + PRINT_BED_GAP
-    keeper_width = RETAINER_KEEPER_HUB_DIAMETER
-    for keeper in keepers:
-        keeper.location = (
-            next_keeper_x + keeper_width / 2.0,
+    next_component_x = next_button_x
+    if gate is not None:
+        gate_min_x = min(vertex.co.x for vertex in gate.data.vertices)
+        gate_max_x = max(vertex.co.x for vertex in gate.data.vertices)
+        gate.location = (
+            next_button_x - gate_min_x,
             0.0,
             0.0,
         )
-        keeper.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
-        next_keeper_x += keeper_width + PRINT_BED_GAP
+        gate.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
+        next_keeper_x = gate.location.x + gate_max_x + PRINT_BED_GAP
+        keeper_width = RETAINER_KEEPER_HUB_DIAMETER
+        for keeper in keepers:
+            keeper.location = (
+                next_keeper_x + keeper_width / 2.0,
+                0.0,
+                0.0,
+            )
+            keeper.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
+            next_keeper_x += keeper_width + PRINT_BED_GAP
+        next_component_x = next_keeper_x
+    baffle_print_normals = (
+        baffle_left_face_outward_normal(),
+        baffle_right_face_outward_normal(),
+        (0.0, -1.0, 0.0),
+    )
+    for component, outward_normal in zip(
+        baffle_components,
+        baffle_print_normals,
+    ):
+        component.location = (0.0, 0.0, 0.0)
+        component.rotation_mode = "QUATERNION"
+        component.rotation_quaternion = baffle_face_down_quaternion(
+            outward_normal
+        )
+        bpy.context.view_layer.update()
+        transformed = [
+            component.matrix_world @ vertex.co
+            for vertex in component.data.vertices
+        ]
+        minimum_x = min(point.x for point in transformed)
+        maximum_x = max(point.x for point in transformed)
+        minimum_y = min(point.y for point in transformed)
+        minimum_z = min(point.z for point in transformed)
+        component.location = (
+            next_component_x - minimum_x,
+            -minimum_y,
+            -minimum_z,
+        )
+        next_component_x += maximum_x - minimum_x + PRINT_BED_GAP
+    bpy.context.view_layer.update()
 
 
-def apply_post_build_visibility(back, insert, buttons, gate, keepers) -> None:
+def world_bed_contact_area(obj) -> float:
+    """Return polygon area actually coplanar with Z=0 after scene layout."""
+    matrix = obj.matrix_world
+    tolerance = 1.0e-4
+    return sum(
+        polygon.area
+        for polygon in obj.data.polygons
+        if all(
+            abs((matrix @ obj.data.vertices[index].co).z) <= tolerance
+            for index in polygon.vertices
+        )
+    )
+
+
+def validate_baffle_print_bed_layout(baffle_components) -> None:
+    if LAYOUT_MODE != "print_bed" or not baffle_components:
+        return
+    contact_areas = tuple(
+        world_bed_contact_area(component) for component in baffle_components
+    )
+    minimums = (600.0, 600.0, 90.0)[: len(baffle_components)]
+    if any(
+        actual < minimum
+        for actual, minimum in zip(contact_areas, minimums)
+    ):
+        raise RuntimeError(
+            "The actual baffle print-bed layout lacks broad Z=0 contact: "
+            f"areas={contact_areas}, minimums={minimums}"
+        )
+    print(
+        "BAFFLE_PRINT_BED_LAYOUT PASS "
+        "contact_areas=("
+        + ",".join(f"{area:.1f}" for area in contact_areas)
+        + ")mm2"
+    )
+
+
+def apply_post_build_visibility(
+    back,
+    insert,
+    buttons,
+    gate,
+    keepers,
+    baffle_components,
+) -> None:
     visibility = [
         (back, SHOW_BACK_SHELL),
         (insert, SHOW_HOLLOW_INSERT),
         *[(button, SHOW_BUTTONS) for button in buttons],
+        *[
+            (component, SHOW_BAFFLE_CARTRIDGE)
+            for component in baffle_components
+        ],
     ]
     if gate is not None:
         active = set(active_retainer_objects(gate, keepers))
@@ -4868,6 +7029,54 @@ def export_canonical_component_stl(path: Path, component) -> None:
         component.rotation_euler = saved_rotation
 
 
+def baffle_face_down_quaternion(outward_normal):
+    return Vector(outward_normal).normalized().rotation_difference(
+        Vector((0.0, 0.0, -1.0))
+    )
+
+
+def export_component_face_down(path: Path, component, outward_normal) -> None:
+    """Export a component with the selected broad exterior face on the bed."""
+    saved_matrix = component.matrix_world.copy()
+    saved_rotation_mode = component.rotation_mode
+    try:
+        component.location = (0.0, 0.0, 0.0)
+        component.rotation_mode = "QUATERNION"
+        component.rotation_quaternion = baffle_face_down_quaternion(
+            outward_normal
+        )
+        export_stl(path, [component])
+    finally:
+        component.rotation_mode = saved_rotation_mode
+        component.matrix_world = saved_matrix
+
+
+def baffle_left_face_outward_normal():
+    rear_left = FAN_CENTER_X - BAFFLE_REAR_WIDTH / 2.0
+    front_left = -BAFFLE_FRONT_WIDTH / 2.0
+    slope = (front_left - rear_left) / (BAFFLE_FRONT_Y - BAFFLE_REAR_Y)
+    return (-1.0, slope, 0.0)
+
+
+def baffle_right_face_outward_normal():
+    rear_right = FAN_CENTER_X + BAFFLE_REAR_WIDTH / 2.0
+    front_right = BAFFLE_FRONT_WIDTH / 2.0
+    slope = (front_right - rear_right) / (BAFFLE_FRONT_Y - BAFFLE_REAR_Y)
+    return (1.0, -slope, 0.0)
+
+
+def export_canonical_baffle_tray_stl(path: Path, tray) -> None:
+    export_component_face_down(path, tray, baffle_left_face_outward_normal())
+
+
+def export_canonical_baffle_lid_stl(path: Path, lid) -> None:
+    export_component_face_down(path, lid, baffle_right_face_outward_normal())
+
+
+def export_canonical_baffle_gasket_stl(path: Path, gasket) -> None:
+    export_component_face_down(path, gasket, (0.0, -1.0, 0.0))
+
+
 def export_canonical_retainer_stl(path: Path, retainer) -> None:
     """Export the swing gate flat with its rear surface on the bed."""
     saved_location = retainer.location.copy()
@@ -4899,11 +7108,18 @@ def build_gopro_fan_case():
     # module into a namespace and then build more than one material variant.
     if BACK_MATERIAL_MODE != _APPLIED_BACK_MATERIAL_MODE:
         apply_back_material_profile()
+    if (
+        BAFFLE_CARTRIDGE_MATERIAL_MODE
+        != _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE
+    ):
+        apply_baffle_cartridge_material_profile()
     validate_config()
     print(
         "MATERIAL_MODES "
         f"back={BACK_MATERIAL_MODE} sleeve={SLEEVE_MATERIAL_MODE} "
-        f"retainer={RETAINER_MATERIAL_MODE} buttons=TPU"
+        f"retainer={RETAINER_MATERIAL_MODE} "
+        f"baffle={BAFFLE_CARTRIDGE_MATERIAL_MODE} buttons=TPU "
+        f"seal={'integral_TPU' if baffle_gasket_is_integral() else 'separate_TPU'}"
     )
     print(
         f"FRONT_CAMERA_RETAINER enabled={RETAINER_ENABLED} "
@@ -4968,11 +7184,13 @@ def build_gopro_fan_case():
     back = create_back_shell()
     insert = create_insert_frame()
     buttons = create_captive_buttons()
+    baffle_components = create_baffle_cartridge()
     gate = create_front_retainer() if RETAINER_ENABLED else None
     keepers = create_rotating_keepers() if RETAINER_ENABLED else ()
     validate_object(back)
     validate_object(insert)
     validate_captive_buttons(buttons)
+    validate_baffle_cartridge(back, baffle_components)
     if gate is not None:
         validate_front_retainer(gate)
         validate_retainer_index_keys(insert)
@@ -4981,6 +7199,27 @@ def build_gopro_fan_case():
     assign_material(back, f"Rear_Shell_{BACK_MATERIAL_MODE}", BACK_COLOR)
     assign_material(insert, f"Insert_Frame_{SLEEVE_MATERIAL_MODE}", INSERT_COLOR)
     assign_material(buttons[0], "Captive_Button_TPU", BUTTON_COLOR)
+    if baffle_components:
+        baffle_tray, baffle_lid = baffle_components[:2]
+        baffle_gasket = (
+            baffle_components[2] if len(baffle_components) == 3 else None
+        )
+        assign_material(
+            baffle_tray,
+            f"Baffle_Tray_{BAFFLE_CARTRIDGE_MATERIAL_MODE}",
+            BAFFLE_TRAY_COLOR,
+        )
+        assign_material(
+            baffle_lid,
+            f"Baffle_Lid_{BAFFLE_CARTRIDGE_MATERIAL_MODE}",
+            BAFFLE_LID_COLOR,
+        )
+        if baffle_gasket is not None:
+            assign_material(
+                baffle_gasket,
+                "Baffle_Inlet_Gasket_TPU",
+                BAFFLE_GASKET_COLOR,
+            )
     if gate is not None:
         assign_material(
             gate,
@@ -4992,12 +7231,14 @@ def build_gopro_fan_case():
             f"Rotating_Keeper_{RETAINER_MATERIAL_MODE}",
             RETAINER_KEEPER_COLOR,
         )
-    apply_layout(back, insert, buttons, gate, keepers)
+    apply_layout(back, insert, buttons, gate, keepers, baffle_components)
+    validate_baffle_print_bed_layout(baffle_components)
 
     if EXPORT_STL:
         directory = export_base_directory()
         if EXPORT_COMBINED_STL:
             combined_objects = [back, insert, *buttons]
+            combined_objects.extend(baffle_components)
             if gate is not None:
                 combined_objects.extend(active_retainer_objects(gate, keepers))
             export_stl(
@@ -5011,6 +7252,26 @@ def build_gopro_fan_case():
                 directory / BUTTON_STL_NAME,
                 buttons[0],
             )
+            if baffle_components:
+                baffle_tray, baffle_lid = baffle_components[:2]
+                baffle_gasket = (
+                    baffle_components[2]
+                    if len(baffle_components) == 3
+                    else None
+                )
+                export_canonical_baffle_tray_stl(
+                    directory / BAFFLE_TRAY_STL_NAME,
+                    baffle_tray,
+                )
+                export_canonical_baffle_lid_stl(
+                    directory / BAFFLE_LID_STL_NAME,
+                    baffle_lid,
+                )
+                if baffle_gasket is not None:
+                    export_canonical_baffle_gasket_stl(
+                        directory / BAFFLE_GASKET_STL_NAME,
+                        baffle_gasket,
+                    )
             if gate is not None:
                 export_canonical_retainer_stl(
                     directory / RETAINER_STL_NAME,
@@ -5022,11 +7283,22 @@ def build_gopro_fan_case():
                 )
 
     bpy.ops.object.select_all(action="DESELECT")
-    apply_post_build_visibility(back, insert, buttons, gate, keepers)
+    apply_post_build_visibility(
+        back,
+        insert,
+        buttons,
+        gate,
+        keepers,
+        baffle_components,
+    )
     visibility = [
         (back, SHOW_BACK_SHELL),
         (insert, SHOW_HOLLOW_INSERT),
         *[(button, SHOW_BUTTONS) for button in buttons],
+        *[
+            (component, SHOW_BAFFLE_CARTRIDGE)
+            for component in baffle_components
+        ],
     ]
     if gate is not None:
         active = set(active_retainer_objects(gate, keepers))
