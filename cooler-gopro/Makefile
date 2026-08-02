@@ -16,7 +16,8 @@ FAN_CASE_STLS := \
 	gopro_fan_case_parametric.stl \
 	gopro_fan_case_back.stl \
 	gopro_fan_case_insert.stl \
-	gopro_fan_case_button.stl
+	gopro_fan_case_button.stl \
+	gopro_fan_case_front_retainer.stl
 HOCKEYMOM_COVER_STLS := \
 	hockeymom_3_cam_cover_original_style_base.stl \
 	hockeymom_3_cam_cover_original_style_lid.stl \
@@ -83,7 +84,7 @@ print_targets:
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
 		'dual-fan                  Build the parametric dual-fan STL.' \
-		'fan-case                  Build the fan case, back, insert, and captive-button STLs.' \
+		'fan-case                  Build the fan case, back, insert, button, and front-retainer STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
 		'' \
 		'Documentation' \
