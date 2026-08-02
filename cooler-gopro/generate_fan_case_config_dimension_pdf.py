@@ -105,6 +105,7 @@ class ConfigEntry:
 
 CATEGORY_PREFIXES = (
     ("Button actuators", ("BUTTON_",)),
+    ("Front camera retainer", ("RETAINER_",)),
     ("Build, export and viewport", ("CLEAR_", "LAYOUT_", "PRINT_BED_", "SHOW_", "EXPORT_", "COMBINED_", "BACK_STL_", "INSERT_STL_", "MATERIAL_")),
     ("Mesh and Boolean quality", ("CYLINDER_", "CORNER_", "BOOLEAN_", "WATERTIGHT_", "INSERT_DEPTH_SECTIONS")),
     ("Sleeve capture joint", ("SLEEVE_CAPTURE_", "FIT_CLEARANCE_", "INSERTION_DEPTH")),
@@ -153,6 +154,17 @@ EXACT_DESCRIPTIONS = {
     "BUTTON_RETENTION_SHOULDER_HEIGHT": "Short inward-facing taper that resists pulling the installed button back through the port.",
     "BUTTON_RETENTION_LEAD_IN_HEIGHT": "Tapered tip length that guides and compresses the TPU bead during inside-out installation.",
     "BUTTON_STL_NAME": "Output filename for one canonical captive button; print two copies in TPU.",
+    "RETAINER_ENABLED": "Build and export the removable front camera-retaining plate; requires the three case fasteners.",
+    "RETAINER_THICKNESS_Y": "Front-retainer plate thickness along the case insertion axis.",
+    "RETAINER_HOLE_DIAMETER": "Diameter of each of the three front-retainer screw passages.",
+    "RETAINER_HORIZONTAL_END_MARGIN_X": "Horizontal material added beyond the leftmost and rightmost case-fastener axes.",
+    "RETAINER_HORIZONTAL_BAR_HEIGHT_Z": "Full lower-bar height before the camera-clearance scallop is removed.",
+    "RETAINER_LOWER_EDGE_MARGIN_Z": "Distance from the lower fastener row to the retainer's bottom edge.",
+    "RETAINER_UPRIGHT_WIDTH_X": "Width of the narrow upright joining the right lower and upper fasteners.",
+    "RETAINER_TOP_EDGE_MARGIN_Z": "Distance from the upper fastener axis to the retainer's top edge.",
+    "RETAINER_RELIEF_RADIUS": "Radius of the large circular scallop that preserves camera clearance above the lower retaining strap.",
+    "RETAINER_MIN_HOLE_WEB": "Minimum configured radial bearing web validated around each retainer screw passage.",
+    "RETAINER_STL_NAME": "Output filename for the front camera-retaining plate, exported flat for printing.",
 }
 
 
@@ -826,7 +838,7 @@ def page_fasteners(pdf):
         if capture_enabled
         else "Retention geometry in the active legacy socket configuration"
     )
-    fig = new_page(7, "FASTENERS, HEX CAPTURE, STOPS AND SNAPS", subtitle)
+    fig = new_page(7, "FASTENERS, HEX CAPTURE, RETAINER AND SNAPS", subtitle)
     left = panel(fig, [0.06, 0.14, 0.42, 0.69], "HEX PART AND TWO RETAINING TABS", "Section across one rear fastener")
     left.set_xlim(-5, 5)
     left.set_ylim(-1, 8)
@@ -859,12 +871,34 @@ def page_fasteners(pdf):
     note(right, 0.04, 0.94, "THREE CASE FASTENERS", [f"back bore Ø {fmt(C['BACK_FASTENER_HOLE_DIAMETER'])} mm", f"insert bore Ø {fmt(C['INSERT_FASTENER_HOLE_DIAMETER'])} mm", f"socket clearance {fmt(C['FASTENER_BOSS_SOCKET_CLEARANCE'])} mm"], BLUE)
     note(right, 0.04, 0.70, "HEX SNAP", [f"part thickness {fmt(C['BACK_FASTENER_HEX_PART_THICKNESS_Y'])} mm", f"tab depth {fmt(C['BACK_FASTENER_RETENTION_TAB_DEPTH_Y'])} mm", f"seat offset {fmt(C['BACK_FASTENER_RETENTION_TAB_OFFSET_FROM_SEAT'])} mm"], ORANGE)
     note(right, 0.04, 0.46, "SLEEVE SNAP", [f"bump {fmt(C['SNAP_BUMP_PROTRUSION'])} mm", f"pocket clearance {fmt(C['SNAP_POCKET_CLEARANCE'])} mm", f"edge R {fmt(C['SNAP_EDGE_RADIUS'])} mm"], GREEN)
-    final_cut_note = (
-        "Final groove cut prevents bridging."
-        if capture_enabled
-        else "No final groove cut in this build."
-    )
-    note(right, 0.04, 0.22, "INTERNAL DETAILS", [f"camera stops {len(C['CAMERA_STOP_SPECS'])}", f"locating rails {len(C['LOCATING_TAB_SPECS'])}", final_cut_note], RED)
+    if C["RETAINER_ENABLED"]:
+        fastener_xs = [
+            float(point[0]) for point in C["CASE_FASTENER_POSITIONS_XZ"]
+        ]
+        fastener_zs = sorted(
+            float(point[1]) for point in C["CASE_FASTENER_POSITIONS_XZ"]
+        )
+        retainer_width = (
+            max(fastener_xs)
+            - min(fastener_xs)
+            + 2.0 * float(C["RETAINER_HORIZONTAL_END_MARGIN_X"])
+        )
+        retainer_height = (
+            fastener_zs[-1]
+            + float(C["RETAINER_TOP_EDGE_MARGIN_Z"])
+            - (
+                fastener_zs[0]
+                - float(C["RETAINER_LOWER_EDGE_MARGIN_Z"])
+            )
+        )
+        retainer_lines = [
+            f"overall {retainer_width:.2f} × {retainer_height:.2f} × {fmt(C['RETAINER_THICKNESS_Y'])} mm",
+            f"3 holes Ø {fmt(C['RETAINER_HOLE_DIAMETER'])} mm on case axes",
+            "retainer seats flush to the insert entry face",
+        ]
+    else:
+        retainer_lines = ["disabled in this configuration"]
+    note(right, 0.04, 0.22, "FRONT CAMERA RETAINER", retainer_lines, RED)
     pdf.savefig(fig)
     plt.close(fig)
 

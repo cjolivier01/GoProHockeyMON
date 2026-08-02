@@ -44,6 +44,11 @@ MATERIAL_MODE = "TPU"
 SHOW_BACK_SHELL = True
 SHOW_HOLLOW_INSERT = True
 SHOW_BUTTONS = True
+SHOW_FRONT_RETAINER = True
+
+# The front plate depends on the case fasteners, but remains optional so the
+# pre-existing fastener-disabled sleeve configuration can still be built.
+RETAINER_ENABLED = True
 
 EXPORT_STL = False
 EXPORT_DIRECTORY = ""
@@ -53,6 +58,7 @@ COMBINED_STL_NAME = "gopro_fan_case_parametric.stl"
 BACK_STL_NAME = "gopro_fan_case_back.stl"
 INSERT_STL_NAME = "gopro_fan_case_insert.stl"
 BUTTON_STL_NAME = "gopro_fan_case_button.stl"
+RETAINER_STL_NAME = "gopro_fan_case_front_retainer.stl"
 
 # Mesh and boolean quality.
 CYLINDER_SEGMENTS = 96
@@ -291,6 +297,24 @@ BUTTON_RETENTION_RIM_HEIGHT = 0.85
 BUTTON_RETENTION_SHOULDER_HEIGHT = 0.10
 BUTTON_RETENTION_LEAD_IN_HEIGHT = 0.55
 
+# Removable front plate that uses the three case fasteners to keep the camera
+# from sliding out of the sleeve's open end.  Its clean parametric outline
+# follows the legacy gopro-dual-fan-retainer.stl: a scalloped lower bar and a
+# narrow upright at the single upper fastener.  The live case-fastener axes,
+# rather than the legacy mesh's slightly displaced holes, control alignment.
+RETAINER_THICKNESS_Y = 2.0
+RETAINER_HOLE_DIAMETER = 3.4
+RETAINER_HORIZONTAL_END_MARGIN_X = 8.0
+RETAINER_HORIZONTAL_BAR_HEIGHT_Z = 13.15
+RETAINER_LOWER_EDGE_MARGIN_Z = 4.20
+RETAINER_UPRIGHT_WIDTH_X = 10.0
+RETAINER_TOP_EDGE_MARGIN_Z = 4.10
+RETAINER_CORNER_RADIUS = 3.0
+RETAINER_RELIEF_CENTER_X = -3.0
+RETAINER_RELIEF_CENTER_Z = 27.75
+RETAINER_RELIEF_RADIUS = 54.75
+RETAINER_MIN_HOLE_WEB = 2.0
+
 # Six internal rails that position the camera inside the insert frame.
 LOCATING_TABS_ENABLED = True
 # Each entry is (name, x_min, x_max, z_min, z_max, attachment). These are
@@ -327,6 +351,7 @@ SNAP_EDGE_RADIUS = 0.35
 BACK_COLOR = (0.10, 0.38, 0.70, 1.0)
 INSERT_COLOR = (0.88, 0.26, 0.08, 1.0)
 BUTTON_COLOR = (0.12, 0.12, 0.12, 1.0)
+RETAINER_COLOR = (0.18, 0.62, 0.30, 1.0)
 
 
 # Values controlled by MATERIAL_MODE.  Keep a complete rigid profile so
@@ -610,6 +635,35 @@ def insert_inner_height() -> float:
     return INSERT_FRONT_HEIGHT - 2.0 * INSERT_WALL_Z
 
 
+def resolved_retainer_layout():
+    """Resolve the reference-style L plate from the three fastener axes."""
+    ordered = sorted(CASE_FASTENER_POSITIONS_XZ, key=lambda point: point[1])
+    lower_left, lower_right = sorted(ordered[:2], key=lambda point: point[0])
+    upper = ordered[2]
+    minimum_x = min(point[0] for point in CASE_FASTENER_POSITIONS_XZ)
+    maximum_x = max(point[0] for point in CASE_FASTENER_POSITIONS_XZ)
+    bar_bottom_z = lower_left[1] - RETAINER_LOWER_EDGE_MARGIN_Z
+    bar_top_z = bar_bottom_z + RETAINER_HORIZONTAL_BAR_HEIGHT_Z
+    upright_top_z = upper[1] + RETAINER_TOP_EDGE_MARGIN_Z
+    return {
+        "lower_left": lower_left,
+        "lower_right": lower_right,
+        "upper": upper,
+        "bar_center_x": (minimum_x + maximum_x) / 2.0,
+        "bar_width": (
+            maximum_x
+            - minimum_x
+            + 2.0 * RETAINER_HORIZONTAL_END_MARGIN_X
+        ),
+        "bar_bottom_z": bar_bottom_z,
+        "bar_top_z": bar_top_z,
+        "bar_center_z": (bar_bottom_z + bar_top_z) / 2.0,
+        "upright_center_z": (bar_bottom_z + upright_top_z) / 2.0,
+        "upright_height": upright_top_z - bar_bottom_z,
+        "upright_top_z": upright_top_z,
+    }
+
+
 def insert_outer_dimensions_at_t(t: float):
     """Return the tapered insert's outer X/Z dimensions at depth fraction t."""
     return (
@@ -669,6 +723,97 @@ def validate_rounded_rectangle_dimensions(
             f"{name} rounded rectangle radius must be positive and no larger "
             f"than {maximum_radius:.3f} mm for its {width:.3f} x "
             f"{height:.3f} mm contour; got {radius:.3f} mm"
+        )
+
+
+def validate_retainer_config() -> None:
+    """Validate geometry that is relevant only when the plate is enabled."""
+    if not RETAINER_ENABLED:
+        return
+    if not CASE_FASTENERS_ENABLED:
+        raise ValueError(
+            "RETAINER_ENABLED requires CASE_FASTENERS_ENABLED; disable the "
+            "retainer or enable the three case fasteners"
+        )
+    if len(CASE_FASTENER_POSITIONS_XZ) != 3:
+        raise ValueError(
+            "The reference-style front camera retainer requires exactly "
+            "three CASE_FASTENER_POSITIONS_XZ entries"
+        )
+
+    layout = resolved_retainer_layout()
+    lower_left = layout["lower_left"]
+    lower_right = layout["lower_right"]
+    upper = layout["upper"]
+    if abs(lower_left[1] - lower_right[1]) > 0.25:
+        raise ValueError(
+            "The front camera retainer requires its two lower fasteners to "
+            "share a horizontal row within 0.25 mm"
+        )
+    if upper[1] <= max(lower_left[1], lower_right[1]):
+        raise ValueError(
+            "The front camera retainer requires one fastener above the two "
+            "lower fasteners"
+        )
+    required_upright_width = 2.0 * (
+        abs(upper[0] - lower_right[0])
+        + RETAINER_HOLE_DIAMETER / 2.0
+        + RETAINER_MIN_HOLE_WEB
+    )
+    if RETAINER_UPRIGHT_WIDTH_X < required_upright_width:
+        raise ValueError(
+            "RETAINER_UPRIGHT_WIDTH_X cannot provide the configured minimum "
+            "web around both right-side fasteners; need at least "
+            f"{required_upright_width:.3f} mm"
+        )
+    if RETAINER_HOLE_DIAMETER > INSERT_FASTENER_HOLE_DIAMETER + 1.0:
+        raise ValueError(
+            "RETAINER_HOLE_DIAMETER is more than 1.0 mm larger than the "
+            "insert fastener bore and may provide insufficient screw bearing"
+        )
+    if RETAINER_HOLE_DIAMETER < INSERT_FASTENER_HOLE_DIAMETER:
+        raise ValueError(
+            "RETAINER_HOLE_DIAMETER must be at least as large as "
+            "INSERT_FASTENER_HOLE_DIAMETER so the same screws pass through"
+        )
+    required_edge_margin = (
+        RETAINER_HOLE_DIAMETER / 2.0 + RETAINER_MIN_HOLE_WEB
+    )
+    if min(
+        RETAINER_HORIZONTAL_END_MARGIN_X,
+        RETAINER_LOWER_EDGE_MARGIN_Z,
+        RETAINER_HORIZONTAL_BAR_HEIGHT_Z - RETAINER_LOWER_EDGE_MARGIN_Z,
+        RETAINER_TOP_EDGE_MARGIN_Z,
+    ) < required_edge_margin:
+        raise ValueError(
+            "The front-retainer edge margins must preserve "
+            f"{RETAINER_MIN_HOLE_WEB:.3f} mm of material outside every "
+            "fastener hole"
+        )
+    if RETAINER_CORNER_RADIUS > min(
+        RETAINER_HORIZONTAL_BAR_HEIGHT_Z,
+        RETAINER_UPRIGHT_WIDTH_X,
+    ) / 2.0:
+        raise ValueError(
+            "RETAINER_CORNER_RADIUS must fit the lower bar and upright"
+        )
+    relief_bottom_z = RETAINER_RELIEF_CENTER_Z - RETAINER_RELIEF_RADIUS
+    bar_half_width = layout["bar_width"] / 2.0
+    if not (
+        layout["bar_center_x"] - bar_half_width
+        < RETAINER_RELIEF_CENTER_X
+        < layout["bar_center_x"] + bar_half_width
+    ):
+        raise ValueError(
+            "RETAINER_RELIEF_CENTER_X must lie within the horizontal bar"
+        )
+    minimum_center_strap_top = (
+        layout["bar_bottom_z"] + RETAINER_MIN_HOLE_WEB
+    )
+    if not minimum_center_strap_top < relief_bottom_z < layout["bar_top_z"]:
+        raise ValueError(
+            "The front-retainer relief must cut the horizontal bar while "
+            "leaving at least RETAINER_MIN_HOLE_WEB of central strap"
         )
 
 
@@ -771,6 +916,27 @@ def validate_config() -> None:
             positive["BACK_FASTENER_MIN_DATUM_CONTACT_AREA"] = (
                 BACK_FASTENER_MIN_DATUM_CONTACT_AREA
             )
+    if RETAINER_ENABLED:
+        positive.update(
+            {
+                "RETAINER_THICKNESS_Y": RETAINER_THICKNESS_Y,
+                "RETAINER_HOLE_DIAMETER": RETAINER_HOLE_DIAMETER,
+                "RETAINER_HORIZONTAL_END_MARGIN_X": (
+                    RETAINER_HORIZONTAL_END_MARGIN_X
+                ),
+                "RETAINER_HORIZONTAL_BAR_HEIGHT_Z": (
+                    RETAINER_HORIZONTAL_BAR_HEIGHT_Z
+                ),
+                "RETAINER_LOWER_EDGE_MARGIN_Z": (
+                    RETAINER_LOWER_EDGE_MARGIN_Z
+                ),
+                "RETAINER_UPRIGHT_WIDTH_X": RETAINER_UPRIGHT_WIDTH_X,
+                "RETAINER_TOP_EDGE_MARGIN_Z": RETAINER_TOP_EDGE_MARGIN_Z,
+                "RETAINER_CORNER_RADIUS": RETAINER_CORNER_RADIUS,
+                "RETAINER_RELIEF_RADIUS": RETAINER_RELIEF_RADIUS,
+                "RETAINER_MIN_HOLE_WEB": RETAINER_MIN_HOLE_WEB,
+            }
+        )
     for name, value in positive.items():
         if value <= 0.0:
             raise ValueError(f"{name} must be positive")
@@ -831,6 +997,7 @@ def validate_config() -> None:
             "BUTTON_RETENTION_LEAD_IN_HEIGHT cannot exceed "
             "BUTTON_RETENTION_RIM_HEIGHT"
         )
+    validate_retainer_config()
     if not 0.0 < BACK_FACE_THICKNESS < BACK_DEPTH:
         raise ValueError("BACK_FACE_THICKNESS must be less than BACK_DEPTH")
     if not 0.0 < INSERTION_DEPTH < min(BACK_DEPTH, INSERT_DEPTH):
@@ -3147,6 +3314,78 @@ def create_captive_buttons():
     return left_button, top_button
 
 
+def create_front_retainer():
+    """Create the removable three-fastener camera-retaining front plate."""
+    layout = resolved_retainer_layout()
+    retainer = rounded_rectangle_prism_y(
+        "Front_Retainer_Lower_Bar",
+        layout["bar_width"],
+        RETAINER_HORIZONTAL_BAR_HEIGHT_Z,
+        RETAINER_CORNER_RADIUS,
+        0.0,
+        RETAINER_THICKNESS_Y,
+        center_x=layout["bar_center_x"],
+        center_z=layout["bar_center_z"],
+    )
+
+    relief = add_cylinder_y(
+        "Front_Retainer_Camera_Relief",
+        RETAINER_RELIEF_RADIUS,
+        -BOOLEAN_OVERLAP,
+        RETAINER_THICKNESS_Y + BOOLEAN_OVERLAP,
+        x=RETAINER_RELIEF_CENTER_X,
+        z=RETAINER_RELIEF_CENTER_Z,
+    )
+    boolean_difference(retainer, [relief], "Front_Retainer_Relief")
+
+    upright = rounded_rectangle_prism_y(
+        "Front_Retainer_Upper_Upright",
+        RETAINER_UPRIGHT_WIDTH_X,
+        layout["upright_height"],
+        RETAINER_CORNER_RADIUS,
+        0.0,
+        RETAINER_THICKNESS_Y,
+        center_x=layout["upper"][0],
+        center_z=layout["upright_center_z"],
+    )
+    boolean_union(
+        retainer,
+        upright,
+        "Front_Retainer_Upright_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+
+    holes = []
+    hole_phase = math.pi / CYLINDER_SEGMENTS
+    for index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
+        hole = add_cylinder_y(
+            f"Front_Retainer_Fastener_Hole_{index}",
+            RETAINER_HOLE_DIAMETER / 2.0,
+            -BOOLEAN_OVERLAP,
+            RETAINER_THICKNESS_Y + BOOLEAN_OVERLAP,
+            x=x,
+            z=z,
+        )
+        # Rotate the retainer's polygonal hole approximation by half a
+        # segment relative to the insert bore.  The nominal axes/diameters
+        # remain identical, but the assembled reference STL does not acquire
+        # coincident four-face edges where two independent parts meet.
+        select_only(hole)
+        bpy.ops.object.transform_apply(
+            location=False,
+            rotation=True,
+            scale=False,
+        )
+        hole.rotation_euler.y = hole_phase
+        holes.append(hole)
+    boolean_difference(retainer, holes, "Front_Retainer_Fastener_Holes")
+    retainer.name = "GoPro_Fan_Case_Front_Retainer"
+    retainer.data.name = "GoPro_Fan_Case_Front_Retainer_Mesh"
+    retainer.location.y = insert_start_y() + INSERT_DEPTH
+    return retainer
+
+
 # ---------------------------------------------------------------------------
 # Validation, layout, materials, and export
 
@@ -3626,13 +3865,94 @@ def validate_captive_buttons(buttons) -> None:
     )
 
 
+def validate_front_retainer(retainer) -> None:
+    """Validate the final retainer mesh, screw passages, and assembly datum."""
+    validate_object(retainer)
+    tolerance = 1.0e-4
+    expected_y = insert_start_y() + INSERT_DEPTH
+    if (
+        abs(retainer.location.x) > tolerance
+        or abs(retainer.location.y - expected_y) > tolerance
+        or abs(retainer.location.z) > tolerance
+        or any(abs(angle) > tolerance for angle in retainer.rotation_euler)
+    ):
+        raise RuntimeError(
+            "The front camera retainer is not seated at the insert entry face"
+        )
+
+    minimum_y = min(vertex.co.y for vertex in retainer.data.vertices)
+    maximum_y = max(vertex.co.y for vertex in retainer.data.vertices)
+    if (
+        abs(minimum_y) > tolerance
+        or abs(maximum_y - RETAINER_THICKNESS_Y) > tolerance
+    ):
+        raise RuntimeError(
+            "Front-retainer mesh thickness does not match "
+            f"RETAINER_THICKNESS_Y: y=({minimum_y:.5f}, {maximum_y:.5f}) mm"
+        )
+
+    bvh = mesh_bvh(retainer)
+    sample_y = RETAINER_THICKNESS_Y / 2.0
+    bearing_sample_radius = (
+        RETAINER_HOLE_DIAMETER / 2.0
+        + RETAINER_MIN_HOLE_WEB
+        - 10.0 * BOOLEAN_CLEANUP_DISTANCE
+    )
+    failures = []
+    for fastener_index, (x, z) in enumerate(
+        CASE_FASTENER_POSITIONS_XZ,
+        start=1,
+    ):
+        if bvh_point_is_inside(bvh, (x, sample_y, z)):
+            failures.append(f"fastener_{fastener_index}_axis_is_blocked")
+        for angle_index in range(16):
+            angle = 2.0 * math.pi * angle_index / 16.0
+            point = (
+                x + bearing_sample_radius * math.cos(angle),
+                sample_y,
+                z + bearing_sample_radius * math.sin(angle),
+            )
+            if not bvh_point_is_inside(bvh, point):
+                failures.append(
+                    f"fastener_{fastener_index}_bearing_web_{angle_index + 1}"
+                )
+    if failures:
+        raise RuntimeError(
+            "Front-retainer fastener alignment/bearing validation failed: "
+            + ", ".join(failures[:12])
+        )
+
+    layout = resolved_retainer_layout()
+    bounds_x = (
+        min(vertex.co.x for vertex in retainer.data.vertices),
+        max(vertex.co.x for vertex in retainer.data.vertices),
+    )
+    bounds_z = (
+        min(vertex.co.z for vertex in retainer.data.vertices),
+        max(vertex.co.z for vertex in retainer.data.vertices),
+    )
+    center_strap_height = (
+        RETAINER_RELIEF_CENTER_Z
+        - RETAINER_RELIEF_RADIUS
+        - layout["bar_bottom_z"]
+    )
+    print(
+        "FRONT_CAMERA_RETAINER PASS fasteners=3 "
+        f"assembled_y={expected_y:.2f}mm "
+        f"dimensions=({bounds_x[1] - bounds_x[0]:.2f}x"
+        f"{bounds_z[1] - bounds_z[0]:.2f}x{RETAINER_THICKNESS_Y:.2f})mm "
+        f"hole_diameter={RETAINER_HOLE_DIAMETER:.2f}mm "
+        f"minimum_center_strap={center_strap_height:.2f}mm"
+    )
+
+
 def assign_material(obj, name: str, color) -> None:
     material = bpy.data.materials.new(name)
     material.diffuse_color = color
     obj.data.materials.append(material)
 
 
-def apply_layout(back, insert, buttons) -> None:
+def apply_layout(back, insert, buttons, retainer) -> None:
     if LAYOUT_MODE == "assembled":
         return
     back_right_x = max(vertex.co.x for vertex in back.data.vertices)
@@ -3648,14 +3968,28 @@ def apply_layout(back, insert, buttons) -> None:
         button.location = (next_button_x, 0.0, 0.0)
         button.rotation_euler = (0.0, 0.0, 0.0)
         next_button_x += BUTTON_INNER_FLANGE_DIAMETER + PRINT_BED_GAP
+    if retainer is None:
+        return
+    retainer_width = max(
+        vertex.co.x for vertex in retainer.data.vertices
+    ) - min(vertex.co.x for vertex in retainer.data.vertices)
+    retainer.location = (
+        next_button_x + retainer_width / 2.0,
+        0.0,
+        0.0,
+    )
+    retainer.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
 
 
-def apply_post_build_visibility(back, insert, buttons) -> None:
-    for obj, visible in (
+def apply_post_build_visibility(back, insert, buttons, retainer) -> None:
+    visibility = [
         (back, SHOW_BACK_SHELL),
         (insert, SHOW_HOLLOW_INSERT),
         *[(button, SHOW_BUTTONS) for button in buttons],
-    ):
+    ]
+    if retainer is not None:
+        visibility.append((retainer, SHOW_FRONT_RETAINER))
+    for obj, visible in visibility:
         obj.hide_set(not visible)
         obj.hide_render = not visible
 
@@ -3694,6 +4028,19 @@ def export_canonical_button_stl(path: Path, button) -> None:
     finally:
         button.location = saved_location
         button.rotation_euler = saved_rotation
+
+
+def export_canonical_retainer_stl(path: Path, retainer) -> None:
+    """Export the retainer flat with its insert-facing surface on the bed."""
+    saved_location = retainer.location.copy()
+    saved_rotation = retainer.rotation_euler.copy()
+    try:
+        retainer.location = (0.0, 0.0, 0.0)
+        retainer.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
+        export_stl(path, [retainer])
+    finally:
+        retainer.location = saved_location
+        retainer.rotation_euler = saved_rotation
 
 
 def build_gopro_fan_case():
@@ -3762,21 +4109,29 @@ def build_gopro_fan_case():
     back = create_back_shell()
     insert = create_insert_frame()
     buttons = create_captive_buttons()
+    retainer = create_front_retainer() if RETAINER_ENABLED else None
     validate_object(back)
     validate_object(insert)
     validate_captive_buttons(buttons)
+    if retainer is not None:
+        validate_front_retainer(retainer)
     validate_sleeve_capture_mesh(back, insert)
     assign_material(back, "Rear_Shell_Blue", BACK_COLOR)
     assign_material(insert, "Insert_Frame_Orange", INSERT_COLOR)
     assign_material(buttons[0], "Captive_Button_TPU", BUTTON_COLOR)
-    apply_layout(back, insert, buttons)
+    if retainer is not None:
+        assign_material(retainer, "Front_Retainer_Green", RETAINER_COLOR)
+    apply_layout(back, insert, buttons, retainer)
 
     if EXPORT_STL:
         directory = export_base_directory()
         if EXPORT_COMBINED_STL:
+            combined_objects = [back, insert, *buttons]
+            if retainer is not None:
+                combined_objects.append(retainer)
             export_stl(
                 directory / COMBINED_STL_NAME,
-                [back, insert, *buttons],
+                combined_objects,
             )
         if EXPORT_SEPARATE_STLS:
             export_stl(directory / BACK_STL_NAME, [back])
@@ -3785,18 +4140,22 @@ def build_gopro_fan_case():
                 directory / BUTTON_STL_NAME,
                 buttons[0],
             )
+            if retainer is not None:
+                export_canonical_retainer_stl(
+                    directory / RETAINER_STL_NAME,
+                    retainer,
+                )
 
     bpy.ops.object.select_all(action="DESELECT")
-    apply_post_build_visibility(back, insert, buttons)
-    visible_objects = [
-        obj
-        for obj, visible in (
-            (back, SHOW_BACK_SHELL),
-            (insert, SHOW_HOLLOW_INSERT),
-            *[(button, SHOW_BUTTONS) for button in buttons],
-        )
-        if visible
+    apply_post_build_visibility(back, insert, buttons, retainer)
+    visibility = [
+        (back, SHOW_BACK_SHELL),
+        (insert, SHOW_HOLLOW_INSERT),
+        *[(button, SHOW_BUTTONS) for button in buttons],
     ]
+    if retainer is not None:
+        visibility.append((retainer, SHOW_FRONT_RETAINER))
+    visible_objects = [obj for obj, visible in visibility if visible]
     for obj in visible_objects:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = (
