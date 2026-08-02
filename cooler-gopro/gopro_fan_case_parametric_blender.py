@@ -44,7 +44,7 @@ PRINT_BED_GAP = 12.0
 BACK_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
 SLEEVE_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
 RETAINER_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
-BAFFLE_CARTRIDGE_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
+BAFFLE_CARTRIDGE_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
 
 # Post-build viewport/render visibility. Geometry is still built, validated,
 # and exported when hidden, making it easy to inspect either part by itself.
