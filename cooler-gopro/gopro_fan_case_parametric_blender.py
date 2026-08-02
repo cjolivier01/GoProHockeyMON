@@ -1234,6 +1234,9 @@ def validate_config() -> None:
                     RETAINER_KEEPER_BOLT_HOLE_DIAMETER
                 ),
                 "RETAINER_KEEPER_HUB_DIAMETER": RETAINER_KEEPER_HUB_DIAMETER,
+                "RETAINER_KEEPER_MIN_HOLE_WEB": (
+                    RETAINER_KEEPER_MIN_HOLE_WEB
+                ),
                 "RETAINER_KEEPER_LOBE_WIDTH_X": RETAINER_KEEPER_LOBE_WIDTH_X,
                 "RETAINER_KEEPER_CLOSED_PROJECTION_Z": (
                     RETAINER_KEEPER_CLOSED_PROJECTION_Z

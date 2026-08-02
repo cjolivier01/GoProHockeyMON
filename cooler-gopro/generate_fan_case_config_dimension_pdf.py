@@ -469,6 +469,7 @@ def drawing_view_for(entry: ConfigEntry) -> str:
         "SLEEVE_CAPTURE_ENGAGEMENT_DEPTH",
         "SLEEVE_CAPTURE_BOTTOM_CLEARANCE",
         "SLEEVE_CAPTURE_FLOOR_THICKNESS",
+        "CAMERA_STOP_TO_INSERT_SOCKET_GAP",
     }:
         return "capture_section"
     if name.startswith(("SLEEVE_CAPTURE_", "FIT_CLEARANCE_")):
@@ -604,6 +605,7 @@ CATALOG_PAGE_COUNT = DRAWING_PAGE_COUNT + SETTINGS_PAGE_COUNT
 TOTAL_PAGES = 1 + CURATED_PAGE_COUNT + CATALOG_PAGE_COUNT + 1
 GRAPHICALLY_ANNOTATED_NAMES: set[str] = set()
 GRAPHICAL_ANNOTATION_KINDS: dict[str, str] = {}
+GRAPHICAL_PRIMITIVE_RECORDS: dict[str, tuple[str, tuple[tuple[float, float], ...]]] = {}
 CATALOGUED_SETTING_NAMES: set[str] = set()
 
 
@@ -1226,7 +1228,7 @@ VIEW_TITLES = {
     "back_side": "BACK SHELL / DOME — ACTUAL SIDE PROJECTION",
     "capture_joint": "ASSEMBLED BACK + SLEEVE — ACTUAL FRONT PROJECTION",
     "capture_section": "SLEEVE CAPTURE — ACTUAL AXIAL SECTION PROJECTION",
-    "fastener_detail": "CASE FASTENERS ON ACTUAL BACK PROJECTION",
+    "fastener_detail": "CASE FASTENERS ON ACTUAL BACK + SLEEVE PROJECTION",
     "fastener_section": "FASTENER POST / HEX RETENTION — ACTUAL AXIAL PROJECTION",
     "camera_stops": "CAMERA STOPS INSIDE ACTUAL BACK CONTOUR",
     "insert_front": "HOLLOW SLEEVE — ACTUAL FRONT PROJECTION",
@@ -1364,6 +1366,75 @@ def union_bounds(geometries):
     return minimum_x, minimum_y, maximum_x, maximum_y
 
 
+def retainer_layout_for_drawings():
+    """Resolve the gate datums using the same equations as the model."""
+    ordered = sorted(C["CASE_FASTENER_POSITIONS_XZ"], key=lambda point: point[1])
+    lower_left, lower_right = sorted(ordered[:2], key=lambda point: point[0])
+    upper = ordered[2]
+    minimum_x = min(float(point[0]) for point in ordered)
+    maximum_x = max(float(point[0]) for point in ordered)
+    bar_bottom_z = float(lower_left[1]) - float(C["RETAINER_LOWER_EDGE_MARGIN_Z"])
+    bar_top_z = bar_bottom_z + float(C["RETAINER_HORIZONTAL_BAR_HEIGHT_Z"])
+    upright_top_z = float(upper[1]) + float(C["RETAINER_TOP_EDGE_MARGIN_Z"])
+    return {
+        "lower_left": tuple(map(float, lower_left)),
+        "lower_right": tuple(map(float, lower_right)),
+        "upper": tuple(map(float, upper)),
+        "bar_left_x": minimum_x - float(C["RETAINER_HORIZONTAL_END_MARGIN_X"]),
+        "bar_right_x": maximum_x + float(C["RETAINER_HORIZONTAL_END_MARGIN_X"]),
+        "bar_bottom_z": bar_bottom_z,
+        "bar_top_z": bar_top_z,
+        "upright_left_x": float(upper[0]) - float(C["RETAINER_UPRIGHT_WIDTH_X"]) / 2.0,
+        "upright_right_x": float(upper[0]) + float(C["RETAINER_UPRIGHT_WIDTH_X"]) / 2.0,
+        "upright_top_z": upright_top_z,
+    }
+
+
+def capture_joint_detail_points(bounds):
+    """Return enlarged NTS section endpoints for the six capture controls."""
+    minimum_x, minimum_z, maximum_x, maximum_z = bounds
+    scale = 10.0
+    x_sleeve = minimum_x + 0.20 * (maximum_x - minimum_x)
+    x_groove = x_sleeve + scale * float(C["SLEEVE_CAPTURE_FIT_CLEARANCE"])
+    x_socket = x_sleeve + scale * float(C["FIT_CLEARANCE_X"])
+    x_support = x_groove + scale * float(C["SLEEVE_CAPTURE_MIN_OUTER_WALL_X"])
+    x_z_detail = maximum_x - 0.24 * (maximum_x - minimum_x)
+    z_sleeve = minimum_z + 0.24 * (maximum_z - minimum_z)
+    z_groove = z_sleeve + scale * float(C["SLEEVE_CAPTURE_FIT_CLEARANCE"])
+    z_socket = z_sleeve + scale * float(C["FIT_CLEARANCE_Z"])
+    z_support = z_groove + scale * float(C["SLEEVE_CAPTURE_MIN_OUTER_WALL_Z"])
+    lip_opening = minimum_x + 0.43 * (maximum_x - minimum_x)
+    lip_groove = lip_opening + scale * float(C["SLEEVE_CAPTURE_INNER_LIP_THICKNESS"])
+    return {
+        "FIT_CLEARANCE_X": ((x_sleeve, 10.0), (x_socket, 10.0)),
+        "SLEEVE_CAPTURE_FIT_CLEARANCE": ((x_sleeve, 4.0), (x_groove, 4.0)),
+        "SLEEVE_CAPTURE_MIN_OUTER_WALL_X": ((x_groove, -2.0), (x_support, -2.0)),
+        "FIT_CLEARANCE_Z": ((x_z_detail, z_sleeve), (x_z_detail, z_socket)),
+        "SLEEVE_CAPTURE_MIN_OUTER_WALL_Z": ((x_z_detail - 7.0, z_groove), (x_z_detail - 7.0, z_support)),
+        "SLEEVE_CAPTURE_INNER_LIP_THICKNESS": ((lip_opening, -18.0), (lip_groove, -18.0)),
+        "x_surfaces": (x_sleeve, x_groove, x_socket, x_support),
+        "z_surfaces": (z_sleeve, z_groove, z_socket, z_support),
+        "lip_surfaces": (lip_opening, lip_groove),
+    }
+
+
+def port_access_detail_points(bounds):
+    minimum_x, minimum_z, maximum_x, maximum_z = bounds
+    left_center = (minimum_x + 0.30 * (maximum_x - minimum_x), 10.0)
+    top_center = (minimum_x + 0.68 * (maximum_x - minimum_x), 10.0)
+    usb_center = (minimum_x + 0.68 * (maximum_x - minimum_x), -12.0)
+    return {
+        "left_center": left_center,
+        "top_center": top_center,
+        "usb_center": usb_center,
+    }
+
+
+def record_graphical_primitive(entry: ConfigEntry, kind: str, *points) -> None:
+    converted = tuple((float(point[0]), float(point[1])) for point in points)
+    GRAPHICAL_PRIMITIVE_RECORDS[entry.name] = (kind, converted)
+
+
 def draw_actual_view(ax, view: str):
     """Draw an STL-derived orthographic projection and return its bounds."""
     if view in {"back_front", "fastener_detail", "camera_stops"}:
@@ -1459,7 +1530,30 @@ def draw_actual_view(ax, view: str):
                     zorder=8,
                 )
         elif view == "fastener_detail":
+            insert = projected_part_geometry("insert", "xz")
+            draw_projected_geometry(
+                ax,
+                insert,
+                "none",
+                ORANGE,
+                alpha=0.85,
+                linewidth=0.85,
+                linestyle="--",
+                zorder=4,
+            )
+            bounds = union_bounds((back, insert))
             for index, (x, z) in enumerate(C["CASE_FASTENER_POSITIONS_XZ"], start=1):
+                ax.add_patch(
+                    Circle(
+                        (x, z),
+                        float(C["INSERT_FASTENER_BOSS_DIAMETER"]) / 2.0,
+                        fill=False,
+                        edgecolor=ORANGE,
+                        linewidth=1.0,
+                        linestyle="--",
+                        zorder=5,
+                    )
+                )
                 ax.add_patch(
                     Circle(
                         (x, z),
@@ -1468,6 +1562,17 @@ def draw_actual_view(ax, view: str):
                         edgecolor=RED,
                         linewidth=1.3,
                         zorder=5,
+                    )
+                )
+                ax.add_patch(
+                    Circle(
+                        (x, z),
+                        float(C["INSERT_FASTENER_HOLE_DIAMETER"]) / 2.0,
+                        fill=False,
+                        edgecolor=RED,
+                        linewidth=0.7,
+                        linestyle=":",
+                        zorder=6,
                     )
                 )
                 ax.text(
@@ -1529,6 +1634,22 @@ def draw_actual_view(ax, view: str):
                     color=INK,
                     zorder=6,
                 )
+            table_lines = [
+                f"{name}: X {fmt(x0)}..{fmt(x1)}  Z {fmt(z0)}..{fmt(z1)} mm"
+                for name, x0, x1, z0, z1, _attachment in C["CAMERA_STOP_SPECS"]
+            ]
+            ax.text(
+                0.0,
+                10.0,
+                "CAMERA-STOP DATUM TABLE\n" + "\n".join(table_lines),
+                fontsize=4.2,
+                family="monospace",
+                ha="center",
+                va="center",
+                color=INK,
+                bbox={"facecolor": WHITE, "edgecolor": RED, "alpha": 0.90, "pad": 3.0},
+                zorder=9,
+            )
         return bounds
     if view == "back_side":
         back = projected_part_geometry("back", "yz")
@@ -1565,7 +1686,41 @@ def draw_actual_view(ax, view: str):
         insert = projected_part_geometry("insert", "xz")
         draw_projected_geometry(ax, back, "#dceaf3", BLUE, alpha=0.68)
         draw_projected_geometry(ax, insert, "#f7d9ca", ORANGE, alpha=0.80, zorder=3)
-        return union_bounds((back, insert))
+        bounds = union_bounds((back, insert))
+        detail = capture_joint_detail_points(bounds)
+        for x, color in zip(
+            detail["x_surfaces"],
+            (ORANGE, RED, BLUE, GREEN),
+        ):
+            ax.plot((x, x), (-6.0, 14.0), color=color, linewidth=1.05, zorder=9)
+        for z, color in zip(
+            detail["z_surfaces"],
+            (ORANGE, RED, BLUE, GREEN),
+        ):
+            ax.plot((detail["FIT_CLEARANCE_Z"][0][0] - 10.0, detail["FIT_CLEARANCE_Z"][0][0] + 3.0), (z, z), color=color, linewidth=1.05, zorder=9)
+        for x, color in zip(detail["lip_surfaces"], (RED, GREEN)):
+            ax.plot((x, x), (-22.0, -14.0), color=color, linewidth=1.15, zorder=9)
+        ax.text(
+            sum(detail["lip_surfaces"]) / 2.0,
+            -23.0,
+            "INNER GROOVE → CAPTURE OPENING (ENLARGED NTS)",
+            fontsize=4.1,
+            color=RED,
+            ha="center",
+            va="top",
+            zorder=10,
+        )
+        ax.text(
+            bounds[0] + 0.5 * (bounds[2] - bounds[0]),
+            22.0,
+            "ENLARGED PERIMETER SECTIONS — NTS\nORANGE sleeve · RED groove · BLUE socket · GREEN support",
+            fontsize=5.2,
+            color=BLUE,
+            weight="bold",
+            ha="center",
+            zorder=10,
+        )
+        return bounds
     if view in {"capture_section", "fastener_section"}:
         back = projected_part_geometry("back", "yz")
         insert = projected_part_geometry("insert", "yz")
@@ -1608,13 +1763,56 @@ def draw_actual_view(ax, view: str):
                 va="center",
                 zorder=8,
             )
+            bevel_scale = 8.0
+            detail_left = datum_y + 2.0
+            detail_bottom = section_z - 7.0
+            detail_width = 4.8
+            detail_height = 4.0
+            detail_bevel = float(C["BACK_FASTENER_RETENTION_TAB_BEVEL"]) * bevel_scale
+            ax.add_patch(
+                Polygon(
+                    (
+                        (detail_left, detail_bottom),
+                        (detail_left + detail_width, detail_bottom),
+                        (detail_left + detail_width, detail_bottom + detail_height - detail_bevel),
+                        (detail_left + detail_width - detail_bevel, detail_bottom + detail_height),
+                        (detail_left, detail_bottom + detail_height),
+                    ),
+                    closed=True,
+                    facecolor="#f5c9c9",
+                    edgecolor=RED,
+                    linewidth=0.9,
+                    zorder=9,
+                )
+            )
+            ax.text(
+                detail_left + detail_width / 2.0,
+                detail_bottom - 0.6,
+                "RETENTION TAB EDGE ×8 — NTS",
+                fontsize=3.8,
+                color=RED,
+                ha="center",
+                va="top",
+                zorder=10,
+            )
             return (
                 datum_y - 8.0,
                 section_z - 9.0,
                 datum_y + 10.0,
                 section_z + 9.0,
             )
-        return union_bounds((back, insert))
+        ledge_y = (
+            boss_assembly_datum_y()
+            - float(C["SLEEVE_CAPTURE_ENGAGEMENT_DEPTH"])
+            - float(C["SLEEVE_CAPTURE_BOTTOM_CLEARANCE"])
+            - float(C["SLEEVE_CAPTURE_FLOOR_THICKNESS"])
+        )
+        return (
+            ledge_y - 0.7,
+            -10.0,
+            float(C["BACK_DEPTH"]) + 0.8,
+            10.0,
+        )
     if view in {"insert_front", "ports_access", "locating_rails", "snap_front"}:
         insert = projected_part_geometry("insert", "xz")
         draw_projected_geometry(ax, insert, "#f7d9ca", ORANGE, alpha=0.88)
@@ -1639,6 +1837,60 @@ def draw_actual_view(ax, view: str):
             for (x, z), label in port_markers:
                 ax.plot(x, z, marker="o", markersize=5, color=RED, zorder=6)
                 ax.text(x, z + 2.3, label, fontsize=5.2, ha="center", color=RED)
+            details = port_access_detail_points(bounds)
+            port_radius = float(C["LEFT_ROUND_PORT_DIAMETER"]) / 2.0
+            for center, label in (
+                (details["left_center"], "LEFT PORT — FACE-NORMAL"),
+                (details["top_center"], "TOP PORT — FACE-NORMAL"),
+            ):
+                ax.add_patch(
+                    Circle(
+                        center,
+                        port_radius,
+                        facecolor=WHITE,
+                        edgecolor=RED,
+                        linewidth=1.0,
+                        zorder=8,
+                    )
+                )
+                ax.plot(
+                    (center[0] - port_radius - 1.0, center[0] + port_radius + 1.0),
+                    (center[1], center[1]),
+                    color=GRID,
+                    linewidth=0.35,
+                    zorder=7,
+                )
+                ax.plot(
+                    (center[0], center[0]),
+                    (center[1] - port_radius - 1.0, center[1] + port_radius + 1.0),
+                    color=GRID,
+                    linewidth=0.35,
+                    zorder=7,
+                )
+                ax.text(center[0], center[1] - port_radius - 1.0, label, fontsize=3.9, color=RED, ha="center", va="top", zorder=9)
+            usb_width = float(C["RIGHT_USB_PORT_WIDTH_Y"])
+            usb_height = float(C["RIGHT_USB_PORT_HEIGHT_Z"])
+            usb_radius = float(C["RIGHT_USB_PORT_CORNER_RADIUS"])
+            usb_center = details["usb_center"]
+            ax.add_patch(
+                FancyBboxPatch(
+                    (usb_center[0] - usb_width / 2.0, usb_center[1] - usb_height / 2.0),
+                    usb_width,
+                    usb_height,
+                    boxstyle=f"round,pad=0,rounding_size={usb_radius}",
+                    facecolor=WHITE,
+                    edgecolor=RED,
+                    linewidth=1.0,
+                    zorder=8,
+                )
+            )
+            ax.text(usb_center[0], usb_center[1] - usb_height / 2.0 - 1.0, "USB — FACE-NORMAL", fontsize=3.9, color=RED, ha="center", va="top", zorder=9)
+            for source, target in (
+                ((minimum_x, float(C["LEFT_ROUND_PORT_Z"])), details["left_center"]),
+                ((float(C["TOP_PORT_X"]), maximum_z), details["top_center"]),
+                ((maximum_x, float(C["RIGHT_USB_PORT_Z"])), details["usb_center"]),
+            ):
+                ax.plot((source[0], target[0]), (source[1], target[1]), color=GRAY, linewidth=0.45, linestyle=":", zorder=7)
         elif view == "locating_rails":
             ax.axhline(0.0, color=GRAY, linewidth=0.5, linestyle=":", zorder=4)
             ax.axvline(0.0, color=GRAY, linewidth=0.5, linestyle=":", zorder=4)
@@ -1666,6 +1918,22 @@ def draw_actual_view(ax, view: str):
                     color=INK,
                     zorder=6,
                 )
+            table_lines = [
+                f"{name}: X {fmt(x0)}..{fmt(x1)}  Z {fmt(z0)}..{fmt(z1)} mm"
+                for name, x0, x1, z0, z1, _attachment in C["LOCATING_TAB_SPECS"]
+            ]
+            ax.text(
+                0.0,
+                7.0,
+                "RUNNER DATUM TABLE\n" + "\n".join(table_lines),
+                fontsize=4.1,
+                family="monospace",
+                ha="center",
+                va="center",
+                color=INK,
+                bbox={"facecolor": WHITE, "edgecolor": GREEN, "alpha": 0.92, "pad": 3.0},
+                zorder=9,
+            )
         elif view == "snap_front":
             half_width = float(C["INSERT_FRONT_WIDTH"]) / 2.0
             snap_height = float(C["SNAP_BUMP_LENGTH_Z"])
@@ -1737,26 +2005,90 @@ def draw_actual_view(ax, view: str):
             for side in (-1.0, 1.0):
                 protrusion = float(C["SNAP_BUMP_PROTRUSION"])
                 start_x = half_width if side > 0 else -half_width - protrusion
+                effective_radius = min(
+                    float(C["SNAP_EDGE_RADIUS"]),
+                    min(protrusion, float(C["SNAP_BUMP_LENGTH_Y"])) / 2.1,
+                )
                 ax.add_patch(
-                    Rectangle(
+                    FancyBboxPatch(
                         (
                             start_x,
                             center_y - float(C["SNAP_BUMP_LENGTH_Y"]) / 2.0,
                         ),
                         protrusion,
                         float(C["SNAP_BUMP_LENGTH_Y"]),
+                        boxstyle=f"round,pad=0,rounding_size={effective_radius}",
                         facecolor=GREEN,
                         edgecolor=RED,
                         linewidth=0.8,
                         zorder=5,
                     )
                 )
+            detail_width = float(C["SNAP_BUMP_LENGTH_Y"])
+            detail_height = float(C["SNAP_BUMP_LENGTH_Z"])
+            detail_left = half_width - 4.4
+            detail_bottom = center_y - detail_height / 2.0
+            ax.add_patch(
+                FancyBboxPatch(
+                    (detail_left, detail_bottom),
+                    detail_width,
+                    detail_height,
+                    boxstyle=f"round,pad=0,rounding_size={float(C['SNAP_EDGE_RADIUS'])}",
+                    facecolor="#d7efd9",
+                    edgecolor=RED,
+                    linewidth=1.0,
+                    zorder=7,
+                )
+            )
+            ax.text(
+                detail_left + detail_width / 2.0,
+                detail_bottom - 0.5,
+                "SNAP OUTER FACE (Y–Z) — ENLARGED NTS",
+                fontsize=4.0,
+                color=RED,
+                ha="center",
+                va="top",
+                zorder=8,
+            )
             return (
                 half_width - 5.0,
                 center_y - 5.0,
                 half_width + float(C["SNAP_BUMP_PROTRUSION"]) + 3.0,
                 center_y + 5.0,
             )
+        section_start = boss_assembly_datum_y()
+        section_end = section_start + float(C["INSERT_DEPTH"])
+        for section in range(int(C["INSERT_DEPTH_SECTIONS"]) + 1):
+            y = section_start + (section_end - section_start) * section / int(C["INSERT_DEPTH_SECTIONS"])
+            ax.plot(
+                (y, y),
+                (insert.bounds[1], insert.bounds[3]),
+                color=BLUE,
+                linewidth=0.42,
+                linestyle=":" if section not in {0, int(C["INSERT_DEPTH_SECTIONS"])} else "--",
+                zorder=6,
+            )
+            ax.text(
+                y,
+                insert.bounds[3] + 1.2,
+                str(section),
+                fontsize=3.8,
+                color=BLUE,
+                ha="center",
+                va="bottom",
+                zorder=7,
+            )
+        ax.text(
+            (section_start + section_end) / 2.0,
+            insert.bounds[1] - 2.0,
+            f"{C['INSERT_DEPTH_SECTIONS']} EQUAL AXIAL SECTIONS",
+            fontsize=4.6,
+            color=BLUE,
+            weight="bold",
+            ha="center",
+            va="top",
+            zorder=7,
+        )
         return insert.bounds
     if view == "button_profile":
         button = projected_part_geometry("button", "xz")
@@ -1859,7 +2191,42 @@ def draw_actual_view(ax, view: str):
             )
         )
         ax.text(maximum_x, tpu, "TPU ALTERNATE", fontsize=4.8, color=RED, ha="right", va="bottom")
-        return minimum_x, minimum_z, maximum_x, max(keeper.bounds[3], tpu)
+        detail_scale = 4.0
+        detail_width = float(C["RETAINER_KEEPER_INDEX_KEY_WIDTH_X"]) * detail_scale
+        detail_height = float(C["RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y"]) * detail_scale
+        detail_bevel = float(C["RETAINER_KEEPER_INDEX_KEY_BEVEL"]) * detail_scale
+        detail_left = -detail_width / 2.0
+        detail_bottom = tpu + 1.2
+        key_profile = (
+            (detail_left, detail_bottom),
+            (detail_left, detail_bottom + detail_height - detail_bevel),
+            (detail_left + detail_bevel, detail_bottom + detail_height),
+            (detail_left + detail_width - detail_bevel, detail_bottom + detail_height),
+            (detail_left + detail_width, detail_bottom + detail_height - detail_bevel),
+            (detail_left + detail_width, detail_bottom),
+        )
+        ax.add_patch(
+            Polygon(
+                key_profile,
+                closed=True,
+                facecolor="#f5c9c9",
+                edgecolor=RED,
+                linewidth=1.0,
+                zorder=9,
+            )
+        )
+        ax.text(
+            0.0,
+            detail_bottom + detail_height + 0.45,
+            "SLEEVE INDEX KEY CORNER ×4 — NTS",
+            fontsize=4.2,
+            color=RED,
+            weight="bold",
+            ha="center",
+            va="bottom",
+            zorder=10,
+        )
+        return minimum_x, minimum_z, maximum_x, detail_bottom + detail_height + 1.0
     if view == "print_bed":
         gap = float(C["PRINT_BED_GAP"])
         back = projected_part_geometry("back", "xz")
@@ -1925,6 +2292,62 @@ def draw_actual_view(ax, view: str):
             )
         )
         ax.text(detail_x + 5.0, detail_y + 6.0, "PRE-BOOLEAN OVERLAP DETAIL", fontsize=4.6, color=BLUE, ha="center")
+        corner_center = (gate.bounds[0] + 15.0, gate.bounds[3] - 13.0)
+        corner_radius = 8.0
+        corner_angles = np.linspace(0.0, math.pi / 2.0, int(C["CORNER_SEGMENTS"]) + 1)
+        corner_points = np.column_stack(
+            (
+                corner_center[0] + corner_radius * np.cos(corner_angles),
+                corner_center[1] + corner_radius * np.sin(corner_angles),
+            )
+        )
+        ax.plot(corner_points[:, 0], corner_points[:, 1], color=RED, linewidth=0.85, zorder=9)
+        ax.scatter(corner_points[:, 0], corner_points[:, 1], s=4.0, facecolor=WHITE, edgecolor=RED, linewidth=0.4, zorder=10)
+        ax.plot((corner_center[0], corner_center[0] + corner_radius), (corner_center[1], corner_center[1]), color=GRAY, linewidth=0.45, zorder=8)
+        ax.plot((corner_center[0], corner_center[0]), (corner_center[1], corner_center[1] + corner_radius), color=GRAY, linewidth=0.45, zorder=8)
+        ax.text(corner_center[0] + corner_radius / 2.0, corner_center[1] + corner_radius + 1.0, "ROUNDED-CORNER CHORDS", fontsize=4.2, color=RED, ha="center", zorder=10)
+
+        cleanup_origin = (-12.0, 8.0)
+        cleanup_span = 4.0
+        ax.plot(
+            (cleanup_origin[0], cleanup_origin[0] + cleanup_span),
+            (cleanup_origin[1], cleanup_origin[1]),
+            color=RED,
+            linewidth=1.2,
+            marker="o",
+            markersize=3.0,
+            zorder=9,
+        )
+        ax.annotate(
+            "MERGE SHORT EDGE → ONE VERTEX\nENLARGED ×40,000 — NTS",
+            xy=(cleanup_origin[0] + cleanup_span / 2.0, cleanup_origin[1]),
+            xytext=(cleanup_origin[0], cleanup_origin[1] + 5.0),
+            fontsize=4.0,
+            color=RED,
+            ha="center",
+            arrowprops={"arrowstyle": "->", "color": RED, "linewidth": 0.7},
+            zorder=10,
+        )
+
+        sliver_origin = (3.0, 7.0)
+        sliver_width = 5.0
+        sliver_height = 2.5
+        ax.add_patch(
+            Polygon(
+                (
+                    sliver_origin,
+                    (sliver_origin[0] + sliver_width, sliver_origin[1]),
+                    (sliver_origin[0] + sliver_width * 0.15, sliver_origin[1] + sliver_height),
+                ),
+                closed=True,
+                facecolor="#f5c9c9",
+                edgecolor=RED,
+                hatch="////",
+                linewidth=0.8,
+                zorder=9,
+            )
+        )
+        ax.text(sliver_origin[0] + sliver_width / 2.0, sliver_origin[1] + sliver_height + 0.8, "BOOLEAN ΔV SLIVER — NTS", fontsize=4.0, color=RED, ha="center", zorder=10)
         return union_bounds((gate, keeper))
     raise RuntimeError(f"Unknown drawing view {view}")
 
@@ -2170,6 +2593,359 @@ def draw_linear_annotation(
     )
 
 
+def draw_radius_annotation(ax, center, radius: float, angle_deg: float, label: str) -> tuple[float, float]:
+    angle = math.radians(angle_deg)
+    endpoint = (
+        center[0] + radius * math.cos(angle),
+        center[1] + radius * math.sin(angle),
+    )
+    ax.add_patch(
+        FancyArrowPatch(
+            center,
+            endpoint,
+            arrowstyle="-|>",
+            mutation_scale=7,
+            linewidth=0.85,
+            color=RED,
+            zorder=19,
+        )
+    )
+    midpoint = ((center[0] + endpoint[0]) / 2.0, (center[1] + endpoint[1]) / 2.0)
+    ax.text(
+        midpoint[0],
+        midpoint[1],
+        f"{label}  R",
+        fontsize=5.4,
+        weight="bold",
+        color=RED,
+        ha="center",
+        va="center",
+        bbox={"facecolor": WHITE, "edgecolor": "none", "alpha": 0.90, "pad": 0.55},
+        zorder=20,
+    )
+    ax.plot(center[0], center[1], marker="+", markersize=4.0, color=RED, zorder=20)
+    return endpoint
+
+
+def draw_specific_graphical_annotation(
+    ax,
+    view: str,
+    entry: ConfigEntry,
+    index: int,
+    bounds,
+    label: str,
+) -> bool:
+    """Draw dimensions whose endpoints cannot be inferred from their names."""
+    name = entry.name
+    minimum_x, minimum_y, maximum_x, maximum_y = bounds
+
+    def linear(start, end, vertical=False, offset=0.0, annotation_label=label):
+        draw_linear_annotation(ax, start, end, annotation_label, offset, vertical)
+        record_graphical_primitive(entry, "linear", start, end)
+        return True
+
+    def radius(center, value, angle_deg=45.0):
+        endpoint = draw_radius_annotation(ax, center, value, angle_deg, label)
+        record_graphical_primitive(entry, "radius", center, endpoint)
+        return True
+
+    def leader(anchor, text_position, annotation_label=label, primitive_kind="leader"):
+        ax.annotate(
+            annotation_label,
+            xy=anchor,
+            xycoords="data",
+            xytext=text_position,
+            textcoords="data",
+            fontsize=5.4,
+            weight="bold",
+            color=RED,
+            ha="center",
+            va="center",
+            bbox={"boxstyle": "round,pad=0.18", "facecolor": WHITE, "edgecolor": RED, "linewidth": 0.6},
+            arrowprops={"arrowstyle": "->", "color": RED, "linewidth": 0.8},
+            zorder=20,
+        )
+        record_graphical_primitive(entry, primitive_kind, anchor, text_position)
+        return True
+
+    if view == "back_front":
+        fan_x = float(C["FAN_CENTER_X"])
+        fan_z = float(C["FAN_CENTER_Z"])
+        spacing_x = float(C["FAN_HOLE_SPACING_X"])
+        spacing_z = float(C["FAN_HOLE_SPACING_Z"])
+        if name == "BACK_DOME_FAN_PAD_WIDTH":
+            half = float(entry.value) / 2.0
+            return linear((fan_x - half, fan_z), (fan_x + half, fan_z), False, 2.0)
+        if name == "BACK_DOME_FAN_PAD_HEIGHT":
+            half = float(entry.value) / 2.0
+            return linear((fan_x, fan_z - half), (fan_x, fan_z + half), True, 2.0)
+        if name == "FAN_HOLE_SPACING_X":
+            z = fan_z + spacing_z / 2.0
+            return linear((fan_x - spacing_x / 2.0, z), (fan_x + spacing_x / 2.0, z), False, 2.0)
+        if name == "FAN_HOLE_SPACING_Z":
+            x = fan_x + spacing_x / 2.0
+            return linear((x, fan_z - spacing_z / 2.0), (x, fan_z + spacing_z / 2.0), True, 2.0)
+        if name in {"FAN_HOLE_DIAMETER", "FAN_HOLE_BOSS_DIAMETER"}:
+            center = (
+                fan_x + (-1.0 if name == "FAN_HOLE_DIAMETER" else 1.0) * spacing_x / 2.0,
+                fan_z + spacing_z / 2.0,
+            )
+            diameter = float(entry.value)
+            return linear((center[0] - diameter / 2.0, center[1]), (center[0] + diameter / 2.0, center[1]), False, 1.5, f"{label} DIA")
+        if name == "FAN_OPENING_DIAMETER":
+            diameter = float(entry.value)
+            return linear((fan_x - diameter / 2.0, fan_z), (fan_x + diameter / 2.0, fan_z), False, -2.0, f"{label} DIA")
+        if name == "BACK_CORNER_RADIUS":
+            value = float(entry.value)
+            center = (maximum_x - value, maximum_y - value)
+            return radius(center, value, 45.0)
+        if name == "VENT_CORNER_RADIUS":
+            value = float(entry.value)
+            center = (
+                float(C["VENT_CENTER_X"]) + float(C["VENT_WIDTH"]) / 2.0 - value,
+                float(C["VENT_CENTER_Z"]) + float(C["VENT_HEIGHT"]) / 2.0 - value,
+            )
+            return radius(center, value, 45.0)
+
+    if view == "back_side":
+        back_exterior = -float(C["BACK_DOME_DEPTH"]) if C["BACK_DOME_ENABLED"] else 0.0
+        if name == "BACK_DEPTH":
+            return linear((0.0, 18.0), (float(entry.value), 18.0), False, 0.0)
+        if name == "BACK_FACE_THICKNESS":
+            return linear((back_exterior, 8.0), (back_exterior + float(entry.value), 8.0), False, 0.0)
+        if name == "BACK_DOME_DEPTH":
+            return linear((back_exterior, -8.0), (0.0, -8.0), False, 0.0)
+        if name == "BACK_DOME_START_BEHIND_CAMERA_STOPS":
+            stop_end = boss_assembly_datum_y() - float(C["CAMERA_STOP_TO_INSERT_SOCKET_GAP"])
+            return linear((stop_end - float(entry.value), -18.0), (stop_end, -18.0), False, 0.0)
+        if name == "FAN_HOLE_BOSS_HEIGHT":
+            start = back_exterior + float(C["BACK_FACE_THICKNESS"])
+            return linear((start, float(C["FAN_CENTER_Z"])), (start + float(entry.value), float(C["FAN_CENTER_Z"])), False, 1.5)
+
+    if view == "fastener_section" and name == "BACK_FASTENER_RETENTION_TAB_BEVEL":
+        datum = boss_assembly_datum_y()
+        section_z = float(C["CASE_FASTENER_POSITIONS_XZ"][0][1])
+        scale = 8.0
+        detail_left = datum + 2.0
+        detail_bottom = section_z - 7.0
+        detail_width = 4.8
+        detail_height = 4.0
+        bevel = float(entry.value) * scale
+        anchor = (
+            detail_left + detail_width - bevel / 2.0,
+            detail_bottom + detail_height - bevel / 2.0,
+        )
+        return leader(
+            anchor,
+            (datum + 5.0, section_z + 5.5),
+            f"{label} BEVEL · DETAIL ×8 NTS",
+            "bevel",
+        )
+
+    if view == "capture_joint" and name in {
+        "FIT_CLEARANCE_X",
+        "FIT_CLEARANCE_Z",
+        "SLEEVE_CAPTURE_FIT_CLEARANCE",
+        "SLEEVE_CAPTURE_INNER_LIP_THICKNESS",
+        "SLEEVE_CAPTURE_MIN_OUTER_WALL_X",
+        "SLEEVE_CAPTURE_MIN_OUTER_WALL_Z",
+    }:
+        start, end = capture_joint_detail_points(bounds)[name]
+        vertical = abs(end[1] - start[1]) > abs(end[0] - start[0])
+        return linear(start, end, vertical, 0.0, f"{label}  ENLARGED NTS")
+
+    if view == "capture_section":
+        datum = boss_assembly_datum_y()
+        engagement = float(C["SLEEVE_CAPTURE_ENGAGEMENT_DEPTH"])
+        leading = datum - engagement
+        floor = leading - float(C["SLEEVE_CAPTURE_BOTTOM_CLEARANCE"])
+        ledge = floor - float(C["SLEEVE_CAPTURE_FLOOR_THICKNESS"])
+        section_lines = {
+            "INSERTION_DEPTH": ((datum, 8.0), (float(C["BACK_DEPTH"]), 8.0)),
+            "SLEEVE_CAPTURE_ENGAGEMENT_DEPTH": ((leading, 4.0), (datum, 4.0)),
+            "SLEEVE_CAPTURE_BOTTOM_CLEARANCE": ((floor, 0.0), (leading, 0.0)),
+            "SLEEVE_CAPTURE_FLOOR_THICKNESS": ((ledge, -4.0), (floor, -4.0)),
+        }
+        if name in section_lines:
+            return linear(*section_lines[name], vertical=False, offset=0.0)
+        if name == "CAMERA_STOP_TO_INSERT_SOCKET_GAP":
+            stop_end = datum - float(entry.value)
+            if abs(float(entry.value)) <= 1.0e-12:
+                ax.plot((datum, datum), (-8.8, -6.4), color=RED, linewidth=1.2, zorder=19)
+                ax.plot((datum - 0.16, datum + 0.16), (-7.6, -7.6), color=RED, linewidth=0.9, zorder=19)
+                return leader((datum, -7.6), (datum + 1.8, -8.5), f"{label}  COINCIDENT", "coincident")
+            return linear((stop_end, -8.0), (datum, -8.0), False, 0.0)
+
+    if view == "insert_front":
+        if name == "INSERT_OUTER_CORNER_RADIUS":
+            value = float(entry.value)
+            center = (maximum_x - value, maximum_y - value)
+            return radius(center, value, 45.0)
+        if name == "INSERT_WALL_X":
+            outer = float(C["INSERT_FRONT_WIDTH"]) / 2.0
+            return linear((outer - float(entry.value), 0.0), (outer, 0.0), False, 2.0)
+        if name == "INSERT_WALL_Z":
+            outer = float(C["INSERT_FRONT_HEIGHT"]) / 2.0
+            return linear((0.0, outer - float(entry.value)), (0.0, outer), True, 2.0)
+
+    if view == "insert_side":
+        section_start = boss_assembly_datum_y()
+        section_end = section_start + float(C["INSERT_DEPTH"])
+        if name == "INSERT_DEPTH":
+            return linear((section_start, 0.0), (section_end, 0.0), False, 3.0)
+        if name == "INSERT_DEPTH_SECTIONS":
+            return leader((section_start + (section_end - section_start) / 2.0, maximum_y), (section_start + (section_end - section_start) / 2.0, maximum_y + 7.0), label, "construction")
+
+    if view == "ports_access":
+        details = port_access_detail_points(bounds)
+        if name == "BOTTOM_ACCESS_WIDTH":
+            half = float(entry.value) / 2.0
+            return linear((-half, minimum_y), (half, minimum_y), False, -2.0)
+        if name == "LEFT_ROUND_PORT_DIAMETER":
+            center = details["left_center"]
+            diameter = float(entry.value)
+            return linear((center[0] - diameter / 2.0, center[1]), (center[0] + diameter / 2.0, center[1]), False, 0.0, f"{label} DIA")
+        if name == "TOP_PORT_DIAMETER":
+            center = details["top_center"]
+            diameter = float(entry.value)
+            return linear((center[0] - diameter / 2.0, center[1]), (center[0] + diameter / 2.0, center[1]), False, 0.0, f"{label} DIA")
+        if name == "LEFT_ROUND_PORT_Z":
+            return linear((minimum_x, 0.0), (minimum_x, float(entry.value)), True, -2.0)
+        if name == "RIGHT_USB_PORT_Z":
+            return linear((maximum_x, 0.0), (maximum_x, float(entry.value)), True, 2.0)
+        if name == "RIGHT_USB_PORT_HEIGHT_Z":
+            center = details["usb_center"]
+            half = float(entry.value) / 2.0
+            return linear((center[0], center[1] - half), (center[0], center[1] + half), True, 1.5)
+        if name == "RIGHT_USB_PORT_CORNER_RADIUS":
+            center = details["usb_center"]
+            value = float(entry.value)
+            corner_center = (
+                center[0] + float(C["RIGHT_USB_PORT_WIDTH_Y"]) / 2.0 - value,
+                center[1] + float(C["RIGHT_USB_PORT_HEIGHT_Z"]) / 2.0 - value,
+            )
+            return radius(corner_center, value, 45.0)
+        if name == "TOP_PORT_X":
+            return linear((0.0, maximum_y), (float(entry.value), maximum_y), False, 2.0)
+
+    if view == "ports_side":
+        datum = boss_assembly_datum_y()
+        offset_names = {
+            "BOTTOM_ACCESS_Y_OFFSET": float(C["BOTTOM_ACCESS_Y_OFFSET"]),
+            "LEFT_ROUND_PORT_Y_OFFSET": float(C["LEFT_ROUND_PORT_Y_OFFSET"]),
+            "RIGHT_USB_PORT_Y_OFFSET": float(C["RIGHT_USB_PORT_Y_OFFSET"]),
+            "TOP_PORT_Y_OFFSET": float(C["TOP_PORT_Y_OFFSET"]),
+        }
+        z_by_name = {
+            "BOTTOM_ACCESS_Y_OFFSET": minimum_y + 8.0,
+            "LEFT_ROUND_PORT_Y_OFFSET": -2.0,
+            "RIGHT_USB_PORT_Y_OFFSET": -13.0,
+            "TOP_PORT_Y_OFFSET": maximum_y - 3.0,
+        }
+        if name in offset_names:
+            return linear((datum, z_by_name[name]), (datum + offset_names[name], z_by_name[name]), False, 1.2 * (-1.0 if index % 2 == 0 else 1.0))
+        if name == "BOTTOM_ACCESS_DEPTH":
+            start = datum + float(C["BOTTOM_ACCESS_Y_OFFSET"])
+            return linear((start, minimum_y), (start + float(entry.value), minimum_y), False, -1.8)
+        if name == "RIGHT_USB_PORT_WIDTH_Y":
+            center = datum + float(C["RIGHT_USB_PORT_Y_OFFSET"])
+            half = float(entry.value) / 2.0
+            return linear((center - half, -13.0), (center + half, -13.0), False, 1.8)
+
+    if view == "snap_detail":
+        datum = boss_assembly_datum_y()
+        bump_start = datum + float(C["SNAP_BUMP_Y_OFFSET"])
+        bump_end = bump_start + float(C["SNAP_BUMP_LENGTH_Y"])
+        half_width = float(C["INSERT_FRONT_WIDTH"]) / 2.0
+        protrusion = float(C["SNAP_BUMP_PROTRUSION"])
+        if name == "SNAP_BUMP_PROTRUSION":
+            return linear((half_width, (bump_start + bump_end) / 2.0), (half_width + protrusion, (bump_start + bump_end) / 2.0), False, 0.8)
+        if name == "SNAP_BUMP_LENGTH_Y":
+            return linear((half_width + protrusion, bump_start), (half_width + protrusion, bump_end), True, 0.8)
+        if name == "SNAP_BUMP_Y_OFFSET":
+            return linear((half_width, datum), (half_width, bump_start), True, -0.8)
+        if name == "SNAP_POCKET_CLEARANCE":
+            return linear((half_width + protrusion, bump_end), (half_width + protrusion + float(entry.value), bump_end), False, 0.8)
+        if name == "SNAP_EDGE_RADIUS":
+            detail_left = half_width - 4.4
+            detail_width = float(C["SNAP_BUMP_LENGTH_Y"])
+            detail_height = float(C["SNAP_BUMP_LENGTH_Z"])
+            detail_bottom = (bump_start + bump_end) / 2.0 - detail_height / 2.0
+            value = float(entry.value)
+            center = (detail_left + detail_width - value, detail_bottom + detail_height - value)
+            return radius(center, value, 45.0)
+
+    if view == "swing_gate":
+        layout = retainer_layout_for_drawings()
+        if name == "RETAINER_HORIZONTAL_END_MARGIN_X":
+            return linear((layout["bar_left_x"], layout["lower_left"][1]), layout["lower_left"], False, -3.5)
+        if name == "RETAINER_HORIZONTAL_BAR_HEIGHT_Z":
+            x = (layout["bar_left_x"] + layout["bar_right_x"]) / 2.0
+            return linear((x, layout["bar_bottom_z"]), (x, layout["bar_top_z"]), True, -2.0)
+        if name == "RETAINER_LOWER_EDGE_MARGIN_Z":
+            x = layout["lower_right"][0]
+            return linear((x, layout["bar_bottom_z"]), layout["lower_right"], True, 3.0)
+        if name == "RETAINER_UPRIGHT_WIDTH_X":
+            z = layout["upper"][1] - 7.0
+            return linear((layout["upright_left_x"], z), (layout["upright_right_x"], z), False, 2.0)
+        if name == "RETAINER_TOP_EDGE_MARGIN_Z":
+            x = layout["upper"][0]
+            return linear(layout["upper"], (x, layout["upright_top_z"]), True, 5.0)
+        if name == "RETAINER_CORNER_RADIUS":
+            value = float(entry.value)
+            center = (layout["upright_left_x"] + value, layout["upright_top_z"] - value)
+            return radius(center, value, 135.0)
+        if name == "RETAINER_RELIEF_CENTER_X":
+            return linear((0.0, float(C["RETAINER_RELIEF_CENTER_Z"])), (float(entry.value), float(C["RETAINER_RELIEF_CENTER_Z"])), False, 2.0)
+        if name == "RETAINER_RELIEF_CENTER_Z":
+            return linear((float(C["RETAINER_RELIEF_CENTER_X"]), 0.0), (float(C["RETAINER_RELIEF_CENTER_X"]), float(entry.value)), True, -2.0)
+        if name == "RETAINER_RELIEF_RADIUS":
+            return radius((float(C["RETAINER_RELIEF_CENTER_X"]), float(C["RETAINER_RELIEF_CENTER_Z"])), float(entry.value), -90.0)
+        if name == "RETAINER_MIN_HOLE_WEB":
+            hole_edge = layout["upper"][0] - float(C["RETAINER_GATE_BOLT_TRACK_DIAMETER"]) / 2.0
+            return linear((hole_edge - float(entry.value), layout["upper"][1]), (hole_edge, layout["upper"][1]), False, 0.0, f"{label} MIN")
+        if name == "RETAINER_GATE_BOLT_TRACK_DIAMETER":
+            center = layout["upper"]
+            half = float(entry.value) / 2.0
+            return linear((center[0] - half, center[1]), (center[0] + half, center[1]), False, -3.0, f"{label} DIA")
+        if name == "RETAINER_GATE_MIN_NUT_BEARING_DIAMETER":
+            center = layout["upper"]
+            value = float(entry.value)
+            ax.add_patch(Circle(center, value / 2.0, fill=False, edgecolor=RED, linewidth=0.75, linestyle="--", zorder=17))
+            return linear((center[0] - value / 2.0, center[1]), (center[0] + value / 2.0, center[1]), False, 3.0, f"{label} MIN DIA")
+
+    if view == "rotating_keeper":
+        if name == "RETAINER_KEEPER_MIN_HOLE_WEB":
+            hole_radius = float(C["RETAINER_KEEPER_BOLT_HOLE_DIAMETER"]) / 2.0
+            hub_radius = float(C["RETAINER_KEEPER_HUB_DIAMETER"]) / 2.0
+            actual_web = hub_radius - hole_radius
+            return linear((hole_radius, 0.0), (hub_radius, 0.0), False, 2.0, f"{label} MIN (actual {actual_web:.2f} mm)")
+
+    if view == "keeper_side" and name == "RETAINER_KEEPER_INDEX_KEY_BEVEL":
+        scale = 4.0
+        width = float(C["RETAINER_KEEPER_INDEX_KEY_WIDTH_X"]) * scale
+        height = float(C["RETAINER_KEEPER_INDEX_KEY_PROJECTION_Y"]) * scale
+        bevel = float(entry.value) * scale
+        bottom = float(C["RETAINER_KEEPER_TPU_THICKNESS_Y"]) + 1.2
+        anchor = (width / 2.0 - bevel / 2.0, bottom + height - bevel / 2.0)
+        return leader(anchor, (-width / 2.0 - 0.8, bottom + height + 0.8), f"{label} BEVEL · DETAIL ×4 NTS", "bevel")
+
+    if view == "mesh_quality":
+        gate = projected_part_geometry("gate", "xy", True)
+        if name == "CORNER_SEGMENTS":
+            center = (gate.bounds[0] + 15.0, gate.bounds[3] - 13.0)
+            anchor = (center[0] + 8.0 / math.sqrt(2.0), center[1] + 8.0 / math.sqrt(2.0))
+            return leader(anchor, (center[0] - 1.0, center[1] + 12.0), f"{label} CHORDS", "construction")
+        if name == "BOOLEAN_CLEANUP_DISTANCE":
+            origin = (-12.0, 8.0)
+            return leader((origin[0] + 2.0, origin[1]), (origin[0] - 2.0, origin[1] - 6.0), f"{label} MERGE LIMIT", "construction")
+        if name == "BOOLEAN_MINIMUM_VOLUME_CHANGE":
+            origin = (3.0, 7.0)
+            return leader((origin[0] + 2.0, origin[1] + 0.8), (origin[0] + 9.0, origin[1] + 7.0), f"{label} MIN ΔV", "construction")
+
+    return False
+
+
 def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
     minimum_x, minimum_y, maximum_x, maximum_y = bounds
     width = max(maximum_x - minimum_x, 1.0)
@@ -2185,6 +2961,18 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
         )
         lane = 0.08 + (index // 2) * 0.10
         lane_sign = -1.0 if index % 2 == 0 else 1.0
+
+        if draw_specific_graphical_annotation(
+            ax,
+            view,
+            entry,
+            index,
+            bounds,
+            label,
+        ):
+            GRAPHICALLY_ANNOTATED_NAMES.add(entry.name)
+            GRAPHICAL_ANNOTATION_KINDS[entry.name] = kind
+            continue
 
         if entry.name == "PRINT_BED_GAP":
             back = projected_part_geometry("back", "xz")
@@ -2273,6 +3061,9 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
                 diameter_offset,
                 False,
             )
+        elif kind == "radius_leader" and numeric_value > 1.0e-9:
+            endpoint = draw_radius_annotation(ax, anchor, numeric_value, 45.0, label)
+            record_graphical_primitive(entry, "radius", anchor, endpoint)
         elif kind in {"horizontal_linear", "x_ordinate", "axial_linear"} and numeric_value > 1.0e-9:
             if kind == "x_ordinate":
                 start_x, end_x = 0.0, float(entry.value)
@@ -2324,6 +3115,16 @@ def draw_graphical_annotations(ax, view: str, entries, bounds) -> None:
                 bbox={"boxstyle": "round,pad=0.18", "facecolor": WHITE, "edgecolor": RED, "linewidth": 0.6},
                 arrowprops={"arrowstyle": "->", "color": RED, "linewidth": 0.8},
                 zorder=20,
+            )
+        if entry.name not in GRAPHICAL_PRIMITIVE_RECORDS:
+            record_graphical_primitive(
+                entry,
+                kind,
+                anchor,
+                (
+                    anchor[0] + max(width * 0.01, 1.0e-6),
+                    anchor[1] + max(height * 0.01, 1.0e-6),
+                ),
             )
         GRAPHICALLY_ANNOTATED_NAMES.add(entry.name)
         GRAPHICAL_ANNOTATION_KINDS[entry.name] = kind
@@ -2568,7 +3369,7 @@ def page_coverage(pdf):
     ax.text(
         0.04,
         0.83,
-        f"{len(GRAPHICALLY_ANNOTATED_NAMES)} / {len(VISUAL_DIMENSION_ENTRIES)} dimensional controls graphically annotated",
+        f"{len(GRAPHICALLY_ANNOTATED_NAMES)} / {len(VISUAL_DIMENSION_ENTRIES)} dimensional controls graphically annotated with endpoint records",
         transform=ax.transAxes,
         fontsize=10,
         weight="bold",
@@ -2599,7 +3400,7 @@ def page_coverage(pdf):
     ax.text(
         0.03,
         0.075,
-        "make check-fan-case-dim-pdf-sync extracts each cropped engineering panel and requires a per-dimension graphical annotation label there, then independently verifies the exact CONFIG name/value in its callout card. It also checks the source fingerprint, page count, coverage manifest and PDF EOF marker.",
+        "Before writing, the generator requires one finite, non-degenerate graphical primitive record per dimensional control. make check-fan-case-dim-pdf-sync then extracts each cropped engineering panel, requires its matching annotation label, and independently verifies the complete CONFIG name/value in the cropped callout-card region. It also checks the source fingerprint, page count, coverage manifest and PDF EOF marker.",
         transform=ax.transAxes,
         fontsize=7.1,
         color=INK,
@@ -2607,27 +3408,6 @@ def page_coverage(pdf):
     )
     pdf.savefig(fig)
     plt.close(fig)
-
-
-def dimension_validation_tokens(entry: ConfigEntry) -> tuple[str, ...]:
-    """Return exact value tokens that must be legible on the entry's sheet."""
-    tokens: list[str] = [entry.name]
-
-    def add_value(value: object) -> None:
-        if isinstance(value, dict):
-            for key, nested in value.items():
-                tokens.append(str(key))
-                add_value(nested)
-        elif isinstance(value, (tuple, list)):
-            for nested in value:
-                add_value(nested)
-        elif isinstance(value, (int, float)) and not isinstance(value, bool):
-            tokens.append(fmt(value))
-        elif isinstance(value, str):
-            tokens.append(value)
-
-    add_value(entry.value)
-    return tuple(dict.fromkeys(tokens))
 
 
 def normalized_pdf_text(text: str) -> str:
@@ -2750,15 +3530,17 @@ def validate_pdf_engineering_drawings() -> None:
                     f"sheet {page_number}: {entry.name} missing graphical annotation "
                     f"{graphical_label!r} inside engineering panel"
                 )
-            missing_tokens = [
-                token
-                for token in dimension_validation_tokens(entry)
-                if normalized_pdf_text(token) not in card_text
-            ]
-            if missing_tokens:
+            expected_name = normalized_pdf_text(entry.name)
+            expected_value = normalized_pdf_text(dimension_value(entry))
+            missing_fields = []
+            if expected_name not in card_text:
+                missing_fields.append(entry.name)
+            if expected_value not in card_text:
+                missing_fields.append(dimension_value(entry))
+            if missing_fields:
                 failures.append(
-                    f"sheet {page_number}: {entry.name} missing visible tokens "
-                    f"{missing_tokens}"
+                    f"sheet {page_number}: {entry.name} missing complete card fields "
+                    f"{missing_fields}"
                 )
     if failures:
         raise RuntimeError(
@@ -2808,6 +3590,31 @@ def validate_rendered_coverage() -> None:
             f"missing={sorted(expected_visual - GRAPHICALLY_ANNOTATED_NAMES)}, "
             f"unexpected={sorted(GRAPHICALLY_ANNOTATED_NAMES - expected_visual)}"
         )
+    if set(GRAPHICAL_PRIMITIVE_RECORDS) != expected_visual:
+        raise RuntimeError(
+            "Engineering-drawing primitive coverage mismatch: "
+            f"missing={sorted(expected_visual - set(GRAPHICAL_PRIMITIVE_RECORDS))}, "
+            f"unexpected={sorted(set(GRAPHICAL_PRIMITIVE_RECORDS) - expected_visual)}"
+        )
+    invalid_primitives = []
+    for name, (primitive_kind, points) in GRAPHICAL_PRIMITIVE_RECORDS.items():
+        if len(points) < 2 or not all(
+            math.isfinite(coordinate)
+            for point in points
+            for coordinate in point
+        ):
+            invalid_primitives.append(f"{name}:{primitive_kind}:invalid-points")
+            continue
+        if max(
+            math.hypot(point[0] - points[0][0], point[1] - points[0][1])
+            for point in points[1:]
+        ) <= 1.0e-9:
+            invalid_primitives.append(f"{name}:{primitive_kind}:degenerate")
+    if invalid_primitives:
+        raise RuntimeError(
+            "Invalid graphical dimension primitives: "
+            + ", ".join(invalid_primitives)
+        )
     invalid_kinds = sorted(
         name
         for name in expected_visual
@@ -2841,6 +3648,7 @@ def validate_rendered_coverage() -> None:
 def main():
     GRAPHICALLY_ANNOTATED_NAMES.clear()
     GRAPHICAL_ANNOTATION_KINDS.clear()
+    GRAPHICAL_PRIMITIVE_RECORDS.clear()
     CATALOGUED_SETTING_NAMES.clear()
     handle = tempfile.NamedTemporaryFile(
         prefix=f".{OUTPUT_PDF.stem}.",
