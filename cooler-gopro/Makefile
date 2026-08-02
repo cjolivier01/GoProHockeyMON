@@ -17,6 +17,9 @@ FAN_CASE_STLS := \
 	gopro_fan_case_back.stl \
 	gopro_fan_case_insert.stl \
 	gopro_fan_case_button.stl \
+	gopro_fan_case_baffle_tray.stl \
+	gopro_fan_case_baffle_lid.stl \
+	gopro_fan_case_baffle_gasket.stl \
 	gopro_fan_case_front_retainer.stl \
 	gopro_fan_case_rotating_keeper.stl
 HOCKEYMOM_COVER_STLS := \

@@ -112,6 +112,7 @@ class ConfigEntry:
 
 
 CATEGORY_PREFIXES = (
+    ("Acoustic baffle cartridge", ("BAFFLE_",)),
     ("Button actuators", ("BUTTON_",)),
     ("Front camera retainer", ("RETAINER_",)),
     ("Build, export and viewport", ("CLEAR_", "LAYOUT_", "PRINT_BED_", "SHOW_", "EXPORT_", "COMBINED_", "BACK_STL_", "INSERT_STL_", "MATERIAL_")),
@@ -129,6 +130,29 @@ CATEGORY_PREFIXES = (
 
 
 EXACT_DESCRIPTIONS = {
+    "BAFFLE_CARTRIDGE_MATERIAL_MODE": "Selects RIGID or TPU wall, internal-baffle, lid and lid-carried snap-tongue geometry for the removable acoustic cartridge.",
+    "BAFFLE_CARTRIDGE_ENABLED": "Builds the removable Offset-S acoustic cartridge and its two small back-shell snap receivers.",
+    "BAFFLE_REAR_Y": "Rear body plane of the cartridge, immediately forward of the fan-pad inlet seal.",
+    "BAFFLE_FRONT_Y": "Forward outlet plane of the cartridge; camera and sleeve clearances are measured from this face.",
+    "BAFFLE_REAR_WIDTH": "Cartridge width at the gasketed fan-inlet end.",
+    "BAFFLE_FRONT_WIDTH": "Cartridge width at the wider camera-facing outlet end.",
+    "BAFFLE_BODY_HEIGHT": "Common top-to-bottom cartridge envelope at every axial station.",
+    "BAFFLE_STOP_CLEARANCE": "Clearance around the existing large bottom-left camera stop, formed as a keyed corner relief.",
+    "BAFFLE_MIN_EDGE_OVERLAP_Z": "Minimum projected overlap between successive airway edges that blocks direct fan-to-camera line of sight.",
+    "BAFFLE_MIN_THROAT_AREA": "Minimum accepted open flow area at either internal turn or the forward outlet.",
+    "BAFFLE_INLET_SLOT_COUNT": "Number of pointed, self-supporting slots spanning the circular fan inlet.",
+    "BAFFLE_INLET_SEPARATOR_THICKNESS_Z": "Vertical rib thickness between adjacent pointed fan-inlet slots.",
+    "BAFFLE_INLET_ROOF_APEX_X": "Fan-relative X position of each pointed inlet-slot roof apex.",
+    "BAFFLE_INLET_ROOF_RUN_X": "X run from each inlet-slot shoulder to its self-supporting roof apex.",
+    "BAFFLE_OUTLET_SLOT_COUNT": "Number of pointed, self-supporting slots in the camera-facing outlet.",
+    "BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z": "Vertical rib thickness between adjacent pointed outlet slots.",
+    "BAFFLE_OUTLET_ROOF_RUN_X": "X run from each outlet-slot shoulder to its pointed roof apex.",
+    "BAFFLE_MIN_ROOF_ANGLE_DEG": "Minimum roof angle in the exported tray orientation for supportless slicing.",
+    "BAFFLE_LID_FIT_CLEARANCE": "Per-edge running clearance for fitting the keyed side lid into the side-open tray.",
+    "BAFFLE_SNAP_INTERFERENCE_Z": "Configured elastic overtravel between each cartridge hook and its back-shell receiver rib.",
+    "BAFFLE_TRAY_STL_NAME": "Output filename for the side-open acoustic labyrinth tray with one controlled stop-relief bridge.",
+    "BAFFLE_LID_STL_NAME": "Output filename for the separately printed keyed side lid and its two snap tongues.",
+    "BAFFLE_GASKET_STL_NAME": "Output filename for the TPU annular fan-inlet gasket.",
     "BACK_OUTER_WIDTH": "Requested legacy back-shell width; the enabled capture joint may expand the effective envelope to contain its support contour.",
     "BACK_OUTER_HEIGHT": "Requested legacy back-shell height; the enabled capture joint may expand the effective envelope to contain its support contour.",
     "BACK_CORNER_RADIUS": "Requested legacy back-shell corner radius; the enabled capture joint derives a containing effective radius when necessary.",
@@ -365,12 +389,23 @@ def read_model_config():
             f"missing={sorted(expected_config_names - catalogued_names)} "
             f"unexpected={sorted(catalogued_names - expected_config_names)}"
         )
-    material_mode = source_config["BACK_MATERIAL_MODE"][0]
-    profiles = env.get("BACK_MATERIAL_PROFILES", {})
-    profile = profiles.get(material_mode, {}) if isinstance(profiles, dict) else {}
+    resolved_profile = {}
+    for mode_name, profiles_name in (
+        ("BACK_MATERIAL_MODE", "BACK_MATERIAL_PROFILES"),
+        (
+            "BAFFLE_CARTRIDGE_MATERIAL_MODE",
+            "BAFFLE_CARTRIDGE_MATERIAL_PROFILES",
+        ),
+    ):
+        material_mode = source_config[mode_name][0]
+        profiles = env.get(profiles_name, {})
+        if isinstance(profiles, dict):
+            selected = profiles.get(material_mode, {})
+            if isinstance(selected, dict):
+                resolved_profile.update(selected)
     entries = []
     for name, (source_value, line) in sorted(source_config.items(), key=lambda item: item[1][1]):
-        value = profile.get(name, source_value)
+        value = resolved_profile.get(name, source_value)
         category = category_for(name)
         entries.append(
             ConfigEntry(
@@ -381,7 +416,7 @@ def read_model_config():
                 category=category,
                 description=description_for(name, category),
                 unit=unit_for(name, value),
-                profile_controlled=name in profile,
+                profile_controlled=name in resolved_profile,
             )
         )
     return env, tuple(entries), frozenset(expected_config_names)
@@ -393,6 +428,9 @@ PART_STLS = {
     "back": HERE / str(C["BACK_STL_NAME"]),
     "insert": HERE / str(C["INSERT_STL_NAME"]),
     "button": HERE / str(C["BUTTON_STL_NAME"]),
+    "baffle_tray": HERE / str(C["BAFFLE_TRAY_STL_NAME"]),
+    "baffle_lid": HERE / str(C["BAFFLE_LID_STL_NAME"]),
+    "baffle_gasket": HERE / str(C["BAFFLE_GASKET_STL_NAME"]),
     "gate": HERE / str(C["RETAINER_STL_NAME"]),
     "keeper": HERE / str(C["RETAINER_KEEPER_STL_NAME"]),
 }
@@ -449,6 +487,39 @@ SETTINGS_PER_PAGE = 9
 
 def drawing_view_for(entry: ConfigEntry) -> str:
     name = entry.name
+    if name.startswith("BAFFLE_"):
+        if name in {
+            "BAFFLE_REAR_WIDTH",
+            "BAFFLE_FRONT_WIDTH",
+            "BAFFLE_BODY_HEIGHT",
+            "BAFFLE_STOP_CLEARANCE",
+            "BAFFLE_INLET_DIAMETER",
+            "BAFFLE_INLET_SEPARATOR_THICKNESS_Z",
+            "BAFFLE_INLET_ROOF_APEX_X",
+            "BAFFLE_INLET_ROOF_RUN_X",
+            "BAFFLE_GASKET_OUTER_DIAMETER",
+            "BAFFLE_GASKET_INNER_DIAMETER",
+            "BAFFLE_GASKET_BOSS_CLEARANCE",
+            "BAFFLE_OUTLET_WIDTH",
+            "BAFFLE_OUTLET_HEIGHT",
+            "BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z",
+            "BAFFLE_OUTLET_ROOF_RUN_X",
+        }:
+            return "baffle_front"
+        if name in {
+            "BAFFLE_REAR_Y",
+            "BAFFLE_FRONT_Y",
+            "BAFFLE_BODY_DEPTH_SECTIONS",
+            "BAFFLE_WALL_THICKNESS",
+            "BAFFLE_INTERNAL_THICKNESS_Y",
+            "BAFFLE_GASKET_THICKNESS_Y",
+            "BAFFLE_FIRST_Y",
+            "BAFFLE_SECOND_Y",
+        }:
+            return "baffle_side"
+        if name.startswith(("BAFFLE_LID_", "BAFFLE_SNAP_")):
+            return "baffle_snap"
+        return "baffle_airway"
     if name == "PRINT_BED_GAP":
         return "print_bed"
     if name.startswith(("BOOLEAN_", "CYLINDER_", "CORNER_")):
@@ -540,6 +611,10 @@ def drawing_view_for(entry: ConfigEntry) -> str:
 DRAWING_VIEW_ORDER = (
     "back_front",
     "back_side",
+    "baffle_front",
+    "baffle_side",
+    "baffle_airway",
+    "baffle_snap",
     "capture_joint",
     "capture_section",
     "fastener_detail",
@@ -596,7 +671,7 @@ DRAWING_PAGE_GROUPS = tuple(
     for view in DRAWING_VIEW_ORDER
     for group in drawing_groups_for_view(entries_by_view[view])
 )
-CURATED_PAGE_COUNT = 6
+CURATED_PAGE_COUNT = 7
 DRAWING_PAGE_COUNT = len(DRAWING_PAGE_GROUPS)
 SETTINGS_PAGE_COUNT = math.ceil(
     len(NON_DIMENSION_SETTING_ENTRIES) / SETTINGS_PER_PAGE
@@ -1223,9 +1298,245 @@ def page_fasteners(pdf):
     plt.close(fig)
 
 
+def page_baffle_cartridge(pdf):
+    fig = new_page(
+        8,
+        "REMOVABLE ACOUSTIC BAFFLE CARTRIDGE",
+        "Actual printable tray, keyed side lid and TPU inlet gasket; the Offset-S path blocks direct fan-to-camera line of sight",
+    )
+    tray_ax = panel(
+        fig,
+        [0.05, 0.12, 0.43, 0.72],
+        "AXIAL SECTION — OFFSET-S AIRWAY",
+        "The alternating blockers preserve flow area while removing direct acoustic line of sight",
+    )
+    rear_y = float(C["BAFFLE_REAR_Y"])
+    front_y = float(C["BAFFLE_FRONT_Y"])
+    bottom_z = -float(C["BAFFLE_BODY_HEIGHT"]) / 2.0
+    top_z = float(C["BAFFLE_BODY_HEIGHT"]) / 2.0
+    wall = float(C["BAFFLE_WALL_THICKNESS"])
+    internal = float(C["BAFFLE_INTERNAL_THICKNESS_Y"])
+    inlet_half = float(C["BAFFLE_INLET_DIAMETER"]) / 2.0
+    outlet_half = float(C["BAFFLE_OUTLET_HEIGHT"]) / 2.0
+    first_y = float(C["BAFFLE_FIRST_Y"])
+    first_half = float(C["BAFFLE_FIRST_BLOCKER_HEIGHT_Z"]) / 2.0
+    second_y = float(C["BAFFLE_SECOND_Y"])
+    second_half = float(C["BAFFLE_SECOND_OPENING_HEIGHT_Z"]) / 2.0
+    structural_patches = (
+        Rectangle(
+            (rear_y, top_z - wall),
+            front_y - rear_y,
+            wall,
+        ),
+        Rectangle(
+            (rear_y, bottom_z),
+            front_y - rear_y,
+            wall,
+        ),
+        Rectangle(
+            (rear_y, inlet_half),
+            wall,
+            top_z - inlet_half,
+        ),
+        Rectangle(
+            (rear_y, bottom_z),
+            wall,
+            -inlet_half - bottom_z,
+        ),
+        Rectangle(
+            (front_y - wall, outlet_half),
+            wall,
+            top_z - outlet_half,
+        ),
+        Rectangle(
+            (front_y - wall, bottom_z),
+            wall,
+            -outlet_half - bottom_z,
+        ),
+        Rectangle(
+            (first_y - internal / 2.0, -first_half),
+            internal,
+            2.0 * first_half,
+        ),
+        Rectangle(
+            (second_y - internal / 2.0, second_half),
+            internal,
+            top_z - wall - second_half,
+        ),
+        Rectangle(
+            (second_y - internal / 2.0, bottom_z + wall),
+            internal,
+            -second_half - bottom_z - wall,
+        ),
+    )
+    for patch in structural_patches:
+        patch.set_facecolor("#f7d8c7")
+        patch.set_edgecolor(ORANGE)
+        patch.set_linewidth(1.0)
+        tray_ax.add_patch(patch)
+    flow_segments = (
+        ((rear_y + wall, 0.0), (first_y - internal, 14.0), 0.24),
+        ((first_y + internal, 14.0), (second_y - internal, 0.0), -0.18),
+        ((second_y + internal, 0.0), (front_y - wall, 0.0), 0.0),
+        ((rear_y + wall, 0.0), (first_y - internal, -14.0), -0.24),
+        ((first_y + internal, -14.0), (second_y - internal, 0.0), 0.18),
+    )
+    for start, end, curvature in flow_segments:
+        tray_ax.add_patch(
+            FancyArrowPatch(
+                start,
+                end,
+                connectionstyle=f"arc3,rad={curvature}",
+                arrowstyle="-|>",
+                mutation_scale=10,
+                linewidth=1.2,
+                color=BLUE,
+                zorder=8,
+            )
+        )
+    tray_ax.plot(
+        (rear_y + wall, first_y + internal / 2.0),
+        (0.0, 0.0),
+        color=RED,
+        linewidth=0.9,
+        linestyle="--",
+        zorder=7,
+    )
+    tray_ax.text(
+        first_y,
+        0.0,
+        "FIRST\nBLOCKER",
+        fontsize=5.2,
+        color=INK,
+        ha="center",
+        va="center",
+        rotation=90,
+        zorder=9,
+    )
+    tray_ax.text(
+        second_y,
+        0.0,
+        "CENTER\nPASSAGE",
+        fontsize=5.2,
+        color=INK,
+        ha="center",
+        va="center",
+        rotation=90,
+        zorder=9,
+    )
+    tray_ax.set_xlim(rear_y - 1.5, front_y + 1.5)
+    tray_ax.set_ylim(bottom_z - 2.0, top_z + 3.0)
+    tray_ax.set_aspect("equal", adjustable="box")
+
+    side_ax = panel(
+        fig,
+        [0.51, 0.51, 0.21, 0.33],
+        "TRAY PRINT EDGE",
+    )
+    tray_side = projected_part_geometry("baffle_tray", "xz")
+    draw_projected_geometry(
+        side_ax,
+        tray_side,
+        "#f7d8c7",
+        ORANGE,
+        alpha=0.94,
+    )
+    set_drawing_bounds(side_ax, tray_side.bounds, padding_fraction=0.10)
+
+    parts_ax = panel(
+        fig,
+        [0.74, 0.51, 0.21, 0.33],
+        "LID + TPU GASKET",
+    )
+    lid = projected_part_geometry("baffle_lid", "xy")
+    gasket_base = projected_part_geometry("baffle_gasket", "xy")
+    gasket = affinity.translate(
+        gasket_base,
+        xoff=lid.bounds[2] - gasket_base.bounds[0] + 6.0,
+    )
+    draw_projected_geometry(
+        parts_ax,
+        lid,
+        "#f8e8bd",
+        GREEN,
+        alpha=0.95,
+    )
+    draw_projected_geometry(
+        parts_ax,
+        gasket,
+        "#d7efd9",
+        BLUE,
+        alpha=0.95,
+    )
+    set_drawing_bounds(
+        parts_ax,
+        union_bounds((lid, gasket)),
+        padding_fraction=0.10,
+    )
+
+    notes_ax = panel(
+        fig,
+        [0.51, 0.12, 0.44, 0.35],
+        "ASSEMBLY / ACOUSTIC DESIGN",
+    )
+    notes_ax.axis("off")
+    camera_clearance = (
+        boss_assembly_datum_y()
+        - float(C["CAMERA_STOP_TO_INSERT_SOCKET_GAP"])
+        - float(C["BAFFLE_FRONT_Y"])
+    )
+    sleeve_clearance = (
+        boss_assembly_datum_y()
+        - float(C["SLEEVE_CAPTURE_ENGAGEMENT_DEPTH"])
+        - float(C["BAFFLE_FRONT_Y"])
+    )
+    fan_inner_y = -float(C["BACK_DOME_DEPTH"]) + float(C["BACK_FACE_THICKNESS"])
+    gasket_compression = float(C["BAFFLE_GASKET_THICKNESS_Y"]) - (
+        float(C["BAFFLE_REAR_Y"]) - fan_inner_y
+    )
+    outlet_open_height = float(C["BAFFLE_OUTLET_HEIGHT"]) - (
+        (int(C["BAFFLE_OUTLET_SLOT_COUNT"]) - 1)
+        * float(C["BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z"])
+    )
+    outlet_area = (
+        float(C["BAFFLE_OUTLET_WIDTH"])
+        - float(C["BAFFLE_OUTLET_ROOF_RUN_X"]) / 2.0
+    ) * outlet_open_height
+    note(
+        notes_ax,
+        0.04,
+        0.80,
+        "FIT AND SERVICE",
+        [
+            f"body depth {float(C['BAFFLE_FRONT_Y']) - float(C['BAFFLE_REAR_Y']):.2f} mm; camera clearance {camera_clearance:.2f} mm",
+            f"sleeve clearance {sleeve_clearance:.2f} mm; gasket compression {gasket_compression:.2f} mm",
+            f"{C['BAFFLE_CARTRIDGE_MATERIAL_MODE']} tray/lid; TPU gasket; snap interference {fmt(C['BAFFLE_SNAP_INTERFERENCE_Z'])} mm",
+        ],
+        BLUE,
+    )
+    note(
+        notes_ax,
+        0.04,
+        0.34,
+        "AIRWAY AND PRINTING",
+        [
+            f"minimum throat {fmt(C['BAFFLE_MIN_THROAT_AREA'])} mm²; pointed-slot outlet {outlet_area:.0f} mm²",
+            f"projected edge overlap {fmt(C['BAFFLE_MIN_EDGE_OVERLAP_Z'])} mm blocks direct line of sight",
+            f"tray/lid/gasket need no generated supports; tray stop-relief bridge {float(C['BAFFLE_FRONT_Y']) - float(C['BAFFLE_REAR_Y']):.1f} mm",
+        ],
+        ORANGE,
+    )
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 VIEW_TITLES = {
     "back_front": "BACK SHELL / DOME — ACTUAL FRONT PROJECTION",
     "back_side": "BACK SHELL / DOME — ACTUAL SIDE PROJECTION",
+    "baffle_front": "BAFFLE CARTRIDGE — ACTUAL OPEN-SIDE PROJECTION",
+    "baffle_side": "BAFFLE CARTRIDGE — ACTUAL PRINTED EDGE PROJECTION",
+    "baffle_airway": "OFFSET-S AIRWAY — ACTUAL TRAY PROJECTION",
+    "baffle_snap": "CARTRIDGE LID AND SNAP FEATURES — ACTUAL PRINT PROJECTIONS",
     "capture_joint": "ASSEMBLED BACK + SLEEVE — ACTUAL FRONT PROJECTION",
     "capture_section": "SLEEVE CAPTURE — ACTUAL AXIAL SECTION PROJECTION",
     "fastener_detail": "CASE FASTENERS ON ACTUAL BACK + SLEEVE PROJECTION",
@@ -1681,6 +1992,88 @@ def draw_actual_view(ax, view: str):
             zorder=5,
         )
         return back.bounds
+    if view in {"baffle_front", "baffle_airway"}:
+        tray = projected_part_geometry("baffle_tray", "xy")
+        draw_projected_geometry(
+            ax,
+            tray,
+            "#f7d8c7",
+            ORANGE,
+            alpha=0.92,
+        )
+        if view == "baffle_airway":
+            minimum_x, minimum_y, maximum_x, maximum_y = tray.bounds
+            flow_y = minimum_y + 0.52 * (maximum_y - minimum_y)
+            for start_fraction, end_fraction in (
+                (0.08, 0.36),
+                (0.37, 0.64),
+                (0.65, 0.92),
+            ):
+                ax.add_patch(
+                    FancyArrowPatch(
+                        (
+                            minimum_x
+                            + start_fraction * (maximum_x - minimum_x),
+                            flow_y,
+                        ),
+                        (
+                            minimum_x
+                            + end_fraction * (maximum_x - minimum_x),
+                            flow_y,
+                        ),
+                        arrowstyle="-|>",
+                        mutation_scale=8,
+                        linewidth=0.9,
+                        color=BLUE,
+                        linestyle="--",
+                        zorder=8,
+                    )
+                )
+            ax.text(
+                (minimum_x + maximum_x) / 2.0,
+                maximum_y - 0.06 * (maximum_y - minimum_y),
+                "OFFSET-S FLOW / NO DIRECT LINE OF SIGHT",
+                fontsize=4.8,
+                color=BLUE,
+                weight="bold",
+                ha="center",
+                va="top",
+                zorder=9,
+            )
+        return tray.bounds
+    if view == "baffle_side":
+        tray = projected_part_geometry("baffle_tray", "xz")
+        draw_projected_geometry(
+            ax,
+            tray,
+            "#f7d8c7",
+            ORANGE,
+            alpha=0.92,
+        )
+        return tray.bounds
+    if view == "baffle_snap":
+        tray = projected_part_geometry("baffle_tray", "xy")
+        lid_base = projected_part_geometry("baffle_lid", "xy")
+        lid = affinity.translate(
+            lid_base,
+            xoff=tray.bounds[2] - lid_base.bounds[0] + 8.0,
+        )
+        draw_projected_geometry(
+            ax,
+            tray,
+            "#f7d8c7",
+            ORANGE,
+            alpha=0.90,
+        )
+        draw_projected_geometry(
+            ax,
+            lid,
+            "#f8e8bd",
+            GREEN,
+            alpha=0.94,
+            zorder=5,
+        )
+        return union_bounds((tray, lid))
     if view == "capture_joint":
         back = projected_part_geometry("back", "xz")
         insert = projected_part_geometry("insert", "xz")
@@ -2242,14 +2635,42 @@ def draw_actual_view(ax, view: str):
             projected_part_geometry("keeper", "xy", True),
             xoff=gate.bounds[2] - projected_part_geometry("keeper", "xy", True).bounds[0] + gap,
         )
+        baffle_tray_base = projected_part_geometry("baffle_tray", "xy")
+        baffle_tray = affinity.translate(
+            baffle_tray_base,
+            xoff=keeper.bounds[2] - baffle_tray_base.bounds[0] + gap,
+        )
+        baffle_lid_base = projected_part_geometry("baffle_lid", "xy")
+        baffle_lid = affinity.translate(
+            baffle_lid_base,
+            xoff=baffle_tray.bounds[2] - baffle_lid_base.bounds[0] + gap,
+        )
+        baffle_gasket_base = projected_part_geometry("baffle_gasket", "xy")
+        baffle_gasket = affinity.translate(
+            baffle_gasket_base,
+            xoff=baffle_lid.bounds[2] - baffle_gasket_base.bounds[0] + gap,
+        )
         for geometry, face, edge in (
             (back, "#dceaf3", BLUE),
             (insert, "#f7d9ca", ORANGE),
             (gate, "#d7efd9", GREEN),
             (keeper, "#eadcf1", RED),
+            (baffle_tray, "#f7d8c7", ORANGE),
+            (baffle_lid, "#f8e8bd", GREEN),
+            (baffle_gasket, "#d7efd9", BLUE),
         ):
             draw_projected_geometry(ax, geometry, face, edge, alpha=0.88)
-        return union_bounds((back, insert, gate, keeper))
+        return union_bounds(
+            (
+                back,
+                insert,
+                gate,
+                keeper,
+                baffle_tray,
+                baffle_lid,
+                baffle_gasket,
+            )
+        )
     if view == "mesh_quality":
         gate = projected_part_geometry("gate", "xy", True)
         keeper_base = projected_part_geometry("keeper", "xy", True)
@@ -3375,7 +3796,7 @@ def page_settings_appendix(pdf, page_number: int, entries) -> None:
 
 
 def page_catalog(pdf):
-    page_number = 8
+    page_number = 2 + CURATED_PAGE_COUNT
     for view, entries in DRAWING_PAGE_GROUPS:
         page_dimension_drawing(pdf, page_number, view, entries)
         page_number += 1
@@ -3548,7 +3969,7 @@ def validate_pdf_engineering_drawings() -> None:
 
     failures: list[str] = []
     for page_offset, (_view, entries) in enumerate(DRAWING_PAGE_GROUPS):
-        page_number = 8 + page_offset
+        page_number = 2 + CURATED_PAGE_COUNT + page_offset
         page_text = normalized_pdf_text(extracted_pages[page_number - 1])
         drawing_text = normalized_pdf_text(drawing_pages[page_number - 1])
         card_text = normalized_pdf_text(card_pages[page_number - 1])
@@ -3715,6 +4136,7 @@ def main():
             page_back_shell(pdf)
             page_insert(pdf)
             page_fasteners(pdf)
+            page_baffle_cartridge(pdf)
             page_catalog(pdf)
             validate_rendered_coverage()
             page_coverage(pdf)
