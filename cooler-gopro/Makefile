@@ -18,22 +18,30 @@ ifeq ($(filter $(FAN_SILENCER_SIZE),$(FAN_SILENCER_SUPPORTED_SIZES)),)
 $(error FAN_SILENCER_SIZE must be one of: $(FAN_SILENCER_SUPPORTED_SIZES))
 endif
 FAN_SILENCER_PREFIX := gopro_$(FAN_SILENCER_SIZE)mm_fan_silencer
-FAN_SILENCER_STL_SUFFIXES := \
-	.stl \
+FAN_SILENCER_STLS := $(FAN_SILENCER_PREFIX).stl
+FAN_SILENCER_CROSS_SECTION := $(FAN_SILENCER_PREFIX)_cross_section.png
+FAN_SILENCER_SOURCE_DEPS := \
+	gopro_fan_silencer_parametric_blender.py \
+	fan_size_presets.py \
+	thingiverse_5177333_fan_intake_mk4_reference.py
+ifeq ($(FAN_SILENCER_SIZE),40)
+FAN_SILENCER_SOURCE_DEPS += gopro_fan_case_parametric_blender.py
+endif
+FAN_SILENCER_KNOWN_STLS := $(foreach size,$(FAN_SILENCER_SUPPORTED_SIZES),\
+	gopro_$(size)mm_fan_silencer.stl)
+FAN_SILENCER_KNOWN_CROSS_SECTIONS := $(foreach size,$(FAN_SILENCER_SUPPORTED_SIZES),\
+	gopro_$(size)mm_fan_silencer_cross_section.png)
+FAN_SILENCER_OBSOLETE_SUFFIXES := \
 	_flange.stl \
 	_spacer.stl \
 	_curved_baffle.stl \
 	_center_baffle.stl \
 	_alignment_sleeve.stl
-FAN_SILENCER_SOURCE_DEPS := gopro_fan_silencer_parametric_blender.py fan_size_presets.py
-ifeq ($(FAN_SILENCER_SIZE),40)
-FAN_SILENCER_SOURCE_DEPS += gopro_fan_case_parametric_blender.py
-endif
-FAN_SILENCER_STLS := \
-	$(foreach suffix,$(FAN_SILENCER_STL_SUFFIXES),$(FAN_SILENCER_PREFIX)$(suffix))
-FAN_SILENCER_KNOWN_STLS := $(foreach size,$(FAN_SILENCER_SUPPORTED_SIZES),\
-	$(foreach suffix,$(FAN_SILENCER_STL_SUFFIXES),gopro_$(size)mm_fan_silencer$(suffix)))
-FAN_SILENCER_OBSOLETE_STLS := gopro_40mm_fan_silencer_core_half.stl
+FAN_SILENCER_OBSOLETE_STLS := \
+	gopro_40mm_fan_silencer_core_half.stl \
+	$(foreach size,$(FAN_SILENCER_SUPPORTED_SIZES),\
+		$(foreach suffix,$(FAN_SILENCER_OBSOLETE_SUFFIXES),\
+			gopro_$(size)mm_fan_silencer$(suffix)))
 BAFFLE_CARTRIDGE_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_ENABLED' for target in node.targets)))")
 BAFFLE_CARTRIDGE_MATERIAL_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_MATERIAL_MODE' for target in node.targets)))")
 FAN_CASE_CORE_STLS := \
@@ -99,7 +107,8 @@ STL_FILES := \
 .PHONY: \
 	all print_targets dim-pdf check-dim-pdf-sync \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
-	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-silencer fan-case hockeymom-cover \
+	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-silencer \
+	fan-silencer-cross-section fan-case hockeymom-cover \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cover \
 	clean-dim-pdf clean-fan-case-dim-pdf
@@ -124,6 +133,7 @@ print_targets:
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
 		'dual-fan                  Build the parametric dual-fan STL.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
+		'fan-silencer-cross-section  Render its assembled case/silencer/fan center section.' \
 		'fan-case                  Build the case, buttons, baffle tray/lid/seal, swing gate, and keeper STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
 		'' \
@@ -142,7 +152,7 @@ print_targets:
 		'clean-horn                Remove the parametric horn STL.' \
 		'clean-mission1-dummy      Remove the Mission 1 dummy STL.' \
 		'clean-dual-fan            Remove the dual-fan STL.' \
-		'clean-fan-silencer        Remove generated 40/60/80/120 mm fan silencer STLs.' \
+		'clean-fan-silencer        Remove generated fan-silencer STLs and cross sections.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
 		'clean-hockeymom-cover     Remove all HOCKEYMOM 3 camera-cover STLs.' \
 		'clean-dim-pdf             Remove the HOCKEYMOM 3 configuration dimension PDF.' \
@@ -158,6 +168,7 @@ horn: $(HORN_STLS)
 mission1-dummy: $(MISSION1_DUMMY_STLS)
 dual-fan: $(DUAL_FAN_STLS)
 fan-silencer: $(FAN_SILENCER_STLS)
+fan-silencer-cross-section: $(FAN_SILENCER_CROSS_SECTION)
 fan-case: $(FAN_CASE_STLS)
 dim-pdf: $(DIMENSION_PDF)
 fan-case-dim-pdf: $(FAN_CASE_DIMENSION_PDF)
@@ -209,11 +220,17 @@ $(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py fan_size_presets.py
 		"import os,sys; p='$<'; sys.path.insert(0,os.path.dirname(os.path.abspath(p))); ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_STL_PATH']='$(word 1,$(DUAL_FAN_STLS))'; ns['EXPORT_ADAPTER_STL_PATH']='$(word 2,$(DUAL_FAN_STLS))'; ns['build_dual_fan']()"
 	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(DUAL_FAN_STLS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
 
-$(FAN_SILENCER_STLS) &: $(FAN_SILENCER_SOURCE_DEPS)
+$(FAN_SILENCER_STLS): $(FAN_SILENCER_SOURCE_DEPS)
 	$(RM) $(FAN_SILENCER_STLS) $(FAN_SILENCER_OBSOLETE_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
-		"import os,sys; p='$<'; sys.path.insert(0,os.path.dirname(os.path.abspath(p))); ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['FAN_SIZE_MM']=$(FAN_SILENCER_SIZE); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_gopro_fan_silencer']()"
+		"import os,sys; p='$<'; sys.path.insert(0,os.path.dirname(os.path.abspath(p))); ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['FAN_SIZE_MM']=$(FAN_SILENCER_SIZE); ns['EXPORT_STL']=True; ns['EXPORT_STL_PATH']='$@'; ns['build_gopro_fan_silencer']()"
 	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(FAN_SILENCER_STLS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
+
+$(FAN_SILENCER_CROSS_SECTION): $(FAN_SILENCER_SOURCE_DEPS)
+	$(RM) $@
+	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
+		"import os,sys; p='$<'; sys.path.insert(0,os.path.dirname(os.path.abspath(p))); ns={'__name__':'make_cross_section','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['FAN_SIZE_MM']=$(FAN_SILENCER_SIZE); ns['RENDER_CROSS_SECTION']=True; ns['CROSS_SECTION_PATH']='$@'; ns['build_gopro_fan_silencer']()"
+	$(PDF_PYTHON) -c "from pathlib import Path; path=Path('$@'); assert path.is_file() and path.stat().st_size > 0, f'Missing Blender output: {path}'"
 
 # Grouped targets tell make that one Blender run creates every listed file.
 $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py
@@ -252,7 +269,8 @@ clean-dual-fan:
 	$(RM) $(DUAL_FAN_STLS)
 
 clean-fan-silencer:
-	$(RM) $(FAN_SILENCER_KNOWN_STLS) $(FAN_SILENCER_OBSOLETE_STLS)
+	$(RM) $(FAN_SILENCER_KNOWN_STLS) $(FAN_SILENCER_KNOWN_CROSS_SECTIONS) \
+		$(FAN_SILENCER_OBSOLETE_STLS)
 
 clean-fan-case:
 	$(RM) $(FAN_CASE_ALL_STLS)
