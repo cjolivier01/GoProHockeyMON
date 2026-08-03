@@ -27,12 +27,20 @@ facing up.  The source design requires supports, but every supported region is
 reachable through the open center, perimeter, or fan-side labyrinth; there are
 no sealed support cavities.
 
+The original MK4 is an ambient-intake accessory: the curved face admits air
+through its center and perimeter ports, while the flatter open face mounts to
+the fan intake.  In the GoPro sandwich, the curved face points toward the case,
+but the 37 mm case opening feeds only the center region.  The exposed perimeter
+ports can still draw ambient air unless a purpose-designed plenum feeds them,
+so total fan flow and case-cooling flow are not the same quantity.
+
 The exact MK4 airway is intentionally not enlarged.  Its measured native
 central throat is only 630.64 mm2, and uniform scaling preserves that area
 ratio.  The 40 mm case build therefore has a 280.28 mm2 throat, only 26.1% of
-the case's 37 mm opening.  Treat this as an acoustics-first experimental part:
-verify case temperature and airflow under sustained load before relying on it
-for cooling, and do not combine it with the case's internal baffle cartridge.
+the case's 37 mm opening.  This is a geometric area comparison, not a measured
+74% airflow loss.  Treat this as an acoustics-first experimental part: verify
+case temperature and airflow under sustained load before relying on it for
+cooling, and do not combine it with the case's internal baffle cartridge.
 
 Run inside Blender:
 
@@ -130,6 +138,9 @@ STL_NAME = "gopro_40mm_fan_silencer.stl"
 RENDER_CROSS_SECTION = False
 CROSS_SECTION_PATH = ""
 CROSS_SECTION_NAME = "gopro_40mm_fan_silencer_cross_section.png"
+RENDER_MOUNTED_VIEW = False
+MOUNTED_VIEW_PATH = ""
+MOUNTED_VIEW_NAME = "gopro_40mm_fan_silencer_mounted_view.png"
 
 CASE_GENERATOR_NAME = "gopro_fan_case_parametric_blender.py"
 CASE_INTERFACE_CONFIG_NAMES = (
@@ -216,6 +227,7 @@ def apply_fan_size_config() -> None:
     global BOSS_RADIUS
     global STL_NAME
     global CROSS_SECTION_NAME
+    global MOUNTED_VIEW_NAME
 
     mode = str(CASE_INTERFACE_MODE).upper()
     if mode not in {"AUTO", "REQUIRED", "OFF"}:
@@ -267,6 +279,7 @@ def apply_fan_size_config() -> None:
     CROSS_SECTION_NAME = (
         f"gopro_{FAN_NOMINAL_SIZE:g}mm_fan_silencer_cross_section.png"
     )
+    MOUNTED_VIEW_NAME = f"gopro_{FAN_NOMINAL_SIZE:g}mm_fan_silencer_mounted_view.png"
 
 
 def validate_config() -> None:
@@ -946,6 +959,427 @@ def render_assembled_cross_section(silencer) -> None:
     print(f"Wrote {path}")
 
 
+def resolved_mounted_view_path() -> Path:
+    if MOUNTED_VIEW_PATH:
+        return Path(MOUNTED_VIEW_PATH).expanduser().resolve()
+    if EXPORT_DIRECTORY:
+        return Path(EXPORT_DIRECTORY).expanduser().resolve() / MOUNTED_VIEW_NAME
+    if bpy.data.filepath:
+        return Path(bpy.data.filepath).parent.resolve() / MOUNTED_VIEW_NAME
+    return Path(__file__).resolve().parent / MOUNTED_VIEW_NAME
+
+
+def add_air_path(name: str, points, material, radius: float = 0.75) -> None:
+    curve = bpy.data.curves.new(name + "_Curve", "CURVE")
+    curve.dimensions = "3D"
+    curve.bevel_depth = radius
+    curve.bevel_resolution = 5
+    spline = curve.splines.new("POLY")
+    spline.points.add(len(points) - 1)
+    for spline_point, point in zip(spline.points, points):
+        spline_point.co = (*point, 1.0)
+    path_obj = bpy.data.objects.new(name, curve)
+    bpy.context.collection.objects.link(path_obj)
+    curve.materials.append(material)
+
+    end = Vector(points[-1])
+    direction = end - Vector(points[-2])
+    bpy.ops.mesh.primitive_cone_add(
+        vertices=48,
+        radius1=radius * 2.4,
+        radius2=0.0,
+        depth=radius * 4.0,
+        location=end,
+    )
+    arrow = bpy.context.object
+    arrow.name = name + "_Arrow"
+    arrow.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
+    assign_preview_material(arrow, material)
+
+
+def add_camera_text(body: str, screen_location, size: float, material, camera) -> None:
+    bpy.ops.object.text_add()
+    text_obj = bpy.context.object
+    text_obj.data.body = body
+    text_obj.data.align_x = "CENTER"
+    text_obj.data.align_y = "CENTER"
+    text_obj.data.size = size
+    text_obj.data.extrude = 0.02
+    text_obj.data.materials.append(material)
+    bpy.context.view_layer.update()
+    select_only(text_obj)
+    bpy.ops.object.convert(target="MESH")
+    text_obj.parent = camera
+    text_obj.matrix_parent_inverse = Matrix.Identity(4)
+    text_obj.location = (screen_location[0], screen_location[1], -10.0)
+    text_obj.rotation_euler = (0.0, 0.0, 0.0)
+
+
+def mounted_air_routes():
+    path_scale = FAN_NOMINAL_SIZE / 40.0
+    center_route = (
+        (0.0, 0.0, -3.0),
+        (0.0, -3.5, -3.0),
+        (0.0, -3.5, 15.0),
+        (0.0, -8.0, 15.0),
+        (0.0, -8.0, 20.0),
+        (12.0, -8.0, 20.0),
+    )
+    edge_x_route = (
+        (35.0, -4.0, 3.0),
+        (25.0, -4.0, 3.0),
+        (25.0, -4.0, 2.5),
+        (24.5, -4.0, 2.5),
+        (24.5, -4.0, 2.0),
+        (24.0, -4.0, 2.0),
+        (24.0, -4.0, 1.5),
+        (23.5, -4.0, 1.5),
+        (23.5, -4.0, 1.0),
+        (23.0, -4.0, 1.0),
+        (23.0, -4.0, 0.5),
+        (22.5, -4.0, 0.5),
+        (22.5, -4.0, 0.0),
+        (22.0, -4.0, 0.0),
+        (22.0, -4.0, -0.5),
+        (21.5, -4.0, -0.5),
+        (21.5, -4.0, -1.0),
+        (9.0, -4.0, -1.0),
+        (9.0, -4.0, -0.5),
+        (8.5, -4.0, -0.5),
+        (8.5, -4.0, 0.0),
+        (8.0, -4.0, 0.0),
+        (8.0, -4.0, 0.5),
+        (7.5, -4.0, 0.5),
+        (7.5, -4.0, 1.0),
+        (6.5, -4.0, 1.0),
+        (6.5, -4.0, 1.5),
+        (6.0, -4.0, 1.5),
+        (6.0, -4.0, 2.0),
+        (5.5, -4.0, 2.0),
+        (5.5, -4.0, 2.5),
+        (5.0, -4.0, 2.5),
+        (5.0, -4.0, 3.0),
+        (4.0, -4.0, 3.0),
+        (4.0, -4.0, 3.5),
+        (3.5, -4.0, 3.5),
+        (3.5, -4.0, 4.0),
+        (3.0, -4.0, 4.0),
+        (3.0, -4.0, 4.5),
+        (2.5, -4.0, 4.5),
+        (2.5, -3.5, 4.5),
+        (2.5, -3.5, 5.0),
+        (2.5, -3.0, 5.0),
+        (2.5, -3.0, 5.5),
+        (2.0, -3.0, 5.5),
+        (2.0, -3.0, 15.0),
+        (2.0, -7.0, 15.0),
+        (2.0, -7.0, 20.0),
+        (13.0, -7.0, 20.0),
+    )
+    edge_y_route = tuple((-point[1], -point[0], point[2]) for point in edge_x_route)
+    routes_at_40mm = (
+        ("Center_Inlet_Path", center_route),
+        ("Edge_X_Inlet_Path", edge_x_route),
+        ("Edge_Y_Inlet_Path", edge_y_route),
+    )
+    return tuple(
+        (
+            name,
+            tuple(
+                tuple(coordinate * path_scale for coordinate in point)
+                for point in route
+            ),
+        )
+        for name, route in routes_at_40mm
+    )
+
+
+def validate_mounted_air_routes(silencer, routes, path_radius: float) -> int:
+    sample_step = 0.25 * FAN_NOMINAL_SIZE / 40.0
+    bolt_radius = min(1.35, FAN_BOLT_HOLE_DIAMETER / 2.0 - 0.2)
+    checked = 0
+    for name, route in routes:
+        for start_values, end_values in zip(route, route[1:]):
+            start = Vector(start_values)
+            end = Vector(end_values)
+            distance = (end - start).length
+            sample_count = max(1, math.ceil(distance / sample_step))
+            for sample_index in range(sample_count + 1):
+                point = start.lerp(end, sample_index / sample_count)
+                found, nearest, normal, _ = silencer.closest_point_on_mesh(point)
+                if not found:
+                    raise RuntimeError(f"Cannot validate mounted air path {name}")
+                signed_distance = (point - nearest).dot(normal)
+                surface_distance = (point - nearest).length
+                if signed_distance < -1.0e-5 or surface_distance < path_radius:
+                    raise RuntimeError(
+                        f"Mounted air path {name} intersects the MK4 at {tuple(point)}"
+                    )
+                for hole_x, hole_y in fan_hole_centers():
+                    if (
+                        math.hypot(point.x - hole_x, point.y - hole_y)
+                        < bolt_radius + path_radius
+                    ):
+                        raise RuntimeError(
+                            f"Mounted air path {name} intersects an installed bolt"
+                        )
+                checked += 1
+    return checked
+
+
+def validate_air_routes_against_objects(
+    routes, solid_objects, path_radius: float
+) -> int:
+    """Require every displayed route tube to clear the assembled fan solids."""
+    sample_step = 0.25 * FAN_NOMINAL_SIZE / 40.0
+    checked = 0
+    bpy.context.view_layer.update()
+    for name, route in routes:
+        for start_values, end_values in zip(route, route[1:]):
+            start = Vector(start_values)
+            end = Vector(end_values)
+            distance = (end - start).length
+            sample_count = max(1, math.ceil(distance / sample_step))
+            for sample_index in range(sample_count + 1):
+                point = start.lerp(end, sample_index / sample_count)
+                for solid in solid_objects:
+                    local_point = solid.matrix_world.inverted() @ point
+                    found, nearest, normal, _ = solid.closest_point_on_mesh(local_point)
+                    if not found:
+                        raise RuntimeError(
+                            f"Cannot validate mounted air path {name} against "
+                            f"{solid.name}"
+                        )
+                    offset = local_point - nearest
+                    if offset.dot(normal) < -1.0e-5 or offset.length < path_radius:
+                        raise RuntimeError(
+                            f"Mounted air path {name} intersects {solid.name} "
+                            f"at {tuple(point)}"
+                        )
+                checked += 1
+    return checked
+
+
+def render_mounted_fan_view(silencer) -> None:
+    """Render the exact MK4 mounted on a schematic fan with airflow paths."""
+    silencer_material = preview_material(
+        "Mounted_Silencer_Orange", (0.93, 0.34, 0.08)
+    )
+    fan_material = preview_material("Mounted_Fan_Gray", (0.16, 0.18, 0.21))
+    blade_material = preview_material("Mounted_Blade_Gray", (0.34, 0.37, 0.41))
+    bolt_material = preview_material("Mounted_Bolts", (0.62, 0.65, 0.70))
+    inlet_material = preview_material("Mounted_Air_In", (0.02, 0.45, 0.95))
+    outlet_material = preview_material("Mounted_Air_Out", (0.02, 0.72, 0.28))
+    text_material = preview_material("Mounted_Text", (0.035, 0.045, 0.06))
+
+    path_radius = min(0.9, FAN_NOMINAL_SIZE * 0.02)
+    air_paths = mounted_air_routes()
+    silencer_checked = validate_mounted_air_routes(
+        silencer, air_paths, path_radius
+    )
+
+    # Remove the camera-facing XY quadrant from only the silencer.  The STL is
+    # unchanged; this display cut exposes representative paths through the
+    # center and two edge regions while keeping the fan fully assembled.
+    cutaway = add_box(
+        "Mounted_View_Quarter_Cutaway",
+        (120.0, 120.0, SILENCER_DEPTH + 2.0),
+        (60.0, -60.0, SILENCER_DEPTH / 2.0),
+    )
+    apply_boolean(silencer, cutaway, "DIFFERENCE", "Display_Quarter_Cutaway")
+    assign_preview_material(silencer, silencer_material)
+
+    fan_z0 = SILENCER_DEPTH
+    fan_z1 = fan_z0 + FAN_DEPTH
+    fan_frame = add_box(
+        "Mounted_Standard_Fan_Frame",
+        (FAN_NOMINAL_SIZE, FAN_NOMINAL_SIZE, FAN_DEPTH),
+        (0.0, 0.0, (fan_z0 + fan_z1) / 2.0),
+    )
+    fan_opening = add_cylinder(
+        "Mounted_Fan_Frame_Opening",
+        FAN_FRAME_OPENING_DIAMETER / 2.0,
+        fan_z0 - BOOLEAN_OVERLAP,
+        fan_z1 + BOOLEAN_OVERLAP,
+    )
+    apply_boolean(fan_frame, fan_opening, "DIFFERENCE", "Open_Mounted_Fan")
+    for index, (hole_x, hole_y) in enumerate(fan_hole_centers()):
+        fan_bore = add_cylinder(
+            f"Mounted_Fan_Bolt_Bore_{index + 1}",
+            FAN_BOLT_HOLE_DIAMETER / 2.0,
+            fan_z0 - BOOLEAN_OVERLAP,
+            fan_z1 + BOOLEAN_OVERLAP,
+            hole_x,
+            hole_y,
+        )
+        apply_boolean(
+            fan_frame,
+            fan_bore,
+            "DIFFERENCE",
+            f"Drill_Mounted_Fan_Bore_{index + 1}",
+        )
+    assign_preview_material(fan_frame, fan_material)
+
+    # A thin schematic blade plane at mid-depth leaves the fan's real intake
+    # plenum visible and matches the hub placement in the section drawing.
+    blade_plane_z = (fan_z0 + fan_z1) / 2.0
+    hub_depth = min(6.0, FAN_DEPTH * 0.30)
+    hub = add_cylinder(
+        "Mounted_Fan_Hub",
+        FAN_HUB_DIAMETER / 2.0,
+        blade_plane_z - hub_depth / 2.0,
+        blade_plane_z + hub_depth / 2.0,
+    )
+    assign_preview_material(hub, blade_material)
+
+    hub_radius = FAN_HUB_DIAMETER / 2.0
+    opening_radius = FAN_FRAME_OPENING_DIAMETER / 2.0
+    blade_length = max(opening_radius - hub_radius + 1.0, 2.0)
+    blade_center_radius = (opening_radius + hub_radius) / 2.0
+    fan_solids = [fan_frame, hub]
+    for index in range(7):
+        angle = 2.0 * math.pi * index / 7.0
+        blade = add_box(
+            f"Mounted_Fan_Blade_{index + 1}",
+            (blade_length, max(2.4, FAN_NOMINAL_SIZE * 0.07), 1.5),
+            (
+                blade_center_radius * math.cos(angle),
+                blade_center_radius * math.sin(angle),
+                blade_plane_z,
+            ),
+        )
+        blade.rotation_euler[2] = angle + math.radians(28.0)
+        assign_preview_material(blade, blade_material)
+        fan_solids.append(blade)
+
+    for index, (x, y) in enumerate(fan_hole_centers()):
+        bolt = add_cylinder(
+            f"Mounted_Through_Bolt_{index + 1}",
+            min(1.35, FAN_BOLT_HOLE_DIAMETER / 2.0 - 0.2),
+            -1.8,
+            fan_z1 + 1.0,
+            x,
+            y,
+        )
+        assign_preview_material(bolt, bolt_material)
+        head = add_cylinder(
+            f"Mounted_Bolt_Head_{index + 1}",
+            min(BOSS_RADIUS * 0.62, 3.0),
+            -1.4,
+            0.0,
+            x,
+            y,
+        )
+        assign_preview_material(head, bolt_material)
+
+    outlet_paths = tuple(
+        (
+            name.replace("Inlet", "Outlet"),
+            (
+                points[-1],
+                (points[-1][0], points[-1][1], fan_z1 + 13.0),
+            ),
+        )
+        for name, points in air_paths
+    )
+    fan_checked = validate_air_routes_against_objects(
+        air_paths + outlet_paths, fan_solids, path_radius
+    )
+    print(
+        "MOUNTED_AIR_PATHS PASS "
+        f"representative_routes={len(air_paths)} "
+        f"checked_samples={silencer_checked + fan_checked} "
+        f"minimum_tube_radius={path_radius:.2f}mm "
+        f"fan_solids={len(fan_solids)} bolts_treated_as_solid=True"
+    )
+
+    # The runtime validators sample these centerlines against the final scaled
+    # silencer and schematic fan, require clearance for the displayed tube
+    # radius, and treat the installed bolts as blocked.  They are possible
+    # geometric routes, not CFD streamlines or measured flow splits.
+    for (name, points), (outlet_name, outlet_points) in zip(
+        air_paths, outlet_paths
+    ):
+        add_air_path(name, points, inlet_material, path_radius)
+        add_air_path(
+            outlet_name,
+            outlet_points,
+            outlet_material,
+            path_radius,
+        )
+
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_WORKBENCH"
+    scene.render.resolution_x = 1400
+    scene.render.resolution_y = 900
+    scene.render.resolution_percentage = 100
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.film_transparent = False
+    shading = scene.display.shading
+    shading.light = "STUDIO"
+    shading.color_type = "MATERIAL"
+    if hasattr(shading, "show_shadows"):
+        shading.show_shadows = True
+    if hasattr(shading, "show_cavity"):
+        shading.show_cavity = True
+        shading.cavity_type = "WORLD"
+    if hasattr(shading, "show_specular_highlight"):
+        shading.show_specular_highlight = True
+    if hasattr(shading, "show_object_outline"):
+        shading.show_object_outline = True
+    shading.background_type = "VIEWPORT"
+    shading.background_color = (0.94, 0.95, 0.97)
+
+    target = Vector((0.0, 0.0, (fan_z0 + fan_z1) / 3.0))
+    bpy.ops.object.camera_add(location=(95.0, -115.0, -100.0))
+    camera = bpy.context.object
+    camera.name = "Mounted_View_Camera"
+    direction = target - camera.location
+    camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+    camera.data.type = "ORTHO"
+    camera.data.ortho_scale = max(150.0, SILENCER_OUTER_DIAMETER * 2.5)
+    scene.camera = camera
+
+    # Camera-space caption coordinates are Blender units, so grow both their
+    # placement and type size with the orthographic view for larger presets.
+    caption_scale = camera.data.ortho_scale / 150.0
+
+    add_camera_text(
+        "3D FAN-MOUNTED QUARTER CUTAWAY",
+        (0.0, 43.0 * caption_scale),
+        3.2 * caption_scale,
+        text_material,
+        camera,
+    )
+    add_camera_text(
+        "BLUE: AIR IN — CENTER + EDGE PORTS",
+        (-37.0 * caption_scale, -37.0 * caption_scale),
+        2.3 * caption_scale,
+        inlet_material,
+        camera,
+    )
+    add_camera_text(
+        "GREEN: AIR OUT THROUGH FAN",
+        (35.0 * caption_scale, 37.0 * caption_scale),
+        2.3 * caption_scale,
+        outlet_material,
+        camera,
+    )
+    add_camera_text(
+        "Quarter cutaway; representative paths, not CFD streamlines",
+        (0.0, -44.0 * caption_scale),
+        1.8 * caption_scale,
+        text_material,
+        camera,
+    )
+
+    path = resolved_mounted_view_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    scene.render.filepath = str(path)
+    bpy.ops.render.render(write_still=True)
+    print(f"Wrote {path}")
+
+
 def build_gopro_fan_silencer():
     apply_fan_size_config()
     validate_config()
@@ -967,12 +1401,15 @@ def build_gopro_fan_silencer():
     if CASE_INTERFACE_ACTIVE:
         print(
             "INSTALLATION external_silencer_replaces_internal_baffle_cartridge; "
+            "mk4_inlet=center_plus_perimeter; case_flow_fraction=unverified; "
             "do_not_stack_without_measured_airflow"
         )
     if EXPORT_STL:
         export_stl(silencer)
     if RENDER_CROSS_SECTION:
         render_assembled_cross_section(silencer)
+    if RENDER_MOUNTED_VIEW:
+        render_mounted_fan_view(silencer)
     return (silencer,)
 
 
