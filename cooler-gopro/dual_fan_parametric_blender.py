@@ -17,11 +17,20 @@ Axes:
 from __future__ import annotations
 
 import math
+import sys
 from pathlib import Path
 
 import bmesh
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
+
+try:
+    from fan_size_presets import STANDARD_FAN_PRESETS
+except ModuleNotFoundError as error:
+    if error.name != "fan_size_presets":
+        raise
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from fan_size_presets import STANDARD_FAN_PRESETS
 
 
 # ---------------------------------------------------------------------------
@@ -76,41 +85,11 @@ FAN_ROTATIONS_DEG = (
     (0.0, 0.0, 0.0),
 )
 
-# Noctua reference dimensions: nominal frame size, depth, square mounting-hole
-# spacing, and fan-frame hole diameter.  The holder sleeves only the front
-# FAN_FRAME_DEPTH millimeters; the remainder of a 20/25 mm fan may protrude
-# from the open back exactly as it does in the original 60 mm design.
-FAN_PRESETS = {
-    40: {
-        "depth": 20.0,
-        "hole_spacing": 32.0,
-        "hole_diameter": 4.3,
-        "reference": "Noctua NF-A4x20",
-    },
-    60: {
-        "depth": 25.0,
-        "hole_spacing": 50.0,
-        "hole_diameter": 4.3,
-        "reference": "Noctua NF-A6x25",
-    },
-    80: {
-        "depth": 25.0,
-        "hole_spacing": 71.5,
-        "hole_diameter": 4.3,
-        "reference": "Noctua NF-A8",
-    },
-    120: {
-        "depth": 25.0,
-        "hole_spacing": 105.0,
-        "hole_diameter": 4.3,
-        "reference": "Noctua NF-A12x25",
-    },
-}
-# Noctua dimensional sources used for these presets:
-# https://www.noctua.at/en/products/nf-a4x20-pwm/specifications
-# https://www.noctua.at/en/products/nf-a6x25-pwm/specifications
-# https://www.noctua.at/en/products/nf-a8-pwm/specifications
-# https://www.noctua.at/en/products/nf-a12x25-pwm/specifications
+# Shared Noctua reference dimensions: nominal frame size, depth, square
+# mounting-hole spacing, and fan-frame hole diameter.  The holder sleeves only
+# the front FAN_FRAME_DEPTH millimeters; the remainder of a 20/25 mm fan may
+# protrude from the open back exactly as it does in the original 60 mm design.
+FAN_PRESETS = {size: dict(preset) for size, preset in STANDARD_FAN_PRESETS.items()}
 FAN_REFERENCE_SIZE_MM = 60.0
 # The original centers at +/-52.5 mm leave 45 mm between nominal 60 mm bodies.
 FAN_BODY_GAP_MM = 45.0
