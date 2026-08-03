@@ -12,6 +12,10 @@ MISSION1_DUMMY_STLS := gopro_mission1_dummy_recreated.stl
 DUAL_FAN_STLS := \
 	gopro_dual_fan_parametric.stl \
 	gopro_dual_fan_adapter.stl
+FAN_SILENCER_STLS := \
+	gopro_40mm_fan_silencer.stl \
+	gopro_40mm_fan_silencer_flange.stl \
+	gopro_40mm_fan_silencer_core_half.stl
 BAFFLE_CARTRIDGE_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_ENABLED' for target in node.targets)))")
 BAFFLE_CARTRIDGE_MATERIAL_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_MATERIAL_MODE' for target in node.targets)))")
 FAN_CASE_CORE_STLS := \
@@ -68,6 +72,7 @@ STL_FILES := \
 	$(HORN_STLS) \
 	$(MISSION1_DUMMY_STLS) \
 	$(DUAL_FAN_STLS) \
+	$(FAN_SILENCER_STLS) \
 	$(FAN_CASE_STLS)
 
 .DEFAULT_GOAL := print_targets
@@ -76,9 +81,9 @@ STL_FILES := \
 .PHONY: \
 	all print_targets dim-pdf check-dim-pdf-sync \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
-	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-case hockeymom-cover \
+	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-silencer fan-case hockeymom-cover \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover \
+	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cover \
 	clean-dim-pdf clean-fan-case-dim-pdf
 
 # Keep the generated dimension guide synchronized with both model sources.
@@ -100,6 +105,7 @@ print_targets:
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
 		'dual-fan                  Build the parametric dual-fan STL.' \
+		'fan-silencer              Build the print-ready 40 mm fan silencer kit and unique-part STLs.' \
 		'fan-case                  Build the case, buttons, baffle tray/lid/seal, swing gate, and keeper STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
 		'' \
@@ -118,6 +124,7 @@ print_targets:
 		'clean-horn                Remove the parametric horn STL.' \
 		'clean-mission1-dummy      Remove the Mission 1 dummy STL.' \
 		'clean-dual-fan            Remove the dual-fan STL.' \
+		'clean-fan-silencer        Remove the 40 mm fan silencer STLs.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
 		'clean-hockeymom-cover     Remove all HOCKEYMOM 3 camera-cover STLs.' \
 		'clean-dim-pdf             Remove the HOCKEYMOM 3 configuration dimension PDF.' \
@@ -132,6 +139,7 @@ wrapping-fan-cover: $(WRAPPING_FAN_COVER_STLS)
 horn: $(HORN_STLS)
 mission1-dummy: $(MISSION1_DUMMY_STLS)
 dual-fan: $(DUAL_FAN_STLS)
+fan-silencer: $(FAN_SILENCER_STLS)
 fan-case: $(FAN_CASE_STLS)
 dim-pdf: $(DIMENSION_PDF)
 fan-case-dim-pdf: $(FAN_CASE_DIMENSION_PDF)
@@ -181,6 +189,12 @@ $(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py
 	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
 		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_STL_PATH']='$(word 1,$(DUAL_FAN_STLS))'; ns['EXPORT_ADAPTER_STL_PATH']='$(word 2,$(DUAL_FAN_STLS))'; ns['build_dual_fan']()"
 
+$(FAN_SILENCER_STLS) &: gopro_fan_silencer_parametric_blender.py \
+	gopro_fan_case_parametric_blender.py
+	$(RM) $(FAN_SILENCER_STLS)
+	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
+		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_gopro_fan_silencer']()"
+
 # Grouped targets tell make that one Blender run creates every listed file.
 $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py
 	$(RM) $(FAN_CASE_ALL_STLS)
@@ -199,7 +213,7 @@ $(HOCKEYMOM_COVER_STLS) &: hockeymom_3_cam_cover_original_style_blender.py gopro
 hockeymom-cover: $(HOCKEYMOM_COVER_STLS)
 
 clean: clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-case clean-hockeymom-cover \
+	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cover \
 	clean-dim-pdf clean-fan-case-dim-pdf
 
 clean-flat-fan-cover:
@@ -216,6 +230,9 @@ clean-mission1-dummy:
 
 clean-dual-fan:
 	$(RM) $(DUAL_FAN_STLS)
+
+clean-fan-silencer:
+	$(RM) $(FAN_SILENCER_STLS)
 
 clean-fan-case:
 	$(RM) $(FAN_CASE_ALL_STLS)
