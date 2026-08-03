@@ -147,15 +147,24 @@ EXACT_DESCRIPTIONS = {
     "BAFFLE_GASKET_THICKNESS_Y": "Total free thickness of the separate TPU ring; its exposed portion also defines the integral TPU sealing bead.",
     "BAFFLE_GASKET_GROOVE_DEPTH_Y": "Axial depth of the rigid tray's shallow annular gasket-locating groove above its continuous gasket-shaped support land.",
     "BAFFLE_GASKET_GROOVE_RADIAL_CLEARANCE": "Per-edge radial fit clearance around the TPU ring in the rigid tray's locating groove.",
-    "BAFFLE_OUTLET_SLOT_COUNT": "Number of pointed, self-supporting slots in the camera-facing outlet.",
-    "BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z": "Vertical rib thickness between adjacent pointed outlet slots.",
+    "BAFFLE_OUTLET_SLOT_COUNT": "Number of pointed, self-supporting camera-facing outlet slots; the default single slot eliminates the thin triangular-capped separator post.",
+    "BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z": "Vertical rib thickness between adjacent pointed outlet slots; inactive when the outlet uses one slot.",
     "BAFFLE_OUTLET_ROOF_RUN_X": "X run from each outlet-slot shoulder to its pointed roof apex.",
     "BAFFLE_MIN_ROOF_ANGLE_DEG": "Minimum pointed-slot roof angle in the exported tray orientation; localized support can still be advisable elsewhere.",
+    "BAFFLE_OUTLET_MIN_FRONT_WALL_SIDE_BAND_X": "Minimum solid side-band width at the inner plane of the camera-facing outlet wall; the cavity behind that wall is intentionally open.",
     "BAFFLE_LID_FIT_CLEARANCE": "Per-edge running clearance for fitting the keyed side lid into the side-open tray.",
-    "BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X": "Depth of the TPU-only open groove that captures the first blocker's flexible lid-side edge.",
+    "BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X": "Depth of the TPU-only open groove that captures the first blocker's lid-side edge.",
     "BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X": "Distance the TPU first-blocker tab enters its lid locating groove, before blind-end clearance.",
-    "BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y": "Per-face axial running clearance between the TPU first blocker and its lid groove.",
+    "BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y": "Per-face axial running clearance around the TPU first-blocker lid tab.",
     "BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z": "Clearance beyond each vertical end of the TPU first-blocker lid groove.",
+    "BAFFLE_SECOND_END_FRAME_DEPTH_Y": "Axial width of each reinforced top/bottom tray-side end return.",
+    "BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y": "Rearward offset that keeps both end-return lid pockets inside closed front and rear key walls.",
+    "BAFFLE_SECOND_END_FRAME_CONNECTION_X": "Solid X length of each camera-side baffle end return before its lid engagement.",
+    "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X": "Distance each top/bottom end return enters its matching shallow lid pocket.",
+    "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X": "Blind depth of each paired lid pocket that captures a tray-side end return.",
+    "BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y": "Per-face axial fit clearance around each end return in its lid pocket.",
+    "BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z": "Vertical fit clearance beyond the inward edge of each end-return lid pocket.",
+    "BAFFLE_SECOND_END_FRAME_LID_MIN_WALL": "Minimum retained floor and axial-wall thickness around either end-return lid pocket.",
     "BAFFLE_SNAP_INTERFERENCE_Z": "Configured elastic overtravel between each cartridge hook and its back-shell receiver rib.",
     "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": "Axial distance the seated cartridge hook rests behind the receiver crest to preserve gasket preload.",
     "BAFFLE_TRAY_STL_NAME": "Output filename for the side-open acoustic labyrinth tray with one controlled stop-relief bridge.",
@@ -1629,10 +1638,11 @@ def page_baffle_cartridge(pdf):
             f"sleeve clearance {sleeve_clearance:.2f} mm; gasket compression {gasket_compression:.2f} mm",
             f"{C['BAFFLE_CARTRIDGE_MATERIAL_MODE']} tray/lid; {seal_description}",
             f"snap interference {fmt(C['BAFFLE_SNAP_INTERFERENCE_Z'])} mm",
+            f"both camera-side ends get {float(C['BAFFLE_SECOND_END_FRAME_CONNECTION_X']) - float(C['BAFFLE_LID_FIT_CLEARANCE']):.2f} mm solid overlap; axial pad {fmt(C['BAFFLE_SECOND_END_FRAME_DEPTH_Y'])} mm",
             (
-                f"TPU lid groove captures first blocker: {fmt(C['BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X'])} mm engagement"
+                f"paired lid pockets capture {fmt(C['BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X'])} mm; TPU also captures center blocker"
                 if C["BAFFLE_CARTRIDGE_MATERIAL_MODE"] == "TPU"
-                else "TPU profile adds a support-free lid groove for the flexible first blocker"
+                else f"paired lid pockets capture {fmt(C['BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X'])} mm; center lid key stays continuous"
             ),
         ],
         BLUE,
@@ -1644,6 +1654,7 @@ def page_baffle_cartridge(pdf):
         "AIRWAY AND PRINTING",
         [
             f"minimum throat {fmt(C['BAFFLE_MIN_THROAT_AREA'])} mm²; pointed-slot outlet {outlet_area:.0f} mm²",
+            f"single outlet removes the separator post; solid front-wall side bands ≥ {fmt(C['BAFFLE_OUTLET_MIN_FRONT_WALL_SIDE_BAND_X'])} mm",
             f"finite-thickness Offset-S validation blocks direct fan-to-camera line of sight",
             f"no bulk/internal supports; one {float(C['BAFFLE_FRONT_Y']) - float(C['BAFFLE_REAR_Y']):.1f} mm stop-relief bridge",
             "small local support can help the snap roots, especially in TPU",
