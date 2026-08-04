@@ -1283,7 +1283,7 @@ def fan_hole_centers(fan):
     ]
 
 
-def create_fan_wire_slot_cutter(fan):
+def create_fan_wire_slot_cutter(fan, outside_extension=0.0):
     index = fan["index"]
     center_x = fan["center_x"]
     frame_size = fan["frame_size"]
@@ -1302,23 +1302,34 @@ def create_fan_wire_slot_cutter(fan):
         side_sign = 1.0 if FAN_WIRE_SLOT_SIDE == "TOP" else -1.0
         cutter_dimensions = (
             FAN_WIRE_SLOT_WIDTH,
-            FAN_FRAME_WALL + 2.0 * BOOLEAN_OVERLAP,
+            FAN_FRAME_WALL + 2.0 * BOOLEAN_OVERLAP + outside_extension,
             cutter_depth,
         )
         cutter_location = (
             center_x + fan["wire_slot_offset"],
-            side_sign * (frame_size / 2.0 - FAN_FRAME_WALL / 2.0),
+            side_sign
+            * (
+                frame_size / 2.0
+                - FAN_FRAME_WALL / 2.0
+                + outside_extension / 2.0
+            ),
             cutter_z,
         )
     else:
         side_sign = 1.0 if FAN_WIRE_SLOT_SIDE == "RIGHT" else -1.0
         cutter_dimensions = (
-            FAN_FRAME_WALL + 2.0 * BOOLEAN_OVERLAP,
+            FAN_FRAME_WALL + 2.0 * BOOLEAN_OVERLAP + outside_extension,
             FAN_WIRE_SLOT_WIDTH,
             cutter_depth,
         )
         cutter_location = (
-            center_x + side_sign * (frame_size / 2.0 - FAN_FRAME_WALL / 2.0),
+            center_x
+            + side_sign
+            * (
+                frame_size / 2.0
+                - FAN_FRAME_WALL / 2.0
+                + outside_extension / 2.0
+            ),
             fan["wire_slot_offset"],
             cutter_z,
         )
@@ -1350,7 +1361,13 @@ def recut_assembled_fan_wire_slots(holder, fan_specs) -> None:
 
     cutters = []
     for fan in fan_specs:
-        cutter = create_fan_wire_slot_cutter(fan)
+        outside_extension = 0.0
+        if SUPPORT_ENABLED and FAN_WIRE_SLOT_SIDE == "BOTTOM":
+            outside_extension = max(
+                0.0,
+                -support_bottom_y(fan_specs) - fan["frame_size"] / 2.0,
+            )
+        cutter = create_fan_wire_slot_cutter(fan, outside_extension)
         rotate_fan_part(cutter, fan)
         cutters.append(cutter)
     boolean_difference(
@@ -2169,6 +2186,8 @@ def build_dual_fan():
     else:
         final = parts[0]
         holder_objects = parts
+        if SUPPORT_ENABLED:
+            recut_assembled_fan_wire_slots(support, fan_specs)
     final_objects = list(holder_objects)
     if gopro_adapter is not None:
         final_objects.append(gopro_adapter)
