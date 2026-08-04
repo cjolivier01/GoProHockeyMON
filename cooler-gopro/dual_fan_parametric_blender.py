@@ -1294,7 +1294,7 @@ def cut_fan_wire_slot(cage, fan) -> None:
     # so the result is a true U-shaped exit rather than an enclosed pocket.
     cutter_depth = FAN_WIRE_SLOT_DEPTH + 2.0 * BOOLEAN_OVERLAP
     if FAN_GRILL_ON_BACK:
-        cutter_z = FAN_WIRE_SLOT_DEPTH / 2.0
+        cutter_z = FAN_WIRE_SLOT_DEPTH / 2.0 - BOOLEAN_OVERLAP
     else:
         cutter_z = (
             FAN_FRAME_DEPTH
