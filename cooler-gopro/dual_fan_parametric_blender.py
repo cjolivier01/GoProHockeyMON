@@ -17,11 +17,85 @@ Axes:
 from __future__ import annotations
 
 import math
+import sys
 from pathlib import Path
 
 import bmesh
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
+
+
+def find_fan_preset_directory() -> Path:
+    """Locate fan_size_presets.py when run from a Blender Text datablock."""
+    candidates = []
+
+    def add_file_parent(raw_path) -> None:
+        if not raw_path:
+            return
+        try:
+            expanded = bpy.path.abspath(str(raw_path))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            expanded = str(raw_path)
+        path = Path(expanded).expanduser()
+        try:
+            path = path.resolve()
+        except OSError:
+            path = path.absolute()
+        candidates.append(path.parent)
+
+    space_data = getattr(bpy.context, "space_data", None)
+    active_text = getattr(space_data, "text", None)
+    add_file_parent(getattr(active_text, "filepath", ""))
+    script_name = Path(__file__).name
+    loaded_texts = tuple(getattr(bpy.data, "texts", ()))
+    for text in loaded_texts:
+        if Path(text.name).name == script_name:
+            add_file_parent(getattr(text, "filepath", ""))
+    script_directory = Path(__file__).expanduser().resolve().parent
+    if script_directory.suffix.lower() == ".blend":
+        candidates.append(script_directory.parent)
+    else:
+        candidates.append(script_directory)
+    if bpy.data.filepath:
+        candidates.append(Path(bpy.data.filepath).expanduser().resolve().parent)
+    for text in loaded_texts:
+        add_file_parent(getattr(text, "filepath", ""))
+    candidates.append(Path.cwd().resolve())
+    candidates.extend(
+        Path(entry).expanduser().resolve()
+        for entry in sys.path
+        if entry and Path(entry).expanduser().is_dir()
+    )
+
+    searched = []
+    for directory in candidates:
+        if directory in searched:
+            continue
+        searched.append(directory)
+        if (directory / "fan_size_presets.py").is_file():
+            directory_text = str(directory)
+            while directory_text in sys.path:
+                sys.path.remove(directory_text)
+            sys.path.insert(0, directory_text)
+            loaded_module = sys.modules.get("fan_size_presets")
+            if loaded_module is not None:
+                loaded_path = getattr(loaded_module, "__file__", "")
+                try:
+                    loaded_path = Path(loaded_path).expanduser().resolve()
+                except (OSError, TypeError, ValueError):
+                    loaded_path = None
+                if loaded_path != (directory / "fan_size_presets.py").resolve():
+                    del sys.modules["fan_size_presets"]
+            return directory
+    raise ModuleNotFoundError(
+        "Could not locate fan_size_presets.py. Searched: "
+        + ", ".join(str(path) for path in searched)
+    )
+
+
+FAN_PRESET_DIRECTORY = find_fan_preset_directory()
+
+from fan_size_presets import STANDARD_FAN_PRESETS  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -76,41 +150,11 @@ FAN_ROTATIONS_DEG = (
     (0.0, 0.0, 0.0),
 )
 
-# Noctua reference dimensions: nominal frame size, depth, square mounting-hole
-# spacing, and fan-frame hole diameter.  The holder sleeves only the front
-# FAN_FRAME_DEPTH millimeters; the remainder of a 20/25 mm fan may protrude
-# from the open back exactly as it does in the original 60 mm design.
-FAN_PRESETS = {
-    40: {
-        "depth": 20.0,
-        "hole_spacing": 32.0,
-        "hole_diameter": 4.3,
-        "reference": "Noctua NF-A4x20",
-    },
-    60: {
-        "depth": 25.0,
-        "hole_spacing": 50.0,
-        "hole_diameter": 4.3,
-        "reference": "Noctua NF-A6x25",
-    },
-    80: {
-        "depth": 25.0,
-        "hole_spacing": 71.5,
-        "hole_diameter": 4.3,
-        "reference": "Noctua NF-A8",
-    },
-    120: {
-        "depth": 25.0,
-        "hole_spacing": 105.0,
-        "hole_diameter": 4.3,
-        "reference": "Noctua NF-A12x25",
-    },
-}
-# Noctua dimensional sources used for these presets:
-# https://www.noctua.at/en/products/nf-a4x20-pwm/specifications
-# https://www.noctua.at/en/products/nf-a6x25-pwm/specifications
-# https://www.noctua.at/en/products/nf-a8-pwm/specifications
-# https://www.noctua.at/en/products/nf-a12x25-pwm/specifications
+# Shared Noctua reference dimensions: nominal frame size, depth, square
+# mounting-hole spacing, and fan-frame hole diameter.  The holder sleeves only
+# the front FAN_FRAME_DEPTH millimeters; the remainder of a 20/25 mm fan may
+# protrude from the open back exactly as it does in the original 60 mm design.
+FAN_PRESETS = {size: dict(preset) for size, preset in STANDARD_FAN_PRESETS.items()}
 FAN_REFERENCE_SIZE_MM = 60.0
 # The original centers at +/-52.5 mm leave 45 mm between nominal 60 mm bodies.
 FAN_BODY_GAP_MM = 45.0
