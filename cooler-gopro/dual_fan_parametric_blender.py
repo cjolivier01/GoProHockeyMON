@@ -810,7 +810,7 @@ def transform_fan_point(point, fan):
     return pivot + rotation @ (Vector(point) - pivot)
 
 
-def rotate_fan_cage(obj, fan) -> None:
+def rotate_fan_part(obj, fan) -> None:
     if all(abs(value) < 1.0e-12 for value in fan["rotation"]):
         return
 
@@ -1283,10 +1283,7 @@ def fan_hole_centers(fan):
     ]
 
 
-def cut_fan_wire_slot(cage, fan) -> None:
-    if not FAN_WIRE_SLOT_ENABLED:
-        return
-
+def create_fan_wire_slot_cutter(fan):
     index = fan["index"]
     center_x = fan["center_x"]
     frame_size = fan["frame_size"]
@@ -1325,16 +1322,42 @@ def cut_fan_wire_slot(cage, fan) -> None:
             fan["wire_slot_offset"],
             cutter_z,
         )
-    cutter = add_box(
+    return add_box(
         f"Fan_{index}_Wire_Slot",
         cutter_dimensions,
         cutter_location,
     )
+
+
+def cut_fan_wire_slot(cage, fan) -> None:
+    if not FAN_WIRE_SLOT_ENABLED:
+        return
+
+    index = fan["index"]
+    cutter = create_fan_wire_slot_cutter(fan)
     boolean_difference(
         cage,
         [cutter],
         f"Fan_{index}_Wire_Slot_Cut",
         solver=FAN_CAGE_BOOLEAN_SOLVER,
+    )
+
+
+def recut_assembled_fan_wire_slots(holder, fan_specs) -> None:
+    """Keep later support unions from filling rear fan-wire exits."""
+    if not FAN_GRILL_ON_BACK or not FAN_WIRE_SLOT_ENABLED:
+        return
+
+    cutters = []
+    for fan in fan_specs:
+        cutter = create_fan_wire_slot_cutter(fan)
+        rotate_fan_part(cutter, fan)
+        cutters.append(cutter)
+    boolean_difference(
+        holder,
+        cutters,
+        "Assembly_Wire_Slot_Recut",
+        solver=ASSEMBLY_BOOLEAN_SOLVER,
     )
 
 
@@ -2114,7 +2137,7 @@ def build_dual_fan():
 
     for fan in fan_specs:
         cage = create_fan_cage(fan)
-        rotate_fan_cage(cage, fan)
+        rotate_fan_part(cage, fan)
         parts.append(cage)
         print_plane_contacts.append((f"fan_{fan['index']}_grille", cage))
 
@@ -2138,6 +2161,7 @@ def build_dual_fan():
                 solver=ASSEMBLY_BOOLEAN_SOLVER,
                 require_geometry_change=True,
             )
+        recut_assembled_fan_wire_slots(final, fan_specs)
         count_label = {1: "Single", 2: "Dual", 3: "Triple"}[FAN_COUNT]
         final.name = f"Parametric_{count_label}_Fan_Holder"
         final.data.name = final.name + "_Mesh"
