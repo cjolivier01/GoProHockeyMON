@@ -116,7 +116,8 @@ EXPORT_ADAPTER_STL_PATH = "gopro_dual_fan_adapter.stl"
 # a separate rigid part in every mode; only the holder dimensions and fastener
 # treatment change.  TPU_95A is deliberately stiffened by geometry instead of
 # relying on very high slicer infill.
-MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU_95A"
+# MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU_95A"
+MATERIAL_MODE = "TPU_95A"
 
 # Slicer guidance is informational because STL files cannot encode these
 # settings.  Five to six walls should provide at least a 2.0-2.4 mm shell.
@@ -228,7 +229,7 @@ SUPPORT_ARM_SECTIONS = 10
 
 # Stalk projecting from the support toward the camera mount.
 STALK_ENABLED = True
-STALK_LENGTH_Z = 41.2
+STALK_LENGTH_Z = 46.2
 STALK_BOTTOM_Y_OVERHANG = 0.5
 # STALK_WIDTH and STALK_DEPTH_Y are selected in MATERIAL_PROFILES.
 
@@ -322,12 +323,12 @@ MATERIAL_PROFILES = {
         # wedging and long-term preload loss caused by countersinks in TPU.
         "FAN_HOLE_COUNTERSINK_ENABLED": False,
         "FAN_HOLE_COLLARS_ENABLED": False,
-        "SUPPORT_THICKNESS": 7.0,
+        "SUPPORT_THICKNESS": 10.0,
         "SUPPORT_HUB_DEPTH_Y": 13.0,
         "SUPPORT_ARM_CENTER_WIDTH": 22.0,
         "SUPPORT_ARM_FAN_WIDTH": 28.0,
         "STALK_WIDTH": 22.0,
-        "STALK_DEPTH_Y": 11.0,
+        "STALK_DEPTH_Y": 15.0,
         "STALK_END_FLARES_ENABLED": True,
         "MOUNT_BLOCK_DEPTH_Y": 11.0,
         "MOUNT_HOLE_DIAMETER": 3.6,
