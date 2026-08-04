@@ -1359,27 +1359,27 @@ def cut_fan_wire_slot(cage, fan) -> None:
     )
 
 
-def recut_assembled_fan_wire_slots(holder, fan_specs, support_vertices) -> None:
-    """Keep later support unions from filling rear fan-wire exits."""
+def recut_assembled_fan_wire_slots(holder, fan_specs, assembly_vertices) -> None:
+    """Keep later assembly unions from filling rear fan-wire exits."""
     if not FAN_GRILL_ON_BACK or not FAN_WIRE_SLOT_ENABLED:
         return
 
     cutters = []
     for fan in fan_specs:
         outside_extension = 0.0
-        if support_vertices and FAN_WIRE_SLOT_SIDE == "BOTTOM":
+        if assembly_vertices and FAN_WIRE_SLOT_SIDE == "BOTTOM":
             pivot = Vector(fan_rotation_pivot(fan))
             inverse_rotation = fan_rotation_quaternion(fan["rotation"]).inverted()
-            minimum_support_y = min(
+            minimum_assembly_y = min(
                 (
                     pivot
                     + inverse_rotation @ (Vector(vertex) - pivot)
                 ).y
-                for vertex in support_vertices
+                for vertex in assembly_vertices
             )
             outside_extension = max(
                 0.0,
-                -fan["frame_size"] / 2.0 - minimum_support_y,
+                -fan["frame_size"] / 2.0 - minimum_assembly_y,
             )
         cutter = create_fan_wire_slot_cutter(fan, outside_extension)
         rotate_fan_part(cutter, fan)
@@ -2161,12 +2161,8 @@ def build_dual_fan():
 
     parts = []
     print_plane_contacts = []
-    support_vertices = ()
     if SUPPORT_ENABLED:
         support = create_support(fan_specs)
-        support_vertices = tuple(
-            support.matrix_world @ vertex.co for vertex in support.data.vertices
-        )
         parts.append(support)
         print_plane_contacts.append(("support", support))
 
@@ -2183,6 +2179,11 @@ def build_dual_fan():
     if MOUNT_BLOCK_ENABLED:
         parts.append(create_mount_block())
     gopro_adapter = create_gopro_adapter() if GOPRO_ADAPTER_ENABLED else None
+    assembly_vertices = tuple(
+        part.matrix_world @ vertex.co
+        for part in parts
+        for vertex in part.data.vertices
+    )
 
     validate_rear_grill_print_plane(parts, print_plane_contacts, fan_specs)
 
@@ -2196,7 +2197,7 @@ def build_dual_fan():
                 solver=ASSEMBLY_BOOLEAN_SOLVER,
                 require_geometry_change=True,
             )
-        recut_assembled_fan_wire_slots(final, fan_specs, support_vertices)
+        recut_assembled_fan_wire_slots(final, fan_specs, assembly_vertices)
         count_label = {1: "Single", 2: "Dual", 3: "Triple"}[FAN_COUNT]
         final.name = f"Parametric_{count_label}_Fan_Holder"
         final.data.name = final.name + "_Mesh"
@@ -2204,8 +2205,8 @@ def build_dual_fan():
     else:
         final = parts[0]
         holder_objects = parts
-        if SUPPORT_ENABLED:
-            recut_assembled_fan_wire_slots(support, fan_specs, support_vertices)
+        for part in holder_objects:
+            recut_assembled_fan_wire_slots(part, fan_specs, assembly_vertices)
     final_objects = list(holder_objects)
     if gopro_adapter is not None:
         final_objects.append(gopro_adapter)
