@@ -821,7 +821,12 @@ def rotate_fan_part(obj, fan) -> None:
         @ rotation
         @ Matrix.Translation(tuple(-value for value in pivot))
     )
-    obj.data.transform(transform)
+    # Boolean tools created by Blender primitives retain translation in their
+    # object matrix, while generated cage meshes use world-space vertices and
+    # an identity matrix.  Bake either representation before applying the
+    # shared fan rotation so cages and post-assembly cutters stay aligned.
+    obj.data.transform(transform @ obj.matrix_world)
+    obj.matrix_world = Matrix.Identity(4)
     obj.data.update()
     recalc_normals(obj)
 
