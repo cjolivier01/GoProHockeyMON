@@ -1354,7 +1354,7 @@ def cut_fan_wire_slot(cage, fan) -> None:
     )
 
 
-def recut_assembled_fan_wire_slots(holder, fan_specs) -> None:
+def recut_assembled_fan_wire_slots(holder, fan_specs, support_vertices) -> None:
     """Keep later support unions from filling rear fan-wire exits."""
     if not FAN_GRILL_ON_BACK or not FAN_WIRE_SLOT_ENABLED:
         return
@@ -1362,10 +1362,19 @@ def recut_assembled_fan_wire_slots(holder, fan_specs) -> None:
     cutters = []
     for fan in fan_specs:
         outside_extension = 0.0
-        if SUPPORT_ENABLED and FAN_WIRE_SLOT_SIDE == "BOTTOM":
+        if support_vertices and FAN_WIRE_SLOT_SIDE == "BOTTOM":
+            pivot = Vector(fan_rotation_pivot(fan))
+            inverse_rotation = fan_rotation_quaternion(fan["rotation"]).inverted()
+            minimum_support_y = min(
+                (
+                    pivot
+                    + inverse_rotation @ (Vector(vertex) - pivot)
+                ).y
+                for vertex in support_vertices
+            )
             outside_extension = max(
                 0.0,
-                -support_bottom_y(fan_specs) - fan["frame_size"] / 2.0,
+                -fan["frame_size"] / 2.0 - minimum_support_y,
             )
         cutter = create_fan_wire_slot_cutter(fan, outside_extension)
         rotate_fan_part(cutter, fan)
@@ -2147,8 +2156,12 @@ def build_dual_fan():
 
     parts = []
     print_plane_contacts = []
+    support_vertices = ()
     if SUPPORT_ENABLED:
         support = create_support(fan_specs)
+        support_vertices = tuple(
+            support.matrix_world @ vertex.co for vertex in support.data.vertices
+        )
         parts.append(support)
         print_plane_contacts.append(("support", support))
 
@@ -2178,7 +2191,7 @@ def build_dual_fan():
                 solver=ASSEMBLY_BOOLEAN_SOLVER,
                 require_geometry_change=True,
             )
-        recut_assembled_fan_wire_slots(final, fan_specs)
+        recut_assembled_fan_wire_slots(final, fan_specs, support_vertices)
         count_label = {1: "Single", 2: "Dual", 3: "Triple"}[FAN_COUNT]
         final.name = f"Parametric_{count_label}_Fan_Holder"
         final.data.name = final.name + "_Mesh"
@@ -2187,7 +2200,7 @@ def build_dual_fan():
         final = parts[0]
         holder_objects = parts
         if SUPPORT_ENABLED:
-            recut_assembled_fan_wire_slots(support, fan_specs)
+            recut_assembled_fan_wire_slots(support, fan_specs, support_vertices)
     final_objects = list(holder_objects)
     if gopro_adapter is not None:
         final_objects.append(gopro_adapter)
