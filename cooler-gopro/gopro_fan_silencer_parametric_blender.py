@@ -74,48 +74,104 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-try:
-    from fan_size_presets import get_standard_fan_preset
-    from thingiverse_5177333_fan_intake_mk4_reference import (
-        REFERENCE_BINARY_STL_SHA256,
-        REFERENCE_AIRWAY_MEASUREMENT,
-        REFERENCE_CENTER_XY,
-        REFERENCE_FACE_COUNT,
-        REFERENCE_FAN_SIZE,
-        REFERENCE_FILE_ID,
-        REFERENCE_HOLE_SPACING,
-        REFERENCE_MINIMUM_CENTRAL_AIRWAY_AREA,
-        REFERENCE_MINIMUM_CENTRAL_AIRWAY_Z_FROM_INLET,
-        REFERENCE_NAME,
-        REFERENCE_OUTER_DIAMETER,
-        REFERENCE_STL_XZ_BASE85,
-        REFERENCE_THING_ID,
-        REFERENCE_Z_BOUNDS,
+
+def find_companion_module_directory() -> Path:
+    """Locate sibling modules for file runs and Blender Text Editor runs."""
+    companion_names = (
+        "fan_size_presets.py",
+        "thingiverse_5177333_fan_intake_mk4_reference.py",
     )
-except ModuleNotFoundError as error:
-    if error.name not in {
-        "fan_size_presets",
-        "thingiverse_5177333_fan_intake_mk4_reference",
-    }:
-        raise
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from fan_size_presets import get_standard_fan_preset
-    from thingiverse_5177333_fan_intake_mk4_reference import (
-        REFERENCE_BINARY_STL_SHA256,
-        REFERENCE_AIRWAY_MEASUREMENT,
-        REFERENCE_CENTER_XY,
-        REFERENCE_FACE_COUNT,
-        REFERENCE_FAN_SIZE,
-        REFERENCE_FILE_ID,
-        REFERENCE_HOLE_SPACING,
-        REFERENCE_MINIMUM_CENTRAL_AIRWAY_AREA,
-        REFERENCE_MINIMUM_CENTRAL_AIRWAY_Z_FROM_INLET,
-        REFERENCE_NAME,
-        REFERENCE_OUTER_DIAMETER,
-        REFERENCE_STL_XZ_BASE85,
-        REFERENCE_THING_ID,
-        REFERENCE_Z_BOUNDS,
+    candidates = []
+
+    def add_file_parent(raw_path) -> None:
+        if not raw_path:
+            return
+        try:
+            expanded = bpy.path.abspath(str(raw_path))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            expanded = str(raw_path)
+        path = Path(expanded).expanduser()
+        try:
+            path = path.resolve()
+        except OSError:
+            path = path.absolute()
+        candidates.append(path.parent)
+
+    # Blender can expose a disk-backed Text datablock filepath even while its
+    # synthetic ``__file__`` points below ``project.blend/``.
+    space_data = getattr(bpy.context, "space_data", None)
+    active_text = getattr(space_data, "text", None)
+    add_file_parent(getattr(active_text, "filepath", ""))
+    script_name = Path(__file__).name
+    loaded_texts = tuple(getattr(bpy.data, "texts", ()))
+    for text in loaded_texts:
+        if Path(text.name).name == script_name:
+            add_file_parent(getattr(text, "filepath", ""))
+    script_directory = Path(__file__).expanduser().resolve().parent
+    if script_directory.suffix.lower() == ".blend":
+        candidates.append(script_directory.parent)
+    else:
+        candidates.append(script_directory)
+    if bpy.data.filepath:
+        candidates.append(Path(bpy.data.filepath).expanduser().resolve().parent)
+    for text in loaded_texts:
+        add_file_parent(getattr(text, "filepath", ""))
+    candidates.append(Path.cwd().resolve())
+    candidates.extend(
+        Path(entry).expanduser().resolve()
+        for entry in sys.path
+        if entry and Path(entry).expanduser().is_dir()
     )
+
+    searched = []
+    for directory in candidates:
+        if directory in searched:
+            continue
+        searched.append(directory)
+        if all((directory / name).is_file() for name in companion_names):
+            directory_text = str(directory)
+            while directory_text in sys.path:
+                sys.path.remove(directory_text)
+            sys.path.insert(0, directory_text)
+            for filename in companion_names:
+                module_name = Path(filename).stem
+                loaded_module = sys.modules.get(module_name)
+                if loaded_module is None:
+                    continue
+                loaded_path = getattr(loaded_module, "__file__", "")
+                try:
+                    loaded_path = Path(loaded_path).expanduser().resolve()
+                except (OSError, TypeError, ValueError):
+                    loaded_path = None
+                expected_path = (directory / filename).resolve()
+                if loaded_path != expected_path:
+                    del sys.modules[module_name]
+            return directory
+    raise ModuleNotFoundError(
+        "Could not locate the fan-silencer companion modules. Searched: "
+        + ", ".join(str(path) for path in searched)
+    )
+
+
+SCRIPT_SOURCE_DIRECTORY = find_companion_module_directory()
+
+from fan_size_presets import get_standard_fan_preset  # noqa: E402
+from thingiverse_5177333_fan_intake_mk4_reference import (  # noqa: E402
+    REFERENCE_BINARY_STL_SHA256,
+    REFERENCE_AIRWAY_MEASUREMENT,
+    REFERENCE_CENTER_XY,
+    REFERENCE_FACE_COUNT,
+    REFERENCE_FAN_SIZE,
+    REFERENCE_FILE_ID,
+    REFERENCE_HOLE_SPACING,
+    REFERENCE_MINIMUM_CENTRAL_AIRWAY_AREA,
+    REFERENCE_MINIMUM_CENTRAL_AIRWAY_Z_FROM_INLET,
+    REFERENCE_NAME,
+    REFERENCE_OUTER_DIAMETER,
+    REFERENCE_STL_XZ_BASE85,
+    REFERENCE_THING_ID,
+    REFERENCE_Z_BOUNDS,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +242,7 @@ BOSS_RADIUS = REFERENCE_BOSS_RADIUS * REFERENCE_SCALE
 
 
 def case_generator_path() -> Path:
-    return Path(__file__).resolve().with_name(CASE_GENERATOR_NAME)
+    return SCRIPT_SOURCE_DIRECTORY / CASE_GENERATOR_NAME
 
 
 def read_case_interface_config():
@@ -679,7 +735,7 @@ def resolved_export_path() -> Path:
         return Path(EXPORT_DIRECTORY).expanduser().resolve() / STL_NAME
     if bpy.data.filepath:
         return Path(bpy.data.filepath).parent.resolve() / STL_NAME
-    return Path(__file__).resolve().parent / STL_NAME
+    return SCRIPT_SOURCE_DIRECTORY / STL_NAME
 
 
 def export_stl(obj) -> None:
@@ -706,7 +762,7 @@ def resolved_cross_section_path() -> Path:
         return Path(EXPORT_DIRECTORY).expanduser().resolve() / CROSS_SECTION_NAME
     if bpy.data.filepath:
         return Path(bpy.data.filepath).parent.resolve() / CROSS_SECTION_NAME
-    return Path(__file__).resolve().parent / CROSS_SECTION_NAME
+    return SCRIPT_SOURCE_DIRECTORY / CROSS_SECTION_NAME
 
 
 def add_box(name: str, size, location):
@@ -966,7 +1022,7 @@ def resolved_mounted_view_path() -> Path:
         return Path(EXPORT_DIRECTORY).expanduser().resolve() / MOUNTED_VIEW_NAME
     if bpy.data.filepath:
         return Path(bpy.data.filepath).parent.resolve() / MOUNTED_VIEW_NAME
-    return Path(__file__).resolve().parent / MOUNTED_VIEW_NAME
+    return SCRIPT_SOURCE_DIRECTORY / MOUNTED_VIEW_NAME
 
 
 def add_air_path(name: str, points, material, radius: float = 0.75) -> None:
