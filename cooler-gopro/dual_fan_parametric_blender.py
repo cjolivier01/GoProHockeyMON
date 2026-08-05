@@ -1801,13 +1801,37 @@ def single_fan_splitter_holder_clearance_y() -> float:
     )
 
 
-def trim_splitter_element_for_dropped_route(element, label: str) -> None:
+def create_single_fan_splitter_holder_clearance_cutter(
+    fan,
+    opening_radius: float,
+    plate_z0: float,
+    downstream_z: float,
+):
     if not FAN_GRILL_ON_BACK or not STALK_DROPPED_ROUTE_ENABLED:
-        return
+        return None
+
+    margin = 2.0 * BOOLEAN_OVERLAP
+    cutter_z0 = downstream_z - margin
+    cutter_z1 = plate_z0
+    cutter_radius = opening_radius + margin
+    cutter = add_box(
+        "Single_Fan_Splitter_Downstream_Clearance_Envelope",
+        (
+            2.0 * cutter_radius,
+            2.0 * cutter_radius,
+            cutter_z1 - cutter_z0,
+        ),
+        (
+            fan["center_x"],
+            0.0,
+            (cutter_z0 + cutter_z1) / 2.0,
+        ),
+    )
+    rotate_fan_part(cutter, fan)
 
     bpy.context.view_layer.update()
     corners = [
-        element.matrix_world @ Vector(corner) for corner in element.bound_box
+        cutter.matrix_world @ Vector(corner) for corner in cutter.bound_box
     ]
     minimum = Vector(
         tuple(min(corner[axis] for corner in corners) for axis in range(3))
@@ -1817,16 +1841,17 @@ def trim_splitter_element_for_dropped_route(element, label: str) -> None:
     )
     clearance_y = single_fan_splitter_holder_clearance_y()
     if clearance_y <= minimum.y + 1.0e-9:
-        return
+        bpy.data.objects.remove(cutter, do_unlink=True)
+        return None
     if clearance_y >= maximum.y - BOOLEAN_OVERLAP:
+        bpy.data.objects.remove(cutter, do_unlink=True)
         raise ValueError(
             "Dropped-route holder clearance would remove the single-fan "
-            f"splitter {label.lower()}"
+            "splitter vanes"
         )
 
-    margin = 2.0 * BOOLEAN_OVERLAP
-    cutter = add_box(
-        f"Single_Fan_Splitter_{label}_Holder_Clearance",
+    lower_half_space = add_box(
+        "Single_Fan_Splitter_Holder_Clearance_Half_Space",
         (
             maximum.x - minimum.x + 2.0 * margin,
             clearance_y - minimum.y + margin,
@@ -1838,13 +1863,15 @@ def trim_splitter_element_for_dropped_route(element, label: str) -> None:
             (minimum.z + maximum.z) / 2.0,
         ),
     )
-    boolean_difference(
-        element,
-        [cutter],
-        f"Single_Fan_Splitter_{label}_Holder_Clearance_Cut",
+    apply_boolean(
+        cutter,
+        lower_half_space,
+        "INTERSECT",
+        "Single_Fan_Splitter_Holder_Clearance_Intersection",
         solver=FAN_CAGE_BOOLEAN_SOLVER,
         require_geometry_change=True,
     )
+    return cutter
 
 
 def create_single_fan_airflow_splitter(fan):
@@ -1895,7 +1922,6 @@ def create_single_fan_airflow_splitter(fan):
         solver=FAN_CAGE_BOOLEAN_SOLVER,
         require_geometry_change=True,
     )
-    rotate_fan_part(frame, fan)
 
     leading_half_width = SINGLE_FAN_SPLITTER_LEADING_EDGE_WIDTH / 2.0
     downstream_half_width = (
@@ -1928,8 +1954,6 @@ def create_single_fan_airflow_splitter(fan):
         -opening_radius - BOOLEAN_OVERLAP,
         opening_radius + BOOLEAN_OVERLAP,
     )
-    rotate_fan_part(leading_edge, fan)
-    trim_splitter_element_for_dropped_route(leading_edge, "Leading_Edge")
     boolean_union(
         frame,
         leading_edge,
@@ -1947,12 +1971,27 @@ def create_single_fan_airflow_splitter(fan):
             -opening_radius - BOOLEAN_OVERLAP,
             opening_radius + BOOLEAN_OVERLAP,
         )
-        rotate_fan_part(vane, fan)
-        trim_splitter_element_for_dropped_route(vane, f"{side}_Vane")
         boolean_union(
             frame,
             vane,
             f"Single_Fan_{side}_Splitter_Vane_Union",
+            solver=ASSEMBLY_BOOLEAN_SOLVER,
+            require_geometry_change=True,
+        )
+    rotate_fan_part(frame, fan)
+    holder_clearance_cutter = (
+        create_single_fan_splitter_holder_clearance_cutter(
+            fan,
+            opening_radius,
+            plate_z0,
+            downstream_z,
+        )
+    )
+    if holder_clearance_cutter is not None:
+        boolean_difference(
+            frame,
+            [holder_clearance_cutter],
+            "Single_Fan_Splitter_Dropped_Holder_Clearance",
             solver=ASSEMBLY_BOOLEAN_SOLVER,
             require_geometry_change=True,
         )
