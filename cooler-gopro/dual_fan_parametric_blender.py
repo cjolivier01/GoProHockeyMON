@@ -236,6 +236,10 @@ SINGLE_FAN_SPLITTER_VANE_THICKNESS = 2.0
 SINGLE_FAN_SPLITTER_PLATE_THICKNESS = 3.0
 SINGLE_FAN_SPLITTER_EDGE_WEB = 3.0
 SINGLE_FAN_SPLITTER_HOLE_CLEARANCE = 0.4
+# Extra separation above the highest dropped-route receiver/stalk surface. A
+# camera-facing notch is cut only when rear grilles and the dropped route are
+# both active; the four-hole mounting plate remains complete.
+SINGLE_FAN_SPLITTER_HOLDER_CLEARANCE = 1.0
 
 # Twisted support joining the stalk to the selected fan cages.  A 38.1 mm hub
 # segment per fan and 36 mm arm-start pitch reproduce the original dual layout.
@@ -575,6 +579,9 @@ def validate_config() -> None:
         "SINGLE_FAN_SPLITTER_EDGE_WEB": SINGLE_FAN_SPLITTER_EDGE_WEB,
         "SINGLE_FAN_SPLITTER_HOLE_CLEARANCE": (
             SINGLE_FAN_SPLITTER_HOLE_CLEARANCE
+        ),
+        "SINGLE_FAN_SPLITTER_HOLDER_CLEARANCE": (
+            SINGLE_FAN_SPLITTER_HOLDER_CLEARANCE
         ),
         "SUPPORT_THICKNESS": SUPPORT_THICKNESS,
         "SUPPORT_HUB_WIDTH": resolved_hub_width,
@@ -1774,12 +1781,70 @@ def create_fan_cage(fan):
 
 
 def single_fan_splitter_mount_face_z(fan) -> float:
-    # With a rear grille, the fan protrudes toward the cameras and the module
-    # bolts directly against its exposed face. With the legacy front grille,
-    # the camera-facing grille itself is the mounting face.
+    # With a rear grille, the fan seats against the grille's inner face or the
+    # rigid screw collars that protrude from it. The splitter bolts against the
+    # resulting camera-side fan face. With the legacy front grille, the
+    # camera-facing exterior grille itself is the mounting face.
     if FAN_GRILL_ON_BACK:
-        return FAN_FRAME_DEPTH - fan["depth"]
+        grill_inner_z = fan_grill_z_bounds()[0]
+        if FAN_HOLE_COLLARS_ENABLED:
+            grill_inner_z -= FAN_HOLE_COLLAR_HEIGHT
+        return grill_inner_z - fan["depth"]
     return attachment_plane_z()
+
+
+def single_fan_splitter_holder_clearance_y() -> float:
+    return (
+        mount_stalk_center_y()
+        + max(STALK_DEPTH_Y, MOUNT_BLOCK_DEPTH_Y) / 2.0
+        + SINGLE_FAN_SPLITTER_HOLDER_CLEARANCE
+    )
+
+
+def trim_splitter_element_for_dropped_route(element, label: str) -> None:
+    if not FAN_GRILL_ON_BACK or not STALK_DROPPED_ROUTE_ENABLED:
+        return
+
+    bpy.context.view_layer.update()
+    corners = [
+        element.matrix_world @ Vector(corner) for corner in element.bound_box
+    ]
+    minimum = Vector(
+        tuple(min(corner[axis] for corner in corners) for axis in range(3))
+    )
+    maximum = Vector(
+        tuple(max(corner[axis] for corner in corners) for axis in range(3))
+    )
+    clearance_y = single_fan_splitter_holder_clearance_y()
+    if clearance_y <= minimum.y + 1.0e-9:
+        return
+    if clearance_y >= maximum.y - BOOLEAN_OVERLAP:
+        raise ValueError(
+            "Dropped-route holder clearance would remove the single-fan "
+            f"splitter {label.lower()}"
+        )
+
+    margin = 2.0 * BOOLEAN_OVERLAP
+    cutter = add_box(
+        f"Single_Fan_Splitter_{label}_Holder_Clearance",
+        (
+            maximum.x - minimum.x + 2.0 * margin,
+            clearance_y - minimum.y + margin,
+            maximum.z - minimum.z + 2.0 * margin,
+        ),
+        (
+            (minimum.x + maximum.x) / 2.0,
+            (minimum.y + clearance_y - margin) / 2.0,
+            (minimum.z + maximum.z) / 2.0,
+        ),
+    )
+    boolean_difference(
+        element,
+        [cutter],
+        f"Single_Fan_Splitter_{label}_Holder_Clearance_Cut",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
 
 
 def create_single_fan_airflow_splitter(fan):
@@ -1830,6 +1895,7 @@ def create_single_fan_airflow_splitter(fan):
         solver=FAN_CAGE_BOOLEAN_SOLVER,
         require_geometry_change=True,
     )
+    rotate_fan_part(frame, fan)
 
     leading_half_width = SINGLE_FAN_SPLITTER_LEADING_EDGE_WIDTH / 2.0
     downstream_half_width = (
@@ -1862,6 +1928,8 @@ def create_single_fan_airflow_splitter(fan):
         -opening_radius - BOOLEAN_OVERLAP,
         opening_radius + BOOLEAN_OVERLAP,
     )
+    rotate_fan_part(leading_edge, fan)
+    trim_splitter_element_for_dropped_route(leading_edge, "Leading_Edge")
     boolean_union(
         frame,
         leading_edge,
@@ -1879,6 +1947,8 @@ def create_single_fan_airflow_splitter(fan):
             -opening_radius - BOOLEAN_OVERLAP,
             opening_radius + BOOLEAN_OVERLAP,
         )
+        rotate_fan_part(vane, fan)
+        trim_splitter_element_for_dropped_route(vane, f"{side}_Vane")
         boolean_union(
             frame,
             vane,
@@ -1886,7 +1956,6 @@ def create_single_fan_airflow_splitter(fan):
             solver=ASSEMBLY_BOOLEAN_SOLVER,
             require_geometry_change=True,
         )
-    rotate_fan_part(frame, fan)
     frame.name = "Bolt_On_Single_Fan_Airflow_Splitter"
     frame.data.name = frame.name + "_Mesh"
     return frame
@@ -2631,16 +2700,19 @@ def build_dual_fan():
     set_units()
 
     parts = []
+    wire_slot_extent_parts = []
     print_plane_contacts = []
     if SUPPORT_ENABLED:
         support = create_support(fan_specs)
         parts.append(support)
+        wire_slot_extent_parts.append(support)
         print_plane_contacts.append(("support", support))
 
     for fan in fan_specs:
         cage = create_fan_cage(fan)
         rotate_fan_part(cage, fan)
         parts.append(cage)
+        wire_slot_extent_parts.append(cage)
         print_plane_contacts.append((f"fan_{fan['index']}_grille", cage))
 
     if STALK_ENABLED:
@@ -2655,9 +2727,14 @@ def build_dual_fan():
         if SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED
         else None
     )
-    assembly_vertices = tuple(
+    # The bottom wire-slot recut must follow the fan cages and shared support,
+    # but a dropped stalk/receiver can extend much farther in fan-local Y. Do
+    # not let that unrelated geometry lengthen the cutter through the holder.
+    wire_slot_extent_vertices = tuple(
         part.matrix_world @ vertex.co
-        for part in parts
+        for part in (
+            wire_slot_extent_parts if STALK_DROPPED_ROUTE_ENABLED else parts
+        )
         for vertex in part.data.vertices
     )
 
@@ -2673,7 +2750,9 @@ def build_dual_fan():
                 solver=ASSEMBLY_BOOLEAN_SOLVER,
                 require_geometry_change=True,
             )
-        recut_assembled_fan_wire_slots(final, fan_specs, assembly_vertices)
+        recut_assembled_fan_wire_slots(
+            final, fan_specs, wire_slot_extent_vertices
+        )
         count_label = {1: "Single", 2: "Dual", 3: "Triple"}[FAN_COUNT]
         final.name = f"Parametric_{count_label}_Fan_Holder"
         final.data.name = final.name + "_Mesh"
@@ -2682,7 +2761,9 @@ def build_dual_fan():
         final = parts[0]
         holder_objects = parts
         for part in holder_objects:
-            recut_assembled_fan_wire_slots(part, fan_specs, assembly_vertices)
+            recut_assembled_fan_wire_slots(
+                part, fan_specs, wire_slot_extent_vertices
+            )
     final_objects = list(holder_objects)
     if gopro_adapter is not None:
         final_objects.append(gopro_adapter)
@@ -2725,11 +2806,18 @@ def build_dual_fan():
         print("STALK_ROUTE=STRAIGHT")
     print(f"FAN_COUNT={FAN_COUNT}")
     if airflow_splitter is not None:
+        clearance_notch = (
+            "enabled"
+            if FAN_GRILL_ON_BACK and STALK_DROPPED_ROUTE_ENABLED
+            else "disabled"
+        )
         print(
             "SINGLE_FAN_AIRFLOW_SPLITTER=ENABLED "
             f"outlet_angle_per_side={SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG:.2f}deg "
             f"vane_length={SINGLE_FAN_SPLITTER_VANE_LENGTH_Z:.2f}mm "
             f"opening={single_fan_splitter_opening_diameter(fan_specs[0]):.2f}mm "
+            f"mount_face_z={single_fan_splitter_mount_face_z(fan_specs[0]):.2f}mm "
+            f"holder_clearance_notch={clearance_notch} "
             "mount=standard_four_hole airflow=toward_cameras material=RIGID "
             "print_orientation=mount_face_down"
         )

@@ -14,6 +14,7 @@ DUAL_FAN_STLS := \
 	gopro_dual_fan_adapter.stl
 DUAL_FAN_OPTIONAL_STLS := $(foreach size,40 60 80 120,\
 	gopro_single_fan_$(size)mm_airflow_splitter.stl)
+DUAL_FAN_BUILD_SENTINEL := .gopro_dual_fan_build_complete
 FAN_SILENCER_SIZE ?= 40
 FAN_SILENCER_SUPPORTED_SIZES := 40 60 80 120
 ifeq ($(filter $(FAN_SILENCER_SIZE),$(FAN_SILENCER_SUPPORTED_SIZES)),)
@@ -222,10 +223,10 @@ $(MISSION1_DUMMY_STLS): gopro_mission1_dummy_blender.py
 	$(call run_single_output_generator,$<,main,EXPORT_PATH)
 
 $(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py fan_size_presets.py
-	$(RM) $(DUAL_FAN_STLS) $(DUAL_FAN_OPTIONAL_STLS)
-	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
-		"import os,sys; p='$<'; sys.path.insert(0,os.path.dirname(os.path.abspath(p))); ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_STL_PATH']='$(word 1,$(DUAL_FAN_STLS))'; ns['EXPORT_ADAPTER_STL_PATH']='$(word 2,$(DUAL_FAN_STLS))'; ns['build_dual_fan']()"
-	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(DUAL_FAN_STLS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
+	$(RM) $(DUAL_FAN_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
+		"import os,sys; p='$<'; sys.path.insert(0,os.path.dirname(os.path.abspath(p))); ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_STL_PATH']='$(word 1,$(DUAL_FAN_STLS))'; ns['EXPORT_ADAPTER_STL_PATH']='$(word 2,$(DUAL_FAN_STLS))'; ns['build_dual_fan'](); __import__('pathlib').Path('$(DUAL_FAN_BUILD_SENTINEL)').write_text('complete',encoding='utf-8')"
+	$(PDF_PYTHON) -c "from pathlib import Path; sentinel=Path('$(DUAL_FAN_BUILD_SENTINEL)'); paths=[Path(name) for name in '$(DUAL_FAN_STLS)'.split()]+[sentinel]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; sentinel.unlink()"
 
 $(FAN_SILENCER_STLS): $(FAN_SILENCER_SOURCE_DEPS)
 	$(RM) $(FAN_SILENCER_STLS) $(FAN_SILENCER_OBSOLETE_STLS)
@@ -279,7 +280,7 @@ clean-mission1-dummy:
 	$(RM) $(MISSION1_DUMMY_STLS)
 
 clean-dual-fan:
-	$(RM) $(DUAL_FAN_STLS) $(DUAL_FAN_OPTIONAL_STLS)
+	$(RM) $(DUAL_FAN_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
 
 clean-fan-silencer:
 	$(RM) $(FAN_SILENCER_KNOWN_STLS) $(FAN_SILENCER_KNOWN_CROSS_SECTIONS) \
