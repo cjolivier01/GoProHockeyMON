@@ -116,8 +116,8 @@ EXPORT_ADAPTER_STL_PATH = "gopro_dual_fan_adapter.stl"
 # a separate rigid part in every mode; only the holder dimensions and fastener
 # treatment change.  TPU_95A is deliberately stiffened by geometry instead of
 # relying on very high slicer infill.
-# MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU_95A"
-MATERIAL_MODE = "TPU_95A"
+MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU_95A"
+# MATERIAL_MODE = "TPU_95A"
 
 # Slicer guidance is informational because STL files cannot encode these
 # settings.  Five to six walls should provide at least a 2.0-2.4 mm shell.
@@ -173,7 +173,8 @@ FAN_BODY_GAP_MM = 47.5
 FAN_FRAME_DEPTH = 14.7
 FAN_FRAME_CORNER_RADIUS = 2.5
 # The original rigid cavity is 60.7 mm around a nominal 60 mm fan.
-FAN_BODY_CLEARANCE_PER_SIDE = 0.35
+# FAN_BODY_CLEARANCE_PER_SIDE = 0.35
+FAN_BODY_CLEARANCE_PER_SIDE = 1.0
 # FAN_FRAME_WALL and GRILL_THICKNESS are selected in MATERIAL_PROFILES below.
 
 # "support_contact" rotates around the lower-inner connection to the support.
@@ -229,7 +230,7 @@ SUPPORT_ARM_SECTIONS = 10
 
 # Stalk projecting from the support toward the camera mount.
 STALK_ENABLED = True
-STALK_LENGTH_Z = 46.2
+STALK_LENGTH_Z = 65.2
 STALK_BOTTOM_Y_OVERHANG = 0.5
 # STALK_WIDTH and STALK_DEPTH_Y are selected in MATERIAL_PROFILES.
 
