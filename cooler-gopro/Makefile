@@ -136,10 +136,13 @@ print_targets:
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
 		'dual-fan                  Build the parametric dual-fan STL.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
-		'fan-silencer-cross-section  Render its assembled case/silencer/fan center section.' \
-		'fan-silencer-mounted-view  Render the silencer mounted on its fan intake.' \
 		'fan-case                  Build the case, buttons, baffle tray/lid/seal, swing gate, and keeper STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
+		'' \
+		'Renders' \
+		'-------' \
+		'fan-silencer-cross-section  Render its assembled case/silencer/fan center section.' \
+		'fan-silencer-mounted-view  Render the silencer mounted on its fan intake.' \
 		'' \
 		'Documentation' \
 		'-------------' \
