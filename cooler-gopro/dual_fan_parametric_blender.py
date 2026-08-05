@@ -1556,11 +1556,6 @@ def recut_assembled_fan_wire_slots(holder, fan_specs, assembly_vertices) -> None
                 0.0,
                 -fan["frame_size"] / 2.0 - minimum_assembly_y,
             )
-            if outside_extension > 0.0 and STALK_DROPPED_ROUTE_ENABLED:
-                # End the rotated cutter beyond, rather than exactly on, the
-                # support/cage boundary. Coincident endpoints can leave an
-                # open edge after the assembly Boolean and triangulation.
-                outside_extension += BOOLEAN_OVERLAP
         cutter = create_fan_wire_slot_cutter(fan, outside_extension)
         rotate_fan_part(cutter, fan)
         cutters.append(cutter)
