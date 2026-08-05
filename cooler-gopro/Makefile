@@ -4,6 +4,7 @@ PDF_PYTHON ?= $(shell command -v /home/colivier/miniforge3/bin/python 2>/dev/nul
 
 DIMENSION_PDF := hockeymom_3_cam_cover_configuration_dimensions.pdf
 FAN_CASE_DIMENSION_PDF := gopro_fan_case_configuration_dimensions.pdf
+DUAL_FAN_DIMENSION_PDF := gopro_dual_fan_configuration_dimensions.pdf
 
 FLAT_FAN_COVER_STLS := flat-fan-cover.stl
 WRAPPING_FAN_COVER_STLS := wrapping-fan-cover.stl
@@ -112,19 +113,20 @@ STL_FILES := \
 
 .PHONY: \
 	all print_targets dim-pdf check-dim-pdf-sync \
+	dual-fan-dim-pdf check-dual-fan-dim-pdf-sync \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymom-cover \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cover \
-	clean-dim-pdf clean-fan-case-dim-pdf
+	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf
 
-# Keep the generated dimension guide synchronized with both model sources.
-# The PDF target below also depends on its generator, so any configuration or
+# Keep every generated dimension guide synchronized with its model sources.
+# Each PDF target also depends on its generator, so any configuration or
 # documentation-layout change is reflected by the next normal `make all`.
 all: $(STL_FILES) $(HOCKEYMOM_COVER_STLS) \
-	$(DIMENSION_PDF) $(FAN_CASE_DIMENSION_PDF) \
-	check-dim-pdf-sync check-fan-case-dim-pdf-sync
+	$(DUAL_FAN_DIMENSION_PDF) $(FAN_CASE_DIMENSION_PDF) $(DIMENSION_PDF) \
+	check-dual-fan-dim-pdf-sync check-fan-case-dim-pdf-sync check-dim-pdf-sync
 
 print_targets:
 	@printf '%s\n' \
@@ -149,10 +151,12 @@ print_targets:
 		'' \
 		'Documentation' \
 		'-------------' \
-		'dim-pdf                   Build the HOCKEYMOM 3 configuration dimension PDF.' \
-		'check-dim-pdf-sync        Verify the PDF matches its model and generator sources.' \
+		'dual-fan-dim-pdf          Build the dual-fan holder configuration dimension PDF.' \
+		'check-dual-fan-dim-pdf-sync  Verify dual-fan PDF synchronization and drawing coverage.' \
 		'fan-case-dim-pdf          Build the fan-case configuration dimension PDF.' \
 		'check-fan-case-dim-pdf-sync  Verify PDF synchronization and engineering-drawing coverage.' \
+		'dim-pdf                   Build the HOCKEYMOM 3 configuration dimension PDF.' \
+		'check-dim-pdf-sync        Verify the PDF matches its model and generator sources.' \
 		'' \
 		'Cleanup' \
 		'-------' \
@@ -165,8 +169,9 @@ print_targets:
 		'clean-fan-silencer        Remove fan-silencer STLs and generated render images.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
 		'clean-hockeymom-cover     Remove all HOCKEYMOM 3 camera-cover STLs.' \
-		'clean-dim-pdf             Remove the HOCKEYMOM 3 configuration dimension PDF.' \
+		'clean-dual-fan-dim-pdf    Remove the dual-fan configuration dimension PDF.' \
 		'clean-fan-case-dim-pdf    Remove the fan-case configuration dimension PDF.' \
+		'clean-dim-pdf             Remove the HOCKEYMOM 3 configuration dimension PDF.' \
 		'' \
 		'Meta' \
 		'----' \
@@ -181,8 +186,12 @@ fan-silencer: $(FAN_SILENCER_STLS)
 fan-silencer-cross-section: $(FAN_SILENCER_CROSS_SECTION)
 fan-silencer-mounted-view: $(FAN_SILENCER_MOUNTED_VIEW)
 fan-case: $(FAN_CASE_STLS)
-dim-pdf: $(DIMENSION_PDF)
+dual-fan-dim-pdf: $(DUAL_FAN_DIMENSION_PDF)
 fan-case-dim-pdf: $(FAN_CASE_DIMENSION_PDF)
+dim-pdf: $(DIMENSION_PDF)
+
+check-dual-fan-dim-pdf-sync: $(DUAL_FAN_DIMENSION_PDF)
+	$(PDF_PYTHON) generate_dual_fan_config_dimension_pdf.py --check-sync
 
 check-dim-pdf-sync: $(DIMENSION_PDF)
 	$(PDF_PYTHON) generate_hockeymom_config_dimension_pdf.py --check-sync
@@ -196,6 +205,10 @@ $(DIMENSION_PDF): generate_hockeymom_config_dimension_pdf.py \
 
 $(FAN_CASE_DIMENSION_PDF): generate_fan_case_config_dimension_pdf.py \
 	gopro_fan_case_parametric_blender.py $(FAN_CASE_STLS)
+	$(PDF_PYTHON) $<
+
+$(DUAL_FAN_DIMENSION_PDF): generate_dual_fan_config_dimension_pdf.py \
+	dual_fan_parametric_blender.py fan_size_presets.py $(DUAL_FAN_STLS)
 	$(PDF_PYTHON) $<
 
 # Load a generator without triggering its __main__ block, build its selected
@@ -268,7 +281,7 @@ hockeymom-cover: $(HOCKEYMOM_COVER_STLS)
 
 clean: clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cover \
-	clean-dim-pdf clean-fan-case-dim-pdf
+	clean-dual-fan-dim-pdf clean-fan-case-dim-pdf clean-dim-pdf
 
 clean-flat-fan-cover:
 	$(RM) $(FLAT_FAN_COVER_STLS)
@@ -294,6 +307,9 @@ clean-fan-case:
 
 clean-hockeymom-cover:
 	$(RM) $(HOCKEYMOM_COVER_STLS) $(HOCKEYMOM_OPTIONAL_STLS)
+
+clean-dual-fan-dim-pdf:
+	$(RM) $(DUAL_FAN_DIMENSION_PDF)
 
 clean-dim-pdf:
 	$(RM) $(DIMENSION_PDF)
