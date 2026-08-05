@@ -150,6 +150,10 @@ BOOLEAN_MINIMUM_VOLUME_CHANGE = 1.0e-6
 UNION_ALL_PARTS = True
 DEBUG_BOOLEAN_STEPS = False
 CLEAN_COINCIDENT_FACE_TOLERANCE = 1.0e-5
+# Weld only numerically identical Boolean vertices before triangulation.  This
+# avoids open STL edges when Blender tessellates an otherwise manifold n-gon,
+# while remaining far below the script's modeled clearances and overlaps.
+TRIANGULATION_WELD_DISTANCE = 1.0e-9
 
 # Fan array.  FAN_COUNT consumes the first entries from FAN_SIZES_MM and
 # FAN_ROTATIONS_DEG, so changing only FAN_COUNT selects the normal one-, two-,
@@ -1552,6 +1556,11 @@ def recut_assembled_fan_wire_slots(holder, fan_specs, assembly_vertices) -> None
                 0.0,
                 -fan["frame_size"] / 2.0 - minimum_assembly_y,
             )
+            if outside_extension > 0.0 and STALK_DROPPED_ROUTE_ENABLED:
+                # End the rotated cutter beyond, rather than exactly on, the
+                # support/cage boundary. Coincident endpoints can leave an
+                # open edge after the assembly Boolean and triangulation.
+                outside_extension += BOOLEAN_OVERLAP
         cutter = create_fan_wire_slot_cutter(fan, outside_extension)
         rotate_fan_part(cutter, fan)
         cutters.append(cutter)
@@ -2636,6 +2645,11 @@ def remove_opposed_coincident_faces(obj) -> int:
 def triangulate_mesh(obj) -> None:
     bm = bmesh.new()
     bm.from_mesh(obj.data)
+    bmesh.ops.remove_doubles(
+        bm,
+        verts=list(bm.verts),
+        dist=TRIANGULATION_WELD_DISTANCE,
+    )
     bmesh.ops.triangulate(
         bm,
         faces=list(bm.faces),
@@ -2823,9 +2837,9 @@ def build_dual_fan():
             f"non_manifold_edges={count} connected_shells={shells} "
             f"removed_coincident_faces={removed_faces}"
         )
-        if UNION_ALL_PARTS and count:
+        if count:
             raise RuntimeError(f"{obj.name} has {count} non-manifold edges")
-        if UNION_ALL_PARTS and shells != 1:
+        if shells != 1:
             raise RuntimeError(f"{obj.name} has {shells} disconnected shells")
 
     print(f"MATERIAL_MODE={MATERIAL_MODE}")
