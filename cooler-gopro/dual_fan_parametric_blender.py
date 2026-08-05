@@ -12,6 +12,11 @@ keeping every supported fan array centered and easy to modify.
 rotation angles, place the shared rear grille/support/stalk plane face-down on
 the print bed.  Set it to ``False`` for the original front-grille layout.
 
+``STALK_DROPPED_ROUTE_ENABLED`` adds a down/back/up return that lowers large
+fans relative to the GoPro receiver. For a single fan,
+``SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED`` also creates a separate standard-hole
+splitter-vane module that redirects center airflow toward left/right cameras.
+
 Axes:
     X - across the fan array
     Y - vertical in the fan plane; the GoPro fingers project toward negative Y
@@ -111,6 +116,8 @@ EXPORT_STL = False
 # Blender console users may set an explicit path to override it.
 EXPORT_STL_PATH = None
 EXPORT_ADAPTER_STL_PATH = "gopro_dual_fan_adapter.stl"
+# Leave None for a size-specific single-fan splitter filename.
+EXPORT_AIRFLOW_SPLITTER_STL_PATH = None
 
 # Structural profile for the fan holder.  The detachable GoPro adapter remains
 # a separate rigid part in every mode; only the holder dimensions and fastener
@@ -143,6 +150,10 @@ BOOLEAN_MINIMUM_VOLUME_CHANGE = 1.0e-6
 UNION_ALL_PARTS = True
 DEBUG_BOOLEAN_STEPS = False
 CLEAN_COINCIDENT_FACE_TOLERANCE = 1.0e-5
+# Weld only numerically identical Boolean vertices before triangulation.  This
+# avoids open STL edges when Blender tessellates an otherwise manifold n-gon,
+# while remaining far below the script's modeled clearances and overlaps.
+TRIANGULATION_WELD_DISTANCE = 1.0e-9
 
 # Fan array.  FAN_COUNT consumes the first entries from FAN_SIZES_MM and
 # FAN_ROTATIONS_DEG, so changing only FAN_COUNT selects the normal one-, two-,
@@ -214,6 +225,26 @@ FAN_WIRE_SLOT_WIDTH = 5.0
 FAN_WIRE_SLOT_DEPTH = 9.0
 FAN_WIRE_SLOT_OFFSET_AT_REFERENCE = 22.0
 
+# Optional bolt-on outlet splitter for a single fan. The thin square frame
+# uses the standard fan holes, while paired hollow-center vanes redirect the
+# otherwise wasted middle airflow toward left/right camera positions without
+# the weight and blockage of a solid wedge. It is a separate part so the fan
+# remains removable and should be printed rigid. Orient the fan to exhaust
+# through this module toward the GoPro/cameras (negative Z). The outlet angle
+# is measured per side from the fan axis.
+SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED = False
+SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG = 22.0
+SINGLE_FAN_SPLITTER_VANE_LENGTH_Z = 25.0
+SINGLE_FAN_SPLITTER_LEADING_EDGE_WIDTH = 2.4
+SINGLE_FAN_SPLITTER_VANE_THICKNESS = 2.0
+SINGLE_FAN_SPLITTER_PLATE_THICKNESS = 3.0
+SINGLE_FAN_SPLITTER_EDGE_WEB = 3.0
+SINGLE_FAN_SPLITTER_HOLE_CLEARANCE = 0.4
+# Extra separation above the highest dropped-route receiver/stalk surface. A
+# camera-facing notch is cut only when rear grilles and the dropped route are
+# both active; the four-hole mounting plate remains complete.
+SINGLE_FAN_SPLITTER_HOLDER_CLEARANCE = 1.0
+
 # Twisted support joining the stalk to the selected fan cages.  A 38.1 mm hub
 # segment per fan and 36 mm arm-start pitch reproduce the original dual layout.
 SUPPORT_ENABLED = True
@@ -231,6 +262,18 @@ SUPPORT_ARM_SECTIONS = 10
 STALK_ENABLED = True
 STALK_LENGTH_Z = 46.2
 STALK_BOTTOM_Y_OVERHANG = 0.5
+# Route the stalk downward from the GoPro receiver, rearward behind the camera
+# plane, then slightly upward into the fan support. With DROP_Y greater than
+# RETURN_RISE_Y, the fan sits lower by their difference relative to the mount.
+# STALK_ROUTE_TRANSITION_ANGLE_DEG is measured away from the rearward Z axis;
+# values above 45 degrees make the down/up legs more nearly vertical and may
+# need removable external supports. STALK_ROUTE_BACK_Z controls the straight
+# rearward section; STALK_LENGTH_Z controls only the original straight layout.
+STALK_DROPPED_ROUTE_ENABLED = False
+STALK_ROUTE_DROP_Y = 37.0
+STALK_ROUTE_BACK_Z = 30.0
+STALK_ROUTE_RETURN_RISE_Y = 15.0
+STALK_ROUTE_TRANSITION_ANGLE_DEG = 70.0
 # STALK_WIDTH and STALK_DEPTH_Y are selected in MATERIAL_PROFILES.
 
 # Two-hole receiver block fixed to the end of the stalk.
@@ -415,6 +458,16 @@ def support_hub_width() -> float:
     return SUPPORT_HUB_WIDTH_PER_FAN * FAN_COUNT
 
 
+def single_fan_splitter_opening_diameter(fan) -> float:
+    hole_radius = (fan["hole_diameter"] + SINGLE_FAN_SPLITTER_HOLE_CLEARANCE) / 2.0
+    hole_center_radius = math.sqrt(2.0) * fan["hole_spacing"] / 2.0
+    hole_limited_diameter = 2.0 * (
+        hole_center_radius - hole_radius - SINGLE_FAN_SPLITTER_EDGE_WEB
+    )
+    edge_limited_diameter = fan["size"] - 2.0 * SINGLE_FAN_SPLITTER_EDGE_WEB
+    return min(hole_limited_diameter, edge_limited_diameter)
+
+
 def resolve_fan_specs():
     if FAN_REFERENCE_SIZE_MM <= 0.0:
         raise ValueError("FAN_REFERENCE_SIZE_MM must be positive")
@@ -504,8 +557,6 @@ def resolve_fan_specs():
 def validate_config() -> None:
     fan_specs = resolve_fan_specs()
     resolved_hub_width = support_hub_width()
-    if not isinstance(FAN_GRILL_ON_BACK, bool):
-        raise ValueError("FAN_GRILL_ON_BACK must be True or False")
     positive = {
         "FAN_REFERENCE_SIZE_MM": FAN_REFERENCE_SIZE_MM,
         "FAN_FRAME_DEPTH": FAN_FRAME_DEPTH,
@@ -514,6 +565,28 @@ def validate_config() -> None:
         "AIRFLOW_TO_COUNTERSINK_MIN_WEB": AIRFLOW_TO_COUNTERSINK_MIN_WEB,
         "FAN_WIRE_SLOT_WIDTH": FAN_WIRE_SLOT_WIDTH,
         "FAN_WIRE_SLOT_DEPTH": FAN_WIRE_SLOT_DEPTH,
+        "SINGLE_FAN_SPLITTER_VANE_LENGTH_Z": (
+            SINGLE_FAN_SPLITTER_VANE_LENGTH_Z
+        ),
+        "SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG": (
+            SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG
+        ),
+        "SINGLE_FAN_SPLITTER_LEADING_EDGE_WIDTH": (
+            SINGLE_FAN_SPLITTER_LEADING_EDGE_WIDTH
+        ),
+        "SINGLE_FAN_SPLITTER_VANE_THICKNESS": (
+            SINGLE_FAN_SPLITTER_VANE_THICKNESS
+        ),
+        "SINGLE_FAN_SPLITTER_PLATE_THICKNESS": (
+            SINGLE_FAN_SPLITTER_PLATE_THICKNESS
+        ),
+        "SINGLE_FAN_SPLITTER_EDGE_WEB": SINGLE_FAN_SPLITTER_EDGE_WEB,
+        "SINGLE_FAN_SPLITTER_HOLE_CLEARANCE": (
+            SINGLE_FAN_SPLITTER_HOLE_CLEARANCE
+        ),
+        "SINGLE_FAN_SPLITTER_HOLDER_CLEARANCE": (
+            SINGLE_FAN_SPLITTER_HOLDER_CLEARANCE
+        ),
         "SUPPORT_THICKNESS": SUPPORT_THICKNESS,
         "SUPPORT_HUB_WIDTH": resolved_hub_width,
         "SUPPORT_HUB_WIDTH_PER_FAN": SUPPORT_HUB_WIDTH_PER_FAN,
@@ -529,6 +602,12 @@ def validate_config() -> None:
         "STALK_WIDTH": STALK_WIDTH,
         "STALK_DEPTH_Y": STALK_DEPTH_Y,
         "STALK_LENGTH_Z": STALK_LENGTH_Z,
+        "STALK_ROUTE_DROP_Y": STALK_ROUTE_DROP_Y,
+        "STALK_ROUTE_BACK_Z": STALK_ROUTE_BACK_Z,
+        "STALK_ROUTE_RETURN_RISE_Y": STALK_ROUTE_RETURN_RISE_Y,
+        "STALK_ROUTE_TRANSITION_ANGLE_DEG": (
+            STALK_ROUTE_TRANSITION_ANGLE_DEG
+        ),
         "MOUNT_BLOCK_WIDTH": MOUNT_BLOCK_WIDTH,
         "MOUNT_BLOCK_HEIGHT_Z": MOUNT_BLOCK_HEIGHT_Z,
         "MOUNT_BLOCK_DEPTH_Y": MOUNT_BLOCK_DEPTH_Y,
@@ -554,6 +633,66 @@ def validate_config() -> None:
     for name, value in positive.items():
         if value <= 0:
             raise ValueError(f"{name} must be positive")
+
+    boolean_options = {
+        "FAN_GRILL_ON_BACK": FAN_GRILL_ON_BACK,
+        "SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED": (
+            SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED
+        ),
+        "STALK_DROPPED_ROUTE_ENABLED": STALK_DROPPED_ROUTE_ENABLED,
+    }
+    for name, value in boolean_options.items():
+        if not isinstance(value, bool):
+            raise ValueError(f"{name} must be True or False")
+
+    if STALK_DROPPED_ROUTE_ENABLED:
+        if not STALK_ENABLED or not MOUNT_BLOCK_ENABLED:
+            raise ValueError(
+                "STALK_DROPPED_ROUTE_ENABLED requires the stalk and mount block"
+            )
+        if STALK_ROUTE_DROP_Y <= STALK_ROUTE_RETURN_RISE_Y:
+            raise ValueError(
+                "STALK_ROUTE_DROP_Y must exceed STALK_ROUTE_RETURN_RISE_Y "
+                "to lower the fan relative to the mount"
+            )
+        if STALK_ROUTE_TRANSITION_ANGLE_DEG >= 90.0:
+            raise ValueError(
+                "STALK_ROUTE_TRANSITION_ANGLE_DEG must be less than 90 degrees"
+            )
+
+    if SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED:
+        if FAN_COUNT != 1:
+            raise ValueError(
+                "SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED requires FAN_COUNT = 1"
+            )
+        if SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG > 45.0:
+            raise ValueError(
+                "SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG must be at most 45 "
+                "degrees for support-free printing"
+            )
+        fan = fan_specs[0]
+        opening_radius = single_fan_splitter_opening_diameter(fan) / 2.0
+        splitter_hole_radius = (
+            fan["hole_diameter"] + SINGLE_FAN_SPLITTER_HOLE_CLEARANCE
+        ) / 2.0
+        if fan["hole_spacing"] / 2.0 + splitter_hole_radius >= fan["size"] / 2.0:
+            raise ValueError("Single-fan splitter mounting holes exceed its frame")
+        downstream_half_width = (
+            SINGLE_FAN_SPLITTER_LEADING_EDGE_WIDTH / 2.0
+            + SINGLE_FAN_SPLITTER_VANE_LENGTH_Z
+            * math.tan(math.radians(SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG))
+        )
+        if opening_radius <= 0.0:
+            raise ValueError("Single-fan splitter airflow opening is not positive")
+        if downstream_half_width >= opening_radius - BOOLEAN_OVERLAP:
+            raise ValueError(
+                "Single-fan splitter angle/length makes the downstream vanes "
+                "wider than its airflow opening"
+            )
+        if SINGLE_FAN_SPLITTER_VANE_THICKNESS >= downstream_half_width:
+            raise ValueError(
+                "SINGLE_FAN_SPLITTER_VANE_THICKNESS leaves no hollow center"
+            )
 
     if FAN_BODY_CLEARANCE_PER_SIDE < 0.0:
         raise ValueError("FAN_BODY_CLEARANCE_PER_SIDE cannot be negative")
@@ -689,7 +828,10 @@ def validate_config() -> None:
             raise ValueError("STALK_HUB_FLARE_LENGTH_Z must be positive")
         if STALK_MOUNT_FLARE_LENGTH_Z <= 0.0:
             raise ValueError("STALK_MOUNT_FLARE_LENGTH_Z must be positive")
-        if STALK_HUB_FLARE_LENGTH_Z + STALK_MOUNT_FLARE_LENGTH_Z >= STALK_LENGTH_Z:
+        if (
+            STALK_HUB_FLARE_LENGTH_Z + STALK_MOUNT_FLARE_LENGTH_Z
+            >= effective_stalk_path_length()
+        ):
             raise ValueError("Stalk flare lengths must leave a straight center section")
         minimum_mount_flare_length = max(
             0.0, (MOUNT_BLOCK_WIDTH - STALK_WIDTH) / 2.0
@@ -698,6 +840,22 @@ def validate_config() -> None:
             raise ValueError(
                 "STALK_MOUNT_FLARE_LENGTH_Z must provide a 45-degree or "
                 "shallower receiver transition"
+            )
+    if STALK_DROPPED_ROUTE_ENABLED:
+        route_corner_setback = STALK_DEPTH_Y / 2.0 * math.tan(
+            math.radians(STALK_ROUTE_TRANSITION_ANGLE_DEG) / 2.0
+        )
+        drop_run_z = stalk_route_transition_z(STALK_ROUTE_DROP_Y)
+        rise_run_z = stalk_route_transition_z(STALK_ROUTE_RETURN_RISE_Y)
+        if min(drop_run_z, rise_run_z) <= route_corner_setback:
+            raise ValueError(
+                "STALK_ROUTE_DROP_Y and STALK_ROUTE_RETURN_RISE_Y must leave "
+                "enough transition run for the routed stalk thickness"
+            )
+        if STALK_ROUTE_BACK_Z <= 2.0 * route_corner_setback:
+            raise ValueError(
+                "STALK_ROUTE_BACK_Z is too short for the routed stalk thickness "
+                "at the selected transition angle"
             )
 
 
@@ -770,11 +928,27 @@ def support_arm_center_z() -> float:
     return (z0 + z1) / 2.0
 
 
+def stalk_route_transition_z(delta_y: float) -> float:
+    angle = math.radians(STALK_ROUTE_TRANSITION_ANGLE_DEG)
+    return delta_y / math.tan(angle)
+
+
+def effective_stalk_length_z() -> float:
+    if STALK_DROPPED_ROUTE_ENABLED:
+        return (
+            stalk_route_transition_z(STALK_ROUTE_DROP_Y)
+            + STALK_ROUTE_BACK_Z
+            + stalk_route_transition_z(STALK_ROUTE_RETURN_RISE_Y)
+        )
+    return STALK_LENGTH_Z
+
+
 def stalk_z_bounds():
     plane_z = attachment_plane_z()
+    length_z = effective_stalk_length_z()
     if FAN_GRILL_ON_BACK:
-        return (plane_z - STALK_LENGTH_Z, plane_z)
-    return (-STALK_LENGTH_Z, plane_z + BOOLEAN_OVERLAP)
+        return (plane_z - length_z, plane_z)
+    return (-length_z, plane_z + BOOLEAN_OVERLAP)
 
 
 def stalk_end_flares_active() -> bool:
@@ -1610,6 +1784,226 @@ def create_fan_cage(fan):
     return grill
 
 
+def single_fan_splitter_mount_face_z(fan) -> float:
+    # With a rear grille, the fan seats against the grille's inner face or the
+    # rigid screw collars that protrude from it. The splitter bolts against the
+    # resulting camera-side fan face. With the legacy front grille, the
+    # camera-facing exterior grille itself is the mounting face.
+    if FAN_GRILL_ON_BACK:
+        grill_inner_z = fan_grill_z_bounds()[0]
+        if FAN_HOLE_COLLARS_ENABLED:
+            grill_inner_z -= FAN_HOLE_COLLAR_HEIGHT
+        return grill_inner_z - fan["depth"]
+    return attachment_plane_z()
+
+
+def single_fan_splitter_holder_clearance_y() -> float:
+    return (
+        mount_stalk_center_y()
+        + max(STALK_DEPTH_Y, MOUNT_BLOCK_DEPTH_Y) / 2.0
+        + SINGLE_FAN_SPLITTER_HOLDER_CLEARANCE
+    )
+
+
+def create_single_fan_splitter_holder_clearance_cutter(
+    fan,
+    opening_radius: float,
+    plate_z0: float,
+    downstream_z: float,
+):
+    if not FAN_GRILL_ON_BACK or not STALK_DROPPED_ROUTE_ENABLED:
+        return None
+
+    margin = 2.0 * BOOLEAN_OVERLAP
+    cutter_z0 = downstream_z - margin
+    cutter_z1 = plate_z0
+    cutter_radius = opening_radius + margin
+    cutter = add_box(
+        "Single_Fan_Splitter_Downstream_Clearance_Envelope",
+        (
+            2.0 * cutter_radius,
+            2.0 * cutter_radius,
+            cutter_z1 - cutter_z0,
+        ),
+        (
+            fan["center_x"],
+            0.0,
+            (cutter_z0 + cutter_z1) / 2.0,
+        ),
+    )
+    rotate_fan_part(cutter, fan)
+
+    bpy.context.view_layer.update()
+    corners = [
+        cutter.matrix_world @ Vector(corner) for corner in cutter.bound_box
+    ]
+    minimum = Vector(
+        tuple(min(corner[axis] for corner in corners) for axis in range(3))
+    )
+    maximum = Vector(
+        tuple(max(corner[axis] for corner in corners) for axis in range(3))
+    )
+    clearance_y = single_fan_splitter_holder_clearance_y()
+    if clearance_y <= minimum.y + 1.0e-9:
+        bpy.data.objects.remove(cutter, do_unlink=True)
+        return None
+    if clearance_y >= maximum.y - BOOLEAN_OVERLAP:
+        bpy.data.objects.remove(cutter, do_unlink=True)
+        raise ValueError(
+            "Dropped-route holder clearance would remove the single-fan "
+            "splitter vanes"
+        )
+
+    lower_half_space = add_box(
+        "Single_Fan_Splitter_Holder_Clearance_Half_Space",
+        (
+            maximum.x - minimum.x + 2.0 * margin,
+            clearance_y - minimum.y + margin,
+            maximum.z - minimum.z + 2.0 * margin,
+        ),
+        (
+            (minimum.x + maximum.x) / 2.0,
+            (minimum.y + clearance_y - margin) / 2.0,
+            (minimum.z + maximum.z) / 2.0,
+        ),
+    )
+    apply_boolean(
+        cutter,
+        lower_half_space,
+        "INTERSECT",
+        "Single_Fan_Splitter_Holder_Clearance_Intersection",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
+    return cutter
+
+
+def create_single_fan_airflow_splitter(fan):
+    center_x = fan["center_x"]
+    mount_face_z = single_fan_splitter_mount_face_z(fan)
+    plate_z0 = mount_face_z - SINGLE_FAN_SPLITTER_PLATE_THICKNESS
+    plate_z1 = mount_face_z
+    root_z = plate_z0 + BOOLEAN_OVERLAP
+    downstream_z = root_z - SINGLE_FAN_SPLITTER_VANE_LENGTH_Z
+
+    frame = rounded_rectangle_prism(
+        "Single_Fan_Splitter_Mounting_Frame",
+        fan["size"],
+        fan["size"],
+        min(FAN_FRAME_CORNER_RADIUS, fan["size"] / 10.0),
+        plate_z0,
+        plate_z1,
+        center_x=center_x,
+    )
+    opening_diameter = single_fan_splitter_opening_diameter(fan)
+    cutters = [
+        add_cylinder_z(
+            "Single_Fan_Splitter_Airflow_Opening",
+            opening_diameter / 2.0,
+            plate_z0 - BOOLEAN_OVERLAP,
+            plate_z1 + BOOLEAN_OVERLAP,
+            x=center_x,
+        )
+    ]
+    splitter_hole_radius = (
+        fan["hole_diameter"] + SINGLE_FAN_SPLITTER_HOLE_CLEARANCE
+    ) / 2.0
+    for hole_index, (x, y) in enumerate(fan_hole_centers(fan), start=1):
+        cutters.append(
+            add_cylinder_z(
+                f"Single_Fan_Splitter_Mount_Hole_{hole_index}",
+                splitter_hole_radius,
+                plate_z0 - BOOLEAN_OVERLAP,
+                plate_z1 + BOOLEAN_OVERLAP,
+                x=x,
+                y=y,
+            )
+        )
+    boolean_difference(
+        frame,
+        cutters,
+        "Single_Fan_Splitter_Frame_Openings",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
+
+    leading_half_width = SINGLE_FAN_SPLITTER_LEADING_EDGE_WIDTH / 2.0
+    downstream_half_width = (
+        leading_half_width
+        + SINGLE_FAN_SPLITTER_VANE_LENGTH_Z
+        * math.tan(math.radians(SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG))
+    )
+    vane_thickness = SINGLE_FAN_SPLITTER_VANE_THICKNESS
+    left_vane_profile = [
+        (center_x - leading_half_width, root_z),
+        (center_x - downstream_half_width, downstream_z),
+        (center_x - downstream_half_width + vane_thickness, downstream_z),
+        (center_x, root_z),
+    ]
+    right_vane_profile = [
+        (center_x, root_z),
+        (center_x + downstream_half_width - vane_thickness, downstream_z),
+        (center_x + downstream_half_width, downstream_z),
+        (center_x + leading_half_width, root_z),
+    ]
+    opening_radius = opening_diameter / 2.0
+    leading_edge = xz_polygon_prism(
+        "Single_Fan_Splitter_Leading_Edge",
+        [
+            (center_x - leading_half_width, plate_z0),
+            (center_x + leading_half_width, plate_z0),
+            (center_x + leading_half_width, plate_z1),
+            (center_x - leading_half_width, plate_z1),
+        ],
+        -opening_radius - BOOLEAN_OVERLAP,
+        opening_radius + BOOLEAN_OVERLAP,
+    )
+    boolean_union(
+        frame,
+        leading_edge,
+        "Single_Fan_Splitter_Leading_Edge_Union",
+        solver=ASSEMBLY_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
+    for side, profile in (
+        ("Left", left_vane_profile),
+        ("Right", right_vane_profile),
+    ):
+        vane = xz_polygon_prism(
+            f"Single_Fan_{side}_Airflow_Splitter_Vane",
+            profile,
+            -opening_radius - BOOLEAN_OVERLAP,
+            opening_radius + BOOLEAN_OVERLAP,
+        )
+        boolean_union(
+            frame,
+            vane,
+            f"Single_Fan_{side}_Splitter_Vane_Union",
+            solver=ASSEMBLY_BOOLEAN_SOLVER,
+            require_geometry_change=True,
+        )
+    rotate_fan_part(frame, fan)
+    holder_clearance_cutter = (
+        create_single_fan_splitter_holder_clearance_cutter(
+            fan,
+            opening_radius,
+            plate_z0,
+            downstream_z,
+        )
+    )
+    if holder_clearance_cutter is not None:
+        boolean_difference(
+            frame,
+            [holder_clearance_cutter],
+            "Single_Fan_Splitter_Dropped_Holder_Clearance",
+            solver=ASSEMBLY_BOOLEAN_SOLVER,
+            require_geometry_change=True,
+        )
+    frame.name = "Bolt_On_Single_Fan_Airflow_Splitter"
+    frame.data.name = frame.name + "_Mesh"
+    return frame
+
+
 def support_bottom_y(fan_specs=None) -> float:
     fan_specs = fan_specs or resolve_fan_specs()
     largest_frame_size = max(fan["frame_size"] for fan in fan_specs)
@@ -1712,7 +2106,186 @@ def stalk_center_y() -> float:
     return support_bottom_y() + STALK_DEPTH_Y / 2.0 - STALK_BOTTOM_Y_OVERHANG
 
 
+def mount_stalk_center_y() -> float:
+    if STALK_DROPPED_ROUTE_ENABLED:
+        return (
+            stalk_center_y()
+            + STALK_ROUTE_DROP_Y
+            - STALK_ROUTE_RETURN_RISE_Y
+        )
+    return stalk_center_y()
+
+
+def routed_stalk_centerline():
+    z0, z1 = stalk_z_bounds()
+    low_y = stalk_center_y() - STALK_ROUTE_RETURN_RISE_Y
+    return (
+        (mount_stalk_center_y(), z0),
+        (low_y, z0 + stalk_route_transition_z(STALK_ROUTE_DROP_Y)),
+        (low_y, z1 - stalk_route_transition_z(STALK_ROUTE_RETURN_RISE_Y)),
+        (stalk_center_y(), z1),
+    )
+
+
+def routed_stalk_path_distances(points):
+    distances = [0.0]
+    for (y0, z0), (y1, z1) in zip(points, points[1:]):
+        distances.append(distances[-1] + math.hypot(y1 - y0, z1 - z0))
+    return tuple(distances)
+
+
+def effective_stalk_path_length() -> float:
+    if not STALK_DROPPED_ROUTE_ENABLED:
+        return STALK_LENGTH_Z
+    return routed_stalk_path_distances(routed_stalk_centerline())[-1]
+
+
+def routed_stalk_point_at_distance(points, distances, distance):
+    for segment_index in range(len(points) - 1):
+        segment_end = distances[segment_index + 1]
+        if distance <= segment_end + 1.0e-9:
+            segment_start = distances[segment_index]
+            segment_length = segment_end - segment_start
+            t = max(0.0, min(1.0, (distance - segment_start) / segment_length))
+            y0, z0 = points[segment_index]
+            y1, z1 = points[segment_index + 1]
+            return (
+                y0 + (y1 - y0) * t,
+                z0 + (z1 - z0) * t,
+                segment_index,
+            )
+    y, z = points[-1]
+    return (y, z, len(points) - 2)
+
+
+def routed_stalk_section_offset(points, distances, distance, segment_index):
+    half_depth = STALK_DEPTH_Y / 2.0
+    total_length = distances[-1]
+    # Keep both ends parallel to the mount/support interfaces. The intermediate
+    # sections follow the route normal so steep legs retain their full specified
+    # thickness instead of becoming thin in the load-bearing direction.
+    if math.isclose(distance, 0.0, abs_tol=1.0e-9) or math.isclose(
+        distance, total_length, abs_tol=1.0e-9
+    ):
+        return (half_depth, 0.0)
+
+    for corner_index, corner_distance in enumerate(distances[1:-1], start=1):
+        if not math.isclose(distance, corner_distance, abs_tol=1.0e-9):
+            continue
+        before_y = points[corner_index][0] - points[corner_index - 1][0]
+        before_z = points[corner_index][1] - points[corner_index - 1][1]
+        after_y = points[corner_index + 1][0] - points[corner_index][0]
+        after_z = points[corner_index + 1][1] - points[corner_index][1]
+        before_length = math.hypot(before_y, before_z)
+        after_length = math.hypot(after_y, after_z)
+        before_normal = (before_z / before_length, -before_y / before_length)
+        after_normal = (after_z / after_length, -after_y / after_length)
+        miter_y = before_normal[0] + after_normal[0]
+        miter_z = before_normal[1] + after_normal[1]
+        miter_length = math.hypot(miter_y, miter_z)
+        miter_y /= miter_length
+        miter_z /= miter_length
+        miter_projection = (
+            miter_y * before_normal[0] + miter_z * before_normal[1]
+        )
+        miter_scale = half_depth / miter_projection
+        return (miter_y * miter_scale, miter_z * miter_scale)
+
+    y0, z0 = points[segment_index]
+    y1, z1 = points[segment_index + 1]
+    segment_length = math.hypot(y1 - y0, z1 - z0)
+    return (
+        half_depth * (z1 - z0) / segment_length,
+        -half_depth * (y1 - y0) / segment_length,
+    )
+
+
+def routed_stalk_half_width(distance: float, total_length: float) -> float:
+    half_stalk_width = STALK_WIDTH / 2.0
+    if not stalk_end_flares_active():
+        return half_stalk_width
+
+    if distance < STALK_MOUNT_FLARE_LENGTH_Z:
+        t = distance / STALK_MOUNT_FLARE_LENGTH_Z
+        return MOUNT_BLOCK_WIDTH / 2.0 + (
+            half_stalk_width - MOUNT_BLOCK_WIDTH / 2.0
+        ) * t
+    if distance > total_length - STALK_HUB_FLARE_LENGTH_Z:
+        t = (
+            distance - (total_length - STALK_HUB_FLARE_LENGTH_Z)
+        ) / STALK_HUB_FLARE_LENGTH_Z
+        return half_stalk_width + (
+            STALK_HUB_FLARE_WIDTH / 2.0 - half_stalk_width
+        ) * t
+    return half_stalk_width
+
+
+def create_routed_stalk():
+    points = routed_stalk_centerline()
+    distances = routed_stalk_path_distances(points)
+    total_length = distances[-1]
+    section_distance_candidates = [0.0, *distances[1:-1], total_length]
+    if stalk_end_flares_active():
+        mount_flare_end = STALK_MOUNT_FLARE_LENGTH_Z
+        hub_flare_start = total_length - STALK_HUB_FLARE_LENGTH_Z
+        # A route-normal section very near a flush end would protrude through
+        # that end's mounting plane. When a flare fits entirely inside a sloped
+        # end leg, let it taper across the whole leg between the already-needed
+        # endpoint/corner sections instead.
+        if mount_flare_end >= distances[1]:
+            section_distance_candidates.append(mount_flare_end)
+        if hub_flare_start <= distances[-2]:
+            section_distance_candidates.append(hub_flare_start)
+    section_distances = []
+    for distance in sorted(section_distance_candidates):
+        if not section_distances or not math.isclose(
+            distance, section_distances[-1], abs_tol=1.0e-9
+        ):
+            section_distances.append(distance)
+
+    vertices = []
+    for distance in section_distances:
+        center_y, center_z, segment_index = routed_stalk_point_at_distance(
+            points, distances, distance
+        )
+        offset_y, offset_z = routed_stalk_section_offset(
+            points, distances, distance, segment_index
+        )
+        half_width = routed_stalk_half_width(distance, total_length)
+        vertices.extend(
+            (
+                (-half_width, center_y - offset_y, center_z - offset_z),
+                (half_width, center_y - offset_y, center_z - offset_z),
+                (half_width, center_y + offset_y, center_z + offset_z),
+                (-half_width, center_y + offset_y, center_z + offset_z),
+            )
+        )
+
+    section_count = len(section_distances)
+    faces = []
+    for section in range(section_count - 1):
+        current = section * 4
+        following = (section + 1) * 4
+        for corner in range(4):
+            next_corner = (corner + 1) % 4
+            faces.append(
+                [
+                    current + corner,
+                    following + corner,
+                    following + next_corner,
+                    current + next_corner,
+                ]
+            )
+    faces.append([3, 2, 1, 0])
+    last = (section_count - 1) * 4
+    faces.append([last, last + 1, last + 2, last + 3])
+    return create_mesh_object("Mount_Stalk_Dropped_Return", vertices, faces)
+
+
 def create_stalk():
+    if STALK_DROPPED_ROUTE_ENABLED:
+        return create_routed_stalk()
+
     z0, z1 = stalk_z_bounds()
     if stalk_end_flares_active():
         half_stalk_width = STALK_WIDTH / 2.0
@@ -1743,13 +2316,13 @@ def create_stalk():
 
 
 def mount_block_center_z() -> float:
-    top_z = attachment_plane_z() - STALK_LENGTH_Z + MOUNT_BLOCK_OVERLAP
+    top_z = stalk_z_bounds()[0] + MOUNT_BLOCK_OVERLAP
     return top_z - MOUNT_BLOCK_HEIGHT_Z / 2.0
 
 
 def create_mount_block():
     center_z = mount_block_center_z()
-    center_y = stalk_center_y()
+    center_y = mount_stalk_center_y()
     block = add_box(
         "Dual_Hole_Mount_Block",
         (MOUNT_BLOCK_WIDTH, MOUNT_BLOCK_DEPTH_Y, MOUNT_BLOCK_HEIGHT_Z),
@@ -1829,7 +2402,7 @@ def gopro_prong_profile(root_y: float, pivot_y: float, pivot_z: float):
 def create_gopro_adapter():
     mount_hole_z = mount_block_center_z()
     mating_y = (
-        stalk_center_y()
+        mount_stalk_center_y()
         - MOUNT_BLOCK_DEPTH_Y / 2.0
         - GOPRO_ADAPTER_MATING_GAP
     )
@@ -2067,6 +2640,11 @@ def remove_opposed_coincident_faces(obj) -> int:
 def triangulate_mesh(obj) -> None:
     bm = bmesh.new()
     bm.from_mesh(obj.data)
+    bmesh.ops.remove_doubles(
+        bm,
+        verts=list(bm.verts),
+        dist=TRIANGULATION_WELD_DISTANCE,
+    )
     bmesh.ops.triangulate(
         bm,
         faces=list(bm.faces),
@@ -2105,6 +2683,10 @@ def default_holder_stl_path(fan_specs) -> str:
     return f"gopro_{count_label}_fan_{size_label}mm_parametric.stl"
 
 
+def default_airflow_splitter_stl_path(fan) -> str:
+    return f"gopro_single_fan_{fan['size']:g}mm_airflow_splitter.stl"
+
+
 def world_z_bounds(obj):
     corners = (obj.matrix_world @ Vector(corner) for corner in obj.bound_box)
     z_values = [corner.z for corner in corners]
@@ -2139,12 +2721,17 @@ def validate_rear_grill_print_plane(parts, contact_parts, fan_specs) -> None:
             raise RuntimeError(
                 f"{label} ends at Z={maximum_z:.6f}, expected {plane_z:.6f}"
             )
+    support_strategy = (
+        "external_removable_supports_for_dropped_route"
+        if STALK_DROPPED_ROUTE_ENABLED
+        else "coplanar_base_and_45deg_receiver_flare"
+    )
     print(
         "REAR_GRILL_PRINT_PLANE PASS "
         f"plane_z={plane_z:.2f}mm fan_rotations=zero "
         f"contacts={','.join(label for label, _ in contact_parts)} "
         "orientation=rear_face_down "
-        "support_strategy=coplanar_base_and_45deg_receiver_flare"
+        f"support_strategy={support_strategy}"
     )
 
 
@@ -2161,16 +2748,19 @@ def build_dual_fan():
     set_units()
 
     parts = []
+    wire_slot_extent_parts = []
     print_plane_contacts = []
     if SUPPORT_ENABLED:
         support = create_support(fan_specs)
         parts.append(support)
+        wire_slot_extent_parts.append(support)
         print_plane_contacts.append(("support", support))
 
     for fan in fan_specs:
         cage = create_fan_cage(fan)
         rotate_fan_part(cage, fan)
         parts.append(cage)
+        wire_slot_extent_parts.append(cage)
         print_plane_contacts.append((f"fan_{fan['index']}_grille", cage))
 
     if STALK_ENABLED:
@@ -2180,9 +2770,19 @@ def build_dual_fan():
     if MOUNT_BLOCK_ENABLED:
         parts.append(create_mount_block())
     gopro_adapter = create_gopro_adapter() if GOPRO_ADAPTER_ENABLED else None
-    assembly_vertices = tuple(
+    airflow_splitter = (
+        create_single_fan_airflow_splitter(fan_specs[0])
+        if SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED
+        else None
+    )
+    # The bottom wire-slot recut must follow the fan cages and shared support,
+    # but a dropped stalk/receiver can extend much farther in fan-local Y. Do
+    # not let that unrelated geometry lengthen the cutter through the holder.
+    wire_slot_extent_vertices = tuple(
         part.matrix_world @ vertex.co
-        for part in parts
+        for part in (
+            wire_slot_extent_parts if STALK_DROPPED_ROUTE_ENABLED else parts
+        )
         for vertex in part.data.vertices
     )
 
@@ -2198,7 +2798,9 @@ def build_dual_fan():
                 solver=ASSEMBLY_BOOLEAN_SOLVER,
                 require_geometry_change=True,
             )
-        recut_assembled_fan_wire_slots(final, fan_specs, assembly_vertices)
+        recut_assembled_fan_wire_slots(
+            final, fan_specs, wire_slot_extent_vertices
+        )
         count_label = {1: "Single", 2: "Dual", 3: "Triple"}[FAN_COUNT]
         final.name = f"Parametric_{count_label}_Fan_Holder"
         final.data.name = final.name + "_Mesh"
@@ -2207,10 +2809,14 @@ def build_dual_fan():
         final = parts[0]
         holder_objects = parts
         for part in holder_objects:
-            recut_assembled_fan_wire_slots(part, fan_specs, assembly_vertices)
+            recut_assembled_fan_wire_slots(
+                part, fan_specs, wire_slot_extent_vertices
+            )
     final_objects = list(holder_objects)
     if gopro_adapter is not None:
         final_objects.append(gopro_adapter)
+    if airflow_splitter is not None:
+        final_objects.append(airflow_splitter)
     for part in final_objects:
         part.select_set(True)
 
@@ -2226,15 +2832,45 @@ def build_dual_fan():
             f"non_manifold_edges={count} connected_shells={shells} "
             f"removed_coincident_faces={removed_faces}"
         )
-        if UNION_ALL_PARTS and count:
+        if count:
             raise RuntimeError(f"{obj.name} has {count} non-manifold edges")
-        if UNION_ALL_PARTS and shells != 1:
+        if shells != 1:
             raise RuntimeError(f"{obj.name} has {shells} disconnected shells")
 
     print(f"MATERIAL_MODE={MATERIAL_MODE}")
     print(f"FAN_GRILL_POSITION={'BACK' if FAN_GRILL_ON_BACK else 'FRONT'}")
     print(f"STALK_END_FLARES_ACTIVE={stalk_end_flares_active()}")
+    if STALK_DROPPED_ROUTE_ENABLED:
+        print(
+            "STALK_ROUTE=DROPPED_RETURN "
+            f"drop={STALK_ROUTE_DROP_Y:.2f}mm "
+            f"straight_back={STALK_ROUTE_BACK_Z:.2f}mm "
+            f"return_rise={STALK_ROUTE_RETURN_RISE_Y:.2f}mm "
+            f"transition_angle={STALK_ROUTE_TRANSITION_ANGLE_DEG:.2f}deg "
+            f"fan_center_lowering={STALK_ROUTE_DROP_Y - STALK_ROUTE_RETURN_RISE_Y:.2f}mm "
+            "external_supports=recommended"
+        )
+    else:
+        print("STALK_ROUTE=STRAIGHT")
     print(f"FAN_COUNT={FAN_COUNT}")
+    if airflow_splitter is not None:
+        clearance_notch = (
+            "enabled"
+            if FAN_GRILL_ON_BACK and STALK_DROPPED_ROUTE_ENABLED
+            else "disabled"
+        )
+        print(
+            "SINGLE_FAN_AIRFLOW_SPLITTER=ENABLED "
+            f"outlet_angle_per_side={SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG:.2f}deg "
+            f"vane_length={SINGLE_FAN_SPLITTER_VANE_LENGTH_Z:.2f}mm "
+            f"opening={single_fan_splitter_opening_diameter(fan_specs[0]):.2f}mm "
+            f"mount_face_z={single_fan_splitter_mount_face_z(fan_specs[0]):.2f}mm "
+            f"holder_clearance_notch={clearance_notch} "
+            "mount=standard_four_hole airflow=toward_cameras material=RIGID "
+            "print_orientation=mount_face_down"
+        )
+    else:
+        print("SINGLE_FAN_AIRFLOW_SPLITTER=DISABLED")
     for fan in fan_specs:
         print(
             f"FAN_{fan['index']} reference={fan['reference']} "
@@ -2269,6 +2905,17 @@ def build_dual_fan():
         if gopro_adapter is not None:
             adapter_path = export_stl([gopro_adapter], EXPORT_ADAPTER_STL_PATH)
             print(f"Wrote rigid adapter {adapter_path}")
+        if airflow_splitter is not None:
+            splitter_output_path = (
+                EXPORT_AIRFLOW_SPLITTER_STL_PATH
+                if EXPORT_AIRFLOW_SPLITTER_STL_PATH is not None
+                else default_airflow_splitter_stl_path(fan_specs[0])
+            )
+            splitter_path = export_stl(
+                [airflow_splitter],
+                splitter_output_path,
+            )
+            print(f"Wrote airflow splitter {splitter_path}")
 
     select_only(final)
     return final
