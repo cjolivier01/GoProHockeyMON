@@ -16,6 +16,8 @@ the print bed.  Set it to ``False`` for the original front-grille layout.
 fans relative to the GoPro receiver. For a single fan,
 ``SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED`` also creates a separate standard-hole
 splitter-vane module that redirects center airflow toward left/right cameras.
+``STALK_LATERAL_DEFLECTION_X`` shifts the fan array sideways from the receiver
+and angles the stalk between them; zero retains the centered arrangement.
 
 Axes:
     X - across the fan array
@@ -261,6 +263,11 @@ SUPPORT_ARM_SECTIONS = 10
 # Stalk projecting from the support toward the camera mount.
 STALK_ENABLED = True
 STALK_LENGTH_Z = 46.2
+# Signed lateral offset from the mounting-block centerline to the fan/support
+# centerline. The stalk angle is derived from this amount and its effective
+# length, so the same offset produces a greater angle on a shorter stalk.
+# Positive values shift the fan array toward +X; zero keeps it centered.
+STALK_LATERAL_DEFLECTION_X = 0.0
 STALK_BOTTOM_Y_OVERHANG = 0.5
 # Route the stalk downward from the GoPro receiver, rearward behind the camera
 # plane, then slightly upward into the fan support. With DROP_Y greater than
@@ -458,6 +465,11 @@ def support_hub_width() -> float:
     return SUPPORT_HUB_WIDTH_PER_FAN * FAN_COUNT
 
 
+def fan_assembly_center_x() -> float:
+    """Return the fan/support centerline relative to the receiver centerline."""
+    return float(STALK_LATERAL_DEFLECTION_X)
+
+
 def single_fan_splitter_opening_diameter(fan) -> float:
     hole_radius = (fan["hole_diameter"] + SINGLE_FAN_SPLITTER_HOLE_CLEARANCE) / 2.0
     hole_center_radius = math.sqrt(2.0) * fan["hole_spacing"] / 2.0
@@ -504,7 +516,8 @@ def resolve_fan_specs():
             )
         preset = FAN_PRESETS[int(size)]
         scale = size / FAN_REFERENCE_SIZE_MM
-        center_x = cursor_x + size / 2.0
+        array_center_x = cursor_x + size / 2.0
+        center_x = fan_assembly_center_x() + array_center_x
         cavity_size = size + 2.0 * FAN_BODY_CLEARANCE_PER_SIDE
         hole_spacing = float(preset["hole_spacing"])
         hole_center_radius = math.sqrt(2.0) * hole_spacing / 2.0
@@ -528,6 +541,7 @@ def resolve_fan_specs():
                 "depth": float(preset["depth"]),
                 "reference": preset["reference"],
                 "center_x": center_x,
+                "array_center_x": array_center_x,
                 "rotation": tuple(float(value) for value in rotation),
                 "cavity_size": cavity_size,
                 "frame_size": cavity_size + 2.0 * FAN_FRAME_WALL,
@@ -633,6 +647,9 @@ def validate_config() -> None:
     for name, value in positive.items():
         if value <= 0:
             raise ValueError(f"{name} must be positive")
+
+    if not math.isfinite(STALK_LATERAL_DEFLECTION_X):
+        raise ValueError("STALK_LATERAL_DEFLECTION_X must be finite")
 
     boolean_options = {
         "FAN_GRILL_ON_BACK": FAN_GRILL_ON_BACK,
@@ -892,9 +909,9 @@ def create_mesh_object(name: str, vertices, faces):
 
 
 def fan_inward_sign(fan) -> float:
-    if fan["center_x"] < -1.0e-9:
+    if fan["array_center_x"] < -1.0e-9:
         return 1.0
-    if fan["center_x"] > 1.0e-9:
+    if fan["array_center_x"] > 1.0e-9:
         return -1.0
     return 0.0
 
@@ -2079,17 +2096,21 @@ def create_support(fan_specs):
     bottom_y = support_bottom_y(fan_specs)
     top_y = support_hub_top_y(fan_specs)
     hub_width = support_hub_width()
+    center_x = fan_assembly_center_x()
     loop = [
-        (-hub_width / 2.0, bottom_y),
-        (hub_width / 2.0, bottom_y),
-        (hub_width / 2.0, top_y),
-        (-hub_width / 2.0, top_y),
+        (center_x - hub_width / 2.0, bottom_y),
+        (center_x + hub_width / 2.0, bottom_y),
+        (center_x + hub_width / 2.0, top_y),
+        (center_x - hub_width / 2.0, top_y),
     ]
     support_z0, support_z1 = support_z_bounds()
     hub = polygon_prism("Fan_Support_Hub", loop, support_z0, support_z1)
     center_index = (len(fan_specs) - 1) / 2.0
     for zero_based_index, fan in enumerate(fan_specs):
-        start_x = (zero_based_index - center_index) * SUPPORT_ARM_START_PITCH_X
+        start_x = (
+            center_x
+            + (zero_based_index - center_index) * SUPPORT_ARM_START_PITCH_X
+        )
         arm = create_twisted_support_arm(
             f"Fan_{fan['index']}_Twisted_Support",
             fan,
@@ -2138,6 +2159,19 @@ def effective_stalk_path_length() -> float:
     if not STALK_DROPPED_ROUTE_ENABLED:
         return STALK_LENGTH_Z
     return routed_stalk_path_distances(routed_stalk_centerline())[-1]
+
+
+def stalk_center_x_at_distance(distance: float, total_length: float) -> float:
+    if total_length <= 0.0:
+        return 0.0
+    return fan_assembly_center_x() * distance / total_length
+
+
+def stalk_lateral_angle_deg() -> float:
+    """Return the signed plan-view angle from receiver to fan centerline."""
+    return math.degrees(
+        math.atan2(STALK_LATERAL_DEFLECTION_X, effective_stalk_path_length())
+    )
 
 
 def routed_stalk_point_at_distance(points, distances, distance):
@@ -2245,6 +2279,7 @@ def create_routed_stalk():
 
     vertices = []
     for distance in section_distances:
+        center_x = stalk_center_x_at_distance(distance, total_length)
         center_y, center_z, segment_index = routed_stalk_point_at_distance(
             points, distances, distance
         )
@@ -2254,10 +2289,10 @@ def create_routed_stalk():
         half_width = routed_stalk_half_width(distance, total_length)
         vertices.extend(
             (
-                (-half_width, center_y - offset_y, center_z - offset_z),
-                (half_width, center_y - offset_y, center_z - offset_z),
-                (half_width, center_y + offset_y, center_z + offset_z),
-                (-half_width, center_y + offset_y, center_z + offset_z),
+                (center_x - half_width, center_y - offset_y, center_z - offset_z),
+                (center_x + half_width, center_y - offset_y, center_z - offset_z),
+                (center_x + half_width, center_y + offset_y, center_z + offset_z),
+                (center_x - half_width, center_y + offset_y, center_z + offset_z),
             )
         )
 
@@ -2287,19 +2322,26 @@ def create_stalk():
         return create_routed_stalk()
 
     z0, z1 = stalk_z_bounds()
+    length_z = z1 - z0
+
+    def center_x(z: float) -> float:
+        return fan_assembly_center_x() * (z - z0) / length_z
+
     if stalk_end_flares_active():
         half_stalk_width = STALK_WIDTH / 2.0
         half_hub_flare_width = STALK_HUB_FLARE_WIDTH / 2.0
         half_mount_width = MOUNT_BLOCK_WIDTH / 2.0
+        mount_flare_z = z0 + STALK_MOUNT_FLARE_LENGTH_Z
+        hub_flare_z = z1 - STALK_HUB_FLARE_LENGTH_Z
         profile = [
             (-half_mount_width, z0),
             (half_mount_width, z0),
-            (half_stalk_width, z0 + STALK_MOUNT_FLARE_LENGTH_Z),
-            (half_stalk_width, z1 - STALK_HUB_FLARE_LENGTH_Z),
-            (half_hub_flare_width, z1),
-            (-half_hub_flare_width, z1),
-            (-half_stalk_width, z1 - STALK_HUB_FLARE_LENGTH_Z),
-            (-half_stalk_width, z0 + STALK_MOUNT_FLARE_LENGTH_Z),
+            (center_x(mount_flare_z) + half_stalk_width, mount_flare_z),
+            (center_x(hub_flare_z) + half_stalk_width, hub_flare_z),
+            (fan_assembly_center_x() + half_hub_flare_width, z1),
+            (fan_assembly_center_x() - half_hub_flare_width, z1),
+            (center_x(hub_flare_z) - half_stalk_width, hub_flare_z),
+            (center_x(mount_flare_z) - half_stalk_width, mount_flare_z),
         ]
         center_y = stalk_center_y()
         return xz_polygon_prism(
@@ -2308,10 +2350,17 @@ def create_stalk():
             center_y - STALK_DEPTH_Y / 2.0,
             center_y + STALK_DEPTH_Y / 2.0,
         )
-    return add_box(
+    half_stalk_width = STALK_WIDTH / 2.0
+    return xz_polygon_prism(
         "Mount_Stalk",
-        (STALK_WIDTH, STALK_DEPTH_Y, z1 - z0),
-        (0.0, stalk_center_y(), (z0 + z1) / 2.0),
+        [
+            (-half_stalk_width, z0),
+            (half_stalk_width, z0),
+            (fan_assembly_center_x() + half_stalk_width, z1),
+            (fan_assembly_center_x() - half_stalk_width, z1),
+        ],
+        stalk_center_y() - STALK_DEPTH_Y / 2.0,
+        stalk_center_y() + STALK_DEPTH_Y / 2.0,
     )
 
 
@@ -2852,6 +2901,13 @@ def build_dual_fan():
         )
     else:
         print("STALK_ROUTE=STRAIGHT")
+    print(
+        "STALK_LATERAL_DEFLECTION "
+        f"offset_x={STALK_LATERAL_DEFLECTION_X:.2f}mm "
+        f"angle={stalk_lateral_angle_deg():.2f}deg "
+        "mount_center_x=0.00mm "
+        f"fan_center_x={fan_assembly_center_x():.2f}mm"
+    )
     print(f"FAN_COUNT={FAN_COUNT}")
     if airflow_splitter is not None:
         clearance_notch = (

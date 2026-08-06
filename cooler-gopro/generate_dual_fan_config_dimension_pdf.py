@@ -157,6 +157,7 @@ EXACT_DESCRIPTIONS = {
     "STALK_ROUTE_DROP_Y": "Downward travel after the receiver when the routed stalk is enabled.",
     "STALK_ROUTE_BACK_Z": "Straight rearward leg between the routed stalk transitions.",
     "STALK_ROUTE_RETURN_RISE_Y": "Upward return into the fan support at the routed stalk end.",
+    "STALK_LATERAL_DEFLECTION_X": "Signed fan/support offset from the mounting-block centerline; zero is inline, and shorter stalks produce a greater angle for the same offset.",
     "SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG": "Outward airflow angle of each splitter vane from the fan axis.",
     "SINGLE_FAN_SPLITTER_VANE_LENGTH_Z": "Camera-facing axial length of the two airflow vanes.",
     "SUPPORT_HUB_WIDTH_OVERRIDE": "Optional explicit support-hub width; None uses width-per-fan times fan count.",
@@ -392,7 +393,11 @@ def view_for(name: str) -> str:
             return "support_side"
         return "support_front"
     if root.startswith("STALK_"):
-        if root in {"STALK_WIDTH", "STALK_HUB_FLARE_WIDTH"}:
+        if root in {
+            "STALK_WIDTH",
+            "STALK_HUB_FLARE_WIDTH",
+            "STALK_LATERAL_DEFLECTION_X",
+        }:
             return "stalk_front"
         return "stalk_side"
     if root.startswith("MOUNT_"):
@@ -550,7 +555,7 @@ VIEW_TITLES = {
     "fan_side": "FAN CAGE / WIRE EXIT — ACTUAL SIDE PROJECTION",
     "support_front": "TWISTED SUPPORT + HUB — ACTUAL FRONT PROJECTION",
     "support_side": "TWISTED SUPPORT THICKNESS — ACTUAL SIDE PROJECTION",
-    "stalk_front": "STALK AND FLARE WIDTHS — ACTUAL XZ PROJECTION",
+    "stalk_front": "STALK LATERAL OFFSET AND FLARE WIDTHS — ACTUAL XZ PROJECTION",
     "stalk_side": "STRAIGHT + LOWERED STALK ROUTES — ACTUAL ASSEMBLY REFERENCE",
     "mount_detail": "TWO-HOLE RECEIVER — ACTUAL ORTHOGRAPHIC PROJECTION",
     "mount_side": "TWO-HOLE RECEIVER DEPTH — ACTUAL SIDE PROJECTION",
@@ -757,7 +762,11 @@ def resolved_fan_specs(count: int | None = None):
     specs = []
     for index, size in enumerate(sizes):
         preset = STANDARD_FAN_PRESETS[int(size)]
-        center_x = cursor + size / 2.0
+        center_x = (
+            float(C["STALK_LATERAL_DEFLECTION_X"])
+            + cursor
+            + size / 2.0
+        )
         scale = size / float(C["FAN_REFERENCE_SIZE_MM"])
         cavity = size + 2.0 * float(C["FAN_BODY_CLEARANCE_PER_SIDE"])
         frame = cavity + 2.0 * float(C["FAN_FRAME_WALL"])
@@ -815,6 +824,8 @@ def support_datums():
         "stalk_z0": stalk_z[0],
         "stalk_z1": stalk_z[1],
         "stalk_y": stalk_y,
+        "fan_center_x": float(C["STALK_LATERAL_DEFLECTION_X"]),
+        "mount_center_x": 0.0,
     }
 
 
@@ -1749,29 +1760,30 @@ def draw_support_annotation(ax, entry, index, bounds, color):
     datums = support_datums()
     label = annotation_label(entry, index)
     width = datums["width"]
+    support_center_x = datums["fan_center_x"]
     bottom = datums["bottom_y"]
     top = datums["top_y"]
-    ax.add_patch(Rectangle((-width / 2.0, bottom), width, top - bottom, fill=False, edgecolor=PURPLE, linewidth=1.0, zorder=15))
+    ax.add_patch(Rectangle((support_center_x - width / 2.0, bottom), width, top - bottom, fill=False, edgecolor=PURPLE, linewidth=1.0, zorder=15))
     if name == "SUPPORT_HUB_WIDTH_PER_FAN":
         value = float(entry.value)
-        horizontal_dimension(ax, -width / 2.0, -width / 2.0 + value, bottom, bottom - 8.0, label, color)
+        horizontal_dimension(ax, support_center_x - width / 2.0, support_center_x - width / 2.0 + value, bottom, bottom - 8.0, label, color)
         return True
     if name == "SUPPORT_HUB_WIDTH_OVERRIDE":
-        horizontal_dimension(ax, -width / 2.0, width / 2.0, bottom, bottom - 8.0, label, color)
+        horizontal_dimension(ax, support_center_x - width / 2.0, support_center_x + width / 2.0, bottom, bottom - 8.0, label, color)
         return True
     if name == "SUPPORT_HUB_BELOW_FAN_Y":
         fan_bottom = -max(spec["frame"] for spec in resolved_fan_specs()) / 2.0
         # Keep this long rotated label outside both hub-width labels below the
         # part; same-orientation rail staggering cannot prevent that crossing.
-        vertical_dimension(ax, bottom, fan_bottom, -width / 2.0, bounds[0] - 8.0, label, color)
+        vertical_dimension(ax, bottom, fan_bottom, support_center_x - width / 2.0, bounds[0] - 8.0, label, color)
         return True
     if name == "SUPPORT_ARM_START_PITCH_X":
         pitch = float(entry.value)
-        horizontal_dimension(ax, -pitch / 2.0, pitch / 2.0, top - float(C["SUPPORT_ARM_HUB_INSERT_Y"]), bottom - 8.0, label, color)
+        horizontal_dimension(ax, support_center_x - pitch / 2.0, support_center_x + pitch / 2.0, top - float(C["SUPPORT_ARM_HUB_INSERT_Y"]), bottom - 8.0, label, color)
         return True
     if name == "SUPPORT_ARM_HUB_INSERT_Y":
         value = float(entry.value)
-        vertical_dimension(ax, top - value, top, float(C["SUPPORT_ARM_START_PITCH_X"]) / 2.0, width / 2.0 + 8.0, label, color)
+        vertical_dimension(ax, top - value, top, support_center_x + float(C["SUPPORT_ARM_START_PITCH_X"]) / 2.0, support_center_x + width / 2.0 + 8.0, label, color)
         return True
     if name == "SUPPORT_ARM_FAN_INSERT_Y_AT_REFERENCE":
         ref_bottom = -float(C["FAN_REFERENCE_SIZE_MM"]) / 2.0
@@ -1783,14 +1795,14 @@ def draw_support_annotation(ax, entry, index, bounds, color):
         vertical_dimension(ax, ref_bottom, ref_bottom + applied, center_x, bounds[2] + 8.0, label + f"  → {fmt(applied)} mm APPLIED @ 60 mm REF", color)
         return True
     if name == "SUPPORT_HUB_DEPTH_Y":
-        vertical_dimension(ax, bottom, top, width / 2.0, width / 2.0 + 8.0, label, color)
+        vertical_dimension(ax, bottom, top, support_center_x + width / 2.0, support_center_x + width / 2.0 + 8.0, label, color)
         return True
     if name in {"SUPPORT_ARM_CENTER_WIDTH", "SUPPORT_ARM_FAN_WIDTH"}:
         value = float(entry.value)
         spec = resolved_fan_specs()[0]
         applied = value * spec["scale"]
         if name == "SUPPORT_ARM_CENTER_WIDTH":
-            center_x = -float(C["SUPPORT_ARM_START_PITCH_X"]) / 2.0
+            center_x = support_center_x - float(C["SUPPORT_ARM_START_PITCH_X"]) / 2.0
             witness_y = top - float(C["SUPPORT_ARM_HUB_INSERT_Y"])
         else:
             center_x = spec["center_x"] + float(C["FAN_ROTATION_PIVOT_INWARD_X_AT_REFERENCE"]) * spec["scale"]
@@ -1819,23 +1831,47 @@ def draw_stalk_front_annotation(ax, entry, index, bounds, color):
     stalk_width = float(C["STALK_WIDTH"])
     hub_width = float(C["STALK_HUB_FLARE_WIDTH"])
     mount_width = float(C["MOUNT_BLOCK_WIDTH"])
+    deflection = float(C["STALK_LATERAL_DEFLECTION_X"])
+
+    def center_x(z):
+        return deflection * (z - z0) / (z1 - z0)
+
+    mount_flare_z = z0 + float(C["STALK_MOUNT_FLARE_LENGTH_Z"])
+    hub_flare_z = z1 - float(C["STALK_HUB_FLARE_LENGTH_Z"])
     profile = [
         (-mount_width / 2.0, z0),
         (mount_width / 2.0, z0),
-        (stalk_width / 2.0, z0 + float(C["STALK_MOUNT_FLARE_LENGTH_Z"])),
-        (stalk_width / 2.0, z1 - float(C["STALK_HUB_FLARE_LENGTH_Z"])),
-        (hub_width / 2.0, z1),
-        (-hub_width / 2.0, z1),
-        (-stalk_width / 2.0, z1 - float(C["STALK_HUB_FLARE_LENGTH_Z"])),
-        (-stalk_width / 2.0, z0 + float(C["STALK_MOUNT_FLARE_LENGTH_Z"])),
+        (center_x(mount_flare_z) + stalk_width / 2.0, mount_flare_z),
+        (center_x(hub_flare_z) + stalk_width / 2.0, hub_flare_z),
+        (deflection + hub_width / 2.0, z1),
+        (deflection - hub_width / 2.0, z1),
+        (center_x(hub_flare_z) - stalk_width / 2.0, hub_flare_z),
+        (center_x(mount_flare_z) - stalk_width / 2.0, mount_flare_z),
     ]
     ax.add_patch(Polygon(profile, closed=True, facecolor="#d9eaf1", edgecolor=PURPLE, linewidth=1.1, alpha=0.85, zorder=15))
+    ax.plot((0.0, deflection), (z0, z1), color=GRAY, linewidth=0.75, linestyle="--", zorder=16)
     if name == "STALK_HUB_FLARE_WIDTH":
-        horizontal_dimension(ax, -hub_width / 2.0, hub_width / 2.0, z1, z1 + 8.0, annotation_label(entry, index), color)
+        horizontal_dimension(ax, deflection - hub_width / 2.0, deflection + hub_width / 2.0, z1, z1 + 8.0, annotation_label(entry, index), color)
         return True
     if name == "STALK_WIDTH":
         sample_z = (z0 + z1) / 2.0
-        horizontal_dimension(ax, -stalk_width / 2.0, stalk_width / 2.0, sample_z, z0 - 8.0, annotation_label(entry, index), color)
+        sample_x = center_x(sample_z)
+        horizontal_dimension(ax, sample_x - stalk_width / 2.0, sample_x + stalk_width / 2.0, sample_z, z0 - 8.0, annotation_label(entry, index), color)
+        return True
+    if name == "STALK_LATERAL_DEFLECTION_X":
+        horizontal_dimension(ax, 0.0, deflection, z1, z1 + 8.0, annotation_label(entry, index), color)
+        angle = math.degrees(math.atan2(deflection, float(C["STALK_LENGTH_Z"])))
+        ax.text(
+            deflection / 2.0,
+            (z0 + z1) / 2.0,
+            f"DERIVED PLAN ANGLE = {fmt(angle)}°",
+            fontsize=4.8,
+            color=color,
+            weight="bold",
+            ha="center",
+            bbox={"boxstyle": "round,pad=0.16", "facecolor": WHITE, "edgecolor": color, "linewidth": 0.5},
+            zorder=30,
+        )
         return True
     return False
 
