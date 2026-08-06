@@ -650,6 +650,14 @@ def validate_config() -> None:
 
     if not math.isfinite(STALK_LATERAL_DEFLECTION_X):
         raise ValueError("STALK_LATERAL_DEFLECTION_X must be finite")
+    if (
+        not math.isclose(STALK_LATERAL_DEFLECTION_X, 0.0, abs_tol=1.0e-12)
+        and (not STALK_ENABLED or not MOUNT_BLOCK_ENABLED or not SUPPORT_ENABLED)
+    ):
+        raise ValueError(
+            "STALK_LATERAL_DEFLECTION_X requires the stalk, mount block, "
+            "and fan support"
+        )
 
     boolean_options = {
         "FAN_GRILL_ON_BACK": FAN_GRILL_ON_BACK,
@@ -857,6 +865,26 @@ def validate_config() -> None:
             raise ValueError(
                 "STALK_MOUNT_FLARE_LENGTH_Z must provide a 45-degree or "
                 "shallower receiver transition"
+            )
+    if STALK_ENABLED:
+        compensated_stalk_width = STALK_WIDTH * stalk_lateral_width_scale()
+        if MOUNT_BLOCK_ENABLED and compensated_stalk_width > MOUNT_BLOCK_WIDTH:
+            raise ValueError(
+                "STALK_LATERAL_DEFLECTION_X and the effective stalk length "
+                f"require {compensated_stalk_width:.3f} mm of global-X stalk "
+                f"width, exceeding MOUNT_BLOCK_WIDTH={MOUNT_BLOCK_WIDTH:.3f} mm"
+            )
+        support_interface_width = (
+            STALK_HUB_FLARE_WIDTH
+            if stalk_end_flares_active()
+            else resolved_hub_width
+        )
+        if SUPPORT_ENABLED and compensated_stalk_width > support_interface_width:
+            raise ValueError(
+                "STALK_LATERAL_DEFLECTION_X and the effective stalk length "
+                f"require {compensated_stalk_width:.3f} mm of global-X stalk "
+                "width, exceeding the support-side interface width "
+                f"{support_interface_width:.3f} mm"
             )
     if STALK_DROPPED_ROUTE_ENABLED:
         route_corner_setback = STALK_DEPTH_Y / 2.0 * math.tan(
@@ -2161,6 +2189,12 @@ def effective_stalk_path_length() -> float:
     return routed_stalk_path_distances(routed_stalk_centerline())[-1]
 
 
+def stalk_lateral_width_scale() -> float:
+    """Compensate global-X width so its centerline-normal projection is exact."""
+    path_length = effective_stalk_path_length()
+    return math.hypot(path_length, STALK_LATERAL_DEFLECTION_X) / path_length
+
+
 def stalk_center_x_at_distance(distance: float, total_length: float) -> float:
     if total_length <= 0.0:
         return 0.0
@@ -2168,7 +2202,7 @@ def stalk_center_x_at_distance(distance: float, total_length: float) -> float:
 
 
 def stalk_lateral_angle_deg() -> float:
-    """Return the signed plan-view angle from receiver to fan centerline."""
+    """Return the signed sweep angle away from the un-deflected stalk route."""
     return math.degrees(
         math.atan2(STALK_LATERAL_DEFLECTION_X, effective_stalk_path_length())
     )
@@ -2235,23 +2269,28 @@ def routed_stalk_section_offset(points, distances, distance, segment_index):
 
 
 def routed_stalk_half_width(distance: float, total_length: float) -> float:
+    width_scale = stalk_lateral_width_scale()
     half_stalk_width = STALK_WIDTH / 2.0
     if not stalk_end_flares_active():
-        return half_stalk_width
+        return half_stalk_width * width_scale
 
     if distance < STALK_MOUNT_FLARE_LENGTH_Z:
         t = distance / STALK_MOUNT_FLARE_LENGTH_Z
-        return MOUNT_BLOCK_WIDTH / 2.0 + (
-            half_stalk_width - MOUNT_BLOCK_WIDTH / 2.0
+        mount_normal_half_width = MOUNT_BLOCK_WIDTH / (2.0 * width_scale)
+        normal_half_width = mount_normal_half_width + (
+            half_stalk_width - mount_normal_half_width
         ) * t
+        return normal_half_width * width_scale
     if distance > total_length - STALK_HUB_FLARE_LENGTH_Z:
         t = (
             distance - (total_length - STALK_HUB_FLARE_LENGTH_Z)
         ) / STALK_HUB_FLARE_LENGTH_Z
-        return half_stalk_width + (
-            STALK_HUB_FLARE_WIDTH / 2.0 - half_stalk_width
+        hub_normal_half_width = STALK_HUB_FLARE_WIDTH / (2.0 * width_scale)
+        normal_half_width = half_stalk_width + (
+            hub_normal_half_width - half_stalk_width
         ) * t
-    return half_stalk_width
+        return normal_half_width * width_scale
+    return half_stalk_width * width_scale
 
 
 def create_routed_stalk():
@@ -2328,11 +2367,14 @@ def create_stalk():
         return fan_assembly_center_x() * (z - z0) / length_z
 
     if stalk_end_flares_active():
-        half_stalk_width = STALK_WIDTH / 2.0
-        half_hub_flare_width = STALK_HUB_FLARE_WIDTH / 2.0
-        half_mount_width = MOUNT_BLOCK_WIDTH / 2.0
         mount_flare_z = z0 + STALK_MOUNT_FLARE_LENGTH_Z
         hub_flare_z = z1 - STALK_HUB_FLARE_LENGTH_Z
+        half_mount_width = routed_stalk_half_width(0.0, length_z)
+        half_stalk_width = routed_stalk_half_width(
+            STALK_MOUNT_FLARE_LENGTH_Z,
+            length_z,
+        )
+        half_hub_flare_width = routed_stalk_half_width(length_z, length_z)
         profile = [
             (-half_mount_width, z0),
             (half_mount_width, z0),
@@ -2350,7 +2392,7 @@ def create_stalk():
             center_y - STALK_DEPTH_Y / 2.0,
             center_y + STALK_DEPTH_Y / 2.0,
         )
-    half_stalk_width = STALK_WIDTH / 2.0
+    half_stalk_width = routed_stalk_half_width(0.0, length_z)
     return xz_polygon_prism(
         "Mount_Stalk",
         [
@@ -2906,7 +2948,9 @@ def build_dual_fan():
         f"offset_x={STALK_LATERAL_DEFLECTION_X:.2f}mm "
         f"angle={stalk_lateral_angle_deg():.2f}deg "
         "mount_center_x=0.00mm "
-        f"fan_center_x={fan_assembly_center_x():.2f}mm"
+        f"fan_center_x={fan_assembly_center_x():.2f}mm "
+        f"normal_width={STALK_WIDTH:.2f}mm "
+        f"global_x_width={STALK_WIDTH * stalk_lateral_width_scale():.2f}mm"
     )
     print(f"FAN_COUNT={FAN_COUNT}")
     if airflow_splitter is not None:
