@@ -8,7 +8,7 @@ and explicitly marked NTS (not to scale).
 
 Run with a Python that has matplotlib, for example::
 
-    /home/colivier/miniforge3/bin/python generate_hockeymom_config_dimension_pdf.py
+    python generate_hockeymom_config_dimension_pdf.py
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 BLENDER ?= $(shell command -v blender 2>/dev/null || command -v /home/colivier/Apps/Blender/blender 2>/dev/null || printf '%s' blender)
 BLENDER_FLAGS ?= --background --factory-startup
-PDF_PYTHON ?= $(shell command -v /home/colivier/miniforge3/bin/python 2>/dev/null || command -v python3 2>/dev/null || printf '%s' python3)
+PDF_PYTHON ?= python
 
 DIMENSION_PDF := hockeymom_3_cam_cover_configuration_dimensions.pdf
 FAN_CASE_DIMENSION_PDF := gopro_fan_case_configuration_dimensions.pdf
