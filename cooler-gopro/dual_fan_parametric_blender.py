@@ -123,17 +123,17 @@ EXPORT_AIRFLOW_SPLITTER_STL_PATH = None
 
 # Structural profile for the fan holder.  The detachable GoPro adapter remains
 # a separate rigid part in every mode; only the holder dimensions and fastener
-# treatment change.  TPU_95A is deliberately stiffened by geometry instead of
+# treatment change.  TPU is deliberately stiffened by geometry instead of
 # relying on very high slicer infill.
-MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU_95A"
-# MATERIAL_MODE = "TPU_95A"
+MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
+# MATERIAL_MODE = "TPU"
 
 # Slicer guidance is informational because STL files cannot encode these
 # settings.  Five to six walls should provide at least a 2.0-2.4 mm shell.
-TPU_95A_RECOMMENDED_INFILL_PERCENT = (40, 45)
-TPU_95A_RECOMMENDED_INFILL_PATTERN = "gyroid"
-TPU_95A_RECOMMENDED_WALLS = (5, 6)
-TPU_95A_MOUNT_SCREW_EXTRA_LENGTH_MM = 4.0
+TPU_RECOMMENDED_INFILL_PERCENT = (40, 45)
+TPU_RECOMMENDED_INFILL_PATTERN = "gyroid"
+TPU_RECOMMENDED_WALLS = (5, 6)
+TPU_MOUNT_SCREW_EXTRA_LENGTH_MM = 4.0
 
 # Mesh and boolean quality.
 CYLINDER_SEGMENTS = 96
@@ -160,8 +160,8 @@ TRIANGULATION_WELD_DISTANCE = 1.0e-9
 # Fan array.  FAN_COUNT consumes the first entries from FAN_SIZES_MM and
 # FAN_ROTATIONS_DEG, so changing only FAN_COUNT selects the normal one-, two-,
 # or three-fan arrangement.  Edit an entry in FAN_SIZES_MM to mix sizes.
-FAN_COUNT = 1
-FAN_SIZES_MM = (120, 80, 60)
+FAN_COUNT = 2
+FAN_SIZES_MM = (80, 80, 60)
 FAN_ROTATIONS_DEG = (
     (0.0, 0.0, 0.0),
     (0.0, 0.0, 0.0),
@@ -182,8 +182,9 @@ FAN_GRILL_ON_BACK = True
 FAN_PRESETS = {size: dict(preset) for size, preset in STANDARD_FAN_PRESETS.items()}
 FAN_REFERENCE_SIZE_MM = 60.0
 # The original centers at +/-52.5 mm leave 45 mm between nominal 60 mm bodies.
-FAN_BODY_GAP_MM = 47.5
-FAN_FRAME_DEPTH = 14.7
+FAN_BODY_GAP_MM = 47.5 + 5.0
+#FAN_FRAME_DEPTH = 14.7
+FAN_FRAME_DEPTH = 20.0
 FAN_FRAME_CORNER_RADIUS = 2.5
 # The original rigid cavity is 60.7 mm around a nominal 60 mm fan.
 # FAN_BODY_CLEARANCE_PER_SIDE = 0.35
@@ -235,7 +236,7 @@ FAN_WIRE_SLOT_OFFSET_AT_REFERENCE = 22.0
 # remains removable and should be printed rigid. Orient the fan to exhaust
 # through this module toward the GoPro/cameras (negative Z). The outlet angle
 # is measured per side from the fan axis.
-SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED = True
+SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED = False
 SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG = 25.0
 SINGLE_FAN_SPLITTER_VANE_LENGTH_Z = 25.0
 SINGLE_FAN_SPLITTER_LEADING_EDGE_WIDTH = 2.4
@@ -268,7 +269,7 @@ STALK_LENGTH_Z = 46.2
 # centerline. The stalk angle is derived from this amount and its effective
 # length, so the same offset produces a greater angle on a shorter stalk.
 # Positive values shift the fan array toward +X; zero keeps it centered.
-STALK_LATERAL_DEFLECTION_X = 0.0
+STALK_LATERAL_DEFLECTION_X = 5.0
 STALK_BOTTOM_Y_OVERHANG = 0.5
 # Route the stalk downward from the GoPro receiver, rearward behind the camera
 # plane, then slightly upward into the fan support. With DROP_Y greater than
@@ -278,10 +279,10 @@ STALK_BOTTOM_Y_OVERHANG = 0.5
 # need removable external supports. STALK_ROUTE_BACK_Z controls the straight
 # rearward section; STALK_LENGTH_Z controls only the original straight layout.
 STALK_DROPPED_ROUTE_ENABLED = True
-STALK_ROUTE_DROP_Y = 37.0
+STALK_ROUTE_DROP_Y = 17.0
 # STALK_ROUTE_BACK_Z = 30.0
-STALK_ROUTE_BACK_Z = 60.0
-STALK_ROUTE_RETURN_RISE_Y = 15.0
+STALK_ROUTE_BACK_Z = 40.0
+STALK_ROUTE_RETURN_RISE_Y = 10.0
 STALK_ROUTE_TRANSITION_ANGLE_DEG = 70.0
 # STALK_WIDTH and STALK_DEPTH_Y are selected in MATERIAL_PROFILES.
 
@@ -341,7 +342,7 @@ GOPRO_NUT_ACROSS_FLATS = 8.0
 # complete rigid profile also lets callers switch modes between repeated builds
 # in the same Blender process without retaining TPU values.
 _RIGID_MATERIAL_PROFILE = {
-    "FAN_FRAME_WALL": 3.0,
+    "FAN_FRAME_WALL": 1.0,
     # Mixed-size layouts place cages at coordinates where Blender's EXACT
     # solver can leave tiny open triangles around otherwise valid screw holes.
     "FAN_CAGE_BOOLEAN_SOLVER": "MANIFOLD",
@@ -363,7 +364,7 @@ _RIGID_MATERIAL_PROFILE = {
 }
 MATERIAL_PROFILES = {
     "RIGID": _RIGID_MATERIAL_PROFILE,
-    "TPU_95A": {
+    "TPU": {
         **_RIGID_MATERIAL_PROFILE,
         # Per-fan outer sizes grow automatically to preserve the same 0.35 mm
         # cavity clearance when this profile selects thicker walls.
@@ -2981,19 +2982,19 @@ def build_dual_fan():
             f"frame={fan['frame_size']:.2f}mm "
             f"center_x={fan['center_x']:.2f}mm"
         )
-    if MATERIAL_MODE == "TPU_95A":
+    if MATERIAL_MODE == "TPU":
         print(
-            "TPU_95A_SLICER_GUIDANCE "
-            f"infill={TPU_95A_RECOMMENDED_INFILL_PERCENT[0]}-"
-            f"{TPU_95A_RECOMMENDED_INFILL_PERCENT[1]}% "
-            f"pattern={TPU_95A_RECOMMENDED_INFILL_PATTERN} "
-            f"walls={TPU_95A_RECOMMENDED_WALLS[0]}-"
-            f"{TPU_95A_RECOMMENDED_WALLS[1]}"
+            "TPU_SLICER_GUIDANCE "
+            f"infill={TPU_RECOMMENDED_INFILL_PERCENT[0]}-"
+            f"{TPU_RECOMMENDED_INFILL_PERCENT[1]}% "
+            f"pattern={TPU_RECOMMENDED_INFILL_PATTERN} "
+            f"walls={TPU_RECOMMENDED_WALLS[0]}-"
+            f"{TPU_RECOMMENDED_WALLS[1]}"
         )
         print("Detachable_GoPro_Adapter material=RIGID")
         print(
-            "TPU_95A_MOUNT_HARDWARE "
-            f"M3_screw_extra_length={TPU_95A_MOUNT_SCREW_EXTRA_LENGTH_MM:.1f}mm"
+            "TPU_MOUNT_HARDWARE "
+            f"M3_screw_extra_length={TPU_MOUNT_SCREW_EXTRA_LENGTH_MM:.1f}mm"
         )
 
     if EXPORT_STL:
