@@ -125,8 +125,8 @@ EXPORT_AIRFLOW_SPLITTER_STL_PATH = None
 # a separate rigid part in every mode; only the holder dimensions and fastener
 # treatment change.  TPU_95A is deliberately stiffened by geometry instead of
 # relying on very high slicer infill.
-# MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU_95A"
-MATERIAL_MODE = "TPU_95A"
+MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU_95A"
+# MATERIAL_MODE = "TPU_95A"
 
 # Slicer guidance is informational because STL files cannot encode these
 # settings.  Five to six walls should provide at least a 2.0-2.4 mm shell.
@@ -160,8 +160,8 @@ TRIANGULATION_WELD_DISTANCE = 1.0e-9
 # Fan array.  FAN_COUNT consumes the first entries from FAN_SIZES_MM and
 # FAN_ROTATIONS_DEG, so changing only FAN_COUNT selects the normal one-, two-,
 # or three-fan arrangement.  Edit an entry in FAN_SIZES_MM to mix sizes.
-FAN_COUNT = 2
-FAN_SIZES_MM = (80, 80, 60)
+FAN_COUNT = 1
+FAN_SIZES_MM = (120, 80, 60)
 FAN_ROTATIONS_DEG = (
     (0.0, 0.0, 0.0),
     (0.0, 0.0, 0.0),
@@ -186,7 +186,8 @@ FAN_BODY_GAP_MM = 47.5
 FAN_FRAME_DEPTH = 14.7
 FAN_FRAME_CORNER_RADIUS = 2.5
 # The original rigid cavity is 60.7 mm around a nominal 60 mm fan.
-FAN_BODY_CLEARANCE_PER_SIDE = 0.35
+# FAN_BODY_CLEARANCE_PER_SIDE = 0.35
+FAN_BODY_CLEARANCE_PER_SIDE = 1.0
 # FAN_FRAME_WALL and GRILL_THICKNESS are selected in MATERIAL_PROFILES below.
 
 # "support_contact" rotates around the lower-inner connection to the support.
@@ -234,8 +235,8 @@ FAN_WIRE_SLOT_OFFSET_AT_REFERENCE = 22.0
 # remains removable and should be printed rigid. Orient the fan to exhaust
 # through this module toward the GoPro/cameras (negative Z). The outlet angle
 # is measured per side from the fan axis.
-SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED = False
-SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG = 22.0
+SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED = True
+SINGLE_FAN_SPLITTER_OUTLET_ANGLE_DEG = 25.0
 SINGLE_FAN_SPLITTER_VANE_LENGTH_Z = 25.0
 SINGLE_FAN_SPLITTER_LEADING_EDGE_WIDTH = 2.4
 SINGLE_FAN_SPLITTER_VANE_THICKNESS = 2.0
@@ -276,9 +277,10 @@ STALK_BOTTOM_Y_OVERHANG = 0.5
 # values above 45 degrees make the down/up legs more nearly vertical and may
 # need removable external supports. STALK_ROUTE_BACK_Z controls the straight
 # rearward section; STALK_LENGTH_Z controls only the original straight layout.
-STALK_DROPPED_ROUTE_ENABLED = False
+STALK_DROPPED_ROUTE_ENABLED = True
 STALK_ROUTE_DROP_Y = 37.0
-STALK_ROUTE_BACK_Z = 30.0
+# STALK_ROUTE_BACK_Z = 30.0
+STALK_ROUTE_BACK_Z = 60.0
 STALK_ROUTE_RETURN_RISE_Y = 15.0
 STALK_ROUTE_TRANSITION_ANGLE_DEG = 70.0
 # STALK_WIDTH and STALK_DEPTH_Y are selected in MATERIAL_PROFILES.
