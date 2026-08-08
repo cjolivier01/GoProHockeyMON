@@ -182,7 +182,7 @@ FAN_GRILL_ON_BACK = True
 FAN_PRESETS = {size: dict(preset) for size, preset in STANDARD_FAN_PRESETS.items()}
 FAN_REFERENCE_SIZE_MM = 60.0
 # The original centers at +/-52.5 mm leave 45 mm between nominal 60 mm bodies.
-FAN_BODY_GAP_MM = 47.5 + 5.0
+FAN_BODY_GAP_MM = 47.5 - 5.0
 #FAN_FRAME_DEPTH = 14.7
 FAN_FRAME_DEPTH = 20.0
 FAN_FRAME_CORNER_RADIUS = 2.5
@@ -269,7 +269,7 @@ STALK_LENGTH_Z = 46.2
 # centerline. The stalk angle is derived from this amount and its effective
 # length, so the same offset produces a greater angle on a shorter stalk.
 # Positive values shift the fan array toward +X; zero keeps it centered.
-STALK_LATERAL_DEFLECTION_X = 5.0
+STALK_LATERAL_DEFLECTION_X = 15.0
 STALK_BOTTOM_Y_OVERHANG = 0.5
 # Route the stalk downward from the GoPro receiver, rearward behind the camera
 # plane, then slightly upward into the fan support. With DROP_Y greater than
@@ -281,7 +281,7 @@ STALK_BOTTOM_Y_OVERHANG = 0.5
 STALK_DROPPED_ROUTE_ENABLED = True
 STALK_ROUTE_DROP_Y = 17.0
 # STALK_ROUTE_BACK_Z = 30.0
-STALK_ROUTE_BACK_Z = 40.0
+STALK_ROUTE_BACK_Z = 50.0
 STALK_ROUTE_RETURN_RISE_Y = 10.0
 STALK_ROUTE_TRANSITION_ANGLE_DEG = 70.0
 # STALK_WIDTH and STALK_DEPTH_Y are selected in MATERIAL_PROFILES.
