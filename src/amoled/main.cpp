@@ -100,6 +100,7 @@ bool runRecordAction();
 void runSnapshotAction();
 void initBleStack();
 bool syncCameraState();
+bool startRecordingOverWifiAndVerify(bool &commandAccepted);
 bool fetchSnapshotPreview();
 int httpGetGoProStatus(const String &path);
 void updateCameraLabel();
