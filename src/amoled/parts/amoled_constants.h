@@ -34,6 +34,10 @@ inline constexpr int kFullscreenSwipePx = 45;
 // BLE, WiFi, and GoPro network behavior.
 inline constexpr uint32_t kPreviewRefreshMs = 1500;
 inline constexpr uint32_t kHttpTimeoutMs = 6500;
+inline constexpr uint32_t kRecordingStartCommandTimeoutMs = 2500;
+inline constexpr uint32_t kRecordingStartVerifyTimeoutMs = 5000;
+inline constexpr uint32_t kRecordingStartVerifyRequestTimeoutMs = 1000;
+inline constexpr uint32_t kRecordingStartVerifyPollMs = 200;
 inline constexpr uint32_t kBleScanSeconds = 7;
 inline constexpr uint32_t kBleWakeScanSeconds = 18;
 inline constexpr uint32_t kPairBleScanSeconds = 18;

@@ -1619,7 +1619,7 @@ void markGoProWifiDisconnectedForRecording() {
   goProWifiSuspendedForRecording = true;
 }
 
-void suspendGoProWifiForRecording(const char *reason) {
+bool suspendGoProWifiForRecording(const char *reason) {
   Serial.print("Suspending GoPro WiFi for recording");
   if (reason != nullptr && reason[0]) {
     Serial.print(": ");
@@ -1628,12 +1628,14 @@ void suspendGoProWifiForRecording(const char *reason) {
   Serial.println();
 
   markGoProWifiDisconnectedForRecording();
-  if (setGoProWifiApBle(false)) {
+  bool bleHandoffOk = setGoProWifiApBle(false);
+  if (bleHandoffOk) {
     setAction("Recording; WiFi AP off");
   } else {
     setAction("Recording; local WiFi off");
   }
   serviceLvgl();
+  return bleHandoffOk;
 }
 
 bool ensureNotRecordingForWifi(const char *reason) {
@@ -2023,7 +2025,7 @@ bool httpGetGoPro(const String &path) {
   return status >= 200 && status < 300;
 }
 
-int httpGetGoProStatus(const String &path) {
+int httpGetGoProStatusWithTimeout(const String &path, uint32_t timeoutMs) {
   if (blockHttpWhileRecording()) {
     return -1;
   }
@@ -2033,7 +2035,8 @@ int httpGetGoProStatus(const String &path) {
   }
 
   HTTPClient http;
-  http.setTimeout(kHttpTimeoutMs);
+  http.setConnectTimeout(timeoutMs);
+  http.setTimeout(timeoutMs);
   String url = cameraBaseUrl() + path;
   if (!http.begin(url)) {
     setAction("HTTP begin failed");
@@ -2045,7 +2048,11 @@ int httpGetGoProStatus(const String &path) {
   return status;
 }
 
-int httpGetGoProBody(const String &path, String &body) {
+int httpGetGoProStatus(const String &path) {
+  return httpGetGoProStatusWithTimeout(path, kHttpTimeoutMs);
+}
+
+int httpGetGoProBodyWithTimeout(const String &path, String &body, uint32_t timeoutMs) {
   body = "";
   if (blockHttpWhileRecording()) {
     return -1;
@@ -2056,7 +2063,8 @@ int httpGetGoProBody(const String &path, String &body) {
   }
 
   HTTPClient http;
-  http.setTimeout(kHttpTimeoutMs);
+  http.setConnectTimeout(timeoutMs);
+  http.setTimeout(timeoutMs);
   String url = cameraBaseUrl() + path;
   if (!http.begin(url)) {
     setAction("HTTP begin failed");
@@ -2067,6 +2075,10 @@ int httpGetGoProBody(const String &path, String &body) {
   http.end();
   Serial.printf("GET %s -> %d, %u bytes\n", url.c_str(), status, body.length());
   return status;
+}
+
+int httpGetGoProBody(const String &path, String &body) {
+  return httpGetGoProBodyWithTimeout(path, body, kHttpTimeoutMs);
 }
 
 bool refreshCameraHardwareInfoHttp() {

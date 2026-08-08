@@ -170,7 +170,9 @@ bool toggleRecording() {
     setDisplayOn(true);
   }
   bool wasRecording = recording;
-  if (!wasRecording && !refreshRecordingStateBle()) {
+  bool startOverWifi = !wasRecording && isLikelyGoProWifiConnected();
+  bool acceptedWifiStartStateUnknown = false;
+  if (!wasRecording && !startOverWifi && !refreshRecordingStateBle()) {
     Serial.println("BLE recording preflight failed before start; avoiding WiFi start path");
   }
   if (!wasRecording && recording) {
@@ -189,6 +191,28 @@ bool toggleRecording() {
     }
     setAction("Starting recording");
     snapshotPreviewPrepared = false;
+    if (startOverWifi) {
+      bool wifiCommandAccepted = false;
+      ok = startRecordingOverWifiAndVerify(wifiCommandAccepted);
+      if (ok) {
+        blinkTopRightButtonMarker();
+        return true;
+      }
+      if (wifiCommandAccepted) {
+        bool recordingStateKnown = refreshRecordingStateBle();
+        if (recordingStateKnown && recording) {
+          blinkTopRightButtonMarker();
+          suspendGoProWifiForRecording("recording reconciled over BLE");
+          return true;
+        }
+        acceptedWifiStartStateUnknown = !recordingStateKnown;
+        Serial.println(recordingStateKnown
+                           ? "Accepted WiFi start was not active over BLE; retrying shutter start"
+                           : "Accepted WiFi start state is unknown; retrying shutter start");
+      } else {
+        Serial.println("WiFi start unavailable; falling back to BLE shutter start");
+      }
+    }
     ok = setGoProShutterBle(true);
   } else {
     ok = setGoProShutterBle(false);
@@ -198,12 +222,23 @@ bool toggleRecording() {
     }
   }
   if (!ok && nextRecording) {
-    if (refreshRecordingStateBle() && recording) {
+    bool finalRecordingStateKnown = refreshRecordingStateBle();
+    if (finalRecordingStateKnown && recording) {
       blinkTopRightButtonMarker();
       suspendGoProWifiForRecording("recording started");
       return true;
     }
-    suspendGoProWifiForRecording("recording start unverified");
+    if (acceptedWifiStartStateUnknown && !finalRecordingStateKnown) {
+      Serial.println("Presuming recording after accepted WiFi start and failed state checks");
+      applyRecordingUiState(true, 0, true);
+      blinkTopRightButtonMarker();
+      suspendGoProWifiForRecording("accepted WiFi start remains unverified");
+      setAction("Recording start unverified");
+      return true;
+    }
+    if (!finalRecordingStateKnown) {
+      suspendGoProWifiForRecording("recording start unverified");
+    }
   }
   if (!ok) {
     lv_label_set_text(statusLabel, recording ? "Recording" : "Standby");

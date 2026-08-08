@@ -168,9 +168,13 @@ void applyGoProBatteryStatus(JsonObjectConst status) {
   }
 }
 
-void applyCameraStatusState(JsonObjectConst status) {
+void applyCameraStatusState(JsonObjectConst status, bool *wifiHandoffOk = nullptr) {
   if (status.isNull()) {
     return;
+  }
+
+  if (wifiHandoffOk != nullptr) {
+    *wifiHandoffOk = false;
   }
 
   applyGoProBatteryStatus(status);
@@ -192,8 +196,17 @@ void applyCameraStatusState(JsonObjectConst status) {
   }
   applyRecordingUiState(cameraRecording, static_cast<uint32_t>(duration),
                         durationKnown);
-  if (cameraRecording && WiFi.status() == WL_CONNECTED) {
-    suspendGoProWifiForRecording("camera state recording");
+  if (cameraRecording) {
+    bool handoffOk = bleConnected;
+    if (WiFi.status() == WL_CONNECTED) {
+      // Render the confirmed recording state before the WiFi-to-BLE handoff can
+      // spend several seconds shutting down WiFi and reconnecting over BLE.
+      serviceLvgl();
+      handoffOk = suspendGoProWifiForRecording("camera state recording");
+    }
+    if (wifiHandoffOk != nullptr) {
+      *wifiHandoffOk = handoffOk;
+    }
   }
   Serial.printf(
       "Camera recording state synced: recording=%u duration=%ld known=%u\n",
@@ -201,7 +214,7 @@ void applyCameraStatusState(JsonObjectConst status) {
       durationKnown ? 1 : 0);
 }
 
-bool parseCameraState(const String &body) {
+bool parseCameraState(const String &body, bool *wifiHandoffOk = nullptr) {
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, body);
   if (error) {
@@ -213,7 +226,7 @@ bool parseCameraState(const String &body) {
   if (status.isNull()) {
     status = doc["statuses"].as<JsonObjectConst>();
   }
-  applyCameraStatusState(status);
+  applyCameraStatusState(status, wifiHandoffOk);
 
   JsonObject settings = doc["settings"].as<JsonObject>();
   if (settings.isNull()) {
@@ -256,6 +269,54 @@ bool syncCameraState() {
     return false;
   }
   return parseCameraState(body);
+}
+
+bool startRecordingOverWifiAndVerify(bool &commandAccepted) {
+  commandAccepted = false;
+  setAction("Starting recording over WiFi");
+  int shutterStatus = httpGetGoProStatusWithTimeout(
+      "/gopro/camera/shutter/start", kRecordingStartCommandTimeoutMs);
+  if (shutterStatus < 200 || shutterStatus >= 300) {
+    Serial.printf("WiFi shutter start failed: status=%d\n", shutterStatus);
+    setAction("WiFi recording command failed");
+    return false;
+  }
+  commandAccepted = true;
+
+  Serial.println("WiFi shutter start accepted; waiting for recording state");
+  uint32_t verifyStartedMs = millis();
+  while (isLikelyGoProWifiConnected()) {
+    uint32_t elapsedMs = millis() - verifyStartedMs;
+    if (elapsedMs >= kRecordingStartVerifyTimeoutMs) {
+      break;
+    }
+    serviceLvgl();
+
+    String body;
+    uint32_t remainingMs = kRecordingStartVerifyTimeoutMs - elapsedMs;
+    uint32_t requestTimeoutMs = min(remainingMs, kRecordingStartVerifyRequestTimeoutMs);
+    int stateStatus = httpGetGoProBodyWithTimeout(
+        "/gopro/camera/state", body, requestTimeoutMs);
+    bool wifiHandoffOk = false;
+    if (stateStatus == 200 && parseCameraState(body, &wifiHandoffOk) && recording) {
+      if (!wifiHandoffOk) {
+        Serial.println("Recording verified; retrying incomplete BLE handoff");
+        wifiHandoffOk = setGoProWifiApBle(false);
+        if (!wifiHandoffOk) {
+          setAction("Recording; BLE reconnect failed");
+        }
+      }
+      Serial.printf("Recording verified over WiFi; BLE handoff=%u connected=%u\n",
+                    wifiHandoffOk ? 1 : 0, bleConnected ? 1 : 0);
+      return true;
+    }
+
+    delay(kRecordingStartVerifyPollMs);
+  }
+
+  Serial.println("WiFi recording start was not verified; BLE reconciliation required");
+  setAction("Reconciling recording over BLE");
+  return false;
 }
 
 bool aspectFromSettingOption(int settingId, int option, uint16_t &aspectW,
