@@ -40,7 +40,8 @@ PRINT_BED_GAP = 12.0
 # the dome and carries the captured hex hardware; its TPU profile uses deeper
 # snap tabs.  The sleeve has no material-specific dimensions yet, while the
 # retainer profile resolves thicker TPU gate/keeper geometry.  The two captive
-# press-through buttons remain TPU-only.
+# press-through buttons remain TPU-only. The back/dome and baffle intentionally
+# default to TPU as the tested flexible assembly pair.
 BACK_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
 SLEEVE_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
 RETAINER_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
@@ -120,12 +121,12 @@ INSERTION_DEPTH = 3.4
 # The ordinary INSERTION_DEPTH remains unchanged.  Only the sleeve wall extends
 # forward by the engagement depth; the insert and back-shell screw bosses still
 # meet at INSERTION_DEPTH's original plane.  Clearance is applied independently
-# from the structural inner lip and the material left outside the groove.
+# from the material left outside the groove. The open interior matches the
+# sleeve inner contour so the capture rebate does not form a camera-side ledge.
 SLEEVE_CAPTURE_SLOT_ENABLED = True
 SLEEVE_CAPTURE_ENGAGEMENT_DEPTH = 0.80
 # SLEEVE_CAPTURE_FIT_CLEARANCE = 0.25
 SLEEVE_CAPTURE_FIT_CLEARANCE = 0.20
-SLEEVE_CAPTURE_INNER_LIP_THICKNESS = 1.20
 SLEEVE_CAPTURE_BOTTOM_CLEARANCE = 0.15
 SLEEVE_CAPTURE_FLOOR_THICKNESS = 0.50
 SLEEVE_CAPTURE_MIN_OUTER_WALL_X = 1.50
@@ -150,8 +151,10 @@ FAN_HOLE_BOSS_HEIGHT = 1.0
 # printed keyed lid; it avoids bulk internal supports but retains one controlled
 # bridge across the existing-camera-stop relief. A groove-located TPU gasket,
 # or an integral bead when the tray itself is TPU, seals the circular inlet.
-# Two compliant top/bottom tongues engage shallow receiver ribs added to the
-# back shell without changing its exterior envelope.
+# Two compliant top/bottom tongues engage receiver ribs added to the back shell
+# without changing its exterior envelope.  When either mating part is TPU, a
+# reinforced retention profile broadens and deepens both sides of the latch so
+# shell or cartridge deflection cannot let the cartridge walk toward the camera.
 BAFFLE_CARTRIDGE_ENABLED = True
 BAFFLE_REAR_Y = -5.20
 BAFFLE_FRONT_Y = 14.00
@@ -160,7 +163,10 @@ BAFFLE_FRONT_WIDTH = 70.0
 BAFFLE_BODY_HEIGHT = 44.0
 BAFFLE_BODY_DEPTH_SECTIONS = 8
 BAFFLE_STOP_CLEARANCE = 0.80
-# These four dimensions are selected by BAFFLE_CARTRIDGE_MATERIAL_PROFILES.
+# These dimensions and the keyed-lid/end-return values below are selected by
+# BAFFLE_CARTRIDGE_MATERIAL_PROFILES. The TPU values keep the side-face-down
+# tray and lid stiff while they build upright, without adding support-dependent
+# ribs inside the airway.
 BAFFLE_WALL_THICKNESS = 1.60
 BAFFLE_INTERNAL_THICKNESS_Y = 1.80
 BAFFLE_LID_PLATE_THICKNESS_X = 1.20
@@ -181,7 +187,7 @@ BAFFLE_INLET_ROOF_APEX_X = 21.0
 BAFFLE_INLET_ROOF_RUN_X = 12.0
 BAFFLE_GASKET_OUTER_DIAMETER = 39.0
 BAFFLE_GASKET_INNER_DIAMETER = 37.0
-BAFFLE_GASKET_THICKNESS_Y = 2.40
+BAFFLE_GASKET_THICKNESS_Y = 2.70
 BAFFLE_GASKET_BOSS_CLEARANCE = 0.15
 BAFFLE_GASKET_GROOVE_DEPTH_Y = 0.40
 BAFFLE_GASKET_GROOVE_RADIAL_CLEARANCE = 0.20
@@ -228,22 +234,30 @@ BAFFLE_SECOND_END_FRAME_LID_MIN_WALL = 0.70
 
 # Top/bottom cartridge retention. Each long tongue is carried at the tray's
 # centerline, clear of the existing left/right camera stops. The tongues follow
-# the dome wall, snap past shallow back-shell receiver ribs, and remain
-# accessible from the front after the sleeve is removed. Their hooks seat just
-# behind the receiver crests, maintaining gasket preload until deliberately
-# flexed toward the cartridge center for removal.
+# the dome wall, snap past back-shell receiver ribs, and remain accessible from
+# the front after the sleeve is removed. Their hooks seat just behind the
+# receiver crests, maintaining gasket preload until deliberately flexed toward
+# the cartridge center for removal. These dimensions are the rigid/rigid
+# baseline; BAFFLE_RETENTION_MATERIAL_PROFILES reinforces the complete latch
+# according to which side of the joint is TPU. A flexible back with a rigid
+# cartridge gets a smaller undercut than a TPU cartridge so its 1 mm tongue
+# remains releasable without excessive strain.
 BAFFLE_SNAP_RECEIVER_Y = 12.20
 BAFFLE_SNAP_RECEIVER_WIDTH_X = 8.0
 BAFFLE_SNAP_RECEIVER_DEPTH_Y = 2.20
 BAFFLE_SNAP_RECEIVER_PROJECTION_Z = 1.25
-BAFFLE_SNAP_RECEIVER_BEVEL = 0.25
+BAFFLE_SNAP_RECEIVER_LEAD_IN_Y = 0.60
 BAFFLE_SNAP_TONGUE_ROOT_Y = 4.00
 BAFFLE_SNAP_TONGUE_WIDTH_X = 10.0
-BAFFLE_SNAP_TONGUE_WALL_OFFSET = 1.30
+BAFFLE_SNAP_TONGUE_WALL_OFFSET = 1.50
 BAFFLE_SNAP_ROOT_DEPTH_Y = 1.80
-BAFFLE_SNAP_HOOK_PROTRUSION_Z = 0.70
-BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y = 1.00
-BAFFLE_SNAP_INTERFERENCE_Z = 0.45
+BAFFLE_SNAP_HOOK_DEPTH_Y = 1.20
+BAFFLE_SNAP_HOOK_BEVEL = 0.05
+BAFFLE_SNAP_HOOK_PROTRUSION_Z = 0.65
+BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y = 1.95
+BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y = 0.25
+BAFFLE_SNAP_AXIAL_TOLERANCE_Y = 0.10
+BAFFLE_SNAP_INTERFERENCE_Z = 0.25
 
 # Smooth rectangular vent and diagonal louvers to the fan's right.
 VENT_ENABLED = False
@@ -559,30 +573,34 @@ def apply_back_material_profile() -> None:
     _APPLIED_BACK_MATERIAL_MODE = BACK_MATERIAL_MODE
 
 
-def set_back_material_mode(mode: str) -> None:
-    """Select the back-shell profile while preserving scalar overrides."""
-    global BACK_MATERIAL_MODE
-    BACK_MATERIAL_MODE = mode
-    apply_back_material_profile()
-
-
-set_back_material_mode(BACK_MATERIAL_MODE)
-
-
 _RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE = {
+    "BAFFLE_FRONT_WIDTH": 70.0,
     "BAFFLE_WALL_THICKNESS": 1.60,
     "BAFFLE_INTERNAL_THICKNESS_Y": 1.80,
     "BAFFLE_LID_PLATE_THICKNESS_X": 1.20,
     "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 1.00,
+    "BAFFLE_LID_KEY_DEPTH_X": 1.80,
+    "BAFFLE_SECOND_END_FRAME_DEPTH_Y": 3.20,
+    "BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y": 0.40,
+    "BAFFLE_SECOND_END_FRAME_CONNECTION_X": 3.50,
+    "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X": 0.80,
+    "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X": 1.00,
 }
 BAFFLE_CARTRIDGE_MATERIAL_PROFILES = {
     "RIGID": _RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE,
     "TPU": {
         **_RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE,
+        "BAFFLE_FRONT_WIDTH": 71.0,
         "BAFFLE_WALL_THICKNESS": 2.00,
         "BAFFLE_INTERNAL_THICKNESS_Y": 2.40,
         "BAFFLE_LID_PLATE_THICKNESS_X": 2.00,
-        "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 1.60,
+        "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 2.00,
+        "BAFFLE_LID_KEY_DEPTH_X": 2.20,
+        "BAFFLE_SECOND_END_FRAME_DEPTH_Y": 3.60,
+        "BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y": 0.60,
+        "BAFFLE_SECOND_END_FRAME_CONNECTION_X": 4.00,
+        "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X": 1.00,
+        "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X": 1.25,
     },
 }
 _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = None
@@ -590,10 +608,17 @@ _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = None
 
 def apply_baffle_cartridge_material_profile() -> None:
     global _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE
+    global BAFFLE_FRONT_WIDTH
     global BAFFLE_WALL_THICKNESS
     global BAFFLE_INTERNAL_THICKNESS_Y
     global BAFFLE_LID_PLATE_THICKNESS_X
     global BAFFLE_SNAP_TONGUE_THICKNESS_Z
+    global BAFFLE_LID_KEY_DEPTH_X
+    global BAFFLE_SECOND_END_FRAME_DEPTH_Y
+    global BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y
+    global BAFFLE_SECOND_END_FRAME_CONNECTION_X
+    global BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X
+    global BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X
 
     try:
         profile = BAFFLE_CARTRIDGE_MATERIAL_PROFILES[
@@ -606,6 +631,7 @@ def apply_baffle_cartridge_material_profile() -> None:
             f"{choices}; got {BAFFLE_CARTRIDGE_MATERIAL_MODE!r}"
         ) from error
 
+    BAFFLE_FRONT_WIDTH = profile["BAFFLE_FRONT_WIDTH"]
     BAFFLE_WALL_THICKNESS = profile["BAFFLE_WALL_THICKNESS"]
     BAFFLE_INTERNAL_THICKNESS_Y = profile[
         "BAFFLE_INTERNAL_THICKNESS_Y"
@@ -616,17 +642,139 @@ def apply_baffle_cartridge_material_profile() -> None:
     BAFFLE_SNAP_TONGUE_THICKNESS_Z = profile[
         "BAFFLE_SNAP_TONGUE_THICKNESS_Z"
     ]
+    BAFFLE_LID_KEY_DEPTH_X = profile["BAFFLE_LID_KEY_DEPTH_X"]
+    BAFFLE_SECOND_END_FRAME_DEPTH_Y = profile[
+        "BAFFLE_SECOND_END_FRAME_DEPTH_Y"
+    ]
+    BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y = profile[
+        "BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y"
+    ]
+    BAFFLE_SECOND_END_FRAME_CONNECTION_X = profile[
+        "BAFFLE_SECOND_END_FRAME_CONNECTION_X"
+    ]
+    BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X = profile[
+        "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X"
+    ]
+    BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X = profile[
+        "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X"
+    ]
     _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = (
         BAFFLE_CARTRIDGE_MATERIAL_MODE
     )
 
 
+_RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE = {
+    "BAFFLE_SNAP_RECEIVER_WIDTH_X": 8.0,
+    "BAFFLE_SNAP_RECEIVER_DEPTH_Y": 2.20,
+    "BAFFLE_SNAP_RECEIVER_PROJECTION_Z": 1.25,
+    "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y": 0.60,
+    "BAFFLE_SNAP_TONGUE_WIDTH_X": 10.0,
+    "BAFFLE_SNAP_TONGUE_WALL_OFFSET": 1.50,
+    "BAFFLE_SNAP_ROOT_DEPTH_Y": 1.80,
+    "BAFFLE_SNAP_HOOK_DEPTH_Y": 1.20,
+    "BAFFLE_SNAP_HOOK_BEVEL": 0.05,
+    "BAFFLE_SNAP_HOOK_PROTRUSION_Z": 0.65,
+    "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": 1.95,
+    "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y": 0.25,
+    "BAFFLE_SNAP_INTERFERENCE_Z": 0.25,
+}
+BAFFLE_RETENTION_MATERIAL_PROFILES = {
+    "RIGID_RIGID": _RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE,
+    "TPU_BACK": {
+        **_RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE,
+        # A 16 mm-wide catch doubles the receiver's rigid/rigid bearing width.
+        # Deeper ribs and larger hook faces resist either flexible part rolling
+        # free. Keep the rigid cartridge tongue's undercut moderate enough for
+        # service release while the flexible back supplies the extra compliance.
+        "BAFFLE_SNAP_RECEIVER_WIDTH_X": 16.0,
+        "BAFFLE_SNAP_RECEIVER_DEPTH_Y": 3.40,
+        "BAFFLE_SNAP_RECEIVER_PROJECTION_Z": 1.80,
+        "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y": 1.00,
+        "BAFFLE_SNAP_TONGUE_WIDTH_X": 16.0,
+        "BAFFLE_SNAP_TONGUE_WALL_OFFSET": 2.40,
+        "BAFFLE_SNAP_ROOT_DEPTH_Y": 3.00,
+        "BAFFLE_SNAP_HOOK_DEPTH_Y": 1.80,
+        "BAFFLE_SNAP_HOOK_BEVEL": 0.05,
+        "BAFFLE_SNAP_HOOK_PROTRUSION_Z": 1.18,
+        "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": 2.85,
+        "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y": 0.25,
+        "BAFFLE_SNAP_INTERFERENCE_Z": 0.35,
+    },
+    "TPU_CARTRIDGE": {
+        **_RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE,
+        # The 2 mm TPU tongue tolerates a deeper catch. The same substantial
+        # receiver, tongue, and root dimensions cover both rigid and TPU backs.
+        "BAFFLE_SNAP_RECEIVER_WIDTH_X": 16.0,
+        "BAFFLE_SNAP_RECEIVER_DEPTH_Y": 3.40,
+        "BAFFLE_SNAP_RECEIVER_PROJECTION_Z": 1.80,
+        "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y": 1.00,
+        "BAFFLE_SNAP_TONGUE_WIDTH_X": 16.0,
+        "BAFFLE_SNAP_TONGUE_WALL_OFFSET": 2.40,
+        "BAFFLE_SNAP_ROOT_DEPTH_Y": 3.00,
+        "BAFFLE_SNAP_HOOK_DEPTH_Y": 1.80,
+        "BAFFLE_SNAP_HOOK_BEVEL": 0.05,
+        "BAFFLE_SNAP_HOOK_PROTRUSION_Z": 1.43,
+        "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": 2.85,
+        "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y": 0.25,
+        "BAFFLE_SNAP_INTERFERENCE_Z": 0.60,
+    },
+}
+_APPLIED_BAFFLE_RETENTION_MATERIAL_MODES = None
+
+
+def baffle_retention_material_profile_name() -> str:
+    """Select retention for the tongue material, then the back material."""
+    if BAFFLE_CARTRIDGE_MATERIAL_MODE == "TPU":
+        return "TPU_CARTRIDGE"
+    if BACK_MATERIAL_MODE == "TPU":
+        return "TPU_BACK"
+    return "RIGID_RIGID"
+
+
+def apply_baffle_retention_material_profile() -> None:
+    global _APPLIED_BAFFLE_RETENTION_MATERIAL_MODES
+    global BAFFLE_SNAP_RECEIVER_WIDTH_X
+    global BAFFLE_SNAP_RECEIVER_DEPTH_Y
+    global BAFFLE_SNAP_RECEIVER_PROJECTION_Z
+    global BAFFLE_SNAP_RECEIVER_LEAD_IN_Y
+    global BAFFLE_SNAP_TONGUE_WIDTH_X
+    global BAFFLE_SNAP_TONGUE_WALL_OFFSET
+    global BAFFLE_SNAP_ROOT_DEPTH_Y
+    global BAFFLE_SNAP_HOOK_DEPTH_Y
+    global BAFFLE_SNAP_HOOK_BEVEL
+    global BAFFLE_SNAP_HOOK_PROTRUSION_Z
+    global BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y
+    global BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y
+    global BAFFLE_SNAP_INTERFERENCE_Z
+
+    profile = BAFFLE_RETENTION_MATERIAL_PROFILES[
+        baffle_retention_material_profile_name()
+    ]
+    for name, value in profile.items():
+        globals()[name] = value
+    _APPLIED_BAFFLE_RETENTION_MATERIAL_MODES = (
+        BACK_MATERIAL_MODE,
+        BAFFLE_CARTRIDGE_MATERIAL_MODE,
+    )
+
+
+def set_back_material_mode(mode: str) -> None:
+    """Select the back-shell and matching baffle-retention profiles."""
+    global BACK_MATERIAL_MODE
+    BACK_MATERIAL_MODE = mode
+    apply_back_material_profile()
+    apply_baffle_retention_material_profile()
+
+
 def set_baffle_cartridge_material_mode(mode: str) -> None:
+    """Select the cartridge and matching baffle-retention profiles."""
     global BAFFLE_CARTRIDGE_MATERIAL_MODE
     BAFFLE_CARTRIDGE_MATERIAL_MODE = mode
     apply_baffle_cartridge_material_profile()
+    apply_baffle_retention_material_profile()
 
 
+set_back_material_mode(BACK_MATERIAL_MODE)
 set_baffle_cartridge_material_mode(BAFFLE_CARTRIDGE_MATERIAL_MODE)
 
 
@@ -683,14 +831,11 @@ def sleeve_capture_groove_inner_dimensions():
 
 
 def sleeve_capture_opening_dimensions():
-    inner_width, inner_height, inner_radius = (
-        sleeve_capture_groove_inner_dimensions()
-    )
-    lip = SLEEVE_CAPTURE_INNER_LIP_THICKNESS
+    """Match the back opening to the sleeve interior without a raised ledge."""
     return (
-        inner_width - 2.0 * lip,
-        inner_height - 2.0 * lip,
-        inner_radius - lip,
+        insert_inner_width(),
+        insert_inner_height(),
+        insert_inner_corner_radius(),
     )
 
 
@@ -746,7 +891,7 @@ def sleeve_capture_groove_floor_y() -> float:
     return insert_sleeve_leading_y() - SLEEVE_CAPTURE_BOTTOM_CLEARANCE
 
 
-def sleeve_capture_ledge_start_y() -> float:
+def sleeve_capture_backing_start_y() -> float:
     return sleeve_capture_groove_floor_y() - SLEEVE_CAPTURE_FLOOR_THICKNESS
 
 
@@ -1169,28 +1314,56 @@ def baffle_snap_tongue_center_z_at_y(y: float, side: float) -> float:
     return side * (root_center + (front_center - root_center) * t)
 
 
-def baffle_snap_tongue_angle(side: float) -> float:
-    root_y = BAFFLE_SNAP_TONGUE_ROOT_Y
-    front_y = baffle_snap_tongue_front_y()
-    delta_z = (
-        baffle_snap_tongue_center_z_at_y(front_y, side)
-        - baffle_snap_tongue_center_z_at_y(root_y, side)
-    )
-    return math.atan2(delta_z, front_y - root_y)
-
-
 def baffle_snap_resolved_interference() -> float:
-    """Return seated hook overtravel past the back-shell receiver crest."""
+    """Return hook undercut at the receiver's square rear retaining face."""
+    receiver_catch_y = (
+        BAFFLE_SNAP_RECEIVER_Y - BAFFLE_SNAP_RECEIVER_DEPTH_Y / 2.0
+    )
     hook_outer_z = (
         abs(baffle_snap_tongue_center_z_at_y(baffle_snap_hook_y(), 1.0))
         + BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
         + BAFFLE_SNAP_HOOK_PROTRUSION_Z
     )
     receiver_inner_z = (
-        dome_cavity_half_height_at_y(BAFFLE_SNAP_RECEIVER_Y)
+        dome_cavity_half_height_at_y(receiver_catch_y)
         - BAFFLE_SNAP_RECEIVER_PROJECTION_Z
     )
     return hook_outer_z - receiver_inner_z
+
+
+def baffle_snap_release_strain() -> float:
+    """Estimate outer-fiber tongue strain while flexing past the hook bevel."""
+    effective_undercut = max(
+        0.0,
+        baffle_snap_resolved_interference() - BAFFLE_SNAP_HOOK_BEVEL,
+    )
+    cantilever_length = baffle_snap_hook_y() - BAFFLE_SNAP_TONGUE_ROOT_Y
+    return (
+        1.5
+        * BAFFLE_SNAP_TONGUE_THICKNESS_Z
+        * effective_undercut
+        / cantilever_length**2
+    )
+
+
+def baffle_snap_seated_clearance_y() -> float:
+    """Return the axial gap between the seated hook and receiver faces."""
+    return (
+        BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y
+        - BAFFLE_SNAP_RECEIVER_DEPTH_Y / 2.0
+        - BAFFLE_SNAP_HOOK_DEPTH_Y / 2.0
+    )
+
+
+def baffle_snap_nominal_retaining_face_area() -> float:
+    """Return one hook's nominal X/Z face area resisting a forward pull."""
+    return (
+        min(
+            BAFFLE_SNAP_RECEIVER_WIDTH_X,
+            BAFFLE_SNAP_TONGUE_WIDTH_X,
+        )
+        * baffle_snap_resolved_interference()
+    )
 
 
 def baffle_acoustic_visibility_required_inlet_z(
@@ -1705,7 +1878,9 @@ def validate_baffle_cartridge_config() -> None:
         "BAFFLE_SNAP_RECEIVER_PROJECTION_Z": (
             BAFFLE_SNAP_RECEIVER_PROJECTION_Z
         ),
-        "BAFFLE_SNAP_RECEIVER_BEVEL": BAFFLE_SNAP_RECEIVER_BEVEL,
+        "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y": (
+            BAFFLE_SNAP_RECEIVER_LEAD_IN_Y
+        ),
         "BAFFLE_SNAP_TONGUE_WIDTH_X": BAFFLE_SNAP_TONGUE_WIDTH_X,
         "BAFFLE_SNAP_TONGUE_THICKNESS_Z": (
             BAFFLE_SNAP_TONGUE_THICKNESS_Z
@@ -1714,12 +1889,18 @@ def validate_baffle_cartridge_config() -> None:
             BAFFLE_SNAP_TONGUE_WALL_OFFSET
         ),
         "BAFFLE_SNAP_ROOT_DEPTH_Y": BAFFLE_SNAP_ROOT_DEPTH_Y,
+        "BAFFLE_SNAP_HOOK_DEPTH_Y": BAFFLE_SNAP_HOOK_DEPTH_Y,
+        "BAFFLE_SNAP_HOOK_BEVEL": BAFFLE_SNAP_HOOK_BEVEL,
         "BAFFLE_SNAP_HOOK_PROTRUSION_Z": (
             BAFFLE_SNAP_HOOK_PROTRUSION_Z
         ),
         "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": (
             BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y
         ),
+        "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y": (
+            BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y
+        ),
+        "BAFFLE_SNAP_AXIAL_TOLERANCE_Y": BAFFLE_SNAP_AXIAL_TOLERANCE_Y,
         "BAFFLE_SNAP_INTERFERENCE_Z": BAFFLE_SNAP_INTERFERENCE_Z,
     }
     for name, value in positive.items():
@@ -1727,6 +1908,15 @@ def validate_baffle_cartridge_config() -> None:
             raise ValueError(f"{name} must be positive")
     if BAFFLE_BODY_DEPTH_SECTIONS < 2:
         raise ValueError("BAFFLE_BODY_DEPTH_SECTIONS must be at least 2")
+    if BAFFLE_SNAP_RECEIVER_LEAD_IN_Y >= BAFFLE_SNAP_RECEIVER_DEPTH_Y:
+        raise ValueError(
+            "The baffle receiver lead-in must leave a square rear catch face"
+        )
+    if 2.0 * BAFFLE_SNAP_HOOK_BEVEL >= min(
+        BAFFLE_SNAP_HOOK_DEPTH_Y,
+        BAFFLE_SNAP_HOOK_PROTRUSION_Z,
+    ):
+        raise ValueError("The baffle hook bevel consumes its retaining face")
     if BAFFLE_INLET_SLOT_COUNT < 1 or BAFFLE_OUTLET_SLOT_COUNT < 1:
         raise ValueError("The baffle inlet/outlet slot counts must be positive")
     if (
@@ -2086,15 +2276,90 @@ def validate_baffle_cartridge_config() -> None:
         raise ValueError(
             "The seated hook and receiver must lie in order along each tongue"
         )
-    if BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y <= compression:
+    seated_clearance = baffle_snap_seated_clearance_y()
+    if abs(
+        seated_clearance - BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y
+    ) > 1.0e-6:
         raise ValueError(
-            "The snap latch travel must exceed the inlet-gasket compression"
+            "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y does not resolve to the "
+            "configured hook/receiver face clearance"
+        )
+    minimum_seated_clearance = (
+        seated_clearance - BAFFLE_SNAP_AXIAL_TOLERANCE_Y
+    )
+    if minimum_seated_clearance <= 0.0:
+        raise ValueError(
+            "The baffle hook must retain a positive seated gap at the axial "
+            "tolerance extreme; minimum gap="
+            f"{minimum_seated_clearance:.3f} mm"
+        )
+    if (
+        seated_clearance
+        + BAFFLE_SNAP_HOOK_BEVEL
+        + BAFFLE_SNAP_AXIAL_TOLERANCE_Y
+        >= compression
+    ):
+        raise ValueError(
+            "The hook clearance, retaining-face bevel, and axial tolerance "
+            "must preserve positive gasket preload during a forward pull"
+        )
+    if seated_clearance >= baffle_camera_clearance():
+        raise ValueError(
+            "The baffle latch permits enough forward travel to reach the "
+            "camera"
+        )
+    receiver_inner_z = (
+        dome_cavity_half_height_at_y(BAFFLE_SNAP_RECEIVER_Y)
+        - BAFFLE_SNAP_RECEIVER_PROJECTION_Z
+    )
+    tongue_outer_z = (
+        abs(
+            baffle_snap_tongue_center_z_at_y(
+                BAFFLE_SNAP_RECEIVER_Y,
+                1.0,
+            )
+        )
+        + BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
+    )
+    tongue_receiver_clearance = receiver_inner_z - tongue_outer_z
+    if tongue_receiver_clearance < 0.10:
+        raise ValueError(
+            "The seated snap tongue cannot clear the receiver before its "
+            f"hook; actual clearance={tongue_receiver_clearance:.3f} mm"
         )
     resolved_interference = baffle_snap_resolved_interference()
+    retention_profile_name = baffle_retention_material_profile_name()
+    if retention_profile_name != "RIGID_RIGID":
+        rigid_profile = _RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE
+        rigid_retaining_area = min(
+            rigid_profile["BAFFLE_SNAP_RECEIVER_WIDTH_X"],
+            rigid_profile["BAFFLE_SNAP_TONGUE_WIDTH_X"],
+        ) * rigid_profile["BAFFLE_SNAP_INTERFERENCE_Z"]
+        minimum_area_multiplier = (
+            2.5 if retention_profile_name == "TPU_BACK" else 4.0
+        )
+        if baffle_snap_nominal_retaining_face_area() < (
+            minimum_area_multiplier * rigid_retaining_area
+        ):
+            raise ValueError(
+                f"The {retention_profile_name} baffle interface needs at "
+                f"least {minimum_area_multiplier:.1f} times the rigid/rigid "
+                "nominal hook retaining-face area"
+            )
     if abs(resolved_interference - BAFFLE_SNAP_INTERFERENCE_Z) > 0.02:
         raise ValueError(
             "BAFFLE_SNAP_INTERFERENCE_Z does not match the receiver/hook "
             f"stack; resolved {resolved_interference:.3f} mm"
+        )
+    release_strain = baffle_snap_release_strain()
+    maximum_release_strain = (
+        0.08 if BAFFLE_CARTRIDGE_MATERIAL_MODE == "TPU" else 0.02
+    )
+    if release_strain > maximum_release_strain:
+        raise ValueError(
+            f"The {BAFFLE_CARTRIDGE_MATERIAL_MODE} baffle tongue needs "
+            f"{release_strain:.3%} estimated release strain; maximum="
+            f"{maximum_release_strain:.3%}"
         )
     step_x, step_z = baffle_stop_relief_corner()
     rear_left, rear_right, rear_bottom, rear_top = baffle_body_bounds_at_y(
@@ -2198,9 +2463,6 @@ def validate_config() -> None:
                 ),
                 "SLEEVE_CAPTURE_FIT_CLEARANCE": (
                     SLEEVE_CAPTURE_FIT_CLEARANCE
-                ),
-                "SLEEVE_CAPTURE_INNER_LIP_THICKNESS": (
-                    SLEEVE_CAPTURE_INNER_LIP_THICKNESS
                 ),
                 "SLEEVE_CAPTURE_BOTTOM_CLEARANCE": (
                     SLEEVE_CAPTURE_BOTTOM_CLEARANCE
@@ -2575,7 +2837,7 @@ def validate_config() -> None:
                 groove_inner_radius,
             ),
             (
-                "Sleeve capture lip opening",
+                "Sleeve capture flush opening",
                 opening_width,
                 opening_height,
                 opening_radius,
@@ -2660,11 +2922,11 @@ def validate_config() -> None:
             opening_radius,
         ) <= 0.0:
             raise ValueError(
-                "The sleeve capture clearance/lip leaves an invalid inner "
+                "The sleeve capture clearance/opening leaves an invalid inner "
                 "opening or rounded-corner radius"
             )
         if not (
-            sleeve_capture_ledge_start_y()
+            sleeve_capture_backing_start_y()
             < sleeve_capture_groove_floor_y()
             < insert_sleeve_leading_y()
             < insert_start_y()
@@ -2673,7 +2935,7 @@ def validate_config() -> None:
                 "The sleeve capture floor, bottom clearance, leading edge, "
                 "and screw-boss datum are not in assembly order"
             )
-        if sleeve_capture_ledge_start_y() <= back_exterior_y():
+        if sleeve_capture_backing_start_y() <= back_exterior_y():
             raise ValueError(
                 "The sleeve capture groove breaks through the front of the "
                 "back shell; reduce its depth/clearance or deepen the shell"
@@ -4192,7 +4454,7 @@ def add_back_fastener_retention_tabs(back):
     return back
 
 
-def add_sleeve_capture_ledge(back):
+def add_sleeve_capture_backing(back):
     if not SLEEVE_CAPTURE_SLOT_ENABLED:
         return back
     support_width, support_height, support_radius = (
@@ -4201,21 +4463,21 @@ def add_sleeve_capture_ledge(back):
     opening_width, opening_height, opening_radius = (
         sleeve_capture_opening_dimensions()
     )
-    ledge = rounded_rectangle_ring_prism_y(
-        "Sleeve_Capture_Ledge",
+    backing = rounded_rectangle_ring_prism_y(
+        "Sleeve_Capture_Backing",
         support_width,
         support_height,
         support_radius,
         opening_width,
         opening_height,
         opening_radius,
-        sleeve_capture_ledge_start_y(),
+        sleeve_capture_backing_start_y(),
         insert_start_y() + BOOLEAN_OVERLAP,
     )
     return boolean_union(
         back,
-        ledge,
-        "Sleeve_Capture_Ledge_Union",
+        backing,
+        "Sleeve_Capture_Backing_Union",
         solver=WATERTIGHT_DETAIL_UNION_SOLVER,
         require_geometry_change=True,
     )
@@ -4253,37 +4515,55 @@ def cut_sleeve_capture_groove(back):
     return back
 
 
+def create_baffle_snap_receiver(side: float):
+    """Build one rib with a square rear catch and a front insertion ramp."""
+    rear_y = (
+        BAFFLE_SNAP_RECEIVER_Y - BAFFLE_SNAP_RECEIVER_DEPTH_Y / 2.0
+    )
+    front_y = (
+        BAFFLE_SNAP_RECEIVER_Y + BAFFLE_SNAP_RECEIVER_DEPTH_Y / 2.0
+    )
+    ramp_start_y = front_y - BAFFLE_SNAP_RECEIVER_LEAD_IN_Y
+    y_positions = (rear_y, ramp_start_y, front_y)
+    projections = (
+        BAFFLE_SNAP_RECEIVER_PROJECTION_Z,
+        BAFFLE_SNAP_RECEIVER_PROJECTION_Z,
+        0.0,
+    )
+    half_width = BAFFLE_SNAP_RECEIVER_WIDTH_X / 2.0
+    loops = []
+    for y, projection in zip(y_positions, projections):
+        half_height = dome_cavity_half_height_at_y(y)
+        inner_z = side * (half_height - projection)
+        shell_z = side * (half_height + BOOLEAN_OVERLAP)
+        bottom_z, top_z = sorted((inner_z, shell_z))
+        loops.append(
+            [
+                (-half_width, bottom_z),
+                (half_width, bottom_z),
+                (half_width, top_z),
+                (-half_width, top_z),
+            ]
+        )
+    return loft_through_loops_y(
+        f"Baffle_Snap_Receiver_{'Top' if side > 0 else 'Bottom'}",
+        loops,
+        y_positions,
+        cap_centers=tuple(
+            (
+                sum(point[0] for point in loop) / len(loop),
+                sum(point[1] for point in loop) / len(loop),
+            )
+            for loop in (loops[0], loops[-1])
+        ),
+    )
+
+
 def add_baffle_snap_receivers(back):
     if not BAFFLE_CARTRIDGE_ENABLED:
         return back
-    half_height = dome_cavity_half_height_at_y(BAFFLE_SNAP_RECEIVER_Y)
-    receiver_height = (
-        BAFFLE_SNAP_RECEIVER_PROJECTION_Z + BOOLEAN_OVERLAP
-    )
     for side in (-1.0, 1.0):
-        receiver = add_beveled_box(
-            f"Baffle_Snap_Receiver_{'Top' if side > 0 else 'Bottom'}",
-            (
-                BAFFLE_SNAP_RECEIVER_WIDTH_X,
-                BAFFLE_SNAP_RECEIVER_DEPTH_Y,
-                receiver_height,
-            ),
-            (
-                baffle_snap_auxiliary_center_x_at_y(
-                    BAFFLE_SNAP_RECEIVER_Y,
-                    BAFFLE_SNAP_RECEIVER_DEPTH_Y
-                    + 2.0 * baffle_boolean_join_overlap(),
-                ),
-                BAFFLE_SNAP_RECEIVER_Y,
-                side
-                * (
-                    half_height
-                    - BAFFLE_SNAP_RECEIVER_PROJECTION_Z / 2.0
-                    + BOOLEAN_OVERLAP / 2.0
-                ),
-            ),
-            BAFFLE_SNAP_RECEIVER_BEVEL,
-        )
+        receiver = create_baffle_snap_receiver(side)
         boolean_union(
             back,
             receiver,
@@ -4325,7 +4605,7 @@ def create_back_shell():
         else None
     )
     boolean_difference(back, [cavity], "Rear_Socket")
-    add_sleeve_capture_ledge(back)
+    add_sleeve_capture_backing(back)
     camera_stops = create_camera_stops(camera_stop_back_volume)
     clear_camera_stop_fastener_access(camera_stops)
 
@@ -4870,8 +5150,6 @@ def add_baffle_snap_tongues(component):
         )
 
         root_z = baffle_snap_tongue_center_z_at_y(root_y, side)
-        angle = baffle_snap_tongue_angle(side)
-
         body_surface_z = side * BAFFLE_BODY_HEIGHT / 2.0
         arm_inner_z = root_z - side * BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
         root_bridge_height = (
@@ -4925,20 +5203,18 @@ def add_baffle_snap_tongues(component):
             f"Baffle_Snap_Hook_{'Top' if side > 0 else 'Bottom'}",
             (
                 BAFFLE_SNAP_TONGUE_WIDTH_X,
-                BAFFLE_SNAP_RECEIVER_DEPTH_Y + 2.0 * join_overlap,
+                BAFFLE_SNAP_HOOK_DEPTH_Y,
                 BAFFLE_SNAP_HOOK_PROTRUSION_Z + 2.0 * join_overlap,
             ),
             (
                 baffle_snap_auxiliary_center_x_at_y(
                     hook_y,
-                    BAFFLE_SNAP_RECEIVER_DEPTH_Y
-                    + 2.0 * join_overlap,
+                    BAFFLE_SNAP_HOOK_DEPTH_Y,
                 ),
                 hook_y,
                 hook_center_z,
             ),
-            min(BAFFLE_SNAP_RECEIVER_BEVEL, 0.20),
-            rotation=(angle, 0.0, 0.0),
+            BAFFLE_SNAP_HOOK_BEVEL,
         )
         boolean_union(
             component,
@@ -6000,6 +6276,14 @@ def mesh_bvh(obj):
     return bvh
 
 
+def translated_mesh_bvh(obj, translation):
+    """Build a BVH from an object's mesh translated in local coordinates."""
+    offset = Vector(translation)
+    vertices = [vertex.co + offset for vertex in obj.data.vertices]
+    polygons = [tuple(polygon.vertices) for polygon in obj.data.polygons]
+    return BVHTree.FromPolygons(vertices, polygons, all_triangles=False)
+
+
 def bvh_segment_is_blocked(bvhs, start, end) -> bool:
     """Return whether any mesh surface intersects the finite segment."""
     origin = Vector(start)
@@ -6239,7 +6523,7 @@ def validate_sleeve_capture_mesh(back, insert) -> None:
             (groove_outer_point[0] + groove_inner_point[0]) / 2.0,
             (groove_outer_point[1] + groove_inner_point[1]) / 2.0,
         )
-        lip_point = (
+        flush_rebate_point = (
             (groove_inner_point[0] + opening_point[0]) / 2.0,
             (groove_inner_point[1] + opening_point[1]) / 2.0,
         )
@@ -6318,9 +6602,13 @@ def validate_sleeve_capture_mesh(back, insert) -> None:
                     False,
                 ),
                 (
-                    f"continuous_deep_lip_{index}",
-                    (lip_point[0], floor_above_y, lip_point[1]),
-                    True,
+                    f"continuous_flush_inner_rebate_{index}",
+                    (
+                        flush_rebate_point[0],
+                        floor_above_y,
+                        flush_rebate_point[1],
+                    ),
+                    False,
                 ),
                 (
                     f"continuous_deep_support_{index}",
@@ -6511,7 +6799,7 @@ def validate_baffle_line_of_sight(back, tray, lid) -> None:
 
 
 def validate_baffle_assembled_collisions(back, tray, lid) -> None:
-    """Reject shell/cartridge intersections outside latches and TPU seal."""
+    """Reject seated shell/cartridge intersections outside the TPU seal."""
     tongue_left = -BAFFLE_SNAP_TONGUE_WIDTH_X / 2.0
     tongue_right = BAFFLE_SNAP_TONGUE_WIDTH_X / 2.0
     for name, x0, x1, _z0, _z1, attachment in CAMERA_STOP_SPECS:
@@ -6523,36 +6811,16 @@ def validate_baffle_assembled_collisions(back, tray, lid) -> None:
             )
 
     back_bvh = mesh_bvh(back)
-    intentional_pairs = 0
     intentional_seal_pairs = 0
     unexpected = []
     join_overlap = baffle_boolean_join_overlap()
-    allowed_y_min = (
-        baffle_snap_hook_y()
-        - BAFFLE_SNAP_RECEIVER_DEPTH_Y / 2.0
-        - join_overlap
-        - 0.50
-    )
-    allowed_y_max = (
-        BAFFLE_SNAP_RECEIVER_Y
-        + BAFFLE_SNAP_RECEIVER_DEPTH_Y / 2.0
-        + join_overlap
-        + 0.50
-    )
     for component in (tray, lid):
         pairs = mesh_bvh(component).overlap(back_bvh)
-        for component_face_index, _back_face_index in pairs:
+        for component_face_index, back_face_index in pairs:
             if component_face_index >= len(component.data.polygons):
                 unexpected.append((component.name, component_face_index))
                 continue
             center = component.data.polygons[component_face_index].center
-            intentional_latch_overlap = (
-                component is tray
-                and abs(center.x)
-                <= BAFFLE_SNAP_TONGUE_WIDTH_X / 2.0 + 0.50
-                and allowed_y_min <= center.y <= allowed_y_max
-                and abs(center.z) >= BAFFLE_BODY_HEIGHT / 2.0
-            )
             seal_radius = math.hypot(
                 center.x - FAN_CENTER_X,
                 center.z - FAN_CENTER_Z,
@@ -6565,9 +6833,7 @@ def validate_baffle_assembled_collisions(back, tray, lid) -> None:
                 <= seal_radius
                 <= BAFFLE_GASKET_OUTER_DIAMETER / 2.0 + 0.50
             )
-            if intentional_latch_overlap:
-                intentional_pairs += 1
-            elif intentional_integral_seal_overlap:
+            if intentional_integral_seal_overlap:
                 intentional_seal_pairs += 1
             else:
                 unexpected.append(
@@ -6575,6 +6841,13 @@ def validate_baffle_assembled_collisions(back, tray, lid) -> None:
                         component.name,
                         component_face_index,
                         tuple(round(value, 3) for value in center),
+                        back_face_index,
+                        tuple(
+                            round(value, 3)
+                            for value in back.data.polygons[
+                                back_face_index
+                            ].center
+                        ),
                     )
                 )
     tray_lid_pairs = mesh_bvh(tray).overlap(mesh_bvh(lid))
@@ -6582,18 +6855,125 @@ def validate_baffle_assembled_collisions(back, tray, lid) -> None:
         unexpected.append(("tray_lid", len(tray_lid_pairs)))
     if unexpected:
         raise RuntimeError(
-            "The assembled baffle has non-latch mesh collisions: "
+            "The assembled baffle has non-seal mesh collisions: "
             f"{unexpected[:8]}"
         )
-    if intentional_pairs == 0:
-        raise RuntimeError("The assembled baffle snap does not engage its receivers")
     if baffle_gasket_is_integral() and intentional_seal_pairs == 0:
         raise RuntimeError("The integral TPU seal has no fan-pad compression")
     print(
         "BAFFLE_ASSEMBLED_COLLISIONS PASS "
-        f"intentional_latch_triangle_pairs={intentional_pairs} "
+        "seated_latch_triangle_pairs=0 "
         f"intentional_seal_triangle_pairs={intentional_seal_pairs} "
         "unexpected_triangle_pairs=0"
+    )
+
+
+def validate_baffle_snap_retention_sweep(back, tray) -> None:
+    """Require both seated hooks to clear, then catch during a +Y pull."""
+    back_bvh = mesh_bvh(back)
+    seated_clearance = baffle_snap_seated_clearance_y()
+    minimum_seated_clearance = (
+        seated_clearance - BAFFLE_SNAP_AXIAL_TOLERANCE_Y
+    )
+    if minimum_seated_clearance <= 0.0:
+        raise RuntimeError(
+            "The baffle latch closes at the negative axial tolerance "
+            f"extreme: minimum gap={minimum_seated_clearance:.3f} mm"
+        )
+    pull_step = 0.05
+    maximum_pull = seated_clearance + BAFFLE_SNAP_HOOK_DEPTH_Y / 2.0
+    pull_count = math.ceil(maximum_pull / pull_step)
+    first_contact = {-1: None, 1: None}
+    premature_contacts = []
+    latch_z_min = BAFFLE_BODY_HEIGHT / 2.0 + 1.0
+    latch_x_max = (
+        max(
+            BAFFLE_SNAP_RECEIVER_WIDTH_X,
+            BAFFLE_SNAP_TONGUE_WIDTH_X,
+        )
+        / 2.0
+        + 1.0
+    )
+
+    for pull_index in range(pull_count + 1):
+        pull_y = min(pull_index * pull_step, maximum_pull)
+        pairs = translated_mesh_bvh(tray, (0.0, pull_y, 0.0)).overlap(
+            back_bvh
+        )
+        contacted_sides = set()
+        for tray_face_index, back_face_index in pairs:
+            tray_center = (
+                tray.data.polygons[tray_face_index].center
+                + Vector((0.0, pull_y, 0.0))
+            )
+            back_center = back.data.polygons[back_face_index].center
+            if (
+                abs(tray_center.x) <= latch_x_max
+                and abs(back_center.x) <= latch_x_max
+                and abs(tray_center.z) >= latch_z_min
+                and abs(back_center.z) >= latch_z_min
+                and tray_center.z * back_center.z > 0.0
+            ):
+                contacted_sides.add(1 if tray_center.z > 0.0 else -1)
+        for side in contacted_sides:
+            if pull_y + 1.0e-6 < seated_clearance:
+                premature_contacts.append((side, pull_y))
+            if first_contact[side] is None:
+                first_contact[side] = pull_y
+
+    if premature_contacts:
+        raise RuntimeError(
+            "A seated baffle hook intersects its receiver before closing "
+            f"the configured axial clearance: {premature_contacts[:4]}"
+        )
+    missing_sides = [
+        "top" if side > 0 else "bottom"
+        for side, pull_y in first_contact.items()
+        if pull_y is None
+    ]
+    if missing_sides:
+        raise RuntimeError(
+            "The baffle pull sweep did not engage both receiver faces: "
+            + ", ".join(missing_sides)
+        )
+    maximum_expected_contact = (
+        seated_clearance + BAFFLE_SNAP_HOOK_BEVEL + 0.10
+    )
+    late_contacts = {
+        "top" if side > 0 else "bottom": pull_y
+        for side, pull_y in first_contact.items()
+        if pull_y > maximum_expected_contact
+    }
+    if late_contacts:
+        raise RuntimeError(
+            "A baffle hook reaches its receiver too late in the pull sweep: "
+            f"{late_contacts}"
+        )
+    worst_case_contact = {
+        side: pull_y + BAFFLE_SNAP_AXIAL_TOLERANCE_Y
+        for side, pull_y in first_contact.items()
+    }
+    preload_lost = {
+        "top" if side > 0 else "bottom": pull_y
+        for side, pull_y in worst_case_contact.items()
+        if pull_y >= baffle_gasket_compression() - 1.0e-6
+    }
+    if preload_lost:
+        raise RuntimeError(
+            "A baffle hook does not catch before releasing all gasket "
+            "compression at the positive axial tolerance extreme: "
+            f"{preload_lost}"
+        )
+    print(
+        "BAFFLE_SNAP_RETENTION_SWEEP PASS "
+        f"seated_clearance={seated_clearance:.2f}mm "
+        f"minimum_tolerance_gap={minimum_seated_clearance:.2f}mm "
+        f"bottom_first_contact={first_contact[-1]:.2f}mm "
+        f"top_first_contact={first_contact[1]:.2f}mm "
+        f"worst_case_contacts=({worst_case_contact[-1]:.2f},"
+        f"{worst_case_contact[1]:.2f})mm "
+        f"gasket_compression={baffle_gasket_compression():.2f}mm "
+        f"tested_pull={maximum_pull:.2f}mm"
     )
 
 
@@ -6657,6 +7037,7 @@ def validate_baffle_cartridge(back, components) -> None:
         validate_object(component)
     validate_baffle_line_of_sight(back, tray, lid)
     validate_baffle_assembled_collisions(back, tray, lid)
+    validate_baffle_snap_retention_sweep(back, tray)
     validate_baffle_lid_insertion_clearance(tray, lid)
 
     print_contact_areas = [
@@ -7246,6 +7627,11 @@ def validate_baffle_cartridge(back, components) -> None:
         "gasket_compression="
         f"{baffle_gasket_compression():.2f}mm "
         f"snap_interference={baffle_snap_resolved_interference():.2f}mm "
+        f"snap_seated_clearance={baffle_snap_seated_clearance_y():.2f}mm "
+        f"snap_axial_tolerance={BAFFLE_SNAP_AXIAL_TOLERANCE_Y:.2f}mm "
+        f"snap_release_strain={baffle_snap_release_strain():.3%} "
+        "snap_retaining_face_area_each="
+        f"{baffle_snap_nominal_retaining_face_area():.1f}mm2 "
         "print_bed_contact_areas=("
         + ",".join(f"{area:.1f}" for area in print_contact_areas)
         + ")mm2"
@@ -7921,13 +8307,19 @@ def build_gopro_fan_case():
         != _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE
     ):
         apply_baffle_cartridge_material_profile()
+    if (
+        BACK_MATERIAL_MODE,
+        BAFFLE_CARTRIDGE_MATERIAL_MODE,
+    ) != _APPLIED_BAFFLE_RETENTION_MATERIAL_MODES:
+        apply_baffle_retention_material_profile()
     validate_config()
     print(
         "MATERIAL_MODES "
         f"back={BACK_MATERIAL_MODE} sleeve={SLEEVE_MATERIAL_MODE} "
         f"retainer={RETAINER_MATERIAL_MODE} "
         f"baffle={BAFFLE_CARTRIDGE_MATERIAL_MODE} buttons=TPU "
-        f"seal={'integral_TPU' if baffle_gasket_is_integral() else 'separate_TPU'}"
+        f"seal={'integral_TPU' if baffle_gasket_is_integral() else 'separate_TPU'} "
+        f"baffle_retention={baffle_retention_material_profile_name()}"
     )
     print(
         f"FRONT_CAMERA_RETAINER enabled={RETAINER_ENABLED} "
@@ -7970,9 +8362,9 @@ def build_gopro_fan_case():
             f"boss_datum_y={insert_start_y():.2f}mm "
             f"ordinary_overlap={INSERTION_DEPTH:.2f}mm "
             f"engagement={SLEEVE_CAPTURE_ENGAGEMENT_DEPTH:.2f}mm "
-            f"fit_clearance_per_face={SLEEVE_CAPTURE_FIT_CLEARANCE:.2f}mm "
+            f"outer_fit_clearance={SLEEVE_CAPTURE_FIT_CLEARANCE:.2f}mm "
             f"bottom_clearance={SLEEVE_CAPTURE_BOTTOM_CLEARANCE:.2f}mm "
-            f"inner_lip={SLEEVE_CAPTURE_INNER_LIP_THICKNESS:.2f}mm "
+            "interior_capture_ledge=False "
             f"floor={SLEEVE_CAPTURE_FLOOR_THICKNESS:.2f}mm "
             f"deep_groove_support_x={SLEEVE_CAPTURE_MIN_OUTER_WALL_X:.2f}mm "
             f"deep_groove_support_z={SLEEVE_CAPTURE_MIN_OUTER_WALL_Z:.2f}mm "
