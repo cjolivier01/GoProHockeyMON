@@ -165,16 +165,17 @@ EXACT_DESCRIPTIONS = {
     "BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y": "Per-face axial fit clearance around each end return in its lid pocket.",
     "BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z": "Vertical fit clearance beyond the inward edge of each end-return lid pocket.",
     "BAFFLE_SECOND_END_FRAME_LID_MIN_WALL": "Minimum retained floor and axial-wall thickness around either end-return lid pocket.",
-    "BAFFLE_SNAP_RECEIVER_WIDTH_X": "Bearing width of each top/bottom back-shell latch rib; the reinforced profile doubles it when either mating part is TPU.",
-    "BAFFLE_SNAP_RECEIVER_DEPTH_Y": "Axial depth of each back-shell latch rib; the reinforced profile enlarges the rib when either mating part is TPU.",
+    "BAFFLE_SNAP_RECEIVER_WIDTH_X": "Bearing width of each top/bottom back-shell latch rib; either TPU interface profile doubles it.",
+    "BAFFLE_SNAP_RECEIVER_DEPTH_Y": "Axial depth of each back-shell latch rib; either TPU interface profile enlarges the rib.",
     "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y": "Axial length of the receiver's camera-side insertion ramp; its rear retaining face remains square.",
-    "BAFFLE_SNAP_TONGUE_WIDTH_X": "Bearing width of each cartridge latch tongue and hook; reinforced whenever either mating part is TPU.",
-    "BAFFLE_SNAP_ROOT_DEPTH_Y": "Axial depth of each tongue-to-cartridge root bridge; reinforced whenever either mating part is TPU.",
+    "BAFFLE_SNAP_TONGUE_WIDTH_X": "Bearing width of each cartridge latch tongue and hook; reinforced for either TPU interface profile.",
+    "BAFFLE_SNAP_ROOT_DEPTH_Y": "Axial depth of each tongue-to-cartridge root bridge; reinforced for either TPU interface profile.",
     "BAFFLE_SNAP_HOOK_DEPTH_Y": "Axial thickness of each cartridge hook; kept shorter than the receiver offset so the hook can spring fully behind the rib.",
     "BAFFLE_SNAP_HOOK_BEVEL": "Small hook-edge bevel that eases insertion while retaining a near-square rear bearing face.",
-    "BAFFLE_SNAP_INTERFERENCE_Z": "Configured retaining undercut between each cartridge hook tip and its back-shell receiver rib.",
+    "BAFFLE_SNAP_INTERFERENCE_Z": "Configured retaining undercut between each cartridge hook tip and the receiver's square rear catch plane; reduced when a rigid cartridge mates to a TPU back.",
     "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": "Axial center-to-center distance from the seated cartridge hook to its receiver rib.",
     "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y": "Open axial gap between the seated hook's camera-facing surface and the receiver's rear surface.",
+    "BAFFLE_SNAP_AXIAL_TOLERANCE_Y": "One-sided printed axial tolerance used to prove a positive seated latch gap and catch engagement before gasket preload is lost.",
     "BAFFLE_TRAY_STL_NAME": "Output filename for the side-open acoustic labyrinth tray with one controlled stop-relief bridge.",
     "BAFFLE_LID_STL_NAME": "Output filename for the separately printed keyed side lid.",
     "BAFFLE_GASKET_STL_NAME": "Output filename for the groove-located TPU annular gasket used only with the RIGID cartridge profile.",
@@ -182,10 +183,9 @@ EXACT_DESCRIPTIONS = {
     "BACK_OUTER_HEIGHT": "Requested legacy back-shell height; the enabled capture joint may expand the effective envelope to contain its support contour.",
     "BACK_CORNER_RADIUS": "Requested legacy back-shell corner radius; the enabled capture joint derives a containing effective radius when necessary.",
     "INSERTION_DEPTH": "Ordinary sleeve overlap measured rearward from the screw-boss assembly datum.",
-    "SLEEVE_CAPTURE_SLOT_ENABLED": "Enables the continuous four-sided groove, interior retaining lip and extended sleeve edge.",
+    "SLEEVE_CAPTURE_SLOT_ENABLED": "Enables the continuous four-sided outer capture rebate, flush interior opening and extended sleeve edge.",
     "SLEEVE_CAPTURE_ENGAGEMENT_DEPTH": "Distance the sleeve leading wall extends beyond the boss datum into the groove.",
-    "SLEEVE_CAPTURE_FIT_CLEARANCE": "Lateral clearance on each of the sleeve wall's inner and outer groove faces.",
-    "SLEEVE_CAPTURE_INNER_LIP_THICKNESS": "Structural back-shell material retained between the groove and open interior.",
+    "SLEEVE_CAPTURE_FIT_CLEARANCE": "Lateral clearance between the sleeve outer wall and capture-rebate face; the inner side remains open and flush.",
     "SLEEVE_CAPTURE_BOTTOM_CLEARANCE": "Axial gap between the seated sleeve edge and groove floor when boss faces meet.",
     "SLEEVE_CAPTURE_FLOOR_THICKNESS": "Back-shell material remaining beneath the bottom of the capture groove.",
     "SLEEVE_CAPTURE_MIN_OUTER_WALL_X": "Required structural side-wall support outside the groove at its deepest section in X.",
@@ -429,15 +429,16 @@ def read_model_config():
             if isinstance(selected, dict):
                 resolved_profile.update(selected)
     retention_profiles = env.get("BAFFLE_RETENTION_MATERIAL_PROFILES", {})
-    retention_profile_name = (
-        "TPU_INTERFACE"
-        if "TPU"
-        in (
-            source_config["BACK_MATERIAL_MODE"][0],
-            source_config["BAFFLE_CARTRIDGE_MATERIAL_MODE"][0],
-        )
-        else "RIGID_RIGID"
-    )
+    back_material_mode = source_config["BACK_MATERIAL_MODE"][0]
+    cartridge_material_mode = source_config[
+        "BAFFLE_CARTRIDGE_MATERIAL_MODE"
+    ][0]
+    if cartridge_material_mode == "TPU":
+        retention_profile_name = "TPU_CARTRIDGE"
+    elif back_material_mode == "TPU":
+        retention_profile_name = "TPU_BACK"
+    else:
+        retention_profile_name = "RIGID_RIGID"
     if isinstance(retention_profiles, dict):
         selected_retention = retention_profiles.get(retention_profile_name, {})
         if isinstance(selected_retention, dict):
@@ -944,7 +945,7 @@ def capture_disabled_page(pdf, page_number: int, title: str, details):
     ax.text(
         0.08,
         0.67,
-        "No groove, retaining lip, groove floor, support enlargement, or "
+        "No capture rebate, groove floor, support enlargement, or "
         "extra sleeve engagement is generated.",
         transform=ax.transAxes,
         fontsize=9.0,
@@ -1069,9 +1070,9 @@ def page_assembly_datum(pdf):
     scale = 1.5
     leading = datum - engagement * scale
     groove_floor = leading - bottom_clearance * scale
-    ledge_start = groove_floor - floor * scale
-    ax.add_patch(Rectangle((ledge_start, 0.6), datum - ledge_start, 1.1, facecolor=BLUE, alpha=0.85))
-    ax.add_patch(Rectangle((ledge_start, 1.7), floor * scale, 2.1, facecolor=BLUE, alpha=0.85))
+    backing_start = groove_floor - floor * scale
+    ax.add_patch(Rectangle((backing_start, 0.6), datum - backing_start, 1.1, facecolor=BLUE, alpha=0.85))
+    ax.add_patch(Rectangle((backing_start, 1.7), floor * scale, 2.1, facecolor=BLUE, alpha=0.85))
     ax.add_patch(Rectangle((groove_floor, 3.1), datum - groove_floor, 0.7, facecolor=BLUE, alpha=0.85))
     ax.add_patch(Rectangle((leading, 1.8), 3.0, 1.2, facecolor=ORANGE, alpha=0.9))
     ax.add_patch(Rectangle((0.8, 4.5), datum - 0.8, 0.8, facecolor=BLUE, alpha=0.85))
@@ -1080,7 +1081,7 @@ def page_assembly_datum(pdf):
     ax.text(datum, 5.65, "SCREW-BOSS DATUM", color=RED, fontsize=7.2, weight="bold", ha="center")
     dimension(ax, (leading, 1.3), (datum, 1.3), f"SLEEVE_CAPTURE_ENGAGEMENT_DEPTH = {fmt(C['SLEEVE_CAPTURE_ENGAGEMENT_DEPTH'])} mm")
     dimension(ax, (groove_floor, 0.85), (leading, 0.85), f"BOTTOM_CLEARANCE = {fmt(C['SLEEVE_CAPTURE_BOTTOM_CLEARANCE'])} mm", GREEN)
-    dimension(ax, (ledge_start, 0.25), (groove_floor, 0.25), f"FLOOR_THICKNESS = {fmt(C['SLEEVE_CAPTURE_FLOOR_THICKNESS'])} mm", ORANGE)
+    dimension(ax, (backing_start, 0.25), (groove_floor, 0.25), f"FLOOR_THICKNESS = {fmt(C['SLEEVE_CAPTURE_FLOOR_THICKNESS'])} mm", ORANGE)
     ax.text(5.0, 2.45, "INSERT SLEEVE", color=ORANGE, fontsize=7.5, weight="bold")
     ax.text(1.0, 4.85, "BACK BOSS", color=WHITE, fontsize=7.0, weight="bold")
     ax.text(4.8, 4.85, "INSERT BOSS", color=WHITE, fontsize=7.0, weight="bold")
@@ -1101,36 +1102,30 @@ def page_groove_section(pdf):
             "CAPTURE GROOVE — STRAIGHT CROSS-SECTION",
             (
                 "The ordinary socket clearance remains active; capture-groove face clearance does not.",
-                "No retaining lip or axial groove floor exists in the printable back shell.",
+                "No outer capture rebate or axial groove floor exists in the printable back shell.",
                 "Slot dimensions on the catalog sheets are inactive settings retained for later use.",
             ),
         )
         return
-    fig = new_page(3, "CAPTURE GROOVE — STRAIGHT CROSS-SECTION", "Fit clearance, retaining lip and outer material are separate controls")
-    ax = panel(fig, [0.06, 0.14, 0.63, 0.70], "SECTION NORMAL TO A STRAIGHT SIDE", "Blue = back shell • orange = sleeve wall • white = clearance")
+    fig = new_page(3, "CAPTURE GROOVE — STRAIGHT CROSS-SECTION", "The outer rebate retains axial support while the camera-side interior stays flush")
+    ax = panel(fig, [0.06, 0.14, 0.63, 0.70], "SECTION NORMAL TO A STRAIGHT SIDE", "Blue = back shell • orange = sleeve wall • white = outer-face clearance")
     ax.set_xlim(0.0, 10.0)
     ax.set_ylim(0.0, 7.0)
     outer_wall = 2.2
     clearance = 0.55
     sleeve = 1.5
-    lip = 1.4
     x0 = 1.0
-    opening_end = x0 + 1.0
-    lip_end = opening_end + lip
-    sleeve_start = lip_end + clearance
+    sleeve_start = x0 + 1.6
     sleeve_end = sleeve_start + sleeve
     outer_start = sleeve_end + clearance
     ax.add_patch(Rectangle((x0, 0.8), 8.0, 0.9, facecolor=BLUE))
-    ax.add_patch(Rectangle((opening_end, 1.7), lip, 3.8, facecolor=BLUE))
     ax.add_patch(Rectangle((outer_start, 1.7), outer_wall, 3.8, facecolor=BLUE))
     ax.add_patch(Rectangle((sleeve_start, 2.1), sleeve, 3.8, facecolor=ORANGE))
-    ax.text(0.35, 3.6, "OPEN\nINTERIOR", fontsize=7.0, color=GRAY, ha="center")
-    ax.text((opening_end + lip_end) / 2.0, 4.1, "INNER\nRETAINING\nLIP", fontsize=6.6, color=WHITE, ha="center", weight="bold")
+    ax.plot((sleeve_start, sleeve_start), (1.7, 6.0), color=GREEN, linewidth=1.2, linestyle="--")
+    ax.text(1.55, 3.6, "OPEN INTERIOR\nNO RAISED LEDGE", fontsize=7.0, color=GREEN, ha="center", weight="bold")
     ax.text((sleeve_start + sleeve_end) / 2.0, 4.2, "SLEEVE\nLEADING\nWALL", fontsize=6.8, color=WHITE, ha="center", weight="bold")
     ax.text(outer_start + outer_wall / 2.0, 4.2, "OUTER\nBACK-SHELL\nWALL", fontsize=6.7, color=WHITE, ha="center", weight="bold")
-    dimension(ax, (opening_end, 6.15), (lip_end, 6.15), f"INNER_LIP = {fmt(C['SLEEVE_CAPTURE_INNER_LIP_THICKNESS'])} mm", GREEN)
-    dimension(ax, (lip_end, 5.75), (sleeve_start, 5.75), f"CLEARANCE = {fmt(C['SLEEVE_CAPTURE_FIT_CLEARANCE'])} mm", BLUE)
-    dimension(ax, (sleeve_end, 5.75), (outer_start, 5.75), "same per-face clearance", BLUE)
+    dimension(ax, (sleeve_end, 5.75), (outer_start, 5.75), f"OUTER CLEARANCE = {fmt(C['SLEEVE_CAPTURE_FIT_CLEARANCE'])} mm", BLUE)
     dimension(
         ax,
         (outer_start, 6.45),
@@ -1145,10 +1140,10 @@ def page_groove_section(pdf):
     capture = resolved_capture_geometry()
     envelope_x = (capture["back_width"] - outer_w) / 2.0
     envelope_z = (capture["back_height"] - outer_h) / 2.0
-    note(side, 0.04, 0.90, "GROOVE", [f"outer {outer_w:.2f} × {outer_h:.2f} mm", f"per-face fit {fmt(C['SLEEVE_CAPTURE_FIT_CLEARANCE'])} mm", f"depth {fmt(C['SLEEVE_CAPTURE_ENGAGEMENT_DEPTH'])} mm + bottom gap"], BLUE)
-    note(side, 0.04, 0.66, "SUPPORT WALLS", [f"inner lip {fmt(C['SLEEVE_CAPTURE_INNER_LIP_THICKNESS'])} mm", f"deepest X {fmt(C['SLEEVE_CAPTURE_MIN_OUTER_WALL_X'])} mm", f"deepest Z {fmt(C['SLEEVE_CAPTURE_MIN_OUTER_WALL_Z'])} mm"], GREEN)
-    note(side, 0.04, 0.42, "ENVELOPE MARGINS", [f"beyond groove X {envelope_x:.2f} mm", f"beyond groove Z {envelope_z:.2f} mm", "Includes material behind ledge."], BLUE)
-    note(side, 0.04, 0.18, "NO MEMBRANE", ["Annular ledge; center stays open."], RED)
+    note(side, 0.04, 0.90, "GROOVE", [f"outer {outer_w:.2f} × {outer_h:.2f} mm", f"outer-face fit {fmt(C['SLEEVE_CAPTURE_FIT_CLEARANCE'])} mm", f"depth {fmt(C['SLEEVE_CAPTURE_ENGAGEMENT_DEPTH'])} mm + bottom gap"], BLUE)
+    note(side, 0.04, 0.66, "SUPPORT WALLS", ["camera-side opening flush", f"deepest X {fmt(C['SLEEVE_CAPTURE_MIN_OUTER_WALL_X'])} mm", f"deepest Z {fmt(C['SLEEVE_CAPTURE_MIN_OUTER_WALL_Z'])} mm"], GREEN)
+    note(side, 0.04, 0.42, "ENVELOPE MARGINS", [f"beyond groove X {envelope_x:.2f} mm", f"beyond groove Z {envelope_z:.2f} mm", "Includes axial floor backing."], BLUE)
+    note(side, 0.04, 0.18, "OPEN REBATE", ["No inward shelf at the sleeve joint."], RED)
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -1179,17 +1174,19 @@ def page_groove_plan(pdf):
     groove_w = float(C["INSERT_FRONT_WIDTH"]) + 2.0 * clearance
     groove_h = float(C["INSERT_FRONT_HEIGHT"]) + 2.0 * clearance
     groove_r = float(C["INSERT_OUTER_CORNER_RADIUS"]) + clearance
-    inner_w = float(C["INSERT_FRONT_WIDTH"]) - 2.0 * float(C["INSERT_WALL_X"]) - 2.0 * clearance
-    inner_h = float(C["INSERT_FRONT_HEIGHT"]) - 2.0 * float(C["INSERT_WALL_Z"]) - 2.0 * clearance
-    inner_r = float(C["INSERT_OUTER_CORNER_RADIUS"]) - max(float(C["INSERT_WALL_X"]), float(C["INSERT_WALL_Z"])) - clearance
-    lip = float(C["SLEEVE_CAPTURE_INNER_LIP_THICKNESS"])
+    opening_w = float(C["INSERT_FRONT_WIDTH"]) - 2.0 * float(C["INSERT_WALL_X"])
+    opening_h = float(C["INSERT_FRONT_HEIGHT"]) - 2.0 * float(C["INSERT_WALL_Z"])
+    opening_r = float(C["INSERT_OUTER_CORNER_RADIUS"]) - max(float(C["INSERT_WALL_X"]), float(C["INSERT_WALL_Z"]))
+    inner_w = opening_w - 2.0 * clearance
+    inner_h = opening_h - 2.0 * clearance
+    inner_r = opening_r - clearance
     contours = (
         (back_w, back_h, back_r, BLUE, 2.0, "-"),
         (capture["support_width"], capture["support_height"], capture["support_radius"], CYAN, 1.2, "-"),
         (groove_w, groove_h, groove_r, BLUE, 1.2, "-"),
         (float(C["INSERT_FRONT_WIDTH"]), float(C["INSERT_FRONT_HEIGHT"]), float(C["INSERT_OUTER_CORNER_RADIUS"]), ORANGE, 1.2, "--"),
         (inner_w, inner_h, inner_r, BLUE, 1.2, "-"),
-        (inner_w - 2.0 * lip, inner_h - 2.0 * lip, inner_r - lip, GREEN, 1.2, "-"),
+        (opening_w, opening_h, opening_r, GREEN, 1.2, "-"),
     )
     for width, height, radius, color, linewidth, linestyle in contours:
         ax.add_patch(FancyBboxPatch((-width / 2.0, -height / 2.0), width, height, boxstyle=f"round,pad=0,rounding_size={radius}", fill=False, edgecolor=color, linewidth=linewidth, linestyle=linestyle))
@@ -1199,8 +1196,8 @@ def page_groove_plan(pdf):
     side = panel(fig, [0.73, 0.13, 0.21, 0.72], "RADIUS DERIVATION")
     side.axis("off")
     note(side, 0.04, 0.93, "OUTER GROOVE", ["R = INSERT_OUTER_CORNER_RADIUS", "+ SLEEVE_CAPTURE_FIT_CLEARANCE", f"= {groove_r:.2f} mm"], BLUE)
-    note(side, 0.04, 0.61, "INNER GROOVE", ["R = sleeve inner radius", "− fit clearance", f"= {inner_r:.2f} mm"], ORANGE)
-    note(side, 0.04, 0.34, "LIP OPENING", ["R = groove inner radius", "− retaining-lip thickness", f"= {inner_r - lip:.2f} mm"], GREEN)
+    note(side, 0.04, 0.61, "INNER RELIEF LIMIT", ["R = sleeve inner radius", "− Boolean relief margin", f"= {inner_r:.2f} mm"], ORANGE)
+    note(side, 0.04, 0.34, "FLUSH OPENING", ["R = sleeve inner radius", "no inward capture ledge", f"= {opening_r:.2f} mm"], GREEN)
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -1737,6 +1734,67 @@ def load_stl_triangles(part: str) -> np.ndarray:
     return triangles
 
 
+@lru_cache(maxsize=None)
+def stl_x_section_yz_segments(
+    part: str,
+    section_x: float = 0.0,
+) -> tuple[tuple[tuple[float, float], tuple[float, float]], ...]:
+    """Intersect an STL with an X plane and return its actual Y/Z segments."""
+    tolerance = 1.0e-6
+    segments = []
+    seen = set()
+    for triangle in load_stl_triangles(part):
+        distances = triangle[:, 0] - section_x
+        if np.all(np.abs(distances) <= tolerance):
+            continue
+        intersections = []
+        for start_index, end_index in ((0, 1), (1, 2), (2, 0)):
+            start = triangle[start_index]
+            end = triangle[end_index]
+            start_distance = distances[start_index]
+            end_distance = distances[end_index]
+            if abs(start_distance) <= tolerance:
+                intersections.append(start)
+            if start_distance * end_distance < -(tolerance**2):
+                fraction = start_distance / (start_distance - end_distance)
+                intersections.append(start + fraction * (end - start))
+        unique = []
+        for point in intersections:
+            yz = (float(point[1]), float(point[2]))
+            if not any(math.dist(yz, existing) <= tolerance for existing in unique):
+                unique.append(yz)
+        if len(unique) < 2:
+            continue
+        if len(unique) > 2:
+            start, end = max(
+                (
+                    (first, second)
+                    for first_index, first in enumerate(unique)
+                    for second in unique[first_index + 1 :]
+                ),
+                key=lambda pair: math.dist(*pair),
+            )
+        else:
+            start, end = unique
+        if math.dist(start, end) <= tolerance:
+            continue
+        key = tuple(
+            sorted(
+                (
+                    (round(start[0], 6), round(start[1], 6)),
+                    (round(end[0], 6), round(end[1], 6)),
+                )
+            )
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        segments.append((start, end))
+    if not segments:
+        raise RuntimeError(f"No X={section_x:.3f} mm section for {part}")
+    return tuple(segments)
+
+
 PROJECTION_AXES = {
     "xy": (0, 1),
     "xz": (0, 2),
@@ -1963,7 +2021,7 @@ def baffle_dome_half_height_for_drawings(y: float) -> float:
 
 
 def capture_joint_detail_points(bounds):
-    """Return enlarged NTS section endpoints for the six capture controls."""
+    """Return enlarged NTS section endpoints for the capture controls."""
     minimum_x, minimum_z, maximum_x, maximum_z = bounds
     scale = 10.0
     x_sleeve = minimum_x + 0.20 * (maximum_x - minimum_x)
@@ -1975,18 +2033,14 @@ def capture_joint_detail_points(bounds):
     z_groove = z_sleeve + scale * float(C["SLEEVE_CAPTURE_FIT_CLEARANCE"])
     z_socket = z_sleeve + scale * float(C["FIT_CLEARANCE_Z"])
     z_support = z_groove + scale * float(C["SLEEVE_CAPTURE_MIN_OUTER_WALL_Z"])
-    lip_opening = minimum_x + 0.43 * (maximum_x - minimum_x)
-    lip_groove = lip_opening + scale * float(C["SLEEVE_CAPTURE_INNER_LIP_THICKNESS"])
     return {
         "FIT_CLEARANCE_X": ((x_sleeve, 10.0), (x_socket, 10.0)),
         "SLEEVE_CAPTURE_FIT_CLEARANCE": ((x_sleeve, 4.0), (x_groove, 4.0)),
         "SLEEVE_CAPTURE_MIN_OUTER_WALL_X": ((x_groove, -2.0), (x_support, -2.0)),
         "FIT_CLEARANCE_Z": ((x_z_detail, z_sleeve), (x_z_detail, z_socket)),
         "SLEEVE_CAPTURE_MIN_OUTER_WALL_Z": ((x_z_detail - 7.0, z_groove), (x_z_detail - 7.0, z_support)),
-        "SLEEVE_CAPTURE_INNER_LIP_THICKNESS": ((lip_opening, -18.0), (lip_groove, -18.0)),
         "x_surfaces": (x_sleeve, x_groove, x_socket, x_support),
         "z_surfaces": (z_sleeve, z_groove, z_socket, z_support),
-        "lip_surfaces": (lip_opening, lip_groove),
     }
 
 
@@ -2586,8 +2640,12 @@ def draw_actual_view(ax, view: str):
                     )
                 )
             receiver_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
-            receiver_half_height = baffle_dome_half_height_for_drawings(
+            receiver_catch_y = (
                 receiver_y
+                - float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
+            )
+            receiver_half_height = baffle_dome_half_height_for_drawings(
+                receiver_catch_y
             )
             receiver_width = float(C["BAFFLE_SNAP_RECEIVER_WIDTH_X"])
             receiver_projection = float(C["BAFFLE_SNAP_RECEIVER_PROJECTION_Z"])
@@ -2690,7 +2748,7 @@ def draw_actual_view(ax, view: str):
             ax.text(
                 minimum_x,
                 minimum_y - 0.10 * (maximum_y - minimum_y),
-                "solid: tray/lid STL · dashed: inlet · white: outlet · green: seal/scallops · fine dash: rigid-groove profile · hatch: beveled receivers",
+                "solid: tray/lid STL · dashed: inlet · white: outlet · green: seal/scallops · fine dash: rigid-groove profile · hatch: square-catch/ramped receivers",
                 fontsize=3.8,
                 color=GRAY,
                 ha="left",
@@ -2842,7 +2900,41 @@ def draw_actual_view(ax, view: str):
             alpha=0.94,
             zorder=5,
         )
-        return union_bounds((tray, lid))
+        back_section = stl_x_section_yz_segments("back")
+        for start, end in back_section:
+            ax.plot(
+                (start[0], end[0]),
+                (start[1], end[1]),
+                color=BLUE,
+                linewidth=0.65,
+                alpha=0.80,
+                zorder=7,
+            )
+        section_points = [point for segment in back_section for point in segment]
+        section_bounds = (
+            min(point[0] for point in section_points),
+            min(point[1] for point in section_points),
+            max(point[0] for point in section_points),
+            max(point[1] for point in section_points),
+        )
+        ax.text(
+            section_bounds[0],
+            section_bounds[3] + 1.2,
+            "BLUE: ACTUAL BACK X=0 SECTION · SQUARE REAR CATCH + CAMERA-SIDE RAMP",
+            fontsize=4.1,
+            color=BLUE,
+            weight="bold",
+            ha="left",
+            va="bottom",
+            zorder=10,
+        )
+        assembly_bounds = union_bounds((tray, lid))
+        return (
+            min(assembly_bounds[0], section_bounds[0]),
+            min(assembly_bounds[1], section_bounds[1]),
+            max(assembly_bounds[2], section_bounds[2]),
+            max(assembly_bounds[3], section_bounds[3]),
+        )
     if view == "capture_joint":
         back = projected_part_geometry("back", "xz")
         insert = projected_part_geometry("insert", "xz")
@@ -2860,14 +2952,12 @@ def draw_actual_view(ax, view: str):
             (ORANGE, RED, BLUE, GREEN),
         ):
             ax.plot((detail["FIT_CLEARANCE_Z"][0][0] - 10.0, detail["FIT_CLEARANCE_Z"][0][0] + 3.0), (z, z), color=color, linewidth=1.05, zorder=9)
-        for x, color in zip(detail["lip_surfaces"], (RED, GREEN)):
-            ax.plot((x, x), (-22.0, -14.0), color=color, linewidth=1.15, zorder=9)
         ax.text(
-            sum(detail["lip_surfaces"]) / 2.0,
+            bounds[0] + 0.5 * (bounds[2] - bounds[0]),
             -23.0,
-            "INNER GROOVE → CAPTURE OPENING (ENLARGED NTS)",
+            "CAMERA-SIDE OPENING FLUSH WITH SLEEVE INTERIOR — NO LEDGE",
             fontsize=4.1,
-            color=RED,
+            color=GREEN,
             ha="center",
             va="top",
             zorder=10,
@@ -2963,14 +3053,14 @@ def draw_actual_view(ax, view: str):
                 datum_y + 10.0,
                 section_z + 9.0,
             )
-        ledge_y = (
+        backing_y = (
             boss_assembly_datum_y()
             - float(C["SLEEVE_CAPTURE_ENGAGEMENT_DEPTH"])
             - float(C["SLEEVE_CAPTURE_BOTTOM_CLEARANCE"])
             - float(C["SLEEVE_CAPTURE_FLOOR_THICKNESS"])
         )
         return (
-            ledge_y - 0.7,
+            backing_y - 0.7,
             -10.0,
             float(C["BACK_DEPTH"]) + 0.8,
             10.0,
@@ -4007,7 +4097,12 @@ def draw_specific_graphical_annotation(
 
         receiver_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
         hook_y = receiver_y - float(C["BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y"])
-        receiver_dome = baffle_dome_half_height_for_drawings(receiver_y)
+        receiver_catch_y = (
+            receiver_y - float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
+        )
+        receiver_dome = baffle_dome_half_height_for_drawings(
+            receiver_catch_y
+        )
         hook_dome = baffle_dome_half_height_for_drawings(hook_y)
         receiver_tip = receiver_dome - float(C["BAFFLE_SNAP_RECEIVER_PROJECTION_Z"])
         tongue_outer = hook_dome - float(C["BAFFLE_SNAP_TONGUE_WALL_OFFSET"])
@@ -4110,7 +4205,21 @@ def draw_specific_graphical_annotation(
 
         receiver_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
         hook_y = receiver_y - float(C["BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y"])
-        snap_z = baffle_dome_half_height_for_drawings(receiver_y)
+        receiver_rear_y = (
+            receiver_y - float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
+        )
+        receiver_front_y = (
+            receiver_y + float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
+        )
+        receiver_catch_inner_z = (
+            baffle_dome_half_height_for_drawings(receiver_rear_y)
+            - float(C["BAFFLE_SNAP_RECEIVER_PROJECTION_Z"])
+        )
+        hook_outer_z = (
+            baffle_dome_half_height_for_drawings(hook_y)
+            - float(C["BAFFLE_SNAP_TONGUE_WALL_OFFSET"])
+        )
+        hook_tip_z = hook_outer_z + float(C["BAFFLE_SNAP_HOOK_PROTRUSION_Z"])
         if name in {"BAFFLE_SNAP_RECEIVER_Y", "BAFFLE_SNAP_TONGUE_ROOT_Y"}:
             y_value = float(entry.value)
             z = 18.0 if name == "BAFFLE_SNAP_RECEIVER_Y" else -18.0
@@ -4127,25 +4236,45 @@ def draw_specific_graphical_annotation(
             else:
                 center_y = float(C["BAFFLE_SNAP_TONGUE_ROOT_Y"])
             half = float(entry.value) / 2.0
-            z = (
-                14.0
-                if name == "BAFFLE_SNAP_RECEIVER_DEPTH_Y"
-                else -14.0
-            )
-            return linear((center_y - half, z), (center_y + half, z), False, 1.0 if z > 0 else -1.0)
+            if name == "BAFFLE_SNAP_RECEIVER_DEPTH_Y":
+                z = receiver_catch_inner_z
+                offset = 2.0
+            elif name == "BAFFLE_SNAP_HOOK_DEPTH_Y":
+                z = -hook_tip_z
+                offset = -2.0
+            else:
+                z = -float(C["BAFFLE_BODY_HEIGHT"]) / 2.0
+                offset = -2.0
+            return linear((center_y - half, z), (center_y + half, z), False, offset)
         if name == "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y":
-            receiver_front_y = receiver_y + float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
-            return linear((receiver_front_y - float(entry.value), 12.0), (receiver_front_y, 12.0), False, 1.0)
+            return linear(
+                (
+                    receiver_front_y - float(entry.value),
+                    receiver_catch_inner_z,
+                ),
+                (receiver_front_y, receiver_catch_inner_z),
+                False,
+                4.0,
+            )
         if name == "BAFFLE_SNAP_HOOK_BEVEL":
             hook_front_y = hook_y + float(C["BAFFLE_SNAP_HOOK_DEPTH_Y"]) / 2.0
-            anchor = (hook_front_y - float(entry.value), -12.0)
-            return leader(anchor, (hook_y - 2.0, -18.0), f"{label} R", "radius")
+            anchor = (hook_front_y - float(entry.value), -hook_tip_z)
+            return leader(anchor, (hook_y - 2.0, -hook_tip_z - 5.0), f"{label} R", "radius")
         if name == "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y":
-            return linear((hook_y, snap_z - 4.0), (receiver_y, snap_z - 4.0), False, -1.0)
+            return linear((hook_y, receiver_catch_inner_z), (receiver_y, receiver_catch_inner_z), False, -3.0)
         if name == "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y":
             hook_front_y = hook_y + float(C["BAFFLE_SNAP_HOOK_DEPTH_Y"]) / 2.0
-            receiver_rear_y = receiver_y - float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
-            return linear((hook_front_y, snap_z - 6.0), (receiver_rear_y, snap_z - 6.0), False, -1.0)
+            return linear((hook_front_y, receiver_catch_inner_z), (receiver_rear_y, receiver_catch_inner_z), False, -5.0)
+        if name == "BAFFLE_SNAP_AXIAL_TOLERANCE_Y":
+            return linear(
+                (
+                    receiver_rear_y - float(entry.value),
+                    receiver_catch_inner_z,
+                ),
+                (receiver_rear_y, receiver_catch_inner_z),
+                False,
+                -7.0,
+            )
 
     if view == "back_front":
         fan_x = float(C["FAN_CENTER_X"])
@@ -4225,7 +4354,6 @@ def draw_specific_graphical_annotation(
         "FIT_CLEARANCE_X",
         "FIT_CLEARANCE_Z",
         "SLEEVE_CAPTURE_FIT_CLEARANCE",
-        "SLEEVE_CAPTURE_INNER_LIP_THICKNESS",
         "SLEEVE_CAPTURE_MIN_OUTER_WALL_X",
         "SLEEVE_CAPTURE_MIN_OUTER_WALL_Z",
     }:
@@ -4238,12 +4366,12 @@ def draw_specific_graphical_annotation(
         engagement = float(C["SLEEVE_CAPTURE_ENGAGEMENT_DEPTH"])
         leading = datum - engagement
         floor = leading - float(C["SLEEVE_CAPTURE_BOTTOM_CLEARANCE"])
-        ledge = floor - float(C["SLEEVE_CAPTURE_FLOOR_THICKNESS"])
+        backing = floor - float(C["SLEEVE_CAPTURE_FLOOR_THICKNESS"])
         section_lines = {
             "INSERTION_DEPTH": ((datum, 8.0), (float(C["BACK_DEPTH"]), 8.0)),
             "SLEEVE_CAPTURE_ENGAGEMENT_DEPTH": ((leading, 4.0), (datum, 4.0)),
             "SLEEVE_CAPTURE_BOTTOM_CLEARANCE": ((floor, 0.0), (leading, 0.0)),
-            "SLEEVE_CAPTURE_FLOOR_THICKNESS": ((ledge, -4.0), (floor, -4.0)),
+            "SLEEVE_CAPTURE_FLOOR_THICKNESS": ((backing, -4.0), (floor, -4.0)),
         }
         if name in section_lines:
             return linear(*section_lines[name], vertical=False, offset=0.0)
@@ -5140,7 +5268,10 @@ def validate_baffle_feature_annotation_records() -> None:
     boss_radius = float(C["FAN_HOLE_BOSS_DIAMETER"]) / 2.0
     receiver_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
     hook_y = receiver_y - float(C["BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y"])
-    receiver_dome = baffle_dome_half_height_for_drawings(receiver_y)
+    receiver_catch_y = (
+        receiver_y - float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
+    )
+    receiver_dome = baffle_dome_half_height_for_drawings(receiver_catch_y)
     hook_dome = baffle_dome_half_height_for_drawings(hook_y)
     receiver_tip = receiver_dome - float(C["BAFFLE_SNAP_RECEIVER_PROJECTION_Z"])
     tongue_outer = hook_dome - float(C["BAFFLE_SNAP_TONGUE_WALL_OFFSET"])
@@ -5191,14 +5322,14 @@ def validate_baffle_feature_annotation_records() -> None:
             (
                 receiver_front_y
                 - float(C["BAFFLE_SNAP_RECEIVER_LEAD_IN_Y"]),
-                12.0,
+                receiver_tip,
             ),
-            (receiver_front_y, 12.0),
+            (receiver_front_y, receiver_tip),
         ),
         "BAFFLE_SNAP_HOOK_BEVEL": (
             (
                 hook_front_y - float(C["BAFFLE_SNAP_HOOK_BEVEL"]),
-                -12.0,
+                -hook_tip,
             ),
         ),
         "BAFFLE_SNAP_TONGUE_WALL_OFFSET": (
@@ -5212,6 +5343,14 @@ def validate_baffle_feature_annotation_records() -> None:
         "BAFFLE_SNAP_INTERFERENCE_Z": (
             (3.0, -hook_tip),
             (3.0, -receiver_tip),
+        ),
+        "BAFFLE_SNAP_AXIAL_TOLERANCE_Y": (
+            (
+                receiver_catch_y
+                - float(C["BAFFLE_SNAP_AXIAL_TOLERANCE_Y"]),
+                receiver_tip,
+            ),
+            (receiver_catch_y, receiver_tip),
         ),
     }
     failures = []
