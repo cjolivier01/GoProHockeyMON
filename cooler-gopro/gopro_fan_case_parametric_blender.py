@@ -40,7 +40,8 @@ PRINT_BED_GAP = 12.0
 # the dome and carries the captured hex hardware; its TPU profile uses deeper
 # snap tabs.  The sleeve has no material-specific dimensions yet, while the
 # retainer profile resolves thicker TPU gate/keeper geometry.  The two captive
-# press-through buttons remain TPU-only.
+# press-through buttons remain TPU-only. The back/dome and baffle intentionally
+# default to TPU as the tested flexible assembly pair.
 BACK_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
 SLEEVE_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
 RETAINER_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
@@ -150,8 +151,10 @@ FAN_HOLE_BOSS_HEIGHT = 1.0
 # printed keyed lid; it avoids bulk internal supports but retains one controlled
 # bridge across the existing-camera-stop relief. A groove-located TPU gasket,
 # or an integral bead when the tray itself is TPU, seals the circular inlet.
-# Two compliant top/bottom tongues engage shallow receiver ribs added to the
-# back shell without changing its exterior envelope.
+# Two compliant top/bottom tongues engage receiver ribs added to the back shell
+# without changing its exterior envelope.  When either mating part is TPU, a
+# reinforced retention profile broadens and deepens both sides of the latch so
+# shell or cartridge deflection cannot let the cartridge walk toward the camera.
 BAFFLE_CARTRIDGE_ENABLED = True
 BAFFLE_REAR_Y = -5.20
 BAFFLE_FRONT_Y = 14.00
@@ -160,7 +163,10 @@ BAFFLE_FRONT_WIDTH = 70.0
 BAFFLE_BODY_HEIGHT = 44.0
 BAFFLE_BODY_DEPTH_SECTIONS = 8
 BAFFLE_STOP_CLEARANCE = 0.80
-# These four dimensions are selected by BAFFLE_CARTRIDGE_MATERIAL_PROFILES.
+# These dimensions and the keyed-lid/end-return values below are selected by
+# BAFFLE_CARTRIDGE_MATERIAL_PROFILES. The TPU values keep the side-face-down
+# tray and lid stiff while they build upright, without adding support-dependent
+# ribs inside the airway.
 BAFFLE_WALL_THICKNESS = 1.60
 BAFFLE_INTERNAL_THICKNESS_Y = 1.80
 BAFFLE_LID_PLATE_THICKNESS_X = 1.20
@@ -228,10 +234,12 @@ BAFFLE_SECOND_END_FRAME_LID_MIN_WALL = 0.70
 
 # Top/bottom cartridge retention. Each long tongue is carried at the tray's
 # centerline, clear of the existing left/right camera stops. The tongues follow
-# the dome wall, snap past shallow back-shell receiver ribs, and remain
-# accessible from the front after the sleeve is removed. Their hooks seat just
-# behind the receiver crests, maintaining gasket preload until deliberately
-# flexed toward the cartridge center for removal.
+# the dome wall, snap past back-shell receiver ribs, and remain accessible from
+# the front after the sleeve is removed. Their hooks seat just behind the
+# receiver crests, maintaining gasket preload until deliberately flexed toward
+# the cartridge center for removal. These dimensions are the rigid/rigid
+# baseline; BAFFLE_RETENTION_MATERIAL_PROFILES reinforces the complete latch
+# whenever either the cartridge or back shell is TPU.
 BAFFLE_SNAP_RECEIVER_Y = 12.20
 BAFFLE_SNAP_RECEIVER_WIDTH_X = 8.0
 BAFFLE_SNAP_RECEIVER_DEPTH_Y = 2.20
@@ -559,30 +567,34 @@ def apply_back_material_profile() -> None:
     _APPLIED_BACK_MATERIAL_MODE = BACK_MATERIAL_MODE
 
 
-def set_back_material_mode(mode: str) -> None:
-    """Select the back-shell profile while preserving scalar overrides."""
-    global BACK_MATERIAL_MODE
-    BACK_MATERIAL_MODE = mode
-    apply_back_material_profile()
-
-
-set_back_material_mode(BACK_MATERIAL_MODE)
-
-
 _RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE = {
+    "BAFFLE_FRONT_WIDTH": 70.0,
     "BAFFLE_WALL_THICKNESS": 1.60,
     "BAFFLE_INTERNAL_THICKNESS_Y": 1.80,
     "BAFFLE_LID_PLATE_THICKNESS_X": 1.20,
     "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 1.00,
+    "BAFFLE_LID_KEY_DEPTH_X": 1.80,
+    "BAFFLE_SECOND_END_FRAME_DEPTH_Y": 3.20,
+    "BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y": 0.40,
+    "BAFFLE_SECOND_END_FRAME_CONNECTION_X": 3.50,
+    "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X": 0.80,
+    "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X": 1.00,
 }
 BAFFLE_CARTRIDGE_MATERIAL_PROFILES = {
     "RIGID": _RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE,
     "TPU": {
         **_RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE,
+        "BAFFLE_FRONT_WIDTH": 71.0,
         "BAFFLE_WALL_THICKNESS": 2.00,
         "BAFFLE_INTERNAL_THICKNESS_Y": 2.40,
         "BAFFLE_LID_PLATE_THICKNESS_X": 2.00,
-        "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 1.60,
+        "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 2.00,
+        "BAFFLE_LID_KEY_DEPTH_X": 2.20,
+        "BAFFLE_SECOND_END_FRAME_DEPTH_Y": 3.60,
+        "BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y": 0.60,
+        "BAFFLE_SECOND_END_FRAME_CONNECTION_X": 4.00,
+        "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X": 1.00,
+        "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X": 1.25,
     },
 }
 _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = None
@@ -590,10 +602,17 @@ _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = None
 
 def apply_baffle_cartridge_material_profile() -> None:
     global _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE
+    global BAFFLE_FRONT_WIDTH
     global BAFFLE_WALL_THICKNESS
     global BAFFLE_INTERNAL_THICKNESS_Y
     global BAFFLE_LID_PLATE_THICKNESS_X
     global BAFFLE_SNAP_TONGUE_THICKNESS_Z
+    global BAFFLE_LID_KEY_DEPTH_X
+    global BAFFLE_SECOND_END_FRAME_DEPTH_Y
+    global BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y
+    global BAFFLE_SECOND_END_FRAME_CONNECTION_X
+    global BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X
+    global BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X
 
     try:
         profile = BAFFLE_CARTRIDGE_MATERIAL_PROFILES[
@@ -606,6 +625,7 @@ def apply_baffle_cartridge_material_profile() -> None:
             f"{choices}; got {BAFFLE_CARTRIDGE_MATERIAL_MODE!r}"
         ) from error
 
+    BAFFLE_FRONT_WIDTH = profile["BAFFLE_FRONT_WIDTH"]
     BAFFLE_WALL_THICKNESS = profile["BAFFLE_WALL_THICKNESS"]
     BAFFLE_INTERNAL_THICKNESS_Y = profile[
         "BAFFLE_INTERNAL_THICKNESS_Y"
@@ -616,17 +636,109 @@ def apply_baffle_cartridge_material_profile() -> None:
     BAFFLE_SNAP_TONGUE_THICKNESS_Z = profile[
         "BAFFLE_SNAP_TONGUE_THICKNESS_Z"
     ]
+    BAFFLE_LID_KEY_DEPTH_X = profile["BAFFLE_LID_KEY_DEPTH_X"]
+    BAFFLE_SECOND_END_FRAME_DEPTH_Y = profile[
+        "BAFFLE_SECOND_END_FRAME_DEPTH_Y"
+    ]
+    BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y = profile[
+        "BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y"
+    ]
+    BAFFLE_SECOND_END_FRAME_CONNECTION_X = profile[
+        "BAFFLE_SECOND_END_FRAME_CONNECTION_X"
+    ]
+    BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X = profile[
+        "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X"
+    ]
+    BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X = profile[
+        "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X"
+    ]
     _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = (
         BAFFLE_CARTRIDGE_MATERIAL_MODE
     )
 
 
+_RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE = {
+    "BAFFLE_SNAP_RECEIVER_WIDTH_X": 8.0,
+    "BAFFLE_SNAP_RECEIVER_DEPTH_Y": 2.20,
+    "BAFFLE_SNAP_RECEIVER_PROJECTION_Z": 1.25,
+    "BAFFLE_SNAP_RECEIVER_BEVEL": 0.25,
+    "BAFFLE_SNAP_TONGUE_WIDTH_X": 10.0,
+    "BAFFLE_SNAP_TONGUE_WALL_OFFSET": 1.30,
+    "BAFFLE_SNAP_ROOT_DEPTH_Y": 1.80,
+    "BAFFLE_SNAP_HOOK_PROTRUSION_Z": 0.70,
+    "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": 1.00,
+    "BAFFLE_SNAP_INTERFERENCE_Z": 0.45,
+}
+BAFFLE_RETENTION_MATERIAL_PROFILES = {
+    "RIGID_RIGID": _RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE,
+    "TPU_INTERFACE": {
+        **_RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE,
+        # A 16 mm-wide catch doubles the receiver's rigid/rigid bearing width.
+        # Added axial overlap prevents either flexible part from rolling the
+        # hook off the receiver and letting the cartridge reach the camera.
+        "BAFFLE_SNAP_RECEIVER_WIDTH_X": 16.0,
+        "BAFFLE_SNAP_RECEIVER_DEPTH_Y": 3.40,
+        "BAFFLE_SNAP_RECEIVER_PROJECTION_Z": 1.80,
+        "BAFFLE_SNAP_RECEIVER_BEVEL": 0.35,
+        "BAFFLE_SNAP_TONGUE_WIDTH_X": 16.0,
+        "BAFFLE_SNAP_TONGUE_WALL_OFFSET": 1.70,
+        "BAFFLE_SNAP_ROOT_DEPTH_Y": 3.00,
+        "BAFFLE_SNAP_HOOK_PROTRUSION_Z": 0.90,
+        "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": 1.30,
+        "BAFFLE_SNAP_INTERFERENCE_Z": 0.70,
+    },
+}
+_APPLIED_BAFFLE_RETENTION_MATERIAL_MODES = None
+
+
+def baffle_retention_material_profile_name() -> str:
+    """Select a reinforced latch if either side of the joint can deflect."""
+    if "TPU" in (BACK_MATERIAL_MODE, BAFFLE_CARTRIDGE_MATERIAL_MODE):
+        return "TPU_INTERFACE"
+    return "RIGID_RIGID"
+
+
+def apply_baffle_retention_material_profile() -> None:
+    global _APPLIED_BAFFLE_RETENTION_MATERIAL_MODES
+    global BAFFLE_SNAP_RECEIVER_WIDTH_X
+    global BAFFLE_SNAP_RECEIVER_DEPTH_Y
+    global BAFFLE_SNAP_RECEIVER_PROJECTION_Z
+    global BAFFLE_SNAP_RECEIVER_BEVEL
+    global BAFFLE_SNAP_TONGUE_WIDTH_X
+    global BAFFLE_SNAP_TONGUE_WALL_OFFSET
+    global BAFFLE_SNAP_ROOT_DEPTH_Y
+    global BAFFLE_SNAP_HOOK_PROTRUSION_Z
+    global BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y
+    global BAFFLE_SNAP_INTERFERENCE_Z
+
+    profile = BAFFLE_RETENTION_MATERIAL_PROFILES[
+        baffle_retention_material_profile_name()
+    ]
+    for name, value in profile.items():
+        globals()[name] = value
+    _APPLIED_BAFFLE_RETENTION_MATERIAL_MODES = (
+        BACK_MATERIAL_MODE,
+        BAFFLE_CARTRIDGE_MATERIAL_MODE,
+    )
+
+
+def set_back_material_mode(mode: str) -> None:
+    """Select the back-shell and matching baffle-retention profiles."""
+    global BACK_MATERIAL_MODE
+    BACK_MATERIAL_MODE = mode
+    apply_back_material_profile()
+    apply_baffle_retention_material_profile()
+
+
 def set_baffle_cartridge_material_mode(mode: str) -> None:
+    """Select the cartridge and matching baffle-retention profiles."""
     global BAFFLE_CARTRIDGE_MATERIAL_MODE
     BAFFLE_CARTRIDGE_MATERIAL_MODE = mode
     apply_baffle_cartridge_material_profile()
+    apply_baffle_retention_material_profile()
 
 
+set_back_material_mode(BACK_MATERIAL_MODE)
 set_baffle_cartridge_material_mode(BAFFLE_CARTRIDGE_MATERIAL_MODE)
 
 
@@ -1191,6 +1303,25 @@ def baffle_snap_resolved_interference() -> float:
         - BAFFLE_SNAP_RECEIVER_PROJECTION_Z
     )
     return hook_outer_z - receiver_inner_z
+
+
+def baffle_snap_axial_bearing_depth() -> float:
+    """Return nominal seated Y overlap resisting motion toward the camera."""
+    return (
+        BAFFLE_SNAP_RECEIVER_DEPTH_Y
+        - BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y
+    )
+
+
+def baffle_snap_nominal_bearing_area() -> float:
+    """Return one latch's nominal receiver/hook bearing area in X/Y."""
+    return (
+        min(
+            BAFFLE_SNAP_RECEIVER_WIDTH_X,
+            BAFFLE_SNAP_TONGUE_WIDTH_X,
+        )
+        * baffle_snap_axial_bearing_depth()
+    )
 
 
 def baffle_acoustic_visibility_required_inlet_z(
@@ -2090,6 +2221,30 @@ def validate_baffle_cartridge_config() -> None:
         raise ValueError(
             "The snap latch travel must exceed the inlet-gasket compression"
         )
+    axial_bearing_depth = baffle_snap_axial_bearing_depth()
+    if axial_bearing_depth <= 0.0:
+        raise ValueError(
+            "The baffle hook has no seated axial overlap with its receiver"
+        )
+    if baffle_retention_material_profile_name() == "TPU_INTERFACE":
+        rigid_profile = _RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE
+        rigid_bearing_area = min(
+            rigid_profile["BAFFLE_SNAP_RECEIVER_WIDTH_X"],
+            rigid_profile["BAFFLE_SNAP_TONGUE_WIDTH_X"],
+        ) * (
+            rigid_profile["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]
+            - rigid_profile["BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y"]
+        )
+        if axial_bearing_depth < 2.0:
+            raise ValueError(
+                "A TPU baffle interface needs at least 2 mm of seated axial "
+                f"bearing; actual={axial_bearing_depth:.3f} mm"
+            )
+        if baffle_snap_nominal_bearing_area() < 3.0 * rigid_bearing_area:
+            raise ValueError(
+                "A TPU baffle interface needs at least three times the "
+                "rigid/rigid nominal latch bearing area"
+            )
     resolved_interference = baffle_snap_resolved_interference()
     if abs(resolved_interference - BAFFLE_SNAP_INTERFERENCE_Z) > 0.02:
         raise ValueError(
@@ -7246,6 +7401,8 @@ def validate_baffle_cartridge(back, components) -> None:
         "gasket_compression="
         f"{baffle_gasket_compression():.2f}mm "
         f"snap_interference={baffle_snap_resolved_interference():.2f}mm "
+        f"snap_axial_bearing={baffle_snap_axial_bearing_depth():.2f}mm "
+        f"snap_bearing_area_each={baffle_snap_nominal_bearing_area():.1f}mm2 "
         "print_bed_contact_areas=("
         + ",".join(f"{area:.1f}" for area in print_contact_areas)
         + ")mm2"
@@ -7921,13 +8078,19 @@ def build_gopro_fan_case():
         != _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE
     ):
         apply_baffle_cartridge_material_profile()
+    if (
+        BACK_MATERIAL_MODE,
+        BAFFLE_CARTRIDGE_MATERIAL_MODE,
+    ) != _APPLIED_BAFFLE_RETENTION_MATERIAL_MODES:
+        apply_baffle_retention_material_profile()
     validate_config()
     print(
         "MATERIAL_MODES "
         f"back={BACK_MATERIAL_MODE} sleeve={SLEEVE_MATERIAL_MODE} "
         f"retainer={RETAINER_MATERIAL_MODE} "
         f"baffle={BAFFLE_CARTRIDGE_MATERIAL_MODE} buttons=TPU "
-        f"seal={'integral_TPU' if baffle_gasket_is_integral() else 'separate_TPU'}"
+        f"seal={'integral_TPU' if baffle_gasket_is_integral() else 'separate_TPU'} "
+        f"baffle_retention={baffle_retention_material_profile_name()}"
     )
     print(
         f"FRONT_CAMERA_RETAINER enabled={RETAINER_ENABLED} "

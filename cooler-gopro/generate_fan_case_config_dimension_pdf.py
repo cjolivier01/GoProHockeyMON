@@ -130,8 +130,8 @@ CATEGORY_PREFIXES = (
 
 
 EXACT_DESCRIPTIONS = {
-    "BAFFLE_CARTRIDGE_MATERIAL_MODE": "Selects RIGID or TPU cartridge geometry; RIGID uses a groove-located TPU gasket while TPU integrates the sealing bead into the tray.",
-    "BAFFLE_CARTRIDGE_ENABLED": "Builds the removable Offset-S acoustic cartridge and its two small back-shell snap receivers.",
+    "BAFFLE_CARTRIDGE_MATERIAL_MODE": "Selects RIGID or TPU cartridge geometry; RIGID uses a groove-located TPU gasket while TPU integrates the sealing bead, stiffens the upright-printed walls/lid and enables reinforced cartridge retention.",
+    "BAFFLE_CARTRIDGE_ENABLED": "Builds the removable Offset-S acoustic cartridge and its two top/bottom back-shell snap receivers.",
     "BAFFLE_REAR_Y": "Rear body plane of the cartridge, immediately forward of the fan-pad inlet seal.",
     "BAFFLE_FRONT_Y": "Forward outlet plane of the cartridge; camera and sleeve clearances are measured from this face.",
     "BAFFLE_REAR_WIDTH": "Cartridge width at the gasketed fan-inlet end.",
@@ -165,6 +165,10 @@ EXACT_DESCRIPTIONS = {
     "BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y": "Per-face axial fit clearance around each end return in its lid pocket.",
     "BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z": "Vertical fit clearance beyond the inward edge of each end-return lid pocket.",
     "BAFFLE_SECOND_END_FRAME_LID_MIN_WALL": "Minimum retained floor and axial-wall thickness around either end-return lid pocket.",
+    "BAFFLE_SNAP_RECEIVER_WIDTH_X": "Bearing width of each top/bottom back-shell latch rib; the reinforced profile doubles it when either mating part is TPU.",
+    "BAFFLE_SNAP_RECEIVER_DEPTH_Y": "Axial depth of each back-shell latch rib; the reinforced profile increases seated bearing overlap when either mating part is TPU.",
+    "BAFFLE_SNAP_TONGUE_WIDTH_X": "Bearing width of each cartridge latch tongue and hook; reinforced whenever either mating part is TPU.",
+    "BAFFLE_SNAP_ROOT_DEPTH_Y": "Axial depth of each tongue-to-cartridge root bridge; reinforced whenever either mating part is TPU.",
     "BAFFLE_SNAP_INTERFERENCE_Z": "Configured elastic overtravel between each cartridge hook and its back-shell receiver rib.",
     "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": "Axial distance the seated cartridge hook rests behind the receiver crest to preserve gasket preload.",
     "BAFFLE_TRAY_STL_NAME": "Output filename for the side-open acoustic labyrinth tray with one controlled stop-relief bridge.",
@@ -193,7 +197,7 @@ EXACT_DESCRIPTIONS = {
     "CAMERA_STOP_SPECS": "Named X/Z bounds and attachment side for each rear-shell camera stop.",
     "LOCATING_TAB_SPECS": "Named X/Z bounds and attachment side for each insert locating rail.",
     "LENS_CLEARANCE_GUIDE_TAPERS": "Per-rail taper length and remaining projection at the camera-entry end.",
-    "BACK_MATERIAL_MODE": "Selects RIGID or TPU geometry for the combined back shell/dome; TPU receives deeper captured-hex retention tabs.",
+    "BACK_MATERIAL_MODE": "Selects RIGID or TPU geometry for the combined back shell/dome; TPU receives deeper captured-hex tabs and enables reinforced baffle-cartridge retention.",
     "SLEEVE_MATERIAL_MODE": "Selects the hollow sleeve print material independently; current sleeve dimensions are shared by RIGID and TPU.",
     "RETAINER_MATERIAL_MODE": "Selects RIGID or TPU thickness independently for both front-retainer options.",
     "BUTTON_STEM_DIAMETER": "Diameter of the actuator shaft that slides through each circular sleeve port.",
@@ -420,6 +424,20 @@ def read_model_config():
             selected = profiles.get(material_mode, {})
             if isinstance(selected, dict):
                 resolved_profile.update(selected)
+    retention_profiles = env.get("BAFFLE_RETENTION_MATERIAL_PROFILES", {})
+    retention_profile_name = (
+        "TPU_INTERFACE"
+        if "TPU"
+        in (
+            source_config["BACK_MATERIAL_MODE"][0],
+            source_config["BAFFLE_CARTRIDGE_MATERIAL_MODE"][0],
+        )
+        else "RIGID_RIGID"
+    )
+    if isinstance(retention_profiles, dict):
+        selected_retention = retention_profiles.get(retention_profile_name, {})
+        if isinstance(selected_retention, dict):
+            resolved_profile.update(selected_retention)
     entries = []
     for name, (source_value, line) in sorted(source_config.items(), key=lambda item: item[1][1]):
         value = resolved_profile.get(name, source_value)
