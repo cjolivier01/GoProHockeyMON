@@ -166,11 +166,15 @@ EXACT_DESCRIPTIONS = {
     "BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z": "Vertical fit clearance beyond the inward edge of each end-return lid pocket.",
     "BAFFLE_SECOND_END_FRAME_LID_MIN_WALL": "Minimum retained floor and axial-wall thickness around either end-return lid pocket.",
     "BAFFLE_SNAP_RECEIVER_WIDTH_X": "Bearing width of each top/bottom back-shell latch rib; the reinforced profile doubles it when either mating part is TPU.",
-    "BAFFLE_SNAP_RECEIVER_DEPTH_Y": "Axial depth of each back-shell latch rib; the reinforced profile increases seated bearing overlap when either mating part is TPU.",
+    "BAFFLE_SNAP_RECEIVER_DEPTH_Y": "Axial depth of each back-shell latch rib; the reinforced profile enlarges the rib when either mating part is TPU.",
+    "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y": "Axial length of the receiver's camera-side insertion ramp; its rear retaining face remains square.",
     "BAFFLE_SNAP_TONGUE_WIDTH_X": "Bearing width of each cartridge latch tongue and hook; reinforced whenever either mating part is TPU.",
     "BAFFLE_SNAP_ROOT_DEPTH_Y": "Axial depth of each tongue-to-cartridge root bridge; reinforced whenever either mating part is TPU.",
-    "BAFFLE_SNAP_INTERFERENCE_Z": "Configured elastic overtravel between each cartridge hook and its back-shell receiver rib.",
-    "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": "Axial distance the seated cartridge hook rests behind the receiver crest to preserve gasket preload.",
+    "BAFFLE_SNAP_HOOK_DEPTH_Y": "Axial thickness of each cartridge hook; kept shorter than the receiver offset so the hook can spring fully behind the rib.",
+    "BAFFLE_SNAP_HOOK_BEVEL": "Small hook-edge bevel that eases insertion while retaining a near-square rear bearing face.",
+    "BAFFLE_SNAP_INTERFERENCE_Z": "Configured retaining undercut between each cartridge hook tip and its back-shell receiver rib.",
+    "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": "Axial center-to-center distance from the seated cartridge hook to its receiver rib.",
+    "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y": "Open axial gap between the seated hook's camera-facing surface and the receiver's rear surface.",
     "BAFFLE_TRAY_STL_NAME": "Output filename for the side-open acoustic labyrinth tray with one controlled stop-relief bridge.",
     "BAFFLE_LID_STL_NAME": "Output filename for the separately printed keyed side lid.",
     "BAFFLE_GASKET_STL_NAME": "Output filename for the groove-located TPU annular gasket used only with the RIGID cartridge profile.",
@@ -551,7 +555,6 @@ def drawing_view_for(entry: ConfigEntry) -> str:
             "BAFFLE_LID_FIT_CLEARANCE",
             "BAFFLE_SNAP_RECEIVER_WIDTH_X",
             "BAFFLE_SNAP_RECEIVER_PROJECTION_Z",
-            "BAFFLE_SNAP_RECEIVER_BEVEL",
             "BAFFLE_SNAP_TONGUE_WIDTH_X",
             "BAFFLE_SNAP_TONGUE_THICKNESS_Z",
             "BAFFLE_SNAP_TONGUE_WALL_OFFSET",
@@ -1655,7 +1658,7 @@ def page_baffle_cartridge(pdf):
             f"body depth {float(C['BAFFLE_FRONT_Y']) - float(C['BAFFLE_REAR_Y']):.2f} mm; camera clearance {camera_clearance:.2f} mm",
             f"sleeve clearance {sleeve_clearance:.2f} mm; gasket compression {gasket_compression:.2f} mm",
             f"{C['BAFFLE_CARTRIDGE_MATERIAL_MODE']} tray/lid; {seal_description}",
-            f"snap interference {fmt(C['BAFFLE_SNAP_INTERFERENCE_Z'])} mm",
+            f"snap undercut {fmt(C['BAFFLE_SNAP_INTERFERENCE_Z'])} mm; seated axial clearance {fmt(C['BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y'])} mm",
             f"both camera-side ends get {float(C['BAFFLE_SECOND_END_FRAME_CONNECTION_X']) - float(C['BAFFLE_LID_FIT_CLEARANCE']):.2f} mm solid overlap; axial pad {fmt(C['BAFFLE_SECOND_END_FRAME_DEPTH_Y'])} mm",
             (
                 f"paired lid pockets capture {fmt(C['BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X'])} mm; TPU also captures center blocker"
@@ -2588,11 +2591,7 @@ def draw_actual_view(ax, view: str):
             )
             receiver_width = float(C["BAFFLE_SNAP_RECEIVER_WIDTH_X"])
             receiver_projection = float(C["BAFFLE_SNAP_RECEIVER_PROJECTION_Z"])
-            receiver_bevel = min(
-                float(C["BAFFLE_SNAP_RECEIVER_BEVEL"]),
-                receiver_width / 2.0,
-                receiver_projection / 2.0,
-            )
+            receiver_bevel = 0.0
 
             def chamfered_rectangle(x0, x1, z0, z1, bevel):
                 return (
@@ -2644,7 +2643,10 @@ def draw_actual_view(ax, view: str):
             )
             tongue_inner = tongue_outer - tongue_thickness
             hook_tip = tongue_outer + float(C["BAFFLE_SNAP_HOOK_PROTRUSION_Z"])
-            hook_bevel = min(receiver_bevel, tongue_width / 2.0)
+            hook_bevel = min(
+                float(C["BAFFLE_SNAP_HOOK_BEVEL"]),
+                tongue_width / 2.0,
+            )
             for side in (-1.0, 1.0):
                 tongue_z0 = min(side * tongue_inner, side * tongue_outer)
                 tongue_z1 = max(side * tongue_inner, side * tongue_outer)
@@ -4026,13 +4028,6 @@ def draw_specific_graphical_annotation(
             return linear((-width_value / 2.0, z), (width_value / 2.0, z), False, offset)
         if name == "BAFFLE_SNAP_RECEIVER_PROJECTION_Z":
             return linear((0.0, receiver_tip), (0.0, receiver_dome), True, -7.0)
-        if name == "BAFFLE_SNAP_RECEIVER_BEVEL":
-            anchor = (
-                float(C["BAFFLE_SNAP_RECEIVER_WIDTH_X"]) / 2.0
-                - float(entry.value),
-                receiver_tip + float(entry.value),
-            )
-            return leader(anchor, (12.0, body_half - 6.0), f"{label} R", "radius")
         if name == "BAFFLE_SNAP_TONGUE_THICKNESS_Z":
             center_z = tongue_outer - float(entry.value) / 2.0
             return linear((-4.0, center_z - float(entry.value) / 2.0), (-4.0, center_z + float(entry.value) / 2.0), True, -1.0)
@@ -4120,13 +4115,37 @@ def draw_specific_graphical_annotation(
             y_value = float(entry.value)
             z = 18.0 if name == "BAFFLE_SNAP_RECEIVER_Y" else -18.0
             return linear((0.0, z), (y_value, z), False, 1.0 if z > 0 else -1.0)
-        if name in {"BAFFLE_SNAP_RECEIVER_DEPTH_Y", "BAFFLE_SNAP_ROOT_DEPTH_Y"}:
-            center_y = receiver_y if name == "BAFFLE_SNAP_RECEIVER_DEPTH_Y" else float(C["BAFFLE_SNAP_TONGUE_ROOT_Y"])
+        if name in {
+            "BAFFLE_SNAP_RECEIVER_DEPTH_Y",
+            "BAFFLE_SNAP_ROOT_DEPTH_Y",
+            "BAFFLE_SNAP_HOOK_DEPTH_Y",
+        }:
+            if name == "BAFFLE_SNAP_RECEIVER_DEPTH_Y":
+                center_y = receiver_y
+            elif name == "BAFFLE_SNAP_HOOK_DEPTH_Y":
+                center_y = hook_y
+            else:
+                center_y = float(C["BAFFLE_SNAP_TONGUE_ROOT_Y"])
             half = float(entry.value) / 2.0
-            z = 14.0 if name == "BAFFLE_SNAP_RECEIVER_DEPTH_Y" else -14.0
+            z = (
+                14.0
+                if name == "BAFFLE_SNAP_RECEIVER_DEPTH_Y"
+                else -14.0
+            )
             return linear((center_y - half, z), (center_y + half, z), False, 1.0 if z > 0 else -1.0)
+        if name == "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y":
+            receiver_front_y = receiver_y + float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
+            return linear((receiver_front_y - float(entry.value), 12.0), (receiver_front_y, 12.0), False, 1.0)
+        if name == "BAFFLE_SNAP_HOOK_BEVEL":
+            hook_front_y = hook_y + float(C["BAFFLE_SNAP_HOOK_DEPTH_Y"]) / 2.0
+            anchor = (hook_front_y - float(entry.value), -12.0)
+            return leader(anchor, (hook_y - 2.0, -18.0), f"{label} R", "radius")
         if name == "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y":
             return linear((hook_y, snap_z - 4.0), (receiver_y, snap_z - 4.0), False, -1.0)
+        if name == "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y":
+            hook_front_y = hook_y + float(C["BAFFLE_SNAP_HOOK_DEPTH_Y"]) / 2.0
+            receiver_rear_y = receiver_y - float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
+            return linear((hook_front_y, snap_z - 6.0), (receiver_rear_y, snap_z - 6.0), False, -1.0)
 
     if view == "back_front":
         fan_x = float(C["FAN_CENTER_X"])
@@ -5126,8 +5145,10 @@ def validate_baffle_feature_annotation_records() -> None:
     receiver_tip = receiver_dome - float(C["BAFFLE_SNAP_RECEIVER_PROJECTION_Z"])
     tongue_outer = hook_dome - float(C["BAFFLE_SNAP_TONGUE_WALL_OFFSET"])
     hook_tip = tongue_outer + float(C["BAFFLE_SNAP_HOOK_PROTRUSION_Z"])
-    receiver_width = float(C["BAFFLE_SNAP_RECEIVER_WIDTH_X"])
-    receiver_bevel = float(C["BAFFLE_SNAP_RECEIVER_BEVEL"])
+    receiver_front_y = (
+        receiver_y + float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
+    )
+    hook_front_y = hook_y + float(C["BAFFLE_SNAP_HOOK_DEPTH_Y"]) / 2.0
     expected_points = {
         "BAFFLE_GASKET_BOSS_CLEARANCE": (
             (boss_x + boss_radius, boss_z),
@@ -5166,10 +5187,18 @@ def validate_baffle_feature_annotation_records() -> None:
             (0.0, receiver_tip),
             (0.0, receiver_dome),
         ),
-        "BAFFLE_SNAP_RECEIVER_BEVEL": (
+        "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y": (
             (
-                receiver_width / 2.0 - receiver_bevel,
-                receiver_tip + receiver_bevel,
+                receiver_front_y
+                - float(C["BAFFLE_SNAP_RECEIVER_LEAD_IN_Y"]),
+                12.0,
+            ),
+            (receiver_front_y, 12.0),
+        ),
+        "BAFFLE_SNAP_HOOK_BEVEL": (
+            (
+                hook_front_y - float(C["BAFFLE_SNAP_HOOK_BEVEL"]),
+                -12.0,
             ),
         ),
         "BAFFLE_SNAP_TONGUE_WALL_OFFSET": (
