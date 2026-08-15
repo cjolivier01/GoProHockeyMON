@@ -18,6 +18,13 @@ fans relative to the GoPro receiver. For a single fan,
 splitter-vane module that redirects center airflow toward left/right cameras.
 ``STALK_LATERAL_DEFLECTION_X`` shifts the fan array sideways from the receiver
 and angles the stalk between them; zero retains the centered arrangement.
+``REAR_FAN_ADAPTER_ENABLED`` adds one separate bolt-on transition per active
+fan cage.  Each transition reuses the cage's four-hole pattern, ends in a
+standard rear-fan pattern, and can move that fan independently in local X/Y to
+clear neighboring cameras.  The adapters remain separate printable parts so
+the holder's rear-face-down print plane is unchanged. Print an adapter with
+its source flange down; its horn has no trapped internal support, while the
+far square flange corners should receive removable external slicer support.
 
 Axes:
     X - across the fan array
@@ -120,6 +127,9 @@ EXPORT_STL_PATH = None
 EXPORT_ADAPTER_STL_PATH = "gopro_dual_fan_adapter.stl"
 # Leave None for a size-specific single-fan splitter filename.
 EXPORT_AIRFLOW_SPLITTER_STL_PATH = None
+# Leave None for per-slot, size-specific rear-fan adapter filenames.  When
+# provided, the tuple must contain at least one path per active fan cage.
+EXPORT_REAR_FAN_ADAPTER_STL_PATHS = None
 
 # Structural profile for the fan holder.  The detachable GoPro adapter remains
 # a separate rigid part in every mode; only the holder dimensions and fastener
@@ -228,6 +238,28 @@ FAN_WIRE_SLOT_SIDE = "BOTTOM"  # "TOP", "BOTTOM", "LEFT", or "RIGHT"
 FAN_WIRE_SLOT_WIDTH = 5.0
 FAN_WIRE_SLOT_DEPTH = 9.0
 FAN_WIRE_SLOT_OFFSET_AT_REFERENCE = 22.0
+
+# Optional separate adapters for mounting a standard fan behind each active
+# cage.  The source flange uses that cage's existing four-hole pattern; the
+# rear flange and opening come from fan_size_presets.py.  The circular horn
+# wall leaves both flanges' four corner holes exposed for ordinary bolt/nut and
+# tool access.  Offsets are measured from each cage center in fan-local X/Y and
+# rotate with that cage.  The default dual-fan example shifts the left rear fan
+# farther left and the right rear fan farther right so camera rotation has more
+# central clearance.
+REAR_FAN_ADAPTER_ENABLED = False
+REAR_FAN_SIZE_MM = 60
+REAR_FAN_OFFSETS_X_MM = (-10.0, 10.0, 0.0)
+REAR_FAN_OFFSETS_Y_MM = (0.0, 0.0, 0.0)
+REAR_FAN_ADAPTER_DUCT_LENGTH_Z = 30.0
+REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z = 3.0
+REAR_FAN_ADAPTER_HOLE_CLEARANCE = 0.4
+# Measured away from the print Z axis.  Validation covers both the outside
+# horn wall and the inaccessible airflow wall so enabled adapters need no
+# trapped internal support when printed source-flange-down. The far square
+# flange corners extend beyond the circular horn and need removable external
+# slicer support; those supports remain completely exposed for cleanup.
+REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG = 45.0
 
 # Optional bolt-on outlet splitter for a single fan. The thin square frame
 # uses the standard fan holes, while paired hollow-center vanes redirect the
@@ -571,6 +603,85 @@ def resolve_fan_specs():
     return specs
 
 
+def resolve_rear_fan_specs(fan_specs=None):
+    """Resolve one standard rear fan and offset for each active cage."""
+    fan_specs = fan_specs or resolve_fan_specs()
+    if isinstance(REAR_FAN_SIZE_MM, bool):
+        raise ValueError("REAR_FAN_SIZE_MM must be a whole supported size")
+    try:
+        numeric_size = float(REAR_FAN_SIZE_MM)
+    except (TypeError, ValueError) as error:
+        raise ValueError("REAR_FAN_SIZE_MM must be numeric") from error
+    if not numeric_size.is_integer() or int(numeric_size) not in FAN_PRESETS:
+        choices = ", ".join(str(size) for size in sorted(FAN_PRESETS))
+        raise ValueError(
+            f"REAR_FAN_SIZE_MM must be one of: {choices}; "
+            f"got {REAR_FAN_SIZE_MM!r}"
+        )
+    if len(REAR_FAN_OFFSETS_X_MM) < len(fan_specs):
+        raise ValueError(
+            "REAR_FAN_OFFSETS_X_MM must contain at least FAN_COUNT entries"
+        )
+    if len(REAR_FAN_OFFSETS_Y_MM) < len(fan_specs):
+        raise ValueError(
+            "REAR_FAN_OFFSETS_Y_MM must contain at least FAN_COUNT entries"
+        )
+    if len(REAR_FAN_OFFSETS_X_MM) > len(FAN_SIZES_MM) or len(
+        REAR_FAN_OFFSETS_Y_MM
+    ) > len(FAN_SIZES_MM):
+        raise ValueError(
+            "Rear fan offset arrays cannot contain more entries than "
+            "FAN_SIZES_MM"
+        )
+
+    rear_preset = FAN_PRESETS[int(numeric_size)]
+    resolved = []
+    for fan, raw_offset_x, raw_offset_y in zip(
+        fan_specs,
+        REAR_FAN_OFFSETS_X_MM,
+        REAR_FAN_OFFSETS_Y_MM,
+    ):
+        try:
+            offset_x = float(raw_offset_x)
+            offset_y = float(raw_offset_y)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                f"Rear fan {fan['index']} offsets must be numeric"
+            ) from error
+        if not math.isfinite(offset_x) or not math.isfinite(offset_y):
+            raise ValueError(
+                f"Rear fan {fan['index']} offsets must be finite"
+            )
+        resolved.append(
+            {
+                "index": fan["index"],
+                "source_fan": fan,
+                "size": numeric_size,
+                "depth": float(rear_preset["depth"]),
+                "reference": rear_preset["reference"],
+                "center_x": fan["center_x"] + offset_x,
+                "center_y": offset_y,
+                "offset_x": offset_x,
+                "offset_y": offset_y,
+                "opening_diameter": float(rear_preset["opening"]),
+                "hole_spacing": float(rear_preset["hole_spacing"]),
+                "hole_diameter": float(rear_preset["hole_diameter"]),
+            }
+        )
+    return resolved
+
+
+def rear_fan_transition_max_shift(rear_fan) -> float:
+    """Return a conservative shift for the horn-wall print-angle check."""
+    source = rear_fan["source_fan"]
+    offset = math.hypot(rear_fan["offset_x"], rear_fan["offset_y"])
+    # Both circular transition walls have the same radial thickness, so their
+    # maximum lateral shift is the airflow-radius change plus center offset.
+    return offset + abs(
+        rear_fan["opening_diameter"] - source["airflow_diameter"]
+    ) / 2.0
+
+
 def validate_config() -> None:
     fan_specs = resolve_fan_specs()
     resolved_hub_width = support_hub_width()
@@ -664,6 +775,7 @@ def validate_config() -> None:
 
     boolean_options = {
         "FAN_GRILL_ON_BACK": FAN_GRILL_ON_BACK,
+        "REAR_FAN_ADAPTER_ENABLED": REAR_FAN_ADAPTER_ENABLED,
         "SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED": (
             SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED
         ),
@@ -672,6 +784,97 @@ def validate_config() -> None:
     for name, value in boolean_options.items():
         if not isinstance(value, bool):
             raise ValueError(f"{name} must be True or False")
+
+    if REAR_FAN_ADAPTER_ENABLED:
+        if not FAN_GRILL_ON_BACK:
+            raise ValueError(
+                "REAR_FAN_ADAPTER_ENABLED requires FAN_GRILL_ON_BACK=True "
+                "so the adapter mounts on the actual rear cage face"
+            )
+        rear_fan_specs = resolve_rear_fan_specs(fan_specs)
+        positive_rear_values = {
+            "REAR_FAN_SIZE_MM": REAR_FAN_SIZE_MM,
+            "REAR_FAN_ADAPTER_DUCT_LENGTH_Z": (
+                REAR_FAN_ADAPTER_DUCT_LENGTH_Z
+            ),
+            "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z": (
+                REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z
+            ),
+            "REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG": (
+                REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG
+            ),
+        }
+        for name, value in positive_rear_values.items():
+            if value <= 0.0:
+                raise ValueError(f"{name} must be positive")
+        if REAR_FAN_ADAPTER_HOLE_CLEARANCE < 0.0:
+            raise ValueError(
+                "REAR_FAN_ADAPTER_HOLE_CLEARANCE cannot be negative"
+            )
+        if REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG > 45.0:
+            raise ValueError(
+                "REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG must be no more than "
+                "45 degrees"
+            )
+        if EXPORT_REAR_FAN_ADAPTER_STL_PATHS is not None and (
+            not isinstance(EXPORT_REAR_FAN_ADAPTER_STL_PATHS, (tuple, list))
+            or len(EXPORT_REAR_FAN_ADAPTER_STL_PATHS) < FAN_COUNT
+        ):
+            raise ValueError(
+                "EXPORT_REAR_FAN_ADAPTER_STL_PATHS must be None or contain "
+                "at least FAN_COUNT paths"
+            )
+        maximum_shift = REAR_FAN_ADAPTER_DUCT_LENGTH_Z * math.tan(
+            math.radians(REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG)
+        )
+        for rear_fan in rear_fan_specs:
+            source_fan = rear_fan["source_fan"]
+            for label, fan, opening_diameter in (
+                ("source", source_fan, source_fan["airflow_diameter"]),
+                ("rear", rear_fan, rear_fan["opening_diameter"]),
+            ):
+                hole_radius = (
+                    fan["hole_diameter"]
+                    + REAR_FAN_ADAPTER_HOLE_CLEARANCE
+                ) / 2.0
+                horn_radius = (
+                    opening_diameter / 2.0
+                    + REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z
+                )
+                hole_inner_radius = (
+                    math.sqrt(2.0) * fan["hole_spacing"] / 2.0
+                    - hole_radius
+                )
+                if (
+                    horn_radius + AIRFLOW_TO_COUNTERSINK_MIN_WEB
+                    >= hole_inner_radius
+                ):
+                    raise ValueError(
+                        f"Rear fan {rear_fan['index']} {label} horn wall "
+                        "blocks mounting-hole tool access"
+                    )
+                if (
+                    fan["hole_spacing"] / 2.0 + hole_radius
+                    >= (
+                        source_fan["frame_size"] / 2.0
+                        if label == "source"
+                        else rear_fan["size"] / 2.0
+                    )
+                ):
+                    raise ValueError(
+                        f"Rear fan {rear_fan['index']} {label} mounting "
+                        "holes do not fit their flange"
+                    )
+            required_shift = rear_fan_transition_max_shift(rear_fan)
+            if required_shift > maximum_shift + 1.0e-9:
+                raise ValueError(
+                    f"Rear fan {rear_fan['index']} transition shifts "
+                    f"{required_shift:.3f} mm across a "
+                    f"{REAR_FAN_ADAPTER_DUCT_LENGTH_Z:.3f} mm duct, "
+                    "exceeding REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG="
+                    f"{REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG:.3f}; increase "
+                    "the duct length or reduce its offset"
+                )
 
     if STALK_DROPPED_ROUTE_ENABLED:
         if not STALK_ENABLED or not MOUNT_BLOCK_ENABLED:
@@ -1379,6 +1582,32 @@ def mesh_volume(obj) -> float:
     return volume
 
 
+def mesh_intersection_volume(first, second, label: str) -> float:
+    """Measure a Boolean intersection without changing either source mesh."""
+    first_copy = first.copy()
+    first_copy.data = first.data.copy()
+    bpy.context.collection.objects.link(first_copy)
+    second_copy = second.copy()
+    second_copy.data = second.data.copy()
+    bpy.context.collection.objects.link(second_copy)
+    first_name = first_copy.name
+    second_name = second_copy.name
+    try:
+        apply_boolean(
+            first_copy,
+            second_copy,
+            "INTERSECT",
+            label,
+            solver=BOOLEAN_SOLVER,
+        )
+        return mesh_volume(first_copy)
+    finally:
+        for object_name in (first_name, second_name):
+            temporary = bpy.data.objects.get(object_name)
+            if temporary is not None:
+                bpy.data.objects.remove(temporary, do_unlink=True)
+
+
 def available_boolean_solvers(modifier):
     if not hasattr(modifier, "solver"):
         return set()
@@ -1509,6 +1738,326 @@ def fan_hole_centers(fan):
         for sx in (-1.0, 1.0)
         for sy in (-1.0, 1.0)
     ]
+
+
+def rear_fan_hole_centers(rear_fan):
+    half = rear_fan["hole_spacing"] / 2.0
+    return [
+        (
+            rear_fan["center_x"] + sx * half,
+            rear_fan["center_y"] + sy * half,
+        )
+        for sx in (-1.0, 1.0)
+        for sy in (-1.0, 1.0)
+    ]
+
+
+def circular_loop(radius: float, center_x: float, center_y: float):
+    return tuple(
+        (
+            center_x + radius * math.cos(2.0 * math.pi * index / CYLINDER_SEGMENTS),
+            center_y + radius * math.sin(2.0 * math.pi * index / CYLINDER_SEGMENTS),
+        )
+        for index in range(CYLINDER_SEGMENTS)
+    )
+
+
+def create_rear_fan_transition(
+    name: str,
+    source_fan,
+    rear_fan,
+    z0: float,
+    z1: float,
+):
+    """Create a closed hollow loft between source and rear fan openings."""
+    if z1 <= z0:
+        raise ValueError(f"{name}: transition length must be positive")
+    wall = REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z
+    source_outer = circular_loop(
+        source_fan["airflow_diameter"] / 2.0 + wall,
+        source_fan["center_x"],
+        0.0,
+    )
+    target_outer = circular_loop(
+        rear_fan["opening_diameter"] / 2.0 + wall,
+        rear_fan["center_x"],
+        rear_fan["center_y"],
+    )
+    source_inner = circular_loop(
+        source_fan["airflow_diameter"] / 2.0,
+        source_fan["center_x"],
+        0.0,
+    )
+    target_inner = circular_loop(
+        rear_fan["opening_diameter"] / 2.0,
+        rear_fan["center_x"],
+        rear_fan["center_y"],
+    )
+    count = CYLINDER_SEGMENTS
+    vertices = [(x, y, z0) for x, y in source_outer]
+    vertices.extend((x, y, z1) for x, y in target_outer)
+    vertices.extend((x, y, z0) for x, y in source_inner)
+    vertices.extend((x, y, z1) for x, y in target_inner)
+    source_outer_start = 0
+    target_outer_start = count
+    source_inner_start = 2 * count
+    target_inner_start = 3 * count
+    faces = []
+    for index in range(count):
+        following = (index + 1) % count
+        source_outer_index = source_outer_start + index
+        source_outer_following = source_outer_start + following
+        target_outer_index = target_outer_start + index
+        target_outer_following = target_outer_start + following
+        source_inner_index = source_inner_start + index
+        source_inner_following = source_inner_start + following
+        target_inner_index = target_inner_start + index
+        target_inner_following = target_inner_start + following
+        faces.extend(
+            (
+                [
+                    source_outer_index,
+                    source_outer_following,
+                    target_outer_following,
+                    target_outer_index,
+                ],
+                [
+                    source_inner_following,
+                    source_inner_index,
+                    target_inner_index,
+                    target_inner_following,
+                ],
+                [
+                    source_outer_following,
+                    source_outer_index,
+                    source_inner_index,
+                    source_inner_following,
+                ],
+                [
+                    target_outer_index,
+                    target_outer_following,
+                    target_inner_following,
+                    target_inner_index,
+                ],
+            )
+        )
+    return create_mesh_object(name, vertices, faces)
+
+
+def create_rear_fan_adapter(rear_fan):
+    """Build one separate cage-pattern-to-standard-fan transition."""
+    source_fan = rear_fan["source_fan"]
+    index = rear_fan["index"]
+    prefix = f"Rear_Fan_Adapter_{index}"
+    flange = REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z
+    source_z0 = attachment_plane_z()
+    source_z1 = source_z0 + flange
+    target_z0 = source_z1 + REAR_FAN_ADAPTER_DUCT_LENGTH_Z
+    target_z1 = target_z0 + flange
+
+    source_flange = rounded_rectangle_prism(
+        prefix + "_Source_Flange",
+        source_fan["frame_size"],
+        source_fan["frame_size"],
+        FAN_FRAME_CORNER_RADIUS,
+        source_z0,
+        source_z1,
+        center_x=source_fan["center_x"],
+    )
+    source_opening = add_cylinder_z(
+        prefix + "_Source_Airflow_Opening",
+        source_fan["airflow_diameter"] / 2.0,
+        source_z0 - BOOLEAN_OVERLAP,
+        source_z1 + BOOLEAN_OVERLAP,
+        x=source_fan["center_x"],
+    )
+    boolean_difference(
+        source_flange,
+        [source_opening],
+        prefix + "_Source_Opening_Cut",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
+
+    target_flange = rounded_rectangle_prism(
+        prefix + "_Rear_Fan_Flange",
+        rear_fan["size"],
+        rear_fan["size"],
+        min(FAN_FRAME_CORNER_RADIUS, rear_fan["size"] / 10.0),
+        target_z0,
+        target_z1,
+        center_x=rear_fan["center_x"],
+        center_y=rear_fan["center_y"],
+    )
+    target_opening = add_cylinder_z(
+        prefix + "_Rear_Fan_Airflow_Opening",
+        rear_fan["opening_diameter"] / 2.0,
+        target_z0 - BOOLEAN_OVERLAP,
+        target_z1 + BOOLEAN_OVERLAP,
+        x=rear_fan["center_x"],
+        y=rear_fan["center_y"],
+    )
+    boolean_difference(
+        target_flange,
+        [target_opening],
+        prefix + "_Rear_Fan_Opening_Cut",
+        solver=FAN_CAGE_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
+
+    transition = create_rear_fan_transition(
+        prefix + "_Horn",
+        source_fan,
+        rear_fan,
+        source_z1 - BOOLEAN_OVERLAP,
+        target_z0 + BOOLEAN_OVERLAP,
+    )
+    boolean_union(
+        source_flange,
+        transition,
+        prefix + "_Horn_Union",
+        solver=ASSEMBLY_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
+    boolean_union(
+        source_flange,
+        target_flange,
+        prefix + "_Rear_Flange_Union",
+        solver=ASSEMBLY_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
+
+    source_hole_radius = (
+        source_fan["hole_diameter"] + REAR_FAN_ADAPTER_HOLE_CLEARANCE
+    ) / 2.0
+    target_hole_radius = (
+        rear_fan["hole_diameter"] + REAR_FAN_ADAPTER_HOLE_CLEARANCE
+    ) / 2.0
+    hole_cutters = []
+    for hole_index, (x, y) in enumerate(
+        fan_hole_centers(source_fan),
+        start=1,
+    ):
+        hole_cutters.append(
+            add_cylinder_z(
+                f"{prefix}_Source_Mount_Hole_{hole_index}",
+                source_hole_radius,
+                source_z0 - BOOLEAN_OVERLAP,
+                source_z1 + BOOLEAN_OVERLAP,
+                x=x,
+                y=y,
+            )
+        )
+    for hole_index, (x, y) in enumerate(
+        rear_fan_hole_centers(rear_fan),
+        start=1,
+    ):
+        hole_cutters.append(
+            add_cylinder_z(
+                f"{prefix}_Rear_Fan_Mount_Hole_{hole_index}",
+                target_hole_radius,
+                target_z0 - BOOLEAN_OVERLAP,
+                target_z1 + BOOLEAN_OVERLAP,
+                x=x,
+                y=y,
+            )
+        )
+    boolean_difference(
+        source_flange,
+        hole_cutters,
+        prefix + "_Mount_Hole_Cuts",
+        solver=ASSEMBLY_BOOLEAN_SOLVER,
+        require_geometry_change=True,
+    )
+    # Blender's n-gon triangulation is numerically sensitive after arbitrary
+    # rotations.  Clean the Boolean result in its axis-aligned construction
+    # coordinates first; re-triangulating the resulting triangles later is
+    # topology-preserving.
+    triangulate_mesh(source_flange)
+    rotate_fan_part(source_flange, source_fan)
+    source_flange.name = (
+        f"Rear_Fan_Adapter_{index}_{source_fan['size']:g}_to_"
+        f"{rear_fan['size']:g}mm"
+    )
+    source_flange.data.name = source_flange.name + "_Mesh"
+    return source_flange
+
+
+def create_rear_fan_envelope(rear_fan):
+    """Create a temporary exact-size body envelope for collision checks."""
+    source_fan = rear_fan["source_fan"]
+    rear_face_z = (
+        attachment_plane_z()
+        + 2.0 * REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z
+        + REAR_FAN_ADAPTER_DUCT_LENGTH_Z
+    )
+    envelope = add_box(
+        f"Rear_Fan_{rear_fan['index']}_Collision_Envelope",
+        (
+            rear_fan["size"],
+            rear_fan["size"],
+            rear_fan["depth"],
+        ),
+        (
+            rear_fan["center_x"],
+            rear_fan["center_y"],
+            rear_face_z + rear_fan["depth"] / 2.0,
+        ),
+    )
+    rotate_fan_part(envelope, source_fan)
+    return envelope
+
+
+def validate_rear_fan_adapter_collisions(rear_fan_adapters) -> None:
+    """Reject intersecting adapters, rear fans, or crossed assemblies."""
+    if len(rear_fan_adapters) < 2:
+        print("REAR_FAN_ADAPTER_COLLISIONS PASS pairs=0")
+        return
+    tolerance = 1.0e-4
+    envelopes = [
+        (rear_fan, create_rear_fan_envelope(rear_fan))
+        for rear_fan, _adapter in rear_fan_adapters
+    ]
+    checked_pairs = 0
+    try:
+        for first_index in range(len(rear_fan_adapters)):
+            first_spec, first_adapter = rear_fan_adapters[first_index]
+            _first_fan_spec, first_envelope = envelopes[first_index]
+            for second_index in range(
+                first_index + 1,
+                len(rear_fan_adapters),
+            ):
+                second_spec, second_adapter = rear_fan_adapters[second_index]
+                _second_fan_spec, second_envelope = envelopes[second_index]
+                tests = (
+                    ("adapter", first_adapter, second_adapter),
+                    ("rear-fan", first_envelope, second_envelope),
+                    ("crossed", first_adapter, second_envelope),
+                    ("crossed", second_adapter, first_envelope),
+                )
+                for collision_kind, first_object, second_object in tests:
+                    checked_pairs += 1
+                    volume = mesh_intersection_volume(
+                        first_object,
+                        second_object,
+                        f"Rear_Fan_{collision_kind}_{first_spec['index']}_"
+                        f"{second_spec['index']}",
+                    )
+                    if volume > tolerance:
+                        raise ValueError(
+                            f"Rear fan assemblies {first_spec['index']} and "
+                            f"{second_spec['index']} collide ({collision_kind} "
+                            f"intersection={volume:.3f} mm3); increase "
+                            "FAN_BODY_GAP_MM or adjust their rear-fan offsets"
+                        )
+    finally:
+        for _rear_fan, envelope in envelopes:
+            if bpy.data.objects.get(envelope.name) is not None:
+                bpy.data.objects.remove(envelope, do_unlink=True)
+    print(
+        "REAR_FAN_ADAPTER_COLLISIONS PASS "
+        f"checks={checked_pairs} tolerance={tolerance:.6f}mm3"
+    )
 
 
 def create_fan_wire_slot_cutter(fan, outside_extension=0.0):
@@ -2781,6 +3330,14 @@ def default_airflow_splitter_stl_path(fan) -> str:
     return f"gopro_single_fan_{fan['size']:g}mm_airflow_splitter.stl"
 
 
+def default_rear_fan_adapter_stl_path(rear_fan) -> str:
+    source_fan = rear_fan["source_fan"]
+    return (
+        f"gopro_rear_fan_adapter_{rear_fan['index']}_"
+        f"{source_fan['size']:g}_to_{rear_fan['size']:g}mm.stl"
+    )
+
+
 def world_z_bounds(obj):
     corners = (obj.matrix_world @ Vector(corner) for corner in obj.bound_box)
     z_values = [corner.z for corner in corners]
@@ -2837,6 +3394,11 @@ def build_dual_fan():
         apply_material_profile()
     validate_config()
     fan_specs = resolve_fan_specs()
+    rear_fan_specs = (
+        resolve_rear_fan_specs(fan_specs)
+        if REAR_FAN_ADAPTER_ENABLED
+        else ()
+    )
     if CLEAR_SCENE:
         clear_scene()
     set_units()
@@ -2869,6 +3431,16 @@ def build_dual_fan():
         if SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED
         else None
     )
+    rear_fan_adapters = (
+        [
+            (rear_fan, create_rear_fan_adapter(rear_fan))
+            for rear_fan in rear_fan_specs
+        ]
+        if REAR_FAN_ADAPTER_ENABLED
+        else []
+    )
+    if rear_fan_adapters:
+        validate_rear_fan_adapter_collisions(rear_fan_adapters)
     # The bottom wire-slot recut must follow the fan cages and shared support,
     # but a dropped stalk/receiver can extend much farther in fan-local Y. Do
     # not let that unrelated geometry lengthen the cutter through the holder.
@@ -2911,6 +3483,7 @@ def build_dual_fan():
         final_objects.append(gopro_adapter)
     if airflow_splitter is not None:
         final_objects.append(airflow_splitter)
+    final_objects.extend(adapter for _rear_fan, adapter in rear_fan_adapters)
     for part in final_objects:
         part.select_set(True)
 
@@ -2974,6 +3547,25 @@ def build_dual_fan():
         )
     else:
         print("SINGLE_FAN_AIRFLOW_SPLITTER=DISABLED")
+    if rear_fan_adapters:
+        for rear_fan, _adapter in rear_fan_adapters:
+            source_fan = rear_fan["source_fan"]
+            print(
+                f"REAR_FAN_ADAPTER_{rear_fan['index']}=ENABLED "
+                f"source={source_fan['size']:.0f}mm "
+                f"rear={rear_fan['size']:.0f}mm "
+                f"offset_local_x={rear_fan['offset_x']:.2f}mm "
+                f"offset_local_y={rear_fan['offset_y']:.2f}mm "
+                f"duct_length={REAR_FAN_ADAPTER_DUCT_LENGTH_Z:.2f}mm "
+                f"maximum_wall_angle="
+                f"{math.degrees(math.atan2(rear_fan_transition_max_shift(rear_fan), REAR_FAN_ADAPTER_DUCT_LENGTH_Z)):.2f}deg "
+                "mount=separate_standard_four_hole "
+                "hardware_access=exposed_flange_corners "
+                "print_orientation=source_flange_down internal_supports=none "
+                "external_supports=far_flange_corners_recommended"
+            )
+    else:
+        print("REAR_FAN_ADAPTERS=DISABLED")
     for fan in fan_specs:
         print(
             f"FAN_{fan['index']} reference={fan['reference']} "
@@ -3019,6 +3611,18 @@ def build_dual_fan():
                 splitter_output_path,
             )
             print(f"Wrote airflow splitter {splitter_path}")
+        for zero_based_index, (rear_fan, adapter) in enumerate(
+            rear_fan_adapters
+        ):
+            rear_output_path = (
+                EXPORT_REAR_FAN_ADAPTER_STL_PATHS[zero_based_index]
+                if EXPORT_REAR_FAN_ADAPTER_STL_PATHS is not None
+                else default_rear_fan_adapter_stl_path(rear_fan)
+            )
+            rear_path = export_stl([adapter], rear_output_path)
+            print(
+                f"Wrote rear fan adapter {rear_fan['index']} {rear_path}"
+            )
 
     select_only(final)
     return final

@@ -14,7 +14,8 @@ DUAL_FAN_STLS := \
 	gopro_dual_fan_parametric.stl \
 	gopro_dual_fan_adapter.stl
 DUAL_FAN_OPTIONAL_STLS := $(foreach size,40 60 80 120,\
-	gopro_single_fan_$(size)mm_airflow_splitter.stl)
+	gopro_single_fan_$(size)mm_airflow_splitter.stl) \
+	gopro_rear_fan_adapter_*.stl
 DUAL_FAN_BUILD_SENTINEL := .gopro_dual_fan_build_complete
 FAN_SILENCER_SIZE ?= 40
 FAN_SILENCER_SUPPORTED_SIZES := 40 60 80 120
@@ -139,7 +140,7 @@ print_targets:
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
-		'dual-fan                  Build the parametric fan holder; optional splitter follows CONFIG.' \
+		'dual-fan                  Build the holder; optional splitter/rear adapters follow CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, buttons, baffle tray/lid/seal, swing gate, and keeper STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
@@ -165,7 +166,7 @@ print_targets:
 		'clean-wrapping-fan-cover  Remove the wrapping fan cover STL.' \
 		'clean-horn                Remove the parametric horn STL.' \
 		'clean-mission1-dummy      Remove the Mission 1 dummy STL.' \
-		'clean-dual-fan            Remove the dual-fan STL.' \
+		'clean-dual-fan            Remove dual-fan holder, adapter, splitter, and rear-adapter STLs.' \
 		'clean-fan-silencer        Remove fan-silencer STLs and generated render images.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
 		'clean-hockeymom-cover     Remove all HOCKEYMOM 3 camera-cover STLs.' \

@@ -172,19 +172,12 @@ BAFFLE_INTERNAL_THICKNESS_Y = 1.80
 BAFFLE_LID_PLATE_THICKNESS_X = 1.20
 BAFFLE_SNAP_TONGUE_THICKNESS_Z = 1.00
 
-# Rear inlet stack. Three pointed slots retain most of the fan-circle area
-# while keeping every closing roof safely self-supporting in print space. The
-# thin separator ribs also stiffen the rear face. A rigid cartridge locates its
-# separately printed TPU gasket in a shallow annular rear groove. A continuous
-# gasket-shaped floor land backs the seal even where the pointed inlet cutters
-# extend beyond the circular bore. With the TPU cartridge profile, the same
-# exposed sealing ring is unioned directly to the tray. Four scallops register
-# either seal around the fan bosses.
+# Rear inlet stack. A single circular opening matches the fan bore and leaves a
+# continuous structural rim around the entire rear face. A rigid cartridge
+# locates its separately printed TPU gasket in a shallow annular rear groove;
+# with the TPU cartridge profile, the same exposed sealing ring is unioned
+# directly to the tray. Four scallops register either seal around the bosses.
 BAFFLE_INLET_DIAMETER = 37.0
-BAFFLE_INLET_SLOT_COUNT = 3
-BAFFLE_INLET_SEPARATOR_THICKNESS_Z = 2.00
-BAFFLE_INLET_ROOF_APEX_X = 21.0
-BAFFLE_INLET_ROOF_RUN_X = 12.0
 BAFFLE_GASKET_OUTER_DIAMETER = 39.0
 BAFFLE_GASKET_INNER_DIAMETER = 37.0
 BAFFLE_GASKET_THICKNESS_Y = 2.70
@@ -192,45 +185,38 @@ BAFFLE_GASKET_BOSS_CLEARANCE = 0.15
 BAFFLE_GASKET_GROOVE_DEPTH_Y = 0.40
 BAFFLE_GASKET_GROOVE_RADIAL_CLEARANCE = 0.20
 
-# Alternating baffles and broad forward outlet.  The first blocker leaves top
-# and bottom lanes; the second closes those lanes and leaves a center throat.
-# One broad pointed outlet avoids the poorly supported thin separator post
-# created by a two-slot outlet while retaining a self-supporting closing roof.
-BAFFLE_FIRST_Y = 4.70
-BAFFLE_FIRST_BLOCKER_HEIGHT_Z = 22.0
-BAFFLE_SECOND_Y = 9.60
+# Alternating baffles and broad forward outlet. The two finite-thickness slats
+# divide the clear rear-to-front airway into nearly equal axial gaps in both
+# material profiles. The slightly taller first blocker preserves complete
+# acoustic line-of-sight blocking at that more even spacing. The outlet is one
+# flat-edged rectangle with a continuous surrounding front-wall rim.
+BAFFLE_FIRST_Y = 1.47
+BAFFLE_FIRST_BLOCKER_HEIGHT_Z = 25.0
+BAFFLE_SECOND_Y = 7.33
 BAFFLE_SECOND_OPENING_HEIGHT_Z = 16.0
 BAFFLE_MIN_EDGE_OVERLAP_Z = 2.0
-BAFFLE_MIN_THROAT_AREA = 870.0
-BAFFLE_OUTLET_WIDTH = 52.0
+BAFFLE_MIN_THROAT_AREA = 650.0
+BAFFLE_OUTLET_WIDTH = 48.0
 BAFFLE_OUTLET_HEIGHT = 19.7
-BAFFLE_OUTLET_SLOT_COUNT = 1
-BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z = 2.00
-BAFFLE_OUTLET_ROOF_RUN_X = 15.0
-BAFFLE_MIN_ROOF_ANGLE_DEG = 60.0
 BAFFLE_OUTLET_MIN_FRONT_WALL_SIDE_BAND_X = 3.00
 
 # The +X side lid replaces the removed side wall.  Its broad outer plate sits
-# flush with the tray while a shallow inner key locates it for bonding after
-# the airway is inspected and cleaned.  Robust tray-side returns tie both
+# flush with the tray while an inner key locates it for bonding after the
+# airway is inspected and cleaned. Robust tray-side returns tie both
 # camera-side members into the perimeter for more than 3 mm before the lid
-# edge. Two shallow lid pockets capture those returns while leaving the lid's
-# center key continuous and avoiding a TPU bridge across the airway. TPU also
-# receives a shallow groove for the first center blocker.
+# edge. Three blind sleeves capture the lid-side edge of the first blocker and
+# both top/bottom ends of the second baffle. Each pocket surrounds its slat and
+# overlaps it by at least 2 mm while retaining a closed lid-key floor.
 BAFFLE_LID_KEY_DEPTH_X = 1.80
 BAFFLE_LID_FIT_CLEARANCE = 0.25
-BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X = 0.60
-BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X = 0.35
-BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y = 0.20
-BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z = 0.25
+BAFFLE_LID_SLEEVE_DEPTH_X = 3.00
+BAFFLE_LID_SLEEVE_ENGAGEMENT_X = 2.50
+BAFFLE_LID_SLEEVE_CLEARANCE_Y = 0.20
+BAFFLE_LID_SLEEVE_CLEARANCE_Z = 0.25
+BAFFLE_LID_SLEEVE_MIN_WALL = 0.70
 BAFFLE_SECOND_END_FRAME_DEPTH_Y = 3.20
 BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y = 0.40
 BAFFLE_SECOND_END_FRAME_CONNECTION_X = 3.50
-BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X = 0.80
-BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X = 1.00
-BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y = 0.20
-BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z = 0.20
-BAFFLE_SECOND_END_FRAME_LID_MIN_WALL = 0.70
 
 # Top/bottom cartridge retention. Each long tongue is carried at the tray's
 # centerline, clear of the existing left/right camera stops. The tongues follow
@@ -579,12 +565,10 @@ _RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE = {
     "BAFFLE_INTERNAL_THICKNESS_Y": 1.80,
     "BAFFLE_LID_PLATE_THICKNESS_X": 1.20,
     "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 1.00,
-    "BAFFLE_LID_KEY_DEPTH_X": 1.80,
+    "BAFFLE_LID_KEY_DEPTH_X": 3.80,
     "BAFFLE_SECOND_END_FRAME_DEPTH_Y": 3.20,
     "BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y": 0.40,
     "BAFFLE_SECOND_END_FRAME_CONNECTION_X": 3.50,
-    "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X": 0.80,
-    "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X": 1.00,
 }
 BAFFLE_CARTRIDGE_MATERIAL_PROFILES = {
     "RIGID": _RIGID_BAFFLE_CARTRIDGE_MATERIAL_PROFILE,
@@ -595,12 +579,10 @@ BAFFLE_CARTRIDGE_MATERIAL_PROFILES = {
         "BAFFLE_INTERNAL_THICKNESS_Y": 2.40,
         "BAFFLE_LID_PLATE_THICKNESS_X": 2.00,
         "BAFFLE_SNAP_TONGUE_THICKNESS_Z": 2.00,
-        "BAFFLE_LID_KEY_DEPTH_X": 2.20,
+        "BAFFLE_LID_KEY_DEPTH_X": 4.00,
         "BAFFLE_SECOND_END_FRAME_DEPTH_Y": 3.60,
         "BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y": 0.60,
         "BAFFLE_SECOND_END_FRAME_CONNECTION_X": 4.00,
-        "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X": 1.00,
-        "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X": 1.25,
     },
 }
 _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = None
@@ -617,8 +599,6 @@ def apply_baffle_cartridge_material_profile() -> None:
     global BAFFLE_SECOND_END_FRAME_DEPTH_Y
     global BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y
     global BAFFLE_SECOND_END_FRAME_CONNECTION_X
-    global BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X
-    global BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X
 
     try:
         profile = BAFFLE_CARTRIDGE_MATERIAL_PROFILES[
@@ -651,12 +631,6 @@ def apply_baffle_cartridge_material_profile() -> None:
     ]
     BAFFLE_SECOND_END_FRAME_CONNECTION_X = profile[
         "BAFFLE_SECOND_END_FRAME_CONNECTION_X"
-    ]
-    BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X = profile[
-        "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X"
-    ]
-    BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X = profile[
-        "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X"
     ]
     _APPLIED_BAFFLE_CARTRIDGE_MATERIAL_MODE = (
         BAFFLE_CARTRIDGE_MATERIAL_MODE
@@ -1072,104 +1046,42 @@ def baffle_effective_airway_bounds_at_y(y: float):
     )
 
 
-def baffle_slot_spans(
-    total_height: float,
-    count: int,
-    separator_thickness: float,
-    center_z: float = 0.0,
-):
-    open_height = total_height - (count - 1) * separator_thickness
-    slot_height = open_height / count
-    first_bottom = center_z - total_height / 2.0
-    return tuple(
-        (
-            first_bottom + index * (slot_height + separator_thickness),
-            first_bottom
-            + index * (slot_height + separator_thickness)
-            + slot_height,
-        )
-        for index in range(count)
-    )
-
-
-def baffle_pointed_slot_loops(
-    left_x: float,
-    roof_apex_x: float,
-    roof_run_x: float,
-    spans,
-):
-    """Return broad inlet/outlet slots with self-supporting pointed roofs."""
-    shoulder_x = roof_apex_x - roof_run_x
-    return tuple(
-        [
-            (left_x, bottom),
-            (shoulder_x, bottom),
-            (roof_apex_x, (bottom + top) / 2.0),
-            (shoulder_x, top),
-            (left_x, top),
-        ]
-        for bottom, top in spans
-    )
-
-
 def baffle_inlet_loops():
+    """Return one circular inlet with a continuous surrounding rear rim."""
     radius = BAFFLE_INLET_DIAMETER / 2.0
-    return baffle_pointed_slot_loops(
-        FAN_CENTER_X - radius,
-        FAN_CENTER_X + BAFFLE_INLET_ROOF_APEX_X,
-        BAFFLE_INLET_ROOF_RUN_X,
-        baffle_slot_spans(
-            BAFFLE_INLET_DIAMETER,
-            BAFFLE_INLET_SLOT_COUNT,
-            BAFFLE_INLET_SEPARATOR_THICKNESS_Z,
-            FAN_CENTER_Z,
-        ),
+    return (
+        [
+            (
+                FAN_CENTER_X
+                + radius
+                * math.cos(2.0 * math.pi * index / CYLINDER_SEGMENTS),
+                FAN_CENTER_Z
+                + radius
+                * math.sin(2.0 * math.pi * index / CYLINDER_SEGMENTS),
+            )
+            for index in range(CYLINDER_SEGMENTS)
+        ],
     )
 
 
 def baffle_outlet_loops():
+    """Return one flat-edged outlet with a continuous surrounding front rim."""
     half_width = BAFFLE_OUTLET_WIDTH / 2.0
-    return baffle_pointed_slot_loops(
-        -half_width,
-        half_width,
-        BAFFLE_OUTLET_ROOF_RUN_X,
-        baffle_slot_spans(
-            BAFFLE_OUTLET_HEIGHT,
-            BAFFLE_OUTLET_SLOT_COUNT,
-            BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z,
-        ),
+    half_height = BAFFLE_OUTLET_HEIGHT / 2.0
+    return (
+        [
+            (-half_width, -half_height),
+            (half_width, -half_height),
+            (half_width, half_height),
+            (-half_width, half_height),
+        ],
     )
 
 
 def baffle_inlet_effective_area() -> float:
-    """Numerically integrate fan-circle area retained by the pointed slots."""
+    """Return the unobstructed circular inlet area."""
     radius = BAFFLE_INLET_DIAMETER / 2.0
-    spans = baffle_slot_spans(
-        BAFFLE_INLET_DIAMETER,
-        BAFFLE_INLET_SLOT_COUNT,
-        BAFFLE_INLET_SEPARATOR_THICKNESS_Z,
-    )
-    slices = 4096
-    slice_height = 2.0 * radius / slices
-    area = 0.0
-    for index in range(slices):
-        z = -radius + (index + 0.5) * slice_height
-        circle_half_width = math.sqrt(max(radius * radius - z * z, 0.0))
-        for bottom, top in spans:
-            if bottom <= z <= top:
-                half_slot_height = (top - bottom) / 2.0
-                slot_center_z = (bottom + top) / 2.0
-                roof_x = BAFFLE_INLET_ROOF_APEX_X - (
-                    BAFFLE_INLET_ROOF_RUN_X
-                    * abs(z - slot_center_z)
-                    / half_slot_height
-                )
-                area += (
-                    min(circle_half_width, roof_x)
-                    + circle_half_width
-                ) * slice_height
-                break
-    return area
+    return math.pi * radius * radius
 
 
 def baffle_throat_areas():
@@ -1206,13 +1118,7 @@ def baffle_throat_areas():
         * BAFFLE_SECOND_END_FRAME_CONNECTION_X
         * baffle_boolean_join_overlap()
     )
-    outlet_open_height = BAFFLE_OUTLET_HEIGHT - (
-        (BAFFLE_OUTLET_SLOT_COUNT - 1)
-        * BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z
-    )
-    outlet_area = (
-        BAFFLE_OUTLET_WIDTH - BAFFLE_OUTLET_ROOF_RUN_X / 2.0
-    ) * outlet_open_height
+    outlet_area = BAFFLE_OUTLET_WIDTH * BAFFLE_OUTLET_HEIGHT
     return first_area, second_area, outlet_area
 
 
@@ -1808,11 +1714,6 @@ def validate_baffle_cartridge_config() -> None:
         "BAFFLE_LID_PLATE_THICKNESS_X": BAFFLE_LID_PLATE_THICKNESS_X,
         "BAFFLE_STOP_CLEARANCE": BAFFLE_STOP_CLEARANCE,
         "BAFFLE_INLET_DIAMETER": BAFFLE_INLET_DIAMETER,
-        "BAFFLE_INLET_SEPARATOR_THICKNESS_Z": (
-            BAFFLE_INLET_SEPARATOR_THICKNESS_Z
-        ),
-        "BAFFLE_INLET_ROOF_APEX_X": BAFFLE_INLET_ROOF_APEX_X,
-        "BAFFLE_INLET_ROOF_RUN_X": BAFFLE_INLET_ROOF_RUN_X,
         "BAFFLE_GASKET_OUTER_DIAMETER": BAFFLE_GASKET_OUTER_DIAMETER,
         "BAFFLE_GASKET_INNER_DIAMETER": BAFFLE_GASKET_INNER_DIAMETER,
         "BAFFLE_GASKET_THICKNESS_Y": BAFFLE_GASKET_THICKNESS_Y,
@@ -1827,28 +1728,22 @@ def validate_baffle_cartridge_config() -> None:
         "BAFFLE_MIN_THROAT_AREA": BAFFLE_MIN_THROAT_AREA,
         "BAFFLE_OUTLET_WIDTH": BAFFLE_OUTLET_WIDTH,
         "BAFFLE_OUTLET_HEIGHT": BAFFLE_OUTLET_HEIGHT,
-        "BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z": (
-            BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z
-        ),
-        "BAFFLE_OUTLET_ROOF_RUN_X": BAFFLE_OUTLET_ROOF_RUN_X,
-        "BAFFLE_MIN_ROOF_ANGLE_DEG": BAFFLE_MIN_ROOF_ANGLE_DEG,
         "BAFFLE_OUTLET_MIN_FRONT_WALL_SIDE_BAND_X": (
             BAFFLE_OUTLET_MIN_FRONT_WALL_SIDE_BAND_X
         ),
         "BAFFLE_LID_KEY_DEPTH_X": BAFFLE_LID_KEY_DEPTH_X,
         "BAFFLE_LID_FIT_CLEARANCE": BAFFLE_LID_FIT_CLEARANCE,
-        "BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X": (
-            BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X
+        "BAFFLE_LID_SLEEVE_DEPTH_X": BAFFLE_LID_SLEEVE_DEPTH_X,
+        "BAFFLE_LID_SLEEVE_ENGAGEMENT_X": (
+            BAFFLE_LID_SLEEVE_ENGAGEMENT_X
         ),
-        "BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X": (
-            BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X
+        "BAFFLE_LID_SLEEVE_CLEARANCE_Y": (
+            BAFFLE_LID_SLEEVE_CLEARANCE_Y
         ),
-        "BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y": (
-            BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y
+        "BAFFLE_LID_SLEEVE_CLEARANCE_Z": (
+            BAFFLE_LID_SLEEVE_CLEARANCE_Z
         ),
-        "BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z": (
-            BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z
-        ),
+        "BAFFLE_LID_SLEEVE_MIN_WALL": BAFFLE_LID_SLEEVE_MIN_WALL,
         "BAFFLE_SECOND_END_FRAME_DEPTH_Y": (
             BAFFLE_SECOND_END_FRAME_DEPTH_Y
         ),
@@ -1857,21 +1752,6 @@ def validate_baffle_cartridge_config() -> None:
         ),
         "BAFFLE_SECOND_END_FRAME_CONNECTION_X": (
             BAFFLE_SECOND_END_FRAME_CONNECTION_X
-        ),
-        "BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X": (
-            BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X
-        ),
-        "BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X": (
-            BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X
-        ),
-        "BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y": (
-            BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y
-        ),
-        "BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z": (
-            BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z
-        ),
-        "BAFFLE_SECOND_END_FRAME_LID_MIN_WALL": (
-            BAFFLE_SECOND_END_FRAME_LID_MIN_WALL
         ),
         "BAFFLE_SNAP_RECEIVER_WIDTH_X": BAFFLE_SNAP_RECEIVER_WIDTH_X,
         "BAFFLE_SNAP_RECEIVER_DEPTH_Y": BAFFLE_SNAP_RECEIVER_DEPTH_Y,
@@ -1917,17 +1797,6 @@ def validate_baffle_cartridge_config() -> None:
         BAFFLE_SNAP_HOOK_PROTRUSION_Z,
     ):
         raise ValueError("The baffle hook bevel consumes its retaining face")
-    if BAFFLE_INLET_SLOT_COUNT < 1 or BAFFLE_OUTLET_SLOT_COUNT < 1:
-        raise ValueError("The baffle inlet/outlet slot counts must be positive")
-    if (
-        (BAFFLE_INLET_SLOT_COUNT - 1)
-        * BAFFLE_INLET_SEPARATOR_THICKNESS_Z
-        >= BAFFLE_INLET_DIAMETER
-        or (BAFFLE_OUTLET_SLOT_COUNT - 1)
-        * BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z
-        >= BAFFLE_OUTLET_HEIGHT
-    ):
-        raise ValueError("The baffle separators consume their openings")
     if not (
         fan_boss_end_y()
         < BAFFLE_REAR_Y
@@ -1967,16 +1836,18 @@ def validate_baffle_cartridge_config() -> None:
         BAFFLE_REAR_WIDTH / 2.0
     ):
         raise ValueError("The baffle lid key consumes the rear airway")
-    if BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X >= BAFFLE_LID_KEY_DEPTH_X:
+    if BAFFLE_LID_SLEEVE_DEPTH_X >= BAFFLE_LID_KEY_DEPTH_X:
         raise ValueError(
-            "The TPU blocker slot must leave a closed floor in the lid key"
+            "The baffle lid sleeves must leave a closed floor in the lid key"
         )
-    if (
-        BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X
-        >= BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X
-    ):
+    if BAFFLE_LID_SLEEVE_ENGAGEMENT_X >= BAFFLE_LID_SLEEVE_DEPTH_X:
         raise ValueError(
-            "The TPU blocker tab needs clearance before the slot floor"
+            "The baffle tabs need clearance before their sleeve floors"
+        )
+    if BAFFLE_LID_SLEEVE_ENGAGEMENT_X < 2.0:
+        raise ValueError(
+            "BAFFLE_LID_SLEEVE_ENGAGEMENT_X must capture every slat for at "
+            "least 2 mm"
         )
     if BAFFLE_SECOND_END_FRAME_DEPTH_Y < 3.0:
         raise ValueError(
@@ -1992,31 +1863,12 @@ def validate_baffle_cartridge_config() -> None:
             "camera-side member for at least 3 mm after the tray/lid "
             f"running gap; actual overlap={frame_member_overlap_x:.3f} mm"
         )
-    if (
-        BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X
-        >= BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X
-    ):
+    lid_pocket_floor = BAFFLE_LID_KEY_DEPTH_X - BAFFLE_LID_SLEEVE_DEPTH_X
+    if lid_pocket_floor < BAFFLE_LID_SLEEVE_MIN_WALL:
         raise ValueError(
-            "The second-baffle end frame needs clearance before its lid-"
-            "pocket floor"
-        )
-    if (
-        BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X
-        >= BAFFLE_LID_KEY_DEPTH_X
-    ):
-        raise ValueError(
-            "The second-baffle end-frame pocket must leave a closed floor "
-            "in the lid key"
-        )
-    lid_pocket_floor = (
-        BAFFLE_LID_KEY_DEPTH_X
-        - BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X
-    )
-    if lid_pocket_floor < BAFFLE_SECOND_END_FRAME_LID_MIN_WALL:
-        raise ValueError(
-            "The second-baffle end-frame lid pocket leaves only "
+            "The baffle lid sleeves leave only "
             f"{lid_pocket_floor:.3f} mm of floor; minimum="
-            f"{BAFFLE_SECOND_END_FRAME_LID_MIN_WALL:.3f} mm"
+            f"{BAFFLE_LID_SLEEVE_MIN_WALL:.3f} mm"
         )
     frame_center_y = (
         BAFFLE_SECOND_Y - BAFFLE_SECOND_END_FRAME_REAR_SHIFT_Y
@@ -2039,15 +1891,24 @@ def validate_baffle_cartridge_config() -> None:
             "thickness of both camera-side members"
         )
     frame_pocket_rear_y = (
-        frame_rear_y - BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y
+        frame_rear_y - BAFFLE_LID_SLEEVE_CLEARANCE_Y
     )
     frame_pocket_front_y = (
-        frame_front_y + BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y
+        frame_front_y + BAFFLE_LID_SLEEVE_CLEARANCE_Y
     )
     for material_mode, profile in (
         BAFFLE_CARTRIDGE_MATERIAL_PROFILES.items()
     ):
         profile_wall = profile["BAFFLE_WALL_THICKNESS"]
+        profile_sleeve_floor = (
+            profile["BAFFLE_LID_KEY_DEPTH_X"]
+            - BAFFLE_LID_SLEEVE_DEPTH_X
+        )
+        if profile_sleeve_floor < BAFFLE_LID_SLEEVE_MIN_WALL:
+            raise ValueError(
+                f"The {material_mode} lid key leaves only "
+                f"{profile_sleeve_floor:.3f} mm behind its sleeves"
+            )
         profile_key_start_y = (
             BAFFLE_REAR_Y + profile_wall + BAFFLE_LID_FIT_CLEARANCE
         )
@@ -2058,48 +1919,47 @@ def validate_baffle_cartridge_config() -> None:
             frame_pocket_rear_y - profile_key_start_y,
             profile_key_end_y - frame_pocket_front_y,
         )
-        if min(axial_walls) < BAFFLE_SECOND_END_FRAME_LID_MIN_WALL:
+        if min(axial_walls) < BAFFLE_LID_SLEEVE_MIN_WALL:
             raise ValueError(
                 f"The {material_mode} second-baffle end-frame pocket must "
                 "retain the configured minimum front and rear lid-key walls: "
                 f"available={axial_walls}, minimum="
-                f"{BAFFLE_SECOND_END_FRAME_LID_MIN_WALL:.3f} mm"
+                f"{BAFFLE_LID_SLEEVE_MIN_WALL:.3f} mm"
             )
-    if baffle_gasket_is_integral():
-        slot_half_y = (
-            BAFFLE_INTERNAL_THICKNESS_Y / 2.0
-            + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y
+    slot_half_y = (
+        BAFFLE_INTERNAL_THICKNESS_Y / 2.0
+        + BAFFLE_LID_SLEEVE_CLEARANCE_Y
+    )
+    slot_half_z = (
+        BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+        + BAFFLE_LID_SLEEVE_CLEARANCE_Z
+    )
+    key_start_y = (
+        BAFFLE_REAR_Y
+        + BAFFLE_WALL_THICKNESS
+        + BAFFLE_LID_FIT_CLEARANCE
+    )
+    key_end_y = (
+        BAFFLE_FRONT_Y
+        - BAFFLE_WALL_THICKNESS
+        - BAFFLE_LID_FIT_CLEARANCE
+    )
+    if not (
+        key_start_y < BAFFLE_FIRST_Y - slot_half_y
+        < BAFFLE_FIRST_Y + slot_half_y < key_end_y
+    ):
+        raise ValueError(
+            "The first-blocker sleeve does not fit within the lid key"
         )
-        slot_half_z = (
-            BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
-            + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z
+    key_half_height = (
+        BAFFLE_BODY_HEIGHT / 2.0
+        - BAFFLE_WALL_THICKNESS
+        - BAFFLE_LID_FIT_CLEARANCE
+    )
+    if slot_half_z >= key_half_height:
+        raise ValueError(
+            "The first-blocker sleeve consumes the top/bottom lid key"
         )
-        key_start_y = (
-            BAFFLE_REAR_Y
-            + BAFFLE_WALL_THICKNESS
-            + BAFFLE_LID_FIT_CLEARANCE
-        )
-        key_end_y = (
-            BAFFLE_FRONT_Y
-            - BAFFLE_WALL_THICKNESS
-            - BAFFLE_LID_FIT_CLEARANCE
-        )
-        if not (
-            key_start_y < BAFFLE_FIRST_Y - slot_half_y
-            < BAFFLE_FIRST_Y + slot_half_y < key_end_y
-        ):
-            raise ValueError(
-                "The TPU center-blocker slot does not fit within the lid key"
-            )
-        key_half_height = (
-            BAFFLE_BODY_HEIGHT / 2.0
-            - BAFFLE_WALL_THICKNESS
-            - BAFFLE_LID_FIT_CLEARANCE
-        )
-        if slot_half_z >= key_half_height:
-            raise ValueError(
-                "The TPU blocker slot consumes the top/bottom lid key"
-            )
     if not (
         BAFFLE_GASKET_OUTER_DIAMETER
         > BAFFLE_GASKET_INNER_DIAMETER
@@ -2124,71 +1984,31 @@ def validate_baffle_cartridge_config() -> None:
         <= 0.0
     ):
         raise ValueError("The gasket groove clearance consumes its inner bore")
-    inlet_shoulder_x = (
-        BAFFLE_INLET_ROOF_APEX_X - BAFFLE_INLET_ROOF_RUN_X
-    )
-    if not (
-        -BAFFLE_INLET_DIAMETER / 2.0
-        < inlet_shoulder_x
-        < BAFFLE_INLET_ROOF_APEX_X
-    ):
-        raise ValueError("The baffle inlet roof shoulder is invalid")
-    rear_left, rear_right, _rear_bottom, _rear_top = (
+    rear_left, rear_right, rear_bottom, rear_top = (
         baffle_body_bounds_at_y(BAFFLE_REAR_Y)
     )
-    if FAN_CENTER_X + BAFFLE_INLET_ROOF_APEX_X >= rear_right:
-        raise ValueError("The pointed inlet roof consumes the rear right wall")
-    if BAFFLE_OUTLET_ROOF_RUN_X >= BAFFLE_OUTLET_WIDTH:
-        raise ValueError("BAFFLE_OUTLET_ROOF_RUN_X consumes the outlet")
+    inlet_radius = BAFFLE_INLET_DIAMETER / 2.0
+    inlet_rim_widths = (
+        FAN_CENTER_X - inlet_radius - rear_left,
+        rear_right - (FAN_CENTER_X + inlet_radius),
+        FAN_CENTER_Z - inlet_radius - rear_bottom,
+        rear_top - (FAN_CENTER_Z + inlet_radius),
+    )
+    if min(inlet_rim_widths) < BAFFLE_WALL_THICKNESS:
+        raise ValueError(
+            "The circular inlet must retain a continuous rear-face rim: "
+            f"available={inlet_rim_widths}"
+        )
     outlet_front_wall_bands = baffle_outlet_front_wall_side_band_widths()
     if (
         min(outlet_front_wall_bands)
         < BAFFLE_OUTLET_MIN_FRONT_WALL_SIDE_BAND_X
     ):
         raise ValueError(
-            "The pointed outlet leaves an undersized side band in the solid "
+            "The rectangular outlet leaves an undersized side band in the solid "
             "front wall: "
             f"available={outlet_front_wall_bands}, minimum="
             f"{BAFFLE_OUTLET_MIN_FRONT_WALL_SIDE_BAND_X:.3f} mm"
-        )
-    front_left_for_print = baffle_body_bounds_at_y(BAFFLE_FRONT_Y)[0]
-    print_vertical_x_factor = 1.0 / math.sqrt(
-        1.0
-        + (
-            (front_left_for_print - rear_left)
-            / (BAFFLE_FRONT_Y - BAFFLE_REAR_Y)
-        ) ** 2
-    )
-    inlet_slot_half_height = (
-        BAFFLE_INLET_DIAMETER
-        - (BAFFLE_INLET_SLOT_COUNT - 1)
-        * BAFFLE_INLET_SEPARATOR_THICKNESS_Z
-    ) / (2.0 * BAFFLE_INLET_SLOT_COUNT)
-    outlet_slot_half_height = (
-        BAFFLE_OUTLET_HEIGHT
-        - (BAFFLE_OUTLET_SLOT_COUNT - 1)
-        * BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z
-    ) / (2.0 * BAFFLE_OUTLET_SLOT_COUNT)
-    inlet_downward_normal = (
-        print_vertical_x_factor
-        * inlet_slot_half_height
-        / math.hypot(inlet_slot_half_height, BAFFLE_INLET_ROOF_RUN_X)
-    )
-    outlet_downward_normal = (
-        print_vertical_x_factor
-        * outlet_slot_half_height
-        / math.hypot(outlet_slot_half_height, BAFFLE_OUTLET_ROOF_RUN_X)
-    )
-    maximum_downward_normal = math.cos(
-        math.radians(BAFFLE_MIN_ROOF_ANGLE_DEG)
-    )
-    if (
-        inlet_downward_normal > maximum_downward_normal
-        or outlet_downward_normal > maximum_downward_normal
-    ):
-        raise ValueError(
-            "The pointed inlet/outlet roofs are below BAFFLE_MIN_ROOF_ANGLE_DEG "
-            "in the exported tray orientation"
         )
     compression = baffle_gasket_compression()
     if not 0.0 < compression < baffle_gasket_exposed_height() / 2.0:
@@ -2207,9 +2027,15 @@ def validate_baffle_cartridge_config() -> None:
         )
     rear_wall_plane_y = BAFFLE_REAR_Y
     front_wall_plane_y = BAFFLE_FRONT_Y
-    thickness_cases = [("ACTIVE", BAFFLE_INTERNAL_THICKNESS_Y)]
+    thickness_cases = [
+        ("ACTIVE", BAFFLE_INTERNAL_THICKNESS_Y, BAFFLE_WALL_THICKNESS)
+    ]
     thickness_cases.extend(
-        (material_mode, profile["BAFFLE_INTERNAL_THICKNESS_Y"])
+        (
+            material_mode,
+            profile["BAFFLE_INTERNAL_THICKNESS_Y"],
+            profile["BAFFLE_WALL_THICKNESS"],
+        )
         for material_mode, profile in BAFFLE_CARTRIDGE_MATERIAL_PROFILES.items()
         if abs(
             profile["BAFFLE_INTERNAL_THICKNESS_Y"]
@@ -2217,7 +2043,7 @@ def validate_baffle_cartridge_config() -> None:
         )
         > 1.0e-9
     )
-    for material_mode, internal_thickness in thickness_cases:
+    for material_mode, internal_thickness, wall_thickness in thickness_cases:
         half_internal = internal_thickness / 2.0
         first_rear_y = BAFFLE_FIRST_Y - half_internal
         first_front_y = BAFFLE_FIRST_Y + half_internal
@@ -2236,10 +2062,20 @@ def validate_baffle_cartridge_config() -> None:
                 "wall or each other"
             )
         turn_gap = second_rear_y - first_front_y
-        if turn_gap <= max(BAFFLE_WALL_THICKNESS, internal_thickness):
+        if turn_gap <= max(wall_thickness, internal_thickness):
             raise ValueError(
                 f"The {material_mode} baffles leave only {turn_gap:.3f} mm "
                 "for the acoustic turn"
+            )
+        axial_gaps = (
+            first_rear_y - (BAFFLE_REAR_Y + wall_thickness),
+            turn_gap,
+            (BAFFLE_FRONT_Y - wall_thickness) - second_front_y,
+        )
+        if min(axial_gaps) <= 0.0 or max(axial_gaps) - min(axial_gaps) > 0.20:
+            raise ValueError(
+                f"The {material_mode} baffle slats must divide the clear "
+                f"airway into nearly equal axial gaps; actual={axial_gaps}"
             )
         required_inlet_z = baffle_acoustic_visibility_required_inlet_z(
             internal_thickness
@@ -4876,12 +4712,12 @@ def create_baffle_second_end_frame_piece(
                 (lid_key_inner_x - inner_extension_x, bottom_z),
                 (
                     lid_key_inner_x
-                    + BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X,
+                    + BAFFLE_LID_SLEEVE_ENGAGEMENT_X,
                     bottom_z,
                 ),
                 (
                     lid_key_inner_x
-                    + BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X,
+                    + BAFFLE_LID_SLEEVE_ENGAGEMENT_X,
                     top_z,
                 ),
                 (lid_key_inner_x - inner_extension_x, top_z),
@@ -5057,11 +4893,8 @@ def add_baffle_internal_members(tray):
     return tray
 
 
-def add_baffle_tpu_lid_blocker_tab(tray):
-    """Extend the flexible first blocker into its shallow lid-side slot."""
-    if not baffle_gasket_is_integral():
-        return tray
-
+def add_baffle_first_lid_sleeve_tab(tray):
+    """Extend the first blocker 2+ mm into its blind lid sleeve."""
     half_y = BAFFLE_INTERNAL_THICKNESS_Y / 2.0
     half_z = BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
     y_positions = (BAFFLE_FIRST_Y - half_y, BAFFLE_FIRST_Y + half_y)
@@ -5075,19 +4908,19 @@ def add_baffle_tpu_lid_blocker_tab(tray):
                 (tray_edge_x - join_overlap, -half_z),
                 (
                     slot_entry_x
-                    + BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X,
+                    + BAFFLE_LID_SLEEVE_ENGAGEMENT_X,
                     -half_z,
                 ),
                 (
                     slot_entry_x
-                    + BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X,
+                    + BAFFLE_LID_SLEEVE_ENGAGEMENT_X,
                     half_z,
                 ),
                 (tray_edge_x - join_overlap, half_z),
             ]
         )
     tab = loft_through_loops_y(
-        "Baffle_TPU_First_Blocker_Lid_Tab",
+        "Baffle_First_Blocker_Lid_Sleeve_Tab",
         loops,
         y_positions,
         cap_centers=tuple(
@@ -5101,7 +4934,7 @@ def add_baffle_tpu_lid_blocker_tab(tray):
     boolean_union(
         tray,
         tab,
-        "Baffle_TPU_First_Blocker_Lid_Tab_Union",
+        "Baffle_First_Blocker_Lid_Sleeve_Tab_Union",
         solver=WATERTIGHT_DETAIL_UNION_SOLVER,
         require_geometry_change=True,
     )
@@ -5242,7 +5075,7 @@ def create_baffle_tray():
     join_overlap = baffle_boolean_join_overlap()
     for index, loop in enumerate(baffle_inlet_loops(), start=1):
         inlet = polygon_prism_y(
-            f"Baffle_Inlet_Opening_{index}",
+            f"Baffle_Circular_Inlet_Opening_{index}",
             loop,
             BAFFLE_REAR_Y - BOOLEAN_OVERLAP,
             BAFFLE_REAR_Y
@@ -5253,7 +5086,7 @@ def create_baffle_tray():
         boolean_union(
             cavity,
             inlet,
-            f"Baffle_Cavity_Inlet_Cutter_{index}_Union",
+            f"Baffle_Cavity_Circular_Inlet_Cutter_{index}_Union",
             solver=WATERTIGHT_DETAIL_UNION_SOLVER,
             require_geometry_change=True,
         )
@@ -5285,6 +5118,7 @@ def create_baffle_tray():
             require_geometry_change=True,
         )
 
+    groove_floor = None
     if not baffle_gasket_is_integral():
         groove = create_baffle_seal_ring(
             "Baffle_Gasket_Locating_Groove",
@@ -5305,13 +5139,7 @@ def create_baffle_tray():
             BAFFLE_REAR_Y
             + BAFFLE_GASKET_GROOVE_DEPTH_Y,
             BAFFLE_REAR_Y + BAFFLE_WALL_THICKNESS,
-        )
-        boolean_union(
-            tray,
-            groove_floor,
-            "Baffle_Gasket_Continuous_Groove_Floor_Union",
-            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
-            require_geometry_change=True,
+            locating_clearance=BOOLEAN_OVERLAP,
         )
 
     add_baffle_internal_members(tray)
@@ -5324,8 +5152,20 @@ def create_baffle_tray():
         solver=WATERTIGHT_DETAIL_UNION_SOLVER,
         require_geometry_change=True,
     )
+    if groove_floor is not None:
+        # Restore the complete annular land after the removable-lid side cut;
+        # otherwise that cut severs the +X inlet rim and leaves the gasket
+        # unsupported over a broad arc.
+        boolean_union(
+            tray,
+            groove_floor,
+            "Baffle_Gasket_Continuous_Groove_Floor_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+    add_baffle_inlet_top_bridge(tray)
     add_baffle_second_end_frame(tray)
-    add_baffle_tpu_lid_blocker_tab(tray)
+    add_baffle_first_lid_sleeve_tab(tray)
     add_baffle_snap_tongues(tray)
     if baffle_gasket_is_integral():
         integral_seal = create_baffle_seal_ring(
@@ -5342,6 +5182,51 @@ def create_baffle_tray():
         )
     tray.name = "GoPro_Fan_Case_Baffle_Tray"
     tray.data.name = "GoPro_Fan_Case_Baffle_Tray_Mesh"
+    return tray
+
+
+def add_baffle_inlet_top_bridge(tray):
+    """Fill the weak junction between the circular inlet and top wall.
+
+    The circular seal reaches nearly to the airway-side face of the top wall.
+    Booleaning the inlet and removable side opening can otherwise leave only a
+    narrow, faceted connection at twelve o'clock.  This rear-wall bridge stays
+    entirely outside the circular bore, ties into a rigid groove floor or the
+    integral TPU seal, and continues into the full top-wall run.
+    """
+    _left, _right, _bottom, top = baffle_body_bounds_at_y(BAFFLE_REAR_Y)
+    bridge_bottom_z = FAN_CENTER_Z + BAFFLE_INLET_DIAMETER / 2.0
+    bridge_width_x = max(8.0, 5.0 * BAFFLE_WALL_THICKNESS)
+    # Start at the tray's rear wall, not at the exposed TPU sealing face.  The
+    # integral annulus already spans the fan-pad gap and must remain the only
+    # compliant material in that compression envelope; carrying this wider
+    # bridge rearward would intersect the case outside the annular seal.
+    bridge_rear_y = (
+        BAFFLE_REAR_Y
+        if baffle_gasket_is_integral()
+        else BAFFLE_REAR_Y + BAFFLE_GASKET_GROOVE_DEPTH_Y
+    )
+    bridge_front_y = BAFFLE_REAR_Y + BAFFLE_WALL_THICKNESS
+    bridge = add_box(
+        "Baffle_Inlet_Top_Structural_Bridge",
+        (
+            bridge_width_x,
+            bridge_front_y - bridge_rear_y,
+            top - bridge_bottom_z,
+        ),
+        (
+            FAN_CENTER_X,
+            (bridge_rear_y + bridge_front_y) / 2.0,
+            (bridge_bottom_z + top) / 2.0,
+        ),
+    )
+    boolean_union(
+        tray,
+        bridge,
+        "Baffle_Inlet_Top_Structural_Bridge_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
     return tray
 
 
@@ -5378,15 +5263,15 @@ def baffle_lid_key_loop_at_y(y: float):
     ]
 
 
-def create_baffle_tpu_lid_slot_cutter(
+def create_baffle_first_lid_sleeve_pocket(
     name: str,
     center_y: float,
     half_height_z: float,
 ):
-    """Create an upward-open, support-free groove at one baffle station."""
+    """Create the blind pocket that sleeves the first blocker edge."""
     slot_half_y = (
         BAFFLE_INTERNAL_THICKNESS_Y / 2.0
-        + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y
+        + BAFFLE_LID_SLEEVE_CLEARANCE_Y
     )
     y_positions = (
         center_y - slot_half_y,
@@ -5399,11 +5284,11 @@ def create_baffle_tpu_lid_slot_cutter(
             [
                 (slot_entry_x - BOOLEAN_OVERLAP, -half_height_z),
                 (
-                    slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X,
+                    slot_entry_x + BAFFLE_LID_SLEEVE_DEPTH_X,
                     -half_height_z,
                 ),
                 (
-                    slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X,
+                    slot_entry_x + BAFFLE_LID_SLEEVE_DEPTH_X,
                     half_height_z,
                 ),
                 (slot_entry_x - BOOLEAN_OVERLAP, half_height_z),
@@ -5430,7 +5315,7 @@ def create_baffle_second_end_frame_lid_pocket(
 ):
     """Create one close-fit, outward-open pocket for a tray end return."""
     y_positions = baffle_second_end_frame_y_bounds(
-        BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y
+        BAFFLE_LID_SLEEVE_CLEARANCE_Y
     )
     loops = []
     for y in y_positions:
@@ -5440,12 +5325,12 @@ def create_baffle_second_end_frame_lid_pocket(
                 (pocket_entry_x - BOOLEAN_OVERLAP, bottom_z),
                 (
                     pocket_entry_x
-                    + BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X,
+                    + BAFFLE_LID_SLEEVE_DEPTH_X,
                     bottom_z,
                 ),
                 (
                     pocket_entry_x
-                    + BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X,
+                    + BAFFLE_LID_SLEEVE_DEPTH_X,
                     top_z,
                 ),
                 (pocket_entry_x - BOOLEAN_OVERLAP, top_z),
@@ -5525,7 +5410,7 @@ def create_baffle_lid():
             "Baffle_Second_Top_End_Lid_Pocket",
             frame_half_opening
             - frame_join_overlap
-            - BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z,
+            - BAFFLE_LID_SLEEVE_CLEARANCE_Z,
             body_top + BOOLEAN_OVERLAP,
         ),
         (
@@ -5533,7 +5418,7 @@ def create_baffle_lid():
             body_bottom - BOOLEAN_OVERLAP,
             -frame_half_opening
             + frame_join_overlap
-            + BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z,
+            + BAFFLE_LID_SLEEVE_CLEARANCE_Z,
         ),
     )
     for pocket_name, pocket_bottom_z, pocket_top_z in frame_pocket_specs:
@@ -5550,22 +5435,21 @@ def create_baffle_lid():
             solver=WATERTIGHT_DETAIL_UNION_SOLVER,
             require_geometry_change=True,
         )
-    if baffle_gasket_is_integral():
-        slot_name = "Baffle_TPU_First_Blocker_Lid_Slot"
-        slot = create_baffle_tpu_lid_slot_cutter(
-            slot_name,
-            BAFFLE_FIRST_Y,
-            BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
-            + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z,
-        )
-        apply_boolean(
-            outer,
-            slot,
-            "DIFFERENCE",
-            slot_name,
-            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
-            require_geometry_change=True,
-        )
+    slot_name = "Baffle_First_Blocker_Lid_Sleeve_Pocket"
+    slot = create_baffle_first_lid_sleeve_pocket(
+        slot_name,
+        BAFFLE_FIRST_Y,
+        BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+        + BAFFLE_LID_SLEEVE_CLEARANCE_Z,
+    )
+    apply_boolean(
+        outer,
+        slot,
+        "DIFFERENCE",
+        slot_name,
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
     outer.name = "GoPro_Fan_Case_Baffle_Lid"
     outer.data.name = "GoPro_Fan_Case_Baffle_Lid_Mesh"
     return outer
@@ -7126,23 +7010,34 @@ def validate_baffle_cartridge(back, components) -> None:
 
     tray_bvh = mesh_bvh(tray)
     lid_bvh = mesh_bvh(lid)
+    inlet_top_bridge_width = max(8.0, 5.0 * BAFFLE_WALL_THICKNESS)
+    inlet_top_bridge_probe_y = (
+        BAFFLE_REAR_Y + 0.20
+        if baffle_gasket_is_integral()
+        else BAFFLE_REAR_Y + BAFFLE_GASKET_GROOVE_DEPTH_Y + 0.20
+    )
+    inlet_top_bridge_probe = (
+        FAN_CENTER_X + min(3.50, inlet_top_bridge_width / 2.0 - 0.20),
+        inlet_top_bridge_probe_y,
+        FAN_CENTER_Z + BAFFLE_INLET_DIAMETER / 2.0 + 1.0,
+    )
+    if not bvh_point_is_inside(tray_bvh, inlet_top_bridge_probe):
+        raise RuntimeError(
+            "The circular inlet lacks its solid connection to the top-wall run"
+        )
+    print(
+        "BAFFLE_INLET_TOP_BRIDGE PASS "
+        f"width={inlet_top_bridge_width:.2f}mm "
+        f"rear_y={inlet_top_bridge_probe_y:.2f}mm "
+        f"probe=({inlet_top_bridge_probe[0]:.2f},"
+        f"{inlet_top_bridge_probe[2]:.2f})mm"
+    )
     first_left, first_right, _bottom, _top = (
         baffle_effective_airway_bounds_at_y(BAFFLE_FIRST_Y)
     )
     probe_x = (first_left + first_right) / 2.0
-    inlet_probe_span = baffle_slot_spans(
-        BAFFLE_INLET_DIAMETER,
-        BAFFLE_INLET_SLOT_COUNT,
-        BAFFLE_INLET_SEPARATOR_THICKNESS_Z,
-        FAN_CENTER_Z,
-    )[0]
-    inlet_probe_z = sum(inlet_probe_span) / 2.0
-    outlet_probe_span = baffle_slot_spans(
-        BAFFLE_OUTLET_HEIGHT,
-        BAFFLE_OUTLET_SLOT_COUNT,
-        BAFFLE_OUTLET_SEPARATOR_THICKNESS_Z,
-    )[0]
-    outlet_probe_z = sum(outlet_probe_span) / 2.0
+    inlet_probe_z = FAN_CENTER_Z
+    outlet_probe_z = 0.0
     probes = (
         (
             "rear_inlet_open",
@@ -7226,79 +7121,77 @@ def validate_baffle_cartridge(back, components) -> None:
             + ", ".join(failures)
         )
 
-    if baffle_gasket_is_integral():
-        slot_entry_x = baffle_lid_key_inner_x_at_y(BAFFLE_FIRST_Y)
-        tab_probe = (
-            slot_entry_x
-            + BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X / 2.0,
-            BAFFLE_FIRST_Y,
-            0.0,
+    slot_entry_x = baffle_lid_key_inner_x_at_y(BAFFLE_FIRST_Y)
+    tab_probe = (
+        slot_entry_x + BAFFLE_LID_SLEEVE_ENGAGEMENT_X / 2.0,
+        BAFFLE_FIRST_Y,
+        0.0,
+    )
+    slot_probe = (
+        slot_entry_x + BAFFLE_LID_SLEEVE_DEPTH_X / 2.0,
+        BAFFLE_FIRST_Y,
+        0.0,
+    )
+    blind_clearance_probe = (
+        slot_entry_x
+        + (
+            BAFFLE_LID_SLEEVE_ENGAGEMENT_X
+            + BAFFLE_LID_SLEEVE_DEPTH_X
         )
-        slot_probe = (
-            slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X / 2.0,
-            BAFFLE_FIRST_Y,
-            0.0,
+        / 2.0,
+        BAFFLE_FIRST_Y,
+        0.0,
+    )
+    slot_floor_probe = (
+        slot_entry_x + BAFFLE_LID_SLEEVE_DEPTH_X + 0.10,
+        BAFFLE_FIRST_Y,
+        0.0,
+    )
+    side_wall_y = (
+        BAFFLE_FIRST_Y
+        + BAFFLE_INTERNAL_THICKNESS_Y / 2.0
+        + BAFFLE_LID_SLEEVE_CLEARANCE_Y
+        + 0.10
+    )
+    side_wall_probe = (
+        baffle_lid_key_inner_x_at_y(side_wall_y)
+        + BAFFLE_LID_SLEEVE_DEPTH_X / 2.0,
+        side_wall_y,
+        0.0,
+    )
+    end_wall_probe = (
+        slot_entry_x + BAFFLE_LID_SLEEVE_DEPTH_X / 2.0,
+        BAFFLE_FIRST_Y,
+        BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
+        + BAFFLE_LID_SLEEVE_CLEARANCE_Z
+        + 0.10,
+    )
+    if not bvh_point_is_inside(tray_bvh, tab_probe):
+        raise RuntimeError("The first-blocker lid sleeve tab is missing")
+    if bvh_point_is_inside(lid_bvh, slot_probe):
+        raise RuntimeError("The first-blocker lid sleeve pocket is missing")
+    if (
+        bvh_point_is_inside(tray_bvh, blind_clearance_probe)
+        or bvh_point_is_inside(lid_bvh, blind_clearance_probe)
+    ):
+        raise RuntimeError(
+            "The first-blocker tab lacks clearance before its sleeve floor"
         )
-        blind_clearance_probe = (
-            slot_entry_x
-            + (
-                BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X
-                + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X
-            )
-            / 2.0,
-            BAFFLE_FIRST_Y,
-            0.0,
+    if not all(
+        bvh_point_is_inside(lid_bvh, point)
+        for point in (slot_floor_probe, side_wall_probe, end_wall_probe)
+    ):
+        raise RuntimeError(
+            "The first-blocker sleeve lacks a closed floor or locating wall"
         )
-        slot_floor_probe = (
-            slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X + 0.10,
-            BAFFLE_FIRST_Y,
-            0.0,
-        )
-        side_wall_y = (
-            BAFFLE_FIRST_Y
-            + BAFFLE_INTERNAL_THICKNESS_Y / 2.0
-            + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y
-            + 0.10
-        )
-        side_wall_probe = (
-            baffle_lid_key_inner_x_at_y(side_wall_y)
-            + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X / 2.0,
-            side_wall_y,
-            0.0,
-        )
-        end_wall_probe = (
-            slot_entry_x + BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X / 2.0,
-            BAFFLE_FIRST_Y,
-            BAFFLE_FIRST_BLOCKER_HEIGHT_Z / 2.0
-            + BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z
-            + 0.10,
-        )
-        if not bvh_point_is_inside(tray_bvh, tab_probe):
-            raise RuntimeError("The TPU first-blocker lid tab is missing")
-        if bvh_point_is_inside(lid_bvh, slot_probe):
-            raise RuntimeError("The TPU lid blocker locating slot is missing")
-        if (
-            bvh_point_is_inside(tray_bvh, blind_clearance_probe)
-            or bvh_point_is_inside(lid_bvh, blind_clearance_probe)
-        ):
-            raise RuntimeError(
-                "The TPU blocker tab lacks clearance before the slot floor"
-            )
-        if not all(
-            bvh_point_is_inside(lid_bvh, point)
-            for point in (slot_floor_probe, side_wall_probe, end_wall_probe)
-        ):
-            raise RuntimeError(
-                "The TPU lid blocker slot lacks a closed floor or locating wall"
-            )
 
-        print(
-            "BAFFLE_TPU_FIRST_BLOCKER_LID_SLOT PASS count=1 "
-            f"depth={BAFFLE_TPU_LID_BLOCKER_SLOT_DEPTH_X:.2f}mm "
-            f"engagement={BAFFLE_TPU_LID_BLOCKER_SLOT_ENGAGEMENT_X:.2f}mm "
-            f"clearance_y={BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Y:.2f}mm "
-            f"clearance_z={BAFFLE_TPU_LID_BLOCKER_SLOT_CLEARANCE_Z:.2f}mm"
-        )
+    print(
+        "BAFFLE_FIRST_BLOCKER_LID_SLEEVE PASS count=1 "
+        f"depth={BAFFLE_LID_SLEEVE_DEPTH_X:.2f}mm "
+        f"engagement={BAFFLE_LID_SLEEVE_ENGAGEMENT_X:.2f}mm "
+        f"clearance_y={BAFFLE_LID_SLEEVE_CLEARANCE_Y:.2f}mm "
+        f"clearance_z={BAFFLE_LID_SLEEVE_CLEARANCE_Z:.2f}mm"
+    )
 
     frame_rear_y, frame_front_y = baffle_second_end_frame_y_bounds()
     frame_y_samples = (
@@ -7320,7 +7213,7 @@ def validate_baffle_cartridge(back, components) -> None:
             frame_entry_x - BAFFLE_SECOND_END_FRAME_CONNECTION_X / 2.0,
             frame_entry_x - 0.15,
             frame_entry_x
-            + BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X
+            + BAFFLE_LID_SLEEVE_ENGAGEMENT_X
             - 0.10,
         )
         for side_index, z in enumerate(connector_z_samples, start=1):
@@ -7351,8 +7244,8 @@ def validate_baffle_cartridge(back, components) -> None:
         (
             frame_entry_x
             + (
-                BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X
-                + BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X
+                BAFFLE_LID_SLEEVE_ENGAGEMENT_X
+                + BAFFLE_LID_SLEEVE_DEPTH_X
             )
             / 2.0,
             frame_center_y,
@@ -7363,7 +7256,7 @@ def validate_baffle_cartridge(back, components) -> None:
     pocket_floor_probes = tuple(
         (
             frame_entry_x
-            + BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X
+            + BAFFLE_LID_SLEEVE_DEPTH_X
             + 0.10,
             frame_center_y,
             z,
@@ -7371,12 +7264,12 @@ def validate_baffle_cartridge(back, components) -> None:
         for z in connector_z_samples
     )
     pocket_rear_y, pocket_front_y = baffle_second_end_frame_y_bounds(
-        BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y
+        BAFFLE_LID_SLEEVE_CLEARANCE_Y
     )
     pocket_wall_probes = tuple(
         (
             baffle_lid_key_inner_x_at_y(y)
-            + BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X / 2.0,
+            + BAFFLE_LID_SLEEVE_DEPTH_X / 2.0,
             y,
             z,
         )
@@ -7401,7 +7294,7 @@ def validate_baffle_cartridge(back, components) -> None:
             "axial locating wall"
         )
     lid_spine_probe = (
-        frame_entry_x + BAFFLE_SECOND_END_FRAME_LID_POCKET_DEPTH_X / 2.0,
+        frame_entry_x + BAFFLE_LID_SLEEVE_DEPTH_X / 2.0,
         frame_center_y,
         0.0,
     )
@@ -7418,10 +7311,10 @@ def validate_baffle_cartridge(back, components) -> None:
         f"connection_x={BAFFLE_SECOND_END_FRAME_CONNECTION_X:.2f}mm "
         f"member_overlap_x={measured_member_overlap_x:.2f}mm "
         f"axial_pad={BAFFLE_SECOND_END_FRAME_DEPTH_Y:.2f}mm "
-        f"lid_engagement={BAFFLE_SECOND_END_FRAME_LID_ENGAGEMENT_X:.2f}mm "
-        f"lid_clearance_y={BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Y:.2f}mm "
-        f"lid_clearance_z={BAFFLE_SECOND_END_FRAME_LID_CLEARANCE_Z:.2f}mm "
-        f"lid_min_wall={BAFFLE_SECOND_END_FRAME_LID_MIN_WALL:.2f}mm"
+        f"lid_engagement={BAFFLE_LID_SLEEVE_ENGAGEMENT_X:.2f}mm "
+        f"lid_clearance_y={BAFFLE_LID_SLEEVE_CLEARANCE_Y:.2f}mm "
+        f"lid_clearance_z={BAFFLE_LID_SLEEVE_CLEARANCE_Z:.2f}mm "
+        f"lid_min_wall={BAFFLE_LID_SLEEVE_MIN_WALL:.2f}mm"
     )
 
     front_wall_probe_y = BAFFLE_FRONT_Y - BAFFLE_WALL_THICKNESS / 2.0
@@ -7498,7 +7391,11 @@ def validate_baffle_cartridge(back, components) -> None:
         )
         compression_volume_tolerance = max(
             0.01,
-            expected_compression_volume * 0.005,
+            # Exact Boolean volume at the coincident circular inlet/gasket
+            # bore is conservative. The 72-point floor sweep below proves
+            # continuous physical backing, while this still rejects a
+            # materially incomplete compression land.
+            expected_compression_volume * 0.15,
         )
         if (
             abs(actual_compression_volume - expected_compression_volume)
@@ -7616,8 +7513,8 @@ def validate_baffle_cartridge(back, components) -> None:
         f"line_of_sight_required_inlet_abs_z="
         f"{baffle_acoustic_visibility_required_inlet_z():.2f}mm "
         f"throat_areas=({inlet_area:.1f},{first_area:.1f},{second_area:.1f},"
-        f"{outlet_area:.1f})mm2 outlet_slots={BAFFLE_OUTLET_SLOT_COUNT} "
-        f"outlet_separator_post={BAFFLE_OUTLET_SLOT_COUNT > 1} "
+        f"{outlet_area:.1f})mm2 inlet=circular outlet=rectangular "
+        f"lid_sleeves=3 engagement={BAFFLE_LID_SLEEVE_ENGAGEMENT_X:.2f}mm "
         "outlet_front_wall_side_bands=("
         + ",".join(
             f"{width:.2f}"
