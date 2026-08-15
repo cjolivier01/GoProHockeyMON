@@ -32,9 +32,12 @@ from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon as ShapelyPolygon
 from shapely.ops import unary_union
 
+from fan_size_presets import get_standard_fan_preset
+
 
 HERE = Path(__file__).absolute().parent
 MODEL_SOURCE = HERE / "gopro_fan_case_parametric_blender.py"
+PRESET_SOURCE = HERE / "fan_size_presets.py"
 OUTPUT_PDF = HERE / "gopro_fan_case_configuration_dimensions.pdf"
 
 INK = "#152536"
@@ -113,6 +116,7 @@ class ConfigEntry:
 
 CATEGORY_PREFIXES = (
     ("Acoustic baffle cartridge", ("BAFFLE_",)),
+    ("Rear fan adapter", ("REAR_FAN_",)),
     ("Button actuators", ("BUTTON_",)),
     ("Front camera retainer", ("RETAINER_",)),
     ("Build, export and viewport", ("CLEAR_", "LAYOUT_", "PRINT_BED_", "SHOW_", "EXPORT_", "COMBINED_", "BACK_STL_", "INSERT_STL_", "MATERIAL_")),
@@ -130,6 +134,21 @@ CATEGORY_PREFIXES = (
 
 
 EXACT_DESCRIPTIONS = {
+    "REAR_FAN_ADAPTER_ENABLED": "Builds and exports the separate case-pattern to standard-fan offset horn adapter.",
+    "REAR_FAN_SIZE_MM": "Nominal standard square-fan frame size selected from fan_size_presets.py: 40, 60, 80 or 120 mm.",
+    "REAR_FAN_OFFSET_X_MM": "Horizontal shift from the existing case-fan center to the rear-fan center; use opposite signs on left/right camera cases.",
+    "REAR_FAN_OFFSET_Z_MM": "Vertical shift from the existing case-fan center to the rear-fan center.",
+    "REAR_FAN_ADAPTER_DUCT_LENGTH_Y": "Clear axial transition length between the case-side and rear-fan flange inner faces.",
+    "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y": "Axial thickness of both four-hole mounting flanges.",
+    "REAR_FAN_ADAPTER_HORN_WALL_THICKNESS": "Radial thickness of the hollow circular transition wall.",
+    "REAR_FAN_ADAPTER_HOLE_CLEARANCE": "Diametral clearance added to the case-side and rear-fan mounting holes.",
+    "REAR_FAN_ADAPTER_NUT_ACROSS_FLATS": "Across-flats clearance of each side-loaded captive M3 hex-nut chamber.",
+    "REAR_FAN_ADAPTER_NUT_DEPTH_Y": "Axial depth of each side-loaded captive-nut chamber.",
+    "REAR_FAN_ADAPTER_NUT_LOAD_SHOULDER_Y": "Printed flange thickness between each nut chamber and mating interface; screw tension loads the nut against this shoulder to clamp the adapter.",
+    "REAR_FAN_ADAPTER_NUT_SLOT_CLEARANCE": "Added transverse clearance beyond the nut across-flats size in each externally accessible side insertion tunnel.",
+    "REAR_FAN_ADAPTER_NUT_MIN_WALL": "Minimum reinforced radial wall retained between a source nut chamber and the locally scalloped airway.",
+    "REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG": "Maximum horn-wall angle away from print Z for a support-free internal airway when printed case-flange-down.",
+    "REAR_FAN_ADAPTER_STL_NAME": "Output filename for the separate source-flange-down rear-fan horn adapter.",
     "BAFFLE_CARTRIDGE_MATERIAL_MODE": "Selects RIGID or TPU cartridge geometry; RIGID uses a groove-located TPU gasket while TPU integrates the sealing bead, stiffens the upright-printed walls/lid and enables reinforced cartridge retention.",
     "BAFFLE_CARTRIDGE_ENABLED": "Builds the removable Offset-S acoustic cartridge and its two top/bottom back-shell snap receivers.",
     "BAFFLE_REAR_Y": "Rear body plane of the cartridge, immediately forward of the fan-pad inlet seal.",
@@ -466,6 +485,10 @@ PART_STLS = {
     "gate": HERE / str(C["RETAINER_STL_NAME"]),
     "keeper": HERE / str(C["RETAINER_KEEPER_STL_NAME"]),
 }
+if C["REAR_FAN_ADAPTER_ENABLED"]:
+    PART_STLS["rear_fan_adapter"] = HERE / str(
+        C["REAR_FAN_ADAPTER_STL_NAME"]
+    )
 if C["BAFFLE_CARTRIDGE_ENABLED"]:
     PART_STLS.update(
         {
@@ -484,7 +507,10 @@ def require_current_part_stls() -> None:
             "Engineering drawings require the generated component STLs; "
             "run `make fan-case` first. Missing: " + ", ".join(missing)
         )
-    source_mtime = MODEL_SOURCE.stat().st_mtime
+    source_mtime = max(
+        MODEL_SOURCE.stat().st_mtime,
+        PRESET_SOURCE.stat().st_mtime,
+    )
     stale = [
         path.name
         for path in PART_STLS.values()
@@ -501,6 +527,7 @@ def require_current_part_stls() -> None:
 require_current_part_stls()
 SOURCE_HASH = hashlib.sha256(
     MODEL_SOURCE.read_bytes()
+    + PRESET_SOURCE.read_bytes()
     + Path(__file__).read_bytes()
     + b"".join(path.read_bytes() for path in PART_STLS.values())
 ).hexdigest()[:12]
@@ -528,6 +555,18 @@ SETTINGS_PER_PAGE = 9
 
 def drawing_view_for(entry: ConfigEntry) -> str:
     name = entry.name
+    if name.startswith("REAR_FAN_"):
+        if name in {
+            "REAR_FAN_SIZE_MM",
+            "REAR_FAN_OFFSET_X_MM",
+            "REAR_FAN_OFFSET_Z_MM",
+            "REAR_FAN_ADAPTER_HOLE_CLEARANCE",
+            "REAR_FAN_ADAPTER_NUT_ACROSS_FLATS",
+            "REAR_FAN_ADAPTER_NUT_SLOT_CLEARANCE",
+            "REAR_FAN_ADAPTER_NUT_MIN_WALL",
+        }:
+            return "rear_fan_adapter_front"
+        return "rear_fan_adapter_side"
     if name.startswith("BAFFLE_"):
         if name in {
             "BAFFLE_LID_SLEEVE_DEPTH_X",
@@ -671,6 +710,8 @@ def drawing_view_for(entry: ConfigEntry) -> str:
 DRAWING_VIEW_ORDER = (
     "back_front",
     "back_side",
+    "rear_fan_adapter_front",
+    "rear_fan_adapter_side",
     "baffle_front",
     "baffle_side",
     "baffle_airway",
@@ -1702,6 +1743,8 @@ def page_baffle_cartridge(pdf):
 VIEW_TITLES = {
     "back_front": "BACK SHELL / DOME — ACTUAL FRONT PROJECTION",
     "back_side": "BACK SHELL / DOME — ACTUAL SIDE PROJECTION",
+    "rear_fan_adapter_front": "OFFSET REAR FAN ADAPTER — ACTUAL FRONT PROJECTION",
+    "rear_fan_adapter_side": "OFFSET REAR FAN ADAPTER / HORN — ACTUAL SIDE SECTION",
     "baffle_front": "BAFFLE CARTRIDGE — ACTUAL ASSEMBLED FRONT PROJECTION",
     "baffle_side": "BAFFLE CARTRIDGE — ACTUAL ASSEMBLED SIDE PROJECTION",
     "baffle_airway": "OFFSET-S AIRWAY — ACTUAL ASSEMBLED SIDE PROJECTION",
@@ -1907,6 +1950,49 @@ def projected_baffle_assembly_geometry(part: str, plane: str):
             polygons.append(polygon)
     if not polygons:
         raise RuntimeError(f"No assembly projection for {part} in {plane}")
+    return unary_union(polygons)
+
+
+@lru_cache(maxsize=None)
+def rear_fan_adapter_assembly_triangles() -> np.ndarray:
+    """Undo the adapter's source-flange-down canonical STL rotation."""
+    face_down = rotation_matrix_between_vectors(
+        (0.0, 1.0, 0.0),
+        (0.0, 0.0, -1.0),
+    )
+    triangles = load_stl_triangles("rear_fan_adapter") @ face_down
+    source_interface_y = (
+        -float(C["BACK_DOME_DEPTH"])
+        if C["BACK_DOME_ENABLED"]
+        else 0.0
+    )
+    triangles[:, :, 1] += (
+        source_interface_y - float(np.max(triangles[:, :, 1]))
+    )
+    return triangles
+
+
+@lru_cache(maxsize=None)
+def projected_rear_fan_adapter_assembly_geometry(plane: str):
+    coordinate_axes = PROJECTION_AXES[plane]
+    polygons = []
+    for triangle in rear_fan_adapter_assembly_triangles():
+        points = triangle[:, coordinate_axes]
+        area_twice = abs(
+            (points[1, 0] - points[0, 0])
+            * (points[2, 1] - points[0, 1])
+            - (points[1, 1] - points[0, 1])
+            * (points[2, 0] - points[0, 0])
+        )
+        if area_twice <= 1.0e-8:
+            continue
+        polygon = ShapelyPolygon(points)
+        if polygon.is_valid and polygon.area > 1.0e-8:
+            polygons.append(polygon)
+    if not polygons:
+        raise RuntimeError(
+            f"No rear-fan adapter assembly projection in {plane}"
+        )
     return unary_union(polygons)
 
 
@@ -2202,10 +2288,157 @@ def draw_disabled_baffle_reference(ax, view: str):
                     color=BLUE,
                     linewidth=1.1,
                 )
+    return bounds
+
+
+def rear_fan_adapter_drawing_values():
+    preset = get_standard_fan_preset(C["REAR_FAN_SIZE_MM"])
+    source_x = float(C["FAN_CENTER_X"])
+    source_z = float(C["FAN_CENTER_Z"])
+    target_x = source_x + float(C["REAR_FAN_OFFSET_X_MM"])
+    target_z = source_z + float(C["REAR_FAN_OFFSET_Z_MM"])
+    back_exterior_y = (
+        -float(C["BACK_DOME_DEPTH"]) if C["BACK_DOME_ENABLED"] else 0.0
+    )
+    flange = float(C["REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y"])
+    source_horn_y = back_exterior_y - flange
+    target_horn_y = source_horn_y - float(
+        C["REAR_FAN_ADAPTER_DUCT_LENGTH_Y"]
+    )
+    target_interface_y = target_horn_y - flange
+    common_through_bolts = (
+        abs(float(C["REAR_FAN_OFFSET_X_MM"])) <= 1.0e-9
+        and abs(float(C["REAR_FAN_OFFSET_Z_MM"])) <= 1.0e-9
+        and abs(float(preset["hole_spacing"]) - float(C["FAN_HOLE_SPACING_X"]))
+        <= 1.0e-9
+        and abs(float(preset["hole_spacing"]) - float(C["FAN_HOLE_SPACING_Z"]))
+        <= 1.0e-9
+    )
+    return {
+        "preset": preset,
+        "source_x": source_x,
+        "source_z": source_z,
+        "target_x": target_x,
+        "target_z": target_z,
+        "source_frame": (
+            min(
+                float(C["BACK_DOME_FAN_PAD_WIDTH"]),
+                float(C["BACK_DOME_FAN_PAD_HEIGHT"]),
+            )
+            if C["BACK_DOME_ENABLED"]
+            else min(
+                float(C["BACK_OUTER_WIDTH"]),
+                float(C["BACK_OUTER_HEIGHT"]),
+            )
+        ),
+        "target_frame": float(preset["frame"]),
+        "source_inner": float(C["FAN_OPENING_DIAMETER"]) / 2.0,
+        "target_inner": float(preset["opening"]) / 2.0,
+        "wall": float(C["REAR_FAN_ADAPTER_HORN_WALL_THICKNESS"]),
+        "nut_across_flats": float(
+            C["REAR_FAN_ADAPTER_NUT_ACROSS_FLATS"]
+        ),
+        "nut_circumradius": float(
+            C["REAR_FAN_ADAPTER_NUT_ACROSS_FLATS"]
+        )
+        / math.sqrt(3.0),
+        "nut_min_wall": float(C["REAR_FAN_ADAPTER_NUT_MIN_WALL"]),
+        "nut_depth": float(C["REAR_FAN_ADAPTER_NUT_DEPTH_Y"]),
+        "nut_load_shoulder": float(
+            C["REAR_FAN_ADAPTER_NUT_LOAD_SHOULDER_Y"]
+        ),
+        "nut_slot_clearance": float(
+            C["REAR_FAN_ADAPTER_NUT_SLOT_CLEARANCE"]
+        ),
+        "common_through_bolts": common_through_bolts,
+        "source_interface_y": back_exterior_y,
+        "source_horn_y": source_horn_y,
+        "target_horn_y": target_horn_y,
+        "target_interface_y": target_interface_y,
+    }
+
+
+def draw_rear_fan_adapter_reference(ax, view: str):
+    """Draw the exact configured envelope when the optional STL is disabled."""
+    values = rear_fan_adapter_drawing_values()
+    if view == "rear_fan_adapter_front":
+        for center_x, center_z, frame, color in (
+            (
+                values["source_x"],
+                values["source_z"],
+                values["source_frame"],
+                BLUE,
+            ),
+            (
+                values["target_x"],
+                values["target_z"],
+                values["target_frame"],
+                GREEN,
+            ),
+        ):
+            ax.add_patch(
+                Rectangle(
+                    (center_x - frame / 2.0, center_z - frame / 2.0),
+                    frame,
+                    frame,
+                    fill=False,
+                    edgecolor=color,
+                    linestyle="--",
+                    linewidth=0.9,
+                )
+            )
+        bounds = (
+            min(
+                values["source_x"] - values["source_frame"] / 2.0,
+                values["target_x"] - values["target_frame"] / 2.0,
+            ),
+            min(
+                values["source_z"] - values["source_frame"] / 2.0,
+                values["target_z"] - values["target_frame"] / 2.0,
+            ),
+            max(
+                values["source_x"] + values["source_frame"] / 2.0,
+                values["target_x"] + values["target_frame"] / 2.0,
+            ),
+            max(
+                values["source_z"] + values["source_frame"] / 2.0,
+                values["target_z"] + values["target_frame"] / 2.0,
+            ),
+        )
+    else:
+        source_outer = values["source_inner"] + values["wall"]
+        target_outer = values["target_inner"] + values["wall"]
+        ax.add_patch(
+            Polygon(
+                (
+                    (values["source_horn_y"], values["source_z"] + source_outer),
+                    (values["target_horn_y"], values["target_z"] + target_outer),
+                    (values["target_horn_y"], values["target_z"] - target_outer),
+                    (values["source_horn_y"], values["source_z"] - source_outer),
+                ),
+                closed=True,
+                facecolor="#f4f6f7",
+                edgecolor=GRAY,
+                linestyle="--",
+                linewidth=0.9,
+            )
+        )
+        bounds = (
+            values["target_interface_y"],
+            min(
+                values["source_z"] - values["source_frame"] / 2.0,
+                values["target_z"] - values["target_frame"] / 2.0,
+            ),
+            values["source_interface_y"],
+            max(
+                values["source_z"] + values["source_frame"] / 2.0,
+                values["target_z"] + values["target_frame"] / 2.0,
+            ),
+        )
     ax.text(
         (bounds[0] + bounds[2]) / 2.0,
-        bounds[3],
-        "INACTIVE CONFIG REFERENCE — NO STL GENERATED",
+        bounds[1] + 0.02 * (bounds[3] - bounds[1]),
+        "INACTIVE CONFIG REFERENCE — NO ADAPTER STL GENERATED",
         fontsize=5.0,
         color=GRAY,
         weight="bold",
@@ -2219,6 +2452,300 @@ def draw_actual_view(ax, view: str):
     """Draw an STL-derived orthographic projection and return its bounds."""
     if view.startswith("baffle_") and not C["BAFFLE_CARTRIDGE_ENABLED"]:
         return draw_disabled_baffle_reference(ax, view)
+    if view.startswith("rear_fan_adapter_") and not C[
+        "REAR_FAN_ADAPTER_ENABLED"
+    ]:
+        return draw_rear_fan_adapter_reference(ax, view)
+    if view in {"rear_fan_adapter_front", "rear_fan_adapter_side"}:
+        plane = "xz" if view == "rear_fan_adapter_front" else "yz"
+        adapter = projected_rear_fan_adapter_assembly_geometry(plane)
+        draw_projected_geometry(ax, adapter, "#dceaf3", BLUE, alpha=0.88)
+        values = rear_fan_adapter_drawing_values()
+        bounds = adapter.bounds
+        if view == "rear_fan_adapter_front":
+            ax.plot(
+                (values["source_x"], values["target_x"]),
+                (values["source_z"], values["target_z"]),
+                color=RED,
+                linewidth=0.7,
+                linestyle="--",
+                zorder=8,
+            )
+            for center_x, center_z, radius, color in (
+                (
+                    values["source_x"],
+                    values["source_z"],
+                    values["source_inner"],
+                    ORANGE,
+                ),
+                (
+                    values["target_x"],
+                    values["target_z"],
+                    values["target_inner"],
+                    GREEN,
+                ),
+            ):
+                ax.add_patch(
+                    Circle(
+                        (center_x, center_z),
+                        radius,
+                        fill=False,
+                        edgecolor=color,
+                        linewidth=0.9,
+                        zorder=9,
+                    )
+                )
+            source_hole_x = (
+                values["source_x"] + float(C["FAN_HOLE_SPACING_X"]) / 2.0
+            )
+            source_hole_z = (
+                values["source_z"] + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
+            )
+            nut_outline = tuple(
+                (
+                    source_hole_x
+                    + values["nut_circumradius"]
+                    * math.cos(index * math.pi / 3.0),
+                    source_hole_z
+                    + values["nut_circumradius"]
+                    * math.sin(index * math.pi / 3.0),
+                )
+                for index in range(6)
+            )
+            ax.add_patch(
+                Polygon(
+                    nut_outline,
+                    closed=True,
+                    fill=False,
+                    edgecolor=RED,
+                    linestyle="--",
+                    linewidth=0.7,
+                    zorder=10,
+                )
+            )
+            source_edge_x = values["source_x"] + values["source_frame"] / 2.0
+            slot_width = (
+                values["nut_across_flats"] + values["nut_slot_clearance"]
+            )
+            ax.add_patch(
+                Rectangle(
+                    (source_hole_x, source_hole_z - slot_width / 2.0),
+                    source_edge_x - source_hole_x,
+                    slot_width,
+                    fill=False,
+                    edgecolor=RED,
+                    linestyle="--",
+                    linewidth=0.7,
+                    zorder=10,
+                )
+            )
+            ax.add_patch(
+                Circle(
+                    (source_hole_x, source_hole_z),
+                    values["nut_circumradius"] + values["nut_min_wall"],
+                    fill=False,
+                    edgecolor="#7d57b2",
+                    linestyle=":",
+                    linewidth=0.7,
+                    zorder=10,
+                )
+            )
+            half = values["target_frame"] / 2.0
+            outer = values["target_inner"] + values["wall"]
+            inset = outer / math.sqrt(2.0)
+            for x_sign in (-1.0, 1.0):
+                for z_sign in (-1.0, 1.0):
+                    ax.add_patch(
+                        Polygon(
+                            (
+                                (
+                                    values["target_x"] + x_sign * half,
+                                    values["target_z"] + z_sign * half,
+                                ),
+                                (
+                                    values["target_x"] + x_sign * half,
+                                    values["target_z"] + z_sign * inset,
+                                ),
+                                (
+                                    values["target_x"] + x_sign * inset,
+                                    values["target_z"] + z_sign * half,
+                                ),
+                            ),
+                            closed=True,
+                            facecolor="none",
+                            edgecolor="#7d57b2",
+                            hatch="////",
+                            linewidth=0.55,
+                            zorder=10,
+                        )
+                    )
+            ax.text(
+                values["target_x"],
+                values["target_z"] - half - 3.0,
+                "HATCH: EXPOSED REMOVABLE SUPPORT UNDER FAR-FLANGE CORNERS",
+                fontsize=4.2,
+                color="#7d57b2",
+                weight="bold",
+                ha="center",
+                va="top",
+                zorder=11,
+            )
+            if values["common_through_bolts"]:
+                ax.text(
+                    values["source_x"],
+                    values["source_z"] + values["source_inner"] + 3.0,
+                    "DASHED HEX IS AN INACTIVE CONFIG REFERENCE · COMMON THROUGH-BOLTS",
+                    fontsize=4.0,
+                    color=RED,
+                    weight="bold",
+                    ha="center",
+                    va="bottom",
+                    zorder=11,
+                )
+        else:
+            airway = Polygon(
+                (
+                    (
+                        values["source_interface_y"] + 0.1,
+                        values["source_z"] + values["source_inner"],
+                    ),
+                    (
+                        values["source_horn_y"],
+                        values["source_z"] + values["source_inner"],
+                    ),
+                    (
+                        values["target_horn_y"],
+                        values["target_z"] + values["target_inner"],
+                    ),
+                    (
+                        values["target_interface_y"] - 0.1,
+                        values["target_z"] + values["target_inner"],
+                    ),
+                    (
+                        values["target_interface_y"] - 0.1,
+                        values["target_z"] - values["target_inner"],
+                    ),
+                    (
+                        values["target_horn_y"],
+                        values["target_z"] - values["target_inner"],
+                    ),
+                    (
+                        values["source_horn_y"],
+                        values["source_z"] - values["source_inner"],
+                    ),
+                    (
+                        values["source_interface_y"] + 0.1,
+                        values["source_z"] - values["source_inner"],
+                    ),
+                ),
+                closed=True,
+                facecolor=WHITE,
+                edgecolor=GREEN,
+                linewidth=0.75,
+                zorder=9,
+            )
+            ax.add_patch(airway)
+            source_hole_z = (
+                values["source_z"] + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
+            )
+            ax.add_patch(
+                Rectangle(
+                    (
+                        values["source_interface_y"]
+                        - values["nut_load_shoulder"]
+                        - values["nut_depth"],
+                        source_hole_z - values["nut_across_flats"] / 2.0,
+                    ),
+                    values["nut_depth"],
+                    values["nut_across_flats"],
+                    fill=False,
+                    edgecolor=RED,
+                    linestyle="--",
+                    linewidth=0.7,
+                    zorder=10,
+                )
+            )
+            target_hole_z = (
+                values["target_z"]
+                + float(values["preset"]["hole_spacing"]) / 2.0
+            )
+            ax.add_patch(
+                Rectangle(
+                    (
+                        values["target_interface_y"]
+                        + values["nut_load_shoulder"],
+                        target_hole_z - values["nut_across_flats"] / 2.0,
+                    ),
+                    values["nut_depth"],
+                    values["nut_across_flats"],
+                    fill=False,
+                    edgecolor=RED,
+                    linestyle="--",
+                    linewidth=0.7,
+                    zorder=10,
+                )
+            )
+            ax.annotate(
+                (
+                    "INACTIVE NUT-SOCKET REFERENCE — COMMON THROUGH-BOLTS"
+                    if values["common_through_bolts"]
+                    else "SOURCE NUT SIDE-LOADS · CASE-SIDE SHOULDER CARRIES CLAMP LOAD"
+                ),
+                xy=(
+                    values["source_interface_y"]
+                    - values["nut_load_shoulder"]
+                    - values["nut_depth"] / 2.0,
+                    source_hole_z,
+                ),
+                xytext=(
+                    (values["source_horn_y"] + values["target_horn_y"])
+                    / 2.0,
+                    source_hole_z - 8.0,
+                ),
+                fontsize=4.2,
+                color=RED,
+                weight="bold",
+                ha="center",
+                arrowprops={"arrowstyle": "->", "color": RED, "linewidth": 0.7},
+                zorder=11,
+            )
+            if not values["common_through_bolts"]:
+                ax.annotate(
+                    "TARGET NUT SIDE-LOADS · FAN-SIDE SHOULDER CARRIES CLAMP LOAD",
+                    xy=(
+                        values["target_interface_y"]
+                        + values["nut_load_shoulder"]
+                        + values["nut_depth"] / 2.0,
+                        target_hole_z,
+                    ),
+                    xytext=(values["target_interface_y"] + 7.0, target_hole_z - 7.0),
+                    fontsize=4.2,
+                    color=RED,
+                    weight="bold",
+                    ha="left",
+                    arrowprops={
+                        "arrowstyle": "->",
+                        "color": RED,
+                        "linewidth": 0.7,
+                    },
+                    zorder=11,
+                )
+            ax.annotate(
+                "AIRFLOW TO CASE / CAMERA",
+                xy=(values["source_horn_y"], values["source_z"]),
+                xytext=(values["target_horn_y"], values["target_z"]),
+                fontsize=4.6,
+                color=GREEN,
+                weight="bold",
+                ha="left",
+                arrowprops={
+                    "arrowstyle": "->",
+                    "color": GREEN,
+                    "linewidth": 0.8,
+                },
+                zorder=10,
+            )
+        return bounds
     if view in {"back_front", "fastener_detail", "camera_stops"}:
         back = projected_part_geometry("back", "xz")
         draw_projected_geometry(ax, back, "#dceaf3", BLUE, alpha=0.85)
@@ -4111,6 +4638,247 @@ def draw_specific_graphical_annotation(
         record_graphical_primitive(entry, primitive_kind, anchor, text_position)
         return True
 
+    if view in {"rear_fan_adapter_front", "rear_fan_adapter_side"}:
+        values = rear_fan_adapter_drawing_values()
+        if view == "rear_fan_adapter_front":
+            target_x = values["target_x"]
+            target_z = values["target_z"]
+            target_half = values["target_frame"] / 2.0
+            if name == "REAR_FAN_SIZE_MM":
+                return linear(
+                    (target_x - target_half, target_z + target_half),
+                    (target_x + target_half, target_z + target_half),
+                    False,
+                    3.0,
+                    f"{label} FRAME",
+                )
+            if name == "REAR_FAN_OFFSET_X_MM":
+                if abs(float(entry.value)) <= 1.0e-9:
+                    return leader(
+                        (target_x, target_z),
+                        (target_x - target_half - 9.0, target_z + 5.0),
+                        f"{label} COINCIDENT X",
+                        "datum",
+                    )
+                return linear(
+                    (values["source_x"], values["source_z"]),
+                    (target_x, values["source_z"]),
+                    False,
+                    -5.0,
+                    f"{label} CASE-LOCAL X",
+                )
+            if name == "REAR_FAN_OFFSET_Z_MM":
+                if abs(float(entry.value)) <= 1.0e-9:
+                    return leader(
+                        (target_x, target_z),
+                        (target_x + target_half + 9.0, target_z - 5.0),
+                        f"{label} COINCIDENT Z",
+                        "datum",
+                    )
+                return linear(
+                    (values["source_x"], values["source_z"]),
+                    (values["source_x"], target_z),
+                    True,
+                    5.0,
+                    f"{label} CASE-LOCAL Z",
+                )
+            if name == "REAR_FAN_ADAPTER_HOLE_CLEARANCE":
+                preset = values["preset"]
+                hole_center = (
+                    target_x + float(preset["hole_spacing"]) / 2.0,
+                    target_z + float(preset["hole_spacing"]) / 2.0,
+                )
+                nominal_radius = float(preset["hole_diameter"]) / 2.0
+                cutter_radius = (
+                    float(preset["hole_diameter"]) + float(entry.value)
+                ) / 2.0
+                return linear(
+                    (hole_center[0] + nominal_radius, hole_center[1]),
+                    (hole_center[0] + cutter_radius, hole_center[1]),
+                    False,
+                    2.0,
+                    f"{label} DIAMETRAL",
+                )
+            source_hole_center = (
+                values["source_x"]
+                + float(C["FAN_HOLE_SPACING_X"]) / 2.0,
+                values["source_z"]
+                + float(C["FAN_HOLE_SPACING_Z"]) / 2.0,
+            )
+            if name == "REAR_FAN_ADAPTER_NUT_ACROSS_FLATS":
+                half_width = float(entry.value) / 2.0
+                state = (
+                    "INACTIVE REF · "
+                    if values["common_through_bolts"]
+                    else ""
+                )
+                return linear(
+                    (
+                        source_hole_center[0],
+                        source_hole_center[1] - half_width,
+                    ),
+                    (
+                        source_hole_center[0],
+                        source_hole_center[1] + half_width,
+                    ),
+                    True,
+                    3.0,
+                    f"{label} {state}SIDE-LOADED M3 HEX A/F",
+                )
+            if name == "REAR_FAN_ADAPTER_NUT_SLOT_CLEARANCE":
+                slot_edge = (
+                    source_hole_center[1]
+                    + (
+                        values["nut_across_flats"]
+                        + values["nut_slot_clearance"]
+                    )
+                    / 2.0
+                )
+                state = (
+                    "INACTIVE REF · "
+                    if values["common_through_bolts"]
+                    else ""
+                )
+                return leader(
+                    (
+                        values["source_x"] + values["source_frame"] / 2.0,
+                        slot_edge,
+                    ),
+                    (
+                        values["source_x"] + values["source_frame"] / 2.0 + 9.0,
+                        slot_edge + 5.0,
+                    ),
+                    f"{label} {state}TOTAL TRANSVERSE SLOT CLEARANCE",
+                    "datum",
+                )
+            if name == "REAR_FAN_ADAPTER_NUT_MIN_WALL":
+                socket_radius = values["nut_circumradius"]
+                state = (
+                    "INACTIVE REF · "
+                    if values["common_through_bolts"]
+                    else ""
+                )
+                return linear(
+                    (
+                        source_hole_center[0] + socket_radius,
+                        source_hole_center[1],
+                    ),
+                    (
+                        source_hole_center[0]
+                        + socket_radius
+                        + float(entry.value),
+                        source_hole_center[1],
+                    ),
+                    False,
+                    -3.0,
+                    f"{label} {state}REINFORCED LOCAL WALL",
+                )
+        else:
+            source_z = values["source_z"]
+            target_z = values["target_z"]
+            if name == "REAR_FAN_ADAPTER_DUCT_LENGTH_Y":
+                return linear(
+                    (values["target_horn_y"], target_z),
+                    (values["source_horn_y"], target_z),
+                    False,
+                    values["target_inner"] + values["wall"] + 4.0,
+                )
+            if name == "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y":
+                return linear(
+                    (values["source_horn_y"], source_z),
+                    (values["source_interface_y"], source_z),
+                    False,
+                    values["source_inner"] + values["wall"] + 7.0,
+                    f"{label} BOTH FLANGES",
+                )
+            if name == "REAR_FAN_ADAPTER_HORN_WALL_THICKNESS":
+                mid_y = (
+                    values["source_horn_y"] + values["target_horn_y"]
+                ) / 2.0
+                mid_z = (source_z + target_z) / 2.0
+                inner = (
+                    values["source_inner"] + values["target_inner"]
+                ) / 2.0
+                return linear(
+                    (mid_y, mid_z + inner),
+                    (mid_y, mid_z + inner + float(entry.value)),
+                    True,
+                    -3.0,
+                )
+            if name == "REAR_FAN_ADAPTER_NUT_DEPTH_Y":
+                source_hole_z = (
+                    values["source_z"]
+                    + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
+                )
+                state = (
+                    "INACTIVE REF · "
+                    if values["common_through_bolts"]
+                    else ""
+                )
+                return linear(
+                    (
+                        values["source_interface_y"]
+                        - values["nut_load_shoulder"]
+                        - float(entry.value),
+                        source_hole_z,
+                    ),
+                    (
+                        values["source_interface_y"]
+                        - values["nut_load_shoulder"],
+                        source_hole_z,
+                    ),
+                    False,
+                    -(values["nut_across_flats"] / 2.0 + 3.0),
+                    f"{label} {state}SIDE-LOADED CHAMBER",
+                )
+            if name == "REAR_FAN_ADAPTER_NUT_LOAD_SHOULDER_Y":
+                source_hole_z = (
+                    values["source_z"]
+                    + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
+                )
+                state = (
+                    "INACTIVE REF · "
+                    if values["common_through_bolts"]
+                    else ""
+                )
+                return linear(
+                    (
+                        values["source_interface_y"] - float(entry.value),
+                        source_hole_z,
+                    ),
+                    (values["source_interface_y"], source_hole_z),
+                    False,
+                    values["nut_across_flats"] / 2.0 + 4.5,
+                    f"{label} {state}LOADED INTERFACE SHOULDER",
+                )
+            if name == "REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG":
+                radius_delta = (
+                    values["target_inner"] - values["source_inner"]
+                )
+                center_shift = math.hypot(
+                    values["target_x"] - values["source_x"],
+                    values["target_z"] - values["source_z"],
+                )
+                actual = math.degrees(
+                    math.atan2(
+                        center_shift + abs(radius_delta),
+                        float(C["REAR_FAN_ADAPTER_DUCT_LENGTH_Y"]),
+                    )
+                )
+                anchor = (
+                    values["target_horn_y"],
+                    target_z + values["target_inner"] + values["wall"],
+                )
+                return leader(
+                    anchor,
+                    (
+                        values["target_horn_y"] + 5.0,
+                        target_z + values["target_frame"] / 2.0 + 9.0,
+                    ),
+                    f"{label} LIMIT · ACTUAL {actual:.1f} deg",
+                    "angle",
+                )
+
     if view == "baffle_sleeves":
         sleeve_depth = float(C["BAFFLE_LID_SLEEVE_DEPTH_X"])
         engagement = float(C["BAFFLE_LID_SLEEVE_ENGAGEMENT_X"])
@@ -4460,6 +5228,13 @@ def draw_specific_graphical_annotation(
         if name == "BACK_FACE_THICKNESS":
             return linear((back_exterior, 8.0), (back_exterior + float(entry.value), 8.0), False, 0.0)
         if name == "BACK_DOME_DEPTH":
+            if not C["BACK_DOME_ENABLED"]:
+                return leader(
+                    (back_exterior, -8.0),
+                    (back_exterior - 8.0, -13.0),
+                    f"{label} CONFIGURED · DOME DISABLED",
+                    "datum",
+                )
             return linear((back_exterior, -8.0), (0.0, -8.0), False, 0.0)
         if name == "BACK_DOME_START_BEHIND_CAMERA_STOPS":
             stop_end = boss_assembly_datum_y() - float(C["CAMERA_STOP_TO_INSERT_SOCKET_GAP"])
@@ -5004,9 +5779,12 @@ def draw_dimension_cards(ax, entries):
 
 def page_dimension_drawing(pdf, page_number: int, view: str, entries) -> None:
     title = VIEW_TITLES[view]
-    inactive_baffle_view = (
+    inactive_optional_view = (
         view.startswith("baffle_")
         and not C["BAFFLE_CARTRIDGE_ENABLED"]
+    ) or (
+        view.startswith("rear_fan_adapter_")
+        and not C["REAR_FAN_ADAPTER_ENABLED"]
     )
     fig = new_page(
         page_number,
@@ -5017,13 +5795,13 @@ def page_dimension_drawing(pdf, page_number: int, view: str, entries) -> None:
         fig,
         [0.055, 0.12, 0.66, 0.74],
         (
-            "CONFIGURATION REFERENCE — CARTRIDGE DISABLED"
-            if inactive_baffle_view
+            "CONFIGURATION REFERENCE — OPTIONAL PART DISABLED"
+            if inactive_optional_view
             else "ENGINEERING VIEW — ACTUAL STL ORTHOGRAPHIC PROJECTION"
         ),
         (
             "Inactive dimensions are shown without claiming that a printable STL exists."
-            if inactive_baffle_view
+            if inactive_optional_view
             else "Vector silhouette is calculated from the current generated component, not a generic placeholder."
         ),
     )
@@ -5309,13 +6087,19 @@ def validate_pdf_engineering_drawings() -> None:
         page_text = normalized_pdf_text(extracted_pages[page_number - 1])
         drawing_text = normalized_pdf_text(drawing_pages[page_number - 1])
         card_text = normalized_pdf_text(card_pages[page_number - 1])
+        inactive_optional_view = (
+            view.startswith("baffle_")
+            and not C["BAFFLE_CARTRIDGE_ENABLED"]
+        ) or (
+            view.startswith("rear_fan_adapter_")
+            and not C["REAR_FAN_ADAPTER_ENABLED"]
+        )
         required_labels = (
             (
                 "CONFIGURATION REFERENCE",
-                "CARTRIDGE DISABLED",
+                "OPTIONAL PART DISABLED",
             )
-            if view.startswith("baffle_")
-            and not C["BAFFLE_CARTRIDGE_ENABLED"]
+            if inactive_optional_view
             else (
                 "ENGINEERING VIEW",
                 "ACTUAL STL ORTHOGRAPHIC PROJECTION",
