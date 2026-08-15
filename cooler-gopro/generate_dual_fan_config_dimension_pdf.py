@@ -6,7 +6,7 @@ catalogued, material-profile dimensions are resolved for the selected profile,
 and the shared 40/60/80/120 mm fan references are expanded into individual
 engineering dimensions. Printable holder and adapter views come from their
 current STL files; disabled alternate geometry is drawn from the same
-parameters used by the Blender generator, including the offset rear-fan horn.
+parameters used by the Blender generator.
 """
 
 from __future__ import annotations
@@ -139,7 +139,6 @@ CATEGORY_PREFIXES = (
     ("Material and print guidance", ("MATERIAL_", "TPU_")),
     ("Fan array and rotation", ("FAN_COUNT", "FAN_SIZES", "FAN_ROTATIONS", "FAN_REFERENCE", "FAN_BODY_GAP", "FAN_ROTATION_")),
     ("Fan cage and grille", ("FAN_FRAME_", "FAN_BODY_CLEARANCE", "AIRFLOW_", "GRILL_", "FAN_HOLE_", "FAN_WIRE_")),
-    ("Rear fan adapter", ("REAR_FAN_",)),
     ("Airflow splitter", ("SINGLE_FAN_",)),
     ("Support structure", ("SUPPORT_",)),
     ("Stalk route", ("STALK_",)),
@@ -155,13 +154,6 @@ EXACT_DESCRIPTIONS = {
     "FAN_BODY_CLEARANCE_PER_SIDE": "Running clearance on each side of a fan body inside its cage.",
     "FAN_FRAME_DEPTH": "Axial depth of the printed fan cage, excluding any protruding fan body.",
     "FAN_FRAME_WALL": "Material-profile wall thickness outside the fan cavity.",
-    "REAR_FAN_SIZE_MM": "Standard square-frame size mounted at the rear end of each optional adapter.",
-    "REAR_FAN_OFFSETS_X_MM": "Per-slot rear-fan X offset from its source cage center in fan-local coordinates.",
-    "REAR_FAN_OFFSETS_Y_MM": "Per-slot rear-fan Y offset from its source cage center in fan-local coordinates.",
-    "REAR_FAN_ADAPTER_DUCT_LENGTH_Z": "Axial transition length between the source and rear-fan flanges.",
-    "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z": "Axial thickness of both four-hole adapter flanges; the far square flange's diagonal corners use removable external slicer support.",
-    "REAR_FAN_ADAPTER_HOLE_CLEARANCE": "Diametral clearance added to source and rear-fan mounting holes.",
-    "REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG": "Maximum horn-wall angle away from print Z for support-free internal surfaces.",
     "STALK_ROUTE_DROP_Y": "Downward travel after the receiver when the routed stalk is enabled.",
     "STALK_ROUTE_BACK_Z": "Straight rearward leg between the routed stalk transitions.",
     "STALK_ROUTE_RETURN_RISE_Y": "Upward return into the fan support at the routed stalk end.",
@@ -388,14 +380,6 @@ def view_for(name: str) -> str:
         return "array_front"
     if root.startswith(("BOOLEAN_", "CLEAN_", "TRIANGULATION_")):
         return "mesh_detail"
-    if root.startswith("REAR_FAN_"):
-        if root in {
-            "REAR_FAN_ADAPTER_DUCT_LENGTH_Z",
-            "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z",
-            "REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG",
-        }:
-            return "rear_adapter_side"
-        return "rear_adapter_front"
     if root == "TPU_MOUNT_SCREW_EXTRA_LENGTH_MM":
         return "assembly_side"
     if root.startswith("SINGLE_FAN_"):
@@ -473,14 +457,6 @@ def expand_dimensions(entries: tuple[ConfigEntry, ...]) -> tuple[DimensionEntry,
                 (f"GRILL_RING_CENTER_RADII_AT_REFERENCE[{index}]", value, "mm")
                 for index, value in enumerate(entry.value)
             ]
-        elif entry.name in {
-            "REAR_FAN_OFFSETS_X_MM",
-            "REAR_FAN_OFFSETS_Y_MM",
-        }:
-            expanded = [
-                (f"{entry.name}[{index}]", value, "mm")
-                for index, value in enumerate(entry.value)
-            ]
         elif entry.unit != "setting":
             expanded = [(entry.name, entry.value, entry.unit)]
         for identity, value, unit in expanded:
@@ -549,8 +525,6 @@ VIEW_ORDER = (
     "fan_front",
     "fan_reference",
     "fan_side",
-    "rear_adapter_front",
-    "rear_adapter_side",
     "support_front",
     "support_side",
     "stalk_front",
@@ -579,8 +553,6 @@ VIEW_TITLES = {
     "fan_front": "FAN CAGE / GRILLE — ACTUAL FRONT PROJECTION",
     "fan_reference": "60 MM REFERENCE CAGE — PARAMETRIC FRONT GEOMETRY",
     "fan_side": "FAN CAGE / WIRE EXIT — ACTUAL SIDE PROJECTION",
-    "rear_adapter_front": "OFFSET REAR FAN ADAPTER — PARAMETRIC FRONT GEOMETRY",
-    "rear_adapter_side": "OFFSET REAR FAN ADAPTER / HORN — PARAMETRIC SIDE SECTION",
     "support_front": "TWISTED SUPPORT + HUB — ACTUAL FRONT PROJECTION",
     "support_side": "TWISTED SUPPORT THICKNESS — ACTUAL SIDE PROJECTION",
     "stalk_front": "STALK LATERAL OFFSET AND FLARE WIDTHS — ACTUAL XZ PROJECTION",
@@ -933,19 +905,6 @@ def adapter_datums(dropped: bool | None = None):
 
 def configured_slot_specs(holder_bounds):
     active_specs = resolved_fan_specs()
-    inactive_values = tuple(C["FAN_SIZES_MM"][len(active_specs) :])
-    inactive_gap = 12.0
-    inactive_total_width = sum(float(value) for value in inactive_values)
-    if inactive_values:
-        inactive_total_width += inactive_gap * (len(inactive_values) - 1)
-    inactive_cursor_x = (
-        (holder_bounds[0] + holder_bounds[2] - inactive_total_width) / 2.0
-    )
-    inactive_center_y = (
-        holder_bounds[1]
-        - inactive_gap
-        - max((float(value) for value in inactive_values), default=0.0) / 2.0
-    )
     slots = []
     for index, size_value in enumerate(C["FAN_SIZES_MM"]):
         size = float(size_value)
@@ -960,462 +919,16 @@ def configured_slot_specs(holder_bounds):
                 }
             )
         else:
-            center_x = inactive_cursor_x + size / 2.0
             slots.append(
                 {
                     "index": index,
                     "size": size,
-                    "center_x": center_x,
-                    "center_y": inactive_center_y,
+                    "center_x": (holder_bounds[0] + holder_bounds[2]) / 2.0,
+                    "center_y": holder_bounds[1] - 12.0 - size / 2.0,
                     "active": False,
                 }
             )
-            inactive_cursor_x += size + inactive_gap
     return tuple(slots)
-
-
-def configured_rear_adapter_specs(holder_bounds):
-    rear_size = float(C["REAR_FAN_SIZE_MM"])
-    rear_preset = STANDARD_FAN_PRESETS[int(rear_size)]
-    offset_x_values = tuple(float(value) for value in C["REAR_FAN_OFFSETS_X_MM"])
-    offset_y_values = tuple(float(value) for value in C["REAR_FAN_OFFSETS_Y_MM"])
-    specs = []
-    slot_count = max(
-        int(C["FAN_COUNT"]),
-        len(offset_x_values),
-        len(offset_y_values),
-    )
-    slots = configured_slot_specs(holder_bounds)
-    if slot_count > len(slots):
-        raise ValueError(
-            "Rear-fan offset arrays cannot contain more entries than "
-            "FAN_SIZES_MM"
-        )
-    for slot in slots[:slot_count]:
-        index = slot["index"]
-        size = slot["size"]
-        preset = STANDARD_FAN_PRESETS[int(size)]
-        scale = size / float(C["FAN_REFERENCE_SIZE_MM"])
-        cavity = size + 2.0 * float(C["FAN_BODY_CLEARANCE_PER_SIDE"])
-        frame = cavity + 2.0 * float(C["FAN_FRAME_WALL"])
-        hole_center_radius = math.sqrt(2.0) * float(preset["hole_spacing"]) / 2.0
-        maximum_airflow_radius = (
-            hole_center_radius
-            - float(C["FAN_HOLE_COUNTERSINK_DIAMETER"]) / 2.0
-            - float(C["AIRFLOW_TO_COUNTERSINK_MIN_WEB"])
-        )
-        airflow = min(
-            float(C["AIRFLOW_DIAMETER_AT_REFERENCE"]) * scale,
-            2.0 * maximum_airflow_radius,
-        )
-        offset_x = offset_x_values[index] if index < len(offset_x_values) else 0.0
-        offset_y = offset_y_values[index] if index < len(offset_y_values) else 0.0
-        specs.append(
-            {
-                "index": index,
-                "active": slot["active"],
-                "source_size": size,
-                "source_center_x": slot["center_x"],
-                "source_center_y": slot["center_y"],
-                "source_frame": frame,
-                "source_airflow": airflow,
-                "source_hole_spacing": float(preset["hole_spacing"]),
-                "source_hole_diameter": float(preset["hole_diameter"]),
-                "rear_size": rear_size,
-                "rear_center_x": slot["center_x"] + offset_x,
-                "rear_center_y": slot["center_y"] + offset_y,
-                "rear_opening": float(rear_preset["opening"]),
-                "rear_depth": float(rear_preset["depth"]),
-                "rear_hole_spacing": float(rear_preset["hole_spacing"]),
-                "rear_hole_diameter": float(rear_preset["hole_diameter"]),
-                "offset_x": offset_x,
-                "offset_y": offset_y,
-            }
-        )
-    return tuple(specs)
-
-
-def rear_adapter_front_bounds(spec):
-    source_half = spec["source_frame"] / 2.0
-    rear_half = spec["rear_size"] / 2.0
-    return (
-        min(
-            spec["source_center_x"] - source_half,
-            spec["rear_center_x"] - rear_half,
-        ),
-        min(
-            spec["source_center_y"] - source_half,
-            spec["rear_center_y"] - rear_half,
-        ),
-        max(
-            spec["source_center_x"] + source_half,
-            spec["rear_center_x"] + rear_half,
-        ),
-        max(
-            spec["source_center_y"] + source_half,
-            spec["rear_center_y"] + rear_half,
-        ),
-    )
-
-
-def draw_rear_adapter_front(ax):
-    holder_bounds = projected_part_geometry("holder", "xy").bounds
-    specs = configured_rear_adapter_specs(holder_bounds)
-    bounds = None
-    for spec in specs:
-        source_color = BLUE if spec["active"] else GRAY
-        source_center = (
-            spec["source_center_x"],
-            spec["source_center_y"],
-        )
-        rear_center = (spec["rear_center_x"], spec["rear_center_y"])
-        source_half = spec["source_frame"] / 2.0
-        rear_half = spec["rear_size"] / 2.0
-        ax.add_patch(
-            FancyBboxPatch(
-                (
-                    source_center[0] - source_half,
-                    source_center[1] - source_half,
-                ),
-                spec["source_frame"],
-                spec["source_frame"],
-                boxstyle=(
-                    "round,pad=0,rounding_size="
-                    f"{float(C['FAN_FRAME_CORNER_RADIUS'])}"
-                ),
-                fill=False,
-                edgecolor=source_color,
-                linewidth=0.9,
-                linestyle="--",
-                zorder=4,
-            )
-        )
-        ax.add_patch(
-            Circle(
-                source_center,
-                spec["source_airflow"] / 2.0,
-                facecolor=WHITE,
-                edgecolor=source_color,
-                linewidth=0.8,
-                linestyle=":",
-                zorder=5,
-            )
-        )
-        horn_wall = float(C["REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z"])
-        ax.add_patch(
-            Circle(
-                source_center,
-                spec["source_airflow"] / 2.0 + horn_wall,
-                fill=False,
-                edgecolor=PURPLE,
-                linewidth=0.8,
-                zorder=5,
-            )
-        )
-        ax.add_patch(
-            FancyBboxPatch(
-                (rear_center[0] - rear_half, rear_center[1] - rear_half),
-                spec["rear_size"],
-                spec["rear_size"],
-                boxstyle=(
-                    "round,pad=0,rounding_size="
-                    f"{min(float(C['FAN_FRAME_CORNER_RADIUS']), spec['rear_size'] / 10.0)}"
-                ),
-                facecolor="#f7d9ca",
-                edgecolor=ORANGE,
-                linewidth=1.0,
-                alpha=0.62,
-                zorder=6,
-            )
-        )
-        ax.add_patch(
-            Circle(
-                rear_center,
-                spec["rear_opening"] / 2.0,
-                facecolor=WHITE,
-                edgecolor=GREEN,
-                linewidth=0.9,
-                zorder=7,
-            )
-        )
-        ax.add_patch(
-            Circle(
-                rear_center,
-                spec["rear_opening"] / 2.0 + horn_wall,
-                fill=False,
-                edgecolor=PURPLE,
-                linewidth=0.8,
-                zorder=7,
-            )
-        )
-        source_hole_half = spec["source_hole_spacing"] / 2.0
-        rear_hole_half = spec["rear_hole_spacing"] / 2.0
-        clearance = float(C["REAR_FAN_ADAPTER_HOLE_CLEARANCE"])
-        for sx in (-1.0, 1.0):
-            for sy in (-1.0, 1.0):
-                ax.add_patch(
-                    Circle(
-                        (
-                            source_center[0] + sx * source_hole_half,
-                            source_center[1] + sy * source_hole_half,
-                        ),
-                        (spec["source_hole_diameter"] + clearance) / 2.0,
-                        facecolor=WHITE,
-                        edgecolor=source_color,
-                        linewidth=0.6,
-                        zorder=8,
-                    )
-                )
-                ax.add_patch(
-                    Circle(
-                        (
-                            rear_center[0] + sx * rear_hole_half,
-                            rear_center[1] + sy * rear_hole_half,
-                        ),
-                        (spec["rear_hole_diameter"] + clearance) / 2.0,
-                        facecolor=WHITE,
-                        edgecolor=RED,
-                        linewidth=0.7,
-                        zorder=9,
-                    )
-                )
-        ax.add_patch(
-            FancyArrowPatch(
-                source_center,
-                rear_center,
-                arrowstyle="->",
-                mutation_scale=8,
-                color=PURPLE,
-                linewidth=0.9,
-                zorder=10,
-            )
-        )
-        ax.text(
-            rear_center[0],
-            rear_center[1],
-            f"SLOT {spec['index'] + 1}\n{spec['rear_size']:.0f} mm REAR FAN",
-            fontsize=4.5,
-            color=ORANGE,
-            weight="bold",
-            ha="center",
-            va="center",
-            zorder=11,
-        )
-        spec_bounds = rear_adapter_front_bounds(spec)
-        bounds = spec_bounds if bounds is None else merged_bounds(bounds, spec_bounds)
-    return bounds
-
-
-def draw_rear_adapter_side(ax):
-    holder_bounds = projected_part_geometry("holder", "xy").bounds
-    spec = next(
-        item
-        for item in configured_rear_adapter_specs(holder_bounds)
-        if item["active"]
-    )
-    flange = float(C["REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z"])
-    duct = float(C["REAR_FAN_ADAPTER_DUCT_LENGTH_Z"])
-    source_z0 = 0.0
-    source_z1 = flange
-    target_z0 = source_z1 + duct
-    target_z1 = target_z0 + flange
-    source_center = 0.0
-    target_center = spec["offset_x"]
-    source_flange_outer = spec["source_frame"] / 2.0
-    target_flange_outer = spec["rear_size"] / 2.0
-    source_outer = spec["source_airflow"] / 2.0 + flange
-    source_inner = spec["source_airflow"] / 2.0
-    target_outer = spec["rear_opening"] / 2.0 + flange
-    target_inner = spec["rear_opening"] / 2.0
-
-    for x0, x1 in (
-        (
-            source_center - source_flange_outer,
-            source_center - source_inner,
-        ),
-        (
-            source_center + source_inner,
-            source_center + source_flange_outer,
-        ),
-    ):
-        ax.add_patch(
-            Rectangle(
-                (x0, source_z0),
-                x1 - x0,
-                flange,
-                facecolor="#dceaf3",
-                edgecolor=BLUE,
-                linewidth=0.9,
-                zorder=8,
-            )
-        )
-    target_corner_outer = spec["rear_size"] / math.sqrt(2.0)
-    corner_support_drop = min(
-        duct,
-        max(target_corner_outer - target_outer, 0.0),
-    )
-    if corner_support_drop > 0.0:
-        for side in (-1.0, 1.0):
-            horn_x = target_center + side * target_outer
-            corner_x = target_center + side * target_corner_outer
-            ax.add_patch(
-                Polygon(
-                    (
-                        (horn_x, target_z0 - corner_support_drop),
-                        (horn_x, target_z0),
-                        (corner_x, target_z0),
-                    ),
-                    closed=True,
-                    facecolor="#f1e9f5",
-                    edgecolor=PURPLE,
-                    linewidth=0.75,
-                    linestyle="--",
-                    hatch="////",
-                    alpha=0.72,
-                    zorder=5,
-                )
-            )
-            ax.add_patch(
-                Rectangle(
-                    (
-                        min(
-                            target_center + side * target_flange_outer,
-                            corner_x,
-                        ),
-                        target_z0,
-                    ),
-                    abs(corner_x - (target_center + side * target_flange_outer)),
-                    flange,
-                    fill=False,
-                    edgecolor=PURPLE,
-                    linewidth=0.65,
-                    linestyle=":",
-                    zorder=6,
-                )
-            )
-    for x0, x1 in (
-        (
-            target_center - target_flange_outer,
-            target_center - target_inner,
-        ),
-        (
-            target_center + target_inner,
-            target_center + target_flange_outer,
-        ),
-    ):
-        ax.add_patch(
-            Rectangle(
-                (x0, target_z0),
-                x1 - x0,
-                flange,
-                facecolor="#f7d9ca",
-                edgecolor=ORANGE,
-                linewidth=0.9,
-                zorder=8,
-            )
-        )
-    left_wall = (
-        (source_center - source_outer, source_z1),
-        (target_center - target_outer, target_z0),
-        (target_center - target_inner, target_z0),
-        (source_center - source_inner, source_z1),
-    )
-    right_wall = (
-        (source_center + source_inner, source_z1),
-        (target_center + target_inner, target_z0),
-        (target_center + target_outer, target_z0),
-        (source_center + source_outer, source_z1),
-    )
-    for wall in (left_wall, right_wall):
-        ax.add_patch(
-            Polygon(
-                wall,
-                closed=True,
-                facecolor="#e6e0f2",
-                edgecolor=PURPLE,
-                linewidth=1.0,
-                zorder=7,
-            )
-        )
-    ax.add_patch(
-        Rectangle(
-            (target_center - target_flange_outer, target_z1),
-            2.0 * target_flange_outer,
-            spec["rear_depth"],
-            fill=False,
-            edgecolor=GREEN,
-            linewidth=0.8,
-            linestyle="--",
-            zorder=6,
-        )
-    )
-    ax.plot(
-        (source_center, target_center),
-        (source_z1, target_z0),
-        color=GRAY,
-        linewidth=0.6,
-        linestyle=":",
-        zorder=9,
-    )
-    ax.annotate(
-        "AIRFLOW TO CAGE / CAMERAS",
-        (source_center, source_z0 - 1.0),
-        (target_center, target_z1 + spec["rear_depth"] * 0.75),
-        fontsize=4.8,
-        color=GREEN,
-        weight="bold",
-        ha="center",
-        bbox={
-            "boxstyle": "round,pad=0.15",
-            "facecolor": WHITE,
-            "edgecolor": GREEN,
-            "linewidth": 0.5,
-        },
-        arrowprops={"arrowstyle": "->", "color": GREEN, "linewidth": 0.8},
-        zorder=20,
-    )
-    ax.text(
-        source_center,
-        source_z0 - 1.5,
-        "SOURCE CAGE FOUR-HOLE FACE",
-        fontsize=4.6,
-        color=BLUE,
-        ha="center",
-        va="top",
-        weight="bold",
-    )
-    ax.text(
-        target_center,
-        target_z1 + spec["rear_depth"] + 1.5,
-        f"{spec['rear_size']:.0f} mm REAR FAN REFERENCE",
-        fontsize=4.6,
-        color=GREEN,
-        ha="center",
-        va="bottom",
-        weight="bold",
-    )
-    ax.text(
-        target_center,
-        target_z0 - corner_support_drop - 1.2,
-        "DIAGONAL CORNER ENVELOPE — NTS\nHATCH: REMOVABLE EXTERNAL SUPPORT UNDER 4 FAR-FLANGE CORNERS",
-        fontsize=4.1,
-        color=PURPLE,
-        ha="center",
-        va="top",
-        weight="bold",
-    )
-    return (
-        min(
-            source_center - source_flange_outer,
-            target_center - target_corner_outer,
-        ),
-        min(source_z0, target_z0 - corner_support_drop - 3.0),
-        max(
-            source_center + source_flange_outer,
-            target_center + target_corner_outer,
-        ),
-        target_z1 + spec["rear_depth"],
-    )
 
 
 def draw_fan_overlay(ax, spec, color=ORANGE, alpha=0.9):
@@ -1974,13 +1487,6 @@ def draw_actual_view(ax, view: str):
         return bounds, "PARAMETRIC MANUFACTURER REFERENCE"
     if view == "fan_reference":
         return draw_reference_fan(ax), "PARAMETRIC 60 MM DESIGN DATUM"
-    if view == "rear_adapter_front":
-        return draw_rear_adapter_front(ax), "PARAMETRIC BOLT-ON PART GEOMETRY"
-    if view == "rear_adapter_side":
-        return (
-            draw_rear_adapter_side(ax),
-            "PARAMETRIC HORN + REMOVABLE FAR-FLANGE CORNER SUPPORT ENVELOPE",
-        )
     if view in {"array_front", "assembly_front", "fan_front", "support_front", "mesh_detail"}:
         return draw_holder_front(ax, view), "ACTUAL STL ORTHOGRAPHIC PROJECTION"
     if view in {"assembly_side", "fan_side"}:
@@ -2373,185 +1879,6 @@ def draw_fan_side_annotation(ax, entry, index, bounds, color):
         return True
     if name == "GRILL_THICKNESS":
         vertical_dimension(ax, grill_z0, grill_z0 + grill, 0.0, frame / 2.0 + 7.0, label, color)
-        return True
-    return False
-
-
-def draw_rear_adapter_front_annotation(ax, entry, index, bounds, color):
-    name = entry.identity
-    holder_bounds = projected_part_geometry("holder", "xy").bounds
-    specs = configured_rear_adapter_specs(holder_bounds)
-    label = annotation_label(entry, index)
-    if name == "REAR_FAN_SIZE_MM":
-        spec = next(item for item in specs if item["active"])
-        half = spec["rear_size"] / 2.0
-        horizontal_dimension(
-            ax,
-            spec["rear_center_x"] - half,
-            spec["rear_center_x"] + half,
-            spec["rear_center_y"] - half,
-            bounds[1] - 7.0,
-            label,
-            color,
-        )
-        return True
-    offset_match = re.fullmatch(
-        r"REAR_FAN_OFFSETS_([XY])_MM\[(\d+)\]",
-        name,
-    )
-    if offset_match:
-        axis = offset_match.group(1)
-        spec = specs[int(offset_match.group(2))]
-        if axis == "X":
-            horizontal_dimension(
-                ax,
-                spec["source_center_x"],
-                spec["rear_center_x"],
-                spec["source_center_y"],
-                bounds[1] - 7.0,
-                label + "  (FAN-LOCAL X)",
-                color,
-            )
-        else:
-            if math.isclose(
-                spec["source_center_y"],
-                spec["rear_center_y"],
-                abs_tol=1.0e-9,
-            ):
-                source_half = spec["source_frame"] / 2.0
-                text_positions = (
-                    (
-                        spec["source_center_x"],
-                        spec["source_center_y"] + source_half + 10.0,
-                    ),
-                    (
-                        spec["source_center_x"],
-                        spec["source_center_y"] - source_half - 10.0,
-                    ),
-                    (
-                        spec["source_center_x"],
-                        spec["source_center_y"] - source_half - 10.0,
-                    ),
-                )
-                detail_dimension(
-                    ax,
-                    (
-                        spec["source_center_x"],
-                        spec["source_center_y"],
-                    ),
-                    text_positions[spec["index"]],
-                    label,
-                    color,
-                    note="COINCIDENT CENTERLINES — FAN-LOCAL Y",
-                )
-            else:
-                vertical_dimension(
-                    ax,
-                    spec["source_center_y"],
-                    spec["rear_center_y"],
-                    spec["rear_center_x"],
-                    bounds[2] + 7.0,
-                    label + "  (FAN-LOCAL Y)",
-                    color,
-                )
-        return True
-    if name == "REAR_FAN_ADAPTER_HOLE_CLEARANCE":
-        spec = next(item for item in specs if item["active"])
-        half = spec["rear_hole_spacing"] / 2.0
-        center = (
-            spec["rear_center_x"] + half,
-            spec["rear_center_y"] + half,
-        )
-        purchased_radius = spec["rear_hole_diameter"] / 2.0
-        cut_radius = (
-            spec["rear_hole_diameter"] + float(entry.value)
-        ) / 2.0
-        ax.add_patch(
-            Circle(
-                center,
-                purchased_radius,
-                fill=False,
-                edgecolor=GREEN,
-                linewidth=1.0,
-                zorder=20,
-            )
-        )
-        ax.add_patch(
-            Circle(
-                center,
-                cut_radius,
-                fill=False,
-                edgecolor=color,
-                linewidth=1.0,
-                zorder=21,
-            )
-        )
-        detail_dimension(
-            ax,
-            (center[0] + cut_radius, center[1]),
-            (spec["rear_center_x"], bounds[3] + 8.0),
-            label,
-            color,
-            note="DIAMETRAL CLEARANCE — BOTH FLANGES",
-        )
-        return True
-    return False
-
-
-def draw_rear_adapter_side_annotation(ax, entry, index, bounds, color):
-    name = entry.identity
-    holder_bounds = projected_part_geometry("holder", "xy").bounds
-    spec = next(
-        item
-        for item in configured_rear_adapter_specs(holder_bounds)
-        if item["active"]
-    )
-    flange = float(C["REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z"])
-    duct = float(C["REAR_FAN_ADAPTER_DUCT_LENGTH_Z"])
-    target_z0 = flange + duct
-    source_outer = (
-        spec["source_airflow"] / 2.0
-        + float(C["REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z"])
-    )
-    target_outer = (
-        spec["offset_x"]
-        + spec["rear_opening"] / 2.0
-        + float(C["REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z"])
-    )
-    label = annotation_label(entry, index)
-    if name == "REAR_FAN_ADAPTER_DUCT_LENGTH_Z":
-        vertical_dimension(
-            ax,
-            flange,
-            target_z0,
-            max(source_outer, target_outer),
-            bounds[2] + 30.0,
-            label,
-            color,
-        )
-        return True
-    if name == "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Z":
-        vertical_dimension(
-            ax,
-            0.0,
-            flange,
-            -source_outer,
-            bounds[0] - 7.0,
-            label + "  (BOTH ENDS)",
-            color,
-        )
-        return True
-    if name == "REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG":
-        direction = 1.0 if target_outer < source_outer else -1.0
-        angle_dimension(
-            ax,
-            (source_outer, flange),
-            min(10.0, duct * 0.3),
-            direction * float(entry.value),
-            90.0,
-            label + "  (LIMIT FROM PRINT Z)",
-            color,
-        )
         return True
     return False
 
@@ -2988,8 +2315,6 @@ def draw_feature_annotation(ax, view, entry, index, bounds, color):
         "fan_front": draw_fan_front_annotation,
         "fan_reference": draw_fan_reference_annotation,
         "fan_side": draw_fan_side_annotation,
-        "rear_adapter_front": draw_rear_adapter_front_annotation,
-        "rear_adapter_side": draw_rear_adapter_side_annotation,
         "support_front": draw_support_annotation,
         "support_side": draw_support_side_annotation,
         "stalk_front": draw_stalk_front_annotation,
@@ -3063,7 +2388,7 @@ def page_dimension_drawing(pdf, page_number: int, view: str, entries):
 
 
 def page_cover(pdf):
-    fig = new_page(1, "GOPRO DUAL-FAN CONFIGURATION DIMENSION GUIDE", "Live engineering drawings for the holder, adapter, lowered route, splitter, offset rear-fan horn, and standard fans.")
+    fig = new_page(1, "GOPRO DUAL-FAN CONFIGURATION DIMENSION GUIDE", "Live engineering drawings for the parametric holder, adapter, lowered route, splitter and standard fans.")
     ax = fig.add_axes([0.06, 0.16, 0.61, 0.66])
     bounds, _label = draw_actual_view(ax, "assembly_front")
     set_bounds(ax, bounds, padding=0.10)
@@ -3086,12 +2411,12 @@ def page_cover(pdf):
 
 
 def page_parts_overview(pdf, page_number: int):
-    fig = new_page(page_number, "PRINTED PARTS AND ORTHOGRAPHIC DATUMS", "Holder and adapter use current STL projections; optional bolt-on parts use their full-scale live parameters.")
+    fig = new_page(page_number, "PRINTED PARTS AND ORTHOGRAPHIC DATUMS", "Holder and adapter views come from the current generated STL files; the optional splitter is drawn from its live parameters.")
     views = (
         ([0.055, 0.49, 0.42, 0.34], "assembly_front", "HOLDER — FRONT / XY"),
         ([0.515, 0.49, 0.42, 0.34], "assembly_side", "HOLDER + ADAPTER — SIDE / YZ"),
         ([0.055, 0.12, 0.42, 0.29], "adapter_front", "DETACHABLE ADAPTER — XZ"),
-        ([0.515, 0.12, 0.42, 0.29], "rear_adapter_side", "OFFSET REAR-FAN HORN — XZ"),
+        ([0.515, 0.12, 0.42, 0.29], "splitter_side", "BOLT-ON SPLITTER — XZ"),
     )
     for rect, view, title in views:
         panel(fig, rect, title)
@@ -3204,7 +2529,7 @@ def page_coverage(pdf, page_number: int):
     fig.text(0.545, 0.49, VISUAL_COVERAGE_MARKER, fontsize=5.5, color=GREEN, wrap=True)
     fig.text(0.545, 0.45, FEATURE_CALLOUT_MARKER, fontsize=5.5, color=BLUE)
     fig.text(0.545, 0.41, SETTINGS_COVERAGE_MARKER, fontsize=5.5, color=PURPLE)
-    fig.text(0.545, 0.34, "STL-derived views: holder + detachable adapter\nParameter-derived parts: rear-fan horn + splitter + lowered route\nShared references: 40/60/80/120 mm fans", fontsize=6.0, color=GRAY, linespacing=1.45)
+    fig.text(0.545, 0.34, "STL-derived views: holder + detachable adapter\nParameter-derived parts: splitter + lowered route\nShared references: 40/60/80/120 mm fans", fontsize=6.0, color=GRAY, linespacing=1.45)
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -3247,7 +2572,6 @@ def validate_rendered_pdf() -> None:
     for label in (
         "ACTUALSTLORTHOGRAPHICPROJECTION",
         "PARAMETRICPRINTED-PARTGEOMETRY",
-        "PARAMETRICBOLT-ONPARTGEOMETRY",
         "40MMSTANDARDFAN",
         "120MMSTANDARDFAN",
     ):

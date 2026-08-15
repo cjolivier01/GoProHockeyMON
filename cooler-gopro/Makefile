@@ -14,8 +14,7 @@ DUAL_FAN_STLS := \
 	gopro_dual_fan_parametric.stl \
 	gopro_dual_fan_adapter.stl
 DUAL_FAN_OPTIONAL_STLS := $(foreach size,40 60 80 120,\
-	gopro_single_fan_$(size)mm_airflow_splitter.stl) \
-	gopro_rear_fan_adapter_*.stl
+	gopro_single_fan_$(size)mm_airflow_splitter.stl)
 DUAL_FAN_BUILD_SENTINEL := .gopro_dual_fan_build_complete
 FAN_SILENCER_SIZE ?= 40
 FAN_SILENCER_SUPPORTED_SIZES := 40 60 80 120
@@ -52,6 +51,7 @@ FAN_SILENCER_OBSOLETE_STLS := \
 			gopro_$(size)mm_fan_silencer$(suffix)))
 BAFFLE_CARTRIDGE_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_ENABLED' for target in node.targets)))")
 BAFFLE_CARTRIDGE_MATERIAL_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_MATERIAL_MODE' for target in node.targets)))")
+FAN_CASE_REAR_FAN_ADAPTER_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'REAR_FAN_ADAPTER_ENABLED' for target in node.targets)))")
 FAN_CASE_CORE_STLS := \
 	gopro_fan_case_parametric.stl \
 	gopro_fan_case_back.stl \
@@ -64,14 +64,20 @@ FAN_CASE_BAFFLE_BODY_STLS := \
 	gopro_fan_case_baffle_lid.stl
 FAN_CASE_BAFFLE_GASKET_STLS := gopro_fan_case_baffle_gasket.stl
 FAN_CASE_BAFFLE_STLS := $(FAN_CASE_BAFFLE_BODY_STLS) $(FAN_CASE_BAFFLE_GASKET_STLS)
+FAN_CASE_REAR_FAN_ADAPTER_STLS := gopro_fan_case_rear_fan_adapter.stl
 ifeq ($(BAFFLE_CARTRIDGE_ENABLED),True)
 FAN_CASE_ACTIVE_BAFFLE_STLS := $(FAN_CASE_BAFFLE_BODY_STLS)
 ifeq ($(BAFFLE_CARTRIDGE_MATERIAL_MODE),RIGID)
 FAN_CASE_ACTIVE_BAFFLE_STLS += $(FAN_CASE_BAFFLE_GASKET_STLS)
 endif
 endif
-FAN_CASE_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_ACTIVE_BAFFLE_STLS)
-FAN_CASE_ALL_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_BAFFLE_STLS)
+ifeq ($(FAN_CASE_REAR_FAN_ADAPTER_ENABLED),True)
+FAN_CASE_ACTIVE_REAR_FAN_ADAPTER_STLS := $(FAN_CASE_REAR_FAN_ADAPTER_STLS)
+endif
+FAN_CASE_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_ACTIVE_BAFFLE_STLS) \
+	$(FAN_CASE_ACTIVE_REAR_FAN_ADAPTER_STLS)
+FAN_CASE_ALL_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_BAFFLE_STLS) \
+	$(FAN_CASE_REAR_FAN_ADAPTER_STLS)
 HOCKEYMOM_COVER_STLS := \
 	hockeymom_3_cam_cover_original_style_base.stl \
 	hockeymom_3_cam_cover_original_style_lid.stl \
@@ -140,9 +146,9 @@ print_targets:
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
-		'dual-fan                  Build the holder; optional splitter/rear adapters follow CONFIG.' \
+		'dual-fan                  Build the parametric fan holder; optional splitter follows CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
-		'fan-case                  Build the case, buttons, baffle tray/lid/seal, swing gate, and keeper STLs.' \
+		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
 		'' \
 		'Renders' \
@@ -166,7 +172,7 @@ print_targets:
 		'clean-wrapping-fan-cover  Remove the wrapping fan cover STL.' \
 		'clean-horn                Remove the parametric horn STL.' \
 		'clean-mission1-dummy      Remove the Mission 1 dummy STL.' \
-		'clean-dual-fan            Remove dual-fan holder, adapter, splitter, and rear-adapter STLs.' \
+		'clean-dual-fan            Remove the dual-fan STL.' \
 		'clean-fan-silencer        Remove fan-silencer STLs and generated render images.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
 		'clean-hockeymom-cover     Remove all HOCKEYMOM 3 camera-cover STLs.' \
@@ -205,7 +211,7 @@ $(DIMENSION_PDF): generate_hockeymom_config_dimension_pdf.py \
 	$(PDF_PYTHON) $<
 
 $(FAN_CASE_DIMENSION_PDF): generate_fan_case_config_dimension_pdf.py \
-	gopro_fan_case_parametric_blender.py $(FAN_CASE_STLS)
+	gopro_fan_case_parametric_blender.py fan_size_presets.py $(FAN_CASE_STLS)
 	$(PDF_PYTHON) $<
 
 $(DUAL_FAN_DIMENSION_PDF): generate_dual_fan_config_dimension_pdf.py \
@@ -264,10 +270,10 @@ $(FAN_SILENCER_MOUNTED_VIEW): $(FAN_SILENCER_SOURCE_DEPS)
 	$(PDF_PYTHON) -c "from pathlib import Path; path=Path('$@'); assert path.is_file() and path.stat().st_size > 0, f'Missing Blender output: {path}'"
 
 # Grouped targets tell make that one Blender run creates every listed file.
-$(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py
+$(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py fan_size_presets.py
 	$(RM) $(FAN_CASE_ALL_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
-		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_gopro_fan_case']()"
+		"import os,sys; p='$<'; sys.path.insert(0,os.path.dirname(os.path.abspath(p))); ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_gopro_fan_case']()"
 
 # Grouped targets tell make that one Blender run creates every default
 # Hockeymom component.  This keeps direct component targets useful and avoids
