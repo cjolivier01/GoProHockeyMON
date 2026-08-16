@@ -14,6 +14,7 @@ import ast
 import hashlib
 import math
 import re
+import shutil
 import struct
 import subprocess
 import tempfile
@@ -25,9 +26,11 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from shapely import union_all
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Polygon, Rectangle
 from shapely import affinity
+from shapely.errors import GEOSException
 from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon as ShapelyPolygon
 from shapely.ops import unary_union
@@ -139,9 +142,11 @@ EXACT_DESCRIPTIONS = {
     "REAR_FAN_OFFSET_X_MM": "Horizontal shift from the existing case-fan center to the rear-fan center; use opposite signs on left/right camera cases.",
     "REAR_FAN_OFFSET_Z_MM": "Vertical shift from the existing case-fan center to the rear-fan center.",
     "REAR_FAN_ADAPTER_DUCT_LENGTH_Y": "Clear axial transition length between the case-side and rear-fan flange inner faces.",
-    "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y": "Axial thickness of both four-hole mounting flanges.",
+    "REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED": "Uses side-loaded captive M3 nuts at the case/source flange; False selects back-case-style self-tapping fan-screw pilots.",
+    "REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED": "Uses side-loaded captive M3 nuts at the fan/target flange; False selects back-case-style self-tapping fan-screw pilots.",
+    "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y": "Axial thickness of each captive-nut flange; self-tapping ends instead mirror the back face plus short fan-hole boss depth.",
     "REAR_FAN_ADAPTER_HORN_WALL_THICKNESS": "Radial thickness of the hollow circular transition wall.",
-    "REAR_FAN_ADAPTER_HOLE_CLEARANCE": "Diametral clearance added to the case-side and rear-fan mounting holes.",
+    "REAR_FAN_ADAPTER_HOLE_CLEARANCE": "Diametral clearance added only to captive-nut clearance bores; self-tapping ends use the back-case pilot diameter without added clearance.",
     "REAR_FAN_ADAPTER_NUT_ACROSS_FLATS": "Across-flats clearance of each side-loaded captive M3 hex-nut chamber.",
     "REAR_FAN_ADAPTER_NUT_DEPTH_Y": "Axial depth of each side-loaded captive-nut chamber.",
     "REAR_FAN_ADAPTER_NUT_LOAD_SHOULDER_Y": "Printed flange thickness between each nut chamber and mating interface; screw tension loads the nut against this shoulder to clamp the adapter.",
@@ -150,7 +155,7 @@ EXACT_DESCRIPTIONS = {
     "REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG": "Maximum horn-wall angle away from print Z for a support-free internal airway when printed case-flange-down.",
     "REAR_FAN_ADAPTER_STL_NAME": "Output filename for the separate source-flange-down rear-fan horn adapter.",
     "BAFFLE_CARTRIDGE_MATERIAL_MODE": "Selects RIGID or TPU cartridge geometry; RIGID uses a groove-located TPU gasket while TPU integrates the sealing bead, stiffens the upright-printed walls/lid and enables reinforced cartridge retention.",
-    "BAFFLE_CARTRIDGE_ENABLED": "Builds the removable Offset-S acoustic cartridge and its two top/bottom back-shell snap receivers.",
+    "BAFFLE_CARTRIDGE_ENABLED": "Builds the removable Offset-S acoustic cartridge; rigid backs add top/bottom snap receivers, while TPU backs add thick bend-to-install square retaining tabs.",
     "BAFFLE_REAR_Y": "Rear body plane of the cartridge, immediately forward of the fan-pad inlet seal.",
     "BAFFLE_FRONT_Y": "Forward outlet plane of the cartridge; camera and sleeve clearances are measured from this face.",
     "BAFFLE_REAR_WIDTH": "Cartridge width at the gasketed fan-inlet end.",
@@ -190,6 +195,17 @@ EXACT_DESCRIPTIONS = {
     "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": "Axial center-to-center distance from the seated cartridge hook to its receiver rib.",
     "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y": "Open axial gap between the seated hook's camera-facing surface and the receiver's rear surface.",
     "BAFFLE_SNAP_AXIAL_TOLERANCE_Y": "One-sided printed axial tolerance used to prove a positive seated latch gap and catch engagement before gasket preload is lost.",
+    "BAFFLE_TPU_BACK_TAB_WIDTH_X": "Width of each thick top/bottom TPU-back retention tab across the cartridge centerline.",
+    "BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y": "Rear root station where each broad TPU-back retention rail begins following the dome wall.",
+    "BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z": "Radial running clearance between each cartridge shoulder and the TPU-back tab rail.",
+    "BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y": "Axial thickness of each square front toe that blocks cartridge withdrawal.",
+    "BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y": "Seated axial gap between the cartridge shoulder front and the square toe retaining face.",
+    "BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z": "Radial overlap of each square case toe over its cartridge shoulder.",
+    "BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y": "One-sided printed axial tolerance used to prove the square toe catches before gasket preload is lost.",
+    "BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z": "One-sided printed radial tolerance applied to both shoulder running clearance and toe engagement.",
+    "BAFFLE_TPU_BACK_SHOULDER_WIDTH_X": "Width of each solid cartridge shoulder captured beneath a TPU-back retention tab.",
+    "BAFFLE_TPU_BACK_SHOULDER_DEPTH_Y": "Rearward depth tying each cartridge shoulder into its body and solid front wall.",
+    "BAFFLE_TPU_BACK_SHOULDER_PROTRUSION_Z": "Radial height of each solid cartridge shoulder above or below the body wall.",
     "BAFFLE_TRAY_STL_NAME": "Output filename for the side-open acoustic labyrinth tray with one controlled stop-relief bridge.",
     "BAFFLE_LID_STL_NAME": "Output filename for the separately printed keyed side lid.",
     "BAFFLE_GASKET_STL_NAME": "Output filename for the groove-located TPU annular gasket used only with the RIGID cartridge profile.",
@@ -215,7 +231,7 @@ EXACT_DESCRIPTIONS = {
     "CAMERA_STOP_SPECS": "Named X/Z bounds and attachment side for each rear-shell camera stop.",
     "LOCATING_TAB_SPECS": "Named X/Z bounds and attachment side for each insert locating rail.",
     "LENS_CLEARANCE_GUIDE_TAPERS": "Per-rail taper length and remaining projection at the camera-entry end.",
-    "BACK_MATERIAL_MODE": "Selects RIGID or TPU geometry for the combined back shell/dome; TPU receives deeper captured-hex tabs and enables reinforced baffle-cartridge retention.",
+    "BACK_MATERIAL_MODE": "Selects RIGID or TPU geometry for the combined back shell/dome; TPU receives deeper captured-hex tabs and bend-to-install square baffle-retention tabs.",
     "SLEEVE_MATERIAL_MODE": "Selects the hollow sleeve print material independently; current sleeve dimensions are shared by RIGID and TPU.",
     "RETAINER_MATERIAL_MODE": "Selects RIGID or TPU thickness independently for both front-retainer options.",
     "BUTTON_STEM_DIAMETER": "Diameter of the actuator shaft that slides through each circular sleeve port.",
@@ -500,6 +516,80 @@ if C["BAFFLE_CARTRIDGE_ENABLED"]:
         PART_STLS["baffle_gasket"] = HERE / str(C["BAFFLE_GASKET_STL_NAME"])
 
 
+_RIGID_BACK_REFERENCE_DIRECTORY = None
+
+
+def ensure_rigid_back_reference_stls() -> None:
+    """Generate actual rigid-back snap parts for inactive-mode drawings."""
+    global _RIGID_BACK_REFERENCE_DIRECTORY
+    if "rigid_reference_back" in PART_STLS:
+        return
+    blender = shutil.which("blender")
+    if blender is None:
+        local_blender = Path.home() / "Apps" / "Blender" / "blender"
+        if local_blender.is_file():
+            blender = str(local_blender)
+    if blender is None:
+        raise RuntimeError(
+            "Rigid-back snap-reference drawings require Blender in PATH or "
+            "at ~/Apps/Blender/blender"
+        )
+    _RIGID_BACK_REFERENCE_DIRECTORY = tempfile.TemporaryDirectory(
+        prefix="fan-case-rigid-back-reference-"
+    )
+    output_directory = Path(_RIGID_BACK_REFERENCE_DIRECTORY.name)
+    model_path = str(MODEL_SOURCE)
+    expression = (
+        "import os,sys; "
+        f"p={model_path!r}; "
+        "sys.path.insert(0,os.path.dirname(os.path.abspath(p))); "
+        "ns={'__name__':'dimension_reference','__file__':p}; "
+        "exec(compile(open(p,'rb').read(),p,'exec'),ns); "
+        "ns['BACK_MATERIAL_MODE']='RIGID'; "
+        "ns['REAR_FAN_ADAPTER_ENABLED']=False; "
+        "ns['EXPORT_STL']=True; "
+        f"ns['EXPORT_DIRECTORY']={str(output_directory)!r}; "
+        "ns['build_gopro_fan_case']()"
+    )
+    result = subprocess.run(
+        [
+            blender,
+            "--background",
+            "--factory-startup",
+            "--python-exit-code",
+            "1",
+            "--python-expr",
+            expression,
+        ],
+        cwd=HERE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Could not generate the actual rigid-back snap-reference STLs:\n"
+            + result.stdout
+        )
+    reference_paths = {
+        "rigid_reference_back": output_directory / str(C["BACK_STL_NAME"]),
+        "rigid_reference_baffle_tray": (
+            output_directory / str(C["BAFFLE_TRAY_STL_NAME"])
+        ),
+        "rigid_reference_baffle_lid": (
+            output_directory / str(C["BAFFLE_LID_STL_NAME"])
+        ),
+    }
+    missing = [path.name for path in reference_paths.values() if not path.is_file()]
+    if missing:
+        raise RuntimeError(
+            "Rigid-back snap-reference generation omitted: "
+            + ", ".join(missing)
+        )
+    PART_STLS.update(reference_paths)
+
+
 def require_current_part_stls() -> None:
     missing = [path.name for path in PART_STLS.values() if not path.is_file()]
     if missing:
@@ -569,6 +659,32 @@ def drawing_view_for(entry: ConfigEntry) -> str:
         return "rear_fan_adapter_side"
     if name.startswith("BAFFLE_"):
         if name in {
+            "BAFFLE_TPU_BACK_TAB_WIDTH_X",
+            "BAFFLE_TPU_BACK_SHOULDER_WIDTH_X",
+        }:
+            return "baffle_tpu_retention_front"
+        if name in {
+            "BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y",
+            "BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z",
+        }:
+            return "baffle_tpu_retention_side_rail"
+        if name in {
+            "BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y",
+            "BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y",
+            "BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z",
+        }:
+            return "baffle_tpu_retention_side_toe"
+        if name in {
+            "BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y",
+            "BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z",
+        }:
+            return "baffle_tpu_retention_side_tolerance"
+        if name in {
+            "BAFFLE_TPU_BACK_SHOULDER_DEPTH_Y",
+            "BAFFLE_TPU_BACK_SHOULDER_PROTRUSION_Z",
+        }:
+            return "baffle_tpu_retention_side_shoulder"
+        if name in {
             "BAFFLE_LID_SLEEVE_DEPTH_X",
             "BAFFLE_LID_SLEEVE_ENGAGEMENT_X",
             "BAFFLE_LID_SLEEVE_CLEARANCE_Y",
@@ -578,6 +694,16 @@ def drawing_view_for(entry: ConfigEntry) -> str:
             "BAFFLE_SECOND_END_FRAME_CONNECTION_X",
         }:
             return "baffle_sleeves"
+        if name in {
+            "BAFFLE_SNAP_RECEIVER_WIDTH_X",
+            "BAFFLE_SNAP_RECEIVER_PROJECTION_Z",
+            "BAFFLE_SNAP_TONGUE_WIDTH_X",
+            "BAFFLE_SNAP_TONGUE_THICKNESS_Z",
+            "BAFFLE_SNAP_TONGUE_WALL_OFFSET",
+            "BAFFLE_SNAP_HOOK_PROTRUSION_Z",
+            "BAFFLE_SNAP_INTERFERENCE_Z",
+        }:
+            return "baffle_snap_front"
         if name in {
             "BAFFLE_REAR_WIDTH",
             "BAFFLE_FRONT_WIDTH",
@@ -595,13 +721,6 @@ def drawing_view_for(entry: ConfigEntry) -> str:
             "BAFFLE_LID_KEY_DEPTH_X",
             "BAFFLE_LID_FIT_CLEARANCE",
             "BAFFLE_LID_SLEEVE_CLEARANCE_Z",
-            "BAFFLE_SNAP_RECEIVER_WIDTH_X",
-            "BAFFLE_SNAP_RECEIVER_PROJECTION_Z",
-            "BAFFLE_SNAP_TONGUE_WIDTH_X",
-            "BAFFLE_SNAP_TONGUE_THICKNESS_Z",
-            "BAFFLE_SNAP_TONGUE_WALL_OFFSET",
-            "BAFFLE_SNAP_HOOK_PROTRUSION_Z",
-            "BAFFLE_SNAP_INTERFERENCE_Z",
         }:
             return "baffle_front"
         if name in {
@@ -713,10 +832,16 @@ DRAWING_VIEW_ORDER = (
     "rear_fan_adapter_front",
     "rear_fan_adapter_side",
     "baffle_front",
+    "baffle_snap_front",
     "baffle_side",
     "baffle_airway",
     "baffle_sleeves",
     "baffle_snap",
+    "baffle_tpu_retention_front",
+    "baffle_tpu_retention_side_rail",
+    "baffle_tpu_retention_side_toe",
+    "baffle_tpu_retention_side_tolerance",
+    "baffle_tpu_retention_side_shoulder",
     "capture_joint",
     "capture_section",
     "fastener_detail",
@@ -1715,7 +1840,11 @@ def page_baffle_cartridge(pdf):
             f"body depth {float(C['BAFFLE_FRONT_Y']) - float(C['BAFFLE_REAR_Y']):.2f} mm; camera clearance {camera_clearance:.2f} mm",
             f"sleeve clearance {sleeve_clearance:.2f} mm; gasket compression {gasket_compression:.2f} mm",
             f"{C['BAFFLE_CARTRIDGE_MATERIAL_MODE']} tray/lid; {seal_description}",
-            f"snap undercut {fmt(C['BAFFLE_SNAP_INTERFERENCE_Z'])} mm; seated axial clearance {fmt(C['BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y'])} mm",
+            (
+                f"square TPU-back toes: {fmt(C['BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z'])} mm radial overlap; {fmt(C['BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y'])} mm seated axial gap"
+                if C["BACK_MATERIAL_MODE"] == "TPU"
+                else f"snap undercut {fmt(C['BAFFLE_SNAP_INTERFERENCE_Z'])} mm; seated axial clearance {fmt(C['BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y'])} mm"
+            ),
             f"both camera-side ends get {float(C['BAFFLE_SECOND_END_FRAME_CONNECTION_X']) - float(C['BAFFLE_LID_FIT_CLEARANCE']):.2f} mm solid overlap; axial pad {fmt(C['BAFFLE_SECOND_END_FRAME_DEPTH_Y'])} mm",
             f"three blind lid sleeves: center + paired large-end returns; each captures {fmt(C['BAFFLE_LID_SLEEVE_ENGAGEMENT_X'])} mm",
             f"sleeve depth {fmt(C['BAFFLE_LID_SLEEVE_DEPTH_X'])} mm; closed key floor ≥ {fmt(C['BAFFLE_LID_SLEEVE_MIN_WALL'])} mm",
@@ -1746,10 +1875,16 @@ VIEW_TITLES = {
     "rear_fan_adapter_front": "OFFSET REAR FAN ADAPTER — ACTUAL FRONT PROJECTION",
     "rear_fan_adapter_side": "OFFSET REAR FAN ADAPTER / HORN — ACTUAL SIDE SECTION",
     "baffle_front": "BAFFLE CARTRIDGE — ACTUAL ASSEMBLED FRONT PROJECTION",
+    "baffle_snap_front": "RIGID-BACK SNAP RETENTION — ACTUAL FRONT REFERENCE",
     "baffle_side": "BAFFLE CARTRIDGE — ACTUAL ASSEMBLED SIDE PROJECTION",
     "baffle_airway": "OFFSET-S AIRWAY — ACTUAL ASSEMBLED SIDE PROJECTION",
     "baffle_sleeves": "THREE LID SLEEVES — ACTUAL ASSEMBLED PLAN PROJECTION",
-    "baffle_snap": "TRAY SNAP FEATURES + KEYED LID — ACTUAL SIDE PROJECTIONS",
+    "baffle_snap": "RIGID-BACK SNAP RETENTION — ACTUAL SIDE REFERENCE",
+    "baffle_tpu_retention_front": "TPU-BACK SQUARE-TAB RETENTION — ACTUAL FRONT SECTIONS",
+    "baffle_tpu_retention_side_rail": "TPU-BACK RETENTION RAIL / RUNNING FIT — ACTUAL SIDE SECTION",
+    "baffle_tpu_retention_side_toe": "TPU-BACK SQUARE TOE / POSITIVE CAPTURE — ACTUAL SIDE SECTION",
+    "baffle_tpu_retention_side_tolerance": "TPU-BACK RETENTION PRINT TOLERANCES — ACTUAL SIDE SECTION",
+    "baffle_tpu_retention_side_shoulder": "TPU-BACK CARTRIDGE SHOULDERS — ACTUAL SIDE SECTION",
     "capture_joint": "ASSEMBLED BACK + SLEEVE — ACTUAL FRONT PROJECTION",
     "capture_section": "SLEEVE CAPTURE — ACTUAL AXIAL SECTION PROJECTION",
     "fastener_detail": "CASE FASTENERS ON ACTUAL BACK + SLEEVE PROJECTION",
@@ -1855,6 +1990,67 @@ def stl_x_section_yz_segments(
     return tuple(segments)
 
 
+@lru_cache(maxsize=None)
+def stl_y_section_xz_segments(
+    part: str,
+    section_y: float,
+) -> tuple[tuple[tuple[float, float], tuple[float, float]], ...]:
+    """Intersect an STL with a Y plane and return its actual X/Z segments."""
+    tolerance = 1.0e-6
+    segments = []
+    seen = set()
+    for triangle in load_stl_triangles(part):
+        distances = triangle[:, 1] - section_y
+        if np.all(np.abs(distances) <= tolerance):
+            continue
+        intersections = []
+        for start_index, end_index in ((0, 1), (1, 2), (2, 0)):
+            start = triangle[start_index]
+            end = triangle[end_index]
+            start_distance = distances[start_index]
+            end_distance = distances[end_index]
+            if abs(start_distance) <= tolerance:
+                intersections.append(start)
+            if start_distance * end_distance < -(tolerance**2):
+                fraction = start_distance / (start_distance - end_distance)
+                intersections.append(start + fraction * (end - start))
+        unique = []
+        for point in intersections:
+            xz = (float(point[0]), float(point[2]))
+            if not any(math.dist(xz, existing) <= tolerance for existing in unique):
+                unique.append(xz)
+        if len(unique) < 2:
+            continue
+        if len(unique) > 2:
+            start, end = max(
+                (
+                    (first, second)
+                    for first_index, first in enumerate(unique)
+                    for second in unique[first_index + 1 :]
+                ),
+                key=lambda pair: math.dist(*pair),
+            )
+        else:
+            start, end = unique
+        if math.dist(start, end) <= tolerance:
+            continue
+        key = tuple(
+            sorted(
+                (
+                    (round(start[0], 6), round(start[1], 6)),
+                    (round(end[0], 6), round(end[1], 6)),
+                )
+            )
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        segments.append((start, end))
+    if not segments:
+        raise RuntimeError(f"No Y={section_y:.3f} mm section for {part}")
+    return tuple(segments)
+
+
 PROJECTION_AXES = {
     "xy": (0, 1),
     "xz": (0, 2),
@@ -1911,18 +2107,19 @@ def rotation_matrix_between_vectors(source, target) -> np.ndarray:
 @lru_cache(maxsize=None)
 def baffle_assembly_triangles(part: str) -> np.ndarray:
     """Undo each canonical face-down STL rotation for assembly projections."""
+    component = part.removeprefix("rigid_reference_")
     depth = float(C["BAFFLE_FRONT_Y"]) - float(C["BAFFLE_REAR_Y"])
-    if part == "baffle_tray":
+    if component == "baffle_tray":
         rear_left = float(C["FAN_CENTER_X"]) - float(C["BAFFLE_REAR_WIDTH"]) / 2.0
         front_left = -float(C["BAFFLE_FRONT_WIDTH"]) / 2.0
         slope = (front_left - rear_left) / depth
         outward_normal = (-1.0, slope, 0.0)
-    elif part == "baffle_lid":
+    elif component == "baffle_lid":
         rear_right = float(C["FAN_CENTER_X"]) + float(C["BAFFLE_REAR_WIDTH"]) / 2.0
         front_right = float(C["BAFFLE_FRONT_WIDTH"]) / 2.0
         slope = (front_right - rear_right) / depth
         outward_normal = (1.0, -slope, 0.0)
-    elif part == "baffle_gasket":
+    elif component == "baffle_gasket":
         outward_normal = (0.0, -1.0, 0.0)
     else:
         raise ValueError(f"Not a baffle component: {part}")
@@ -1993,7 +2190,13 @@ def projected_rear_fan_adapter_assembly_geometry(plane: str):
         raise RuntimeError(
             f"No rear-fan adapter assembly projection in {plane}"
         )
-    return unary_union(polygons)
+    try:
+        return unary_union(polygons)
+    except GEOSException:
+        # Alternate flange/hole modes can project many coincident triangle
+        # edges. Snap at one micron—far below print resolution—only for the
+        # uncommon projection that GEOS cannot union at full precision.
+        return union_all(polygons, grid_size=1.0e-6)
 
 
 def geometry_polygons(geometry):
@@ -2141,6 +2344,54 @@ def baffle_dome_half_height_for_drawings(y: float) -> float:
     return fan_half + (socket_half - fan_half) * radial
 
 
+def baffle_uses_tpu_back_tabs_for_drawings() -> bool:
+    return C["BACK_MATERIAL_MODE"] == "TPU"
+
+
+def rigid_back_snap_part_for_drawings(part: str) -> str:
+    """Select current rigid geometry or a generated rigid-back reference."""
+    if not baffle_uses_tpu_back_tabs_for_drawings():
+        return part
+    ensure_rigid_back_reference_stls()
+    return f"rigid_reference_{part}"
+
+
+def baffle_tpu_shoulder_rear_y_for_drawings() -> float:
+    return float(C["BAFFLE_FRONT_Y"]) - float(
+        C["BAFFLE_TPU_BACK_SHOULDER_DEPTH_Y"]
+    )
+
+
+def baffle_tpu_shoulder_outer_abs_z_for_drawings() -> float:
+    return float(C["BAFFLE_BODY_HEIGHT"]) / 2.0 + float(
+        C["BAFFLE_TPU_BACK_SHOULDER_PROTRUSION_Z"]
+    )
+
+
+def baffle_tpu_tab_rail_inner_abs_z_for_drawings() -> float:
+    return baffle_tpu_shoulder_outer_abs_z_for_drawings() + float(
+        C["BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z"]
+    )
+
+
+def baffle_tpu_tab_toe_rear_y_for_drawings() -> float:
+    return float(C["BAFFLE_FRONT_Y"]) + float(
+        C["BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y"]
+    )
+
+
+def baffle_tpu_tab_toe_front_y_for_drawings() -> float:
+    return baffle_tpu_tab_toe_rear_y_for_drawings() + float(
+        C["BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y"]
+    )
+
+
+def baffle_tpu_tab_toe_tip_abs_z_for_drawings() -> float:
+    return baffle_tpu_shoulder_outer_abs_z_for_drawings() - float(
+        C["BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z"]
+    )
+
+
 def capture_joint_detail_points(bounds):
     """Return enlarged NTS section endpoints for the capture controls."""
     minimum_x, minimum_z, maximum_x, maximum_z = bounds
@@ -2188,7 +2439,11 @@ def draw_disabled_baffle_reference(ax, view: str):
     front_y = float(C["BAFFLE_FRONT_Y"])
     body_half = float(C["BAFFLE_BODY_HEIGHT"]) / 2.0
     front_half_width = float(C["BAFFLE_FRONT_WIDTH"]) / 2.0
-    if view == "baffle_front":
+    if view in {
+        "baffle_front",
+        "baffle_snap_front",
+        "baffle_tpu_retention_front",
+    }:
         bounds = (-front_half_width, -body_half, front_half_width, body_half)
         ax.add_patch(
             Rectangle(
@@ -2300,20 +2555,53 @@ def rear_fan_adapter_drawing_values():
     back_exterior_y = (
         -float(C["BACK_DOME_DEPTH"]) if C["BACK_DOME_ENABLED"] else 0.0
     )
-    flange = float(C["REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y"])
-    source_horn_y = back_exterior_y - flange
+    captive_flange = float(C["REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y"])
+    self_tapping_flange = float(C["BACK_FACE_THICKNESS"]) + (
+        float(C["FAN_HOLE_BOSS_HEIGHT"])
+        if C["FAN_HOLE_BOSSES_ENABLED"]
+        else 0.0
+    )
+    source_captive_nuts = bool(
+        C["REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED"]
+    )
+    target_captive_nuts = bool(
+        C["REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED"]
+    )
+    source_flange = (
+        captive_flange if source_captive_nuts else self_tapping_flange
+    )
+    target_flange = (
+        captive_flange if target_captive_nuts else self_tapping_flange
+    )
+    source_horn_y = back_exterior_y - source_flange
     target_horn_y = source_horn_y - float(
         C["REAR_FAN_ADAPTER_DUCT_LENGTH_Y"]
     )
-    target_interface_y = target_horn_y - flange
-    common_through_bolts = (
-        abs(float(C["REAR_FAN_OFFSET_X_MM"])) <= 1.0e-9
-        and abs(float(C["REAR_FAN_OFFSET_Z_MM"])) <= 1.0e-9
-        and abs(float(preset["hole_spacing"]) - float(C["FAN_HOLE_SPACING_X"]))
-        <= 1.0e-9
-        and abs(float(preset["hole_spacing"]) - float(C["FAN_HOLE_SPACING_Z"]))
-        <= 1.0e-9
-    )
+    target_interface_y = target_horn_y - target_flange
+    source_nut_active = source_captive_nuts
+    target_nut_active = target_captive_nuts
+    if source_nut_active or not target_nut_active:
+        nut_reference_end = "source"
+        nut_reference_x = source_x + float(C["FAN_HOLE_SPACING_X"]) / 2.0
+        nut_reference_z = source_z + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
+        nut_reference_frame = (
+            min(
+                float(C["BACK_DOME_FAN_PAD_WIDTH"]),
+                float(C["BACK_DOME_FAN_PAD_HEIGHT"]),
+            )
+            if C["BACK_DOME_ENABLED"]
+            else min(
+                float(C["BACK_OUTER_WIDTH"]),
+                float(C["BACK_OUTER_HEIGHT"]),
+            )
+        )
+        nut_reference_active = source_nut_active
+    else:
+        nut_reference_end = "target"
+        nut_reference_x = target_x + float(preset["hole_spacing"]) / 2.0
+        nut_reference_z = target_z + float(preset["hole_spacing"]) / 2.0
+        nut_reference_frame = float(preset["frame"])
+        nut_reference_active = target_nut_active
     return {
         "preset": preset,
         "source_x": source_x,
@@ -2350,7 +2638,19 @@ def rear_fan_adapter_drawing_values():
         "nut_slot_clearance": float(
             C["REAR_FAN_ADAPTER_NUT_SLOT_CLEARANCE"]
         ),
-        "common_through_bolts": common_through_bolts,
+        "source_captive_nuts": source_captive_nuts,
+        "target_captive_nuts": target_captive_nuts,
+        "source_nut_active": source_nut_active,
+        "target_nut_active": target_nut_active,
+        "nut_reference_end": nut_reference_end,
+        "nut_reference_x": nut_reference_x,
+        "nut_reference_z": nut_reference_z,
+        "nut_reference_frame": nut_reference_frame,
+        "nut_reference_active": nut_reference_active,
+        "source_flange": source_flange,
+        "target_flange": target_flange,
+        "self_tapping_flange": self_tapping_flange,
+        "self_tapping_hole_diameter": float(C["FAN_HOLE_DIAMETER"]),
         "source_interface_y": back_exterior_y,
         "source_horn_y": source_horn_y,
         "target_horn_y": target_horn_y,
@@ -2495,12 +2795,8 @@ def draw_actual_view(ax, view: str):
                         zorder=9,
                     )
                 )
-            source_hole_x = (
-                values["source_x"] + float(C["FAN_HOLE_SPACING_X"]) / 2.0
-            )
-            source_hole_z = (
-                values["source_z"] + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
-            )
+            source_hole_x = values["nut_reference_x"]
+            source_hole_z = values["nut_reference_z"]
             nut_outline = tuple(
                 (
                     source_hole_x
@@ -2523,7 +2819,14 @@ def draw_actual_view(ax, view: str):
                     zorder=10,
                 )
             )
-            source_edge_x = values["source_x"] + values["source_frame"] / 2.0
+            reference_center_x = (
+                values["source_x"]
+                if values["nut_reference_end"] == "source"
+                else values["target_x"]
+            )
+            source_edge_x = (
+                reference_center_x + values["nut_reference_frame"] / 2.0
+            )
             slot_width = (
                 values["nut_across_flats"] + values["nut_slot_clearance"]
             )
@@ -2590,18 +2893,6 @@ def draw_actual_view(ax, view: str):
                 va="top",
                 zorder=11,
             )
-            if values["common_through_bolts"]:
-                ax.text(
-                    values["source_x"],
-                    values["source_z"] + values["source_inner"] + 3.0,
-                    "DASHED HEX IS AN INACTIVE CONFIG REFERENCE · COMMON THROUGH-BOLTS",
-                    fontsize=4.0,
-                    color=RED,
-                    weight="bold",
-                    ha="center",
-                    va="bottom",
-                    zorder=11,
-                )
         else:
             airway = Polygon(
                 (
@@ -2648,86 +2939,71 @@ def draw_actual_view(ax, view: str):
             source_hole_z = (
                 values["source_z"] + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
             )
-            ax.add_patch(
-                Rectangle(
-                    (
-                        values["source_interface_y"]
-                        - values["nut_load_shoulder"]
-                        - values["nut_depth"],
-                        source_hole_z - values["nut_across_flats"] / 2.0,
-                    ),
-                    values["nut_depth"],
-                    values["nut_across_flats"],
-                    fill=False,
-                    edgecolor=RED,
-                    linestyle="--",
-                    linewidth=0.7,
-                    zorder=10,
-                )
+            show_source_nut_reference = (
+                values["source_nut_active"]
+                or not values["target_nut_active"]
             )
+            if show_source_nut_reference:
+                ax.add_patch(
+                    Rectangle(
+                        (
+                            values["source_interface_y"]
+                            - values["nut_load_shoulder"]
+                            - values["nut_depth"],
+                            source_hole_z - values["nut_across_flats"] / 2.0,
+                        ),
+                        values["nut_depth"],
+                        values["nut_across_flats"],
+                        fill=False,
+                        edgecolor=RED,
+                        linestyle="--",
+                        linewidth=0.7,
+                        zorder=10,
+                    )
+                )
             target_hole_z = (
                 values["target_z"]
                 + float(values["preset"]["hole_spacing"]) / 2.0
             )
-            ax.add_patch(
-                Rectangle(
-                    (
-                        values["target_interface_y"]
-                        + values["nut_load_shoulder"],
-                        target_hole_z - values["nut_across_flats"] / 2.0,
-                    ),
-                    values["nut_depth"],
-                    values["nut_across_flats"],
-                    fill=False,
-                    edgecolor=RED,
-                    linestyle="--",
-                    linewidth=0.7,
-                    zorder=10,
+            if values["target_nut_active"]:
+                ax.add_patch(
+                    Rectangle(
+                        (
+                            values["target_interface_y"]
+                            + values["nut_load_shoulder"],
+                            target_hole_z - values["nut_across_flats"] / 2.0,
+                        ),
+                        values["nut_depth"],
+                        values["nut_across_flats"],
+                        fill=False,
+                        edgecolor=RED,
+                        linestyle="--",
+                        linewidth=0.7,
+                        zorder=10,
+                    )
                 )
-            )
-            ax.annotate(
-                (
-                    "INACTIVE NUT-SOCKET REFERENCE — COMMON THROUGH-BOLTS"
-                    if values["common_through_bolts"]
-                    else "SOURCE NUT SIDE-LOADS · CASE-SIDE SHOULDER CARRIES CLAMP LOAD"
-                ),
-                xy=(
-                    values["source_interface_y"]
-                    - values["nut_load_shoulder"]
-                    - values["nut_depth"] / 2.0,
-                    source_hole_z,
-                ),
-                xytext=(
+            self_tapping_ends = []
+            if not values["source_captive_nuts"]:
+                self_tapping_ends.append("SOURCE / CASE")
+            if not values["target_captive_nuts"]:
+                self_tapping_ends.append("TARGET / FAN")
+            if self_tapping_ends:
+                ax.text(
                     (values["source_horn_y"] + values["target_horn_y"])
                     / 2.0,
-                    source_hole_z - 8.0,
-                ),
-                fontsize=4.2,
-                color=RED,
-                weight="bold",
-                ha="center",
-                arrowprops={"arrowstyle": "->", "color": RED, "linewidth": 0.7},
-                zorder=11,
-            )
-            if not values["common_through_bolts"]:
-                ax.annotate(
-                    "TARGET NUT SIDE-LOADS · FAN-SIDE SHOULDER CARRIES CLAMP LOAD",
-                    xy=(
-                        values["target_interface_y"]
-                        + values["nut_load_shoulder"]
-                        + values["nut_depth"] / 2.0,
-                        target_hole_z,
+                    -max(values["source_inner"], values["target_inner"])
+                    * 0.45,
+                    (
+                        " + ".join(self_tapping_ends)
+                        + f" SELF-TAPPING\n{values['self_tapping_hole_diameter']:.1f} MM PILOT · "
+                        f"{values['self_tapping_flange']:.1f} MM THREAD DEPTH"
                     ),
-                    xytext=(values["target_interface_y"] + 7.0, target_hole_z - 7.0),
-                    fontsize=4.2,
-                    color=RED,
+                    fontsize=4.0,
+                    color=ORANGE,
                     weight="bold",
-                    ha="left",
-                    arrowprops={
-                        "arrowstyle": "->",
-                        "color": RED,
-                        "linewidth": 0.7,
-                    },
+                    ha="center",
+                    va="center",
+                    linespacing=1.15,
                     zorder=11,
                 )
             ax.annotate(
@@ -2990,8 +3266,67 @@ def draw_actual_view(ax, view: str):
             zorder=5,
         )
         return back.bounds
-    if view in {"baffle_front", "baffle_airway"}:
-        plane = "xz" if view == "baffle_front" else "yz"
+    if view == "baffle_snap_front":
+        tray_part = rigid_back_snap_part_for_drawings("baffle_tray")
+        back_part = rigid_back_snap_part_for_drawings("back")
+        tray = projected_baffle_assembly_geometry(tray_part, "xz")
+        draw_projected_geometry(
+            ax,
+            tray,
+            "#f7d8c7",
+            ORANGE,
+            alpha=0.82,
+        )
+        receiver_section_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
+        section = stl_y_section_xz_segments(back_part, receiver_section_y)
+        for start, end in section:
+            ax.plot(
+                (start[0], end[0]),
+                (start[1], end[1]),
+                color=BLUE,
+                linewidth=0.70,
+                alpha=0.84,
+                zorder=8,
+            )
+        section_points = [point for segment in section for point in segment]
+        section_bounds = (
+            min(point[0] for point in section_points),
+            min(point[1] for point in section_points),
+            max(point[0] for point in section_points),
+            max(point[1] for point in section_points),
+        )
+        ax.text(
+            0.0,
+            max(tray.bounds[3], section_bounds[3]) + 1.2,
+            (
+                "ACTUAL GENERATED RIGID-BACK + TPU-CARTRIDGE SNAP REFERENCE · "
+                "INACTIVE WHILE BACK_MATERIAL_MODE = TPU"
+                if baffle_uses_tpu_back_tabs_for_drawings()
+                else "ACTUAL CURRENT RIGID-BACK SNAP GEOMETRY"
+            ),
+            fontsize=4.1,
+            color=BLUE,
+            weight="bold",
+            ha="center",
+            va="bottom",
+            zorder=10,
+        )
+        return (
+            min(tray.bounds[0], section_bounds[0]),
+            min(tray.bounds[1], section_bounds[1]),
+            max(tray.bounds[2], section_bounds[2]),
+            max(tray.bounds[3], section_bounds[3]),
+        )
+    if view in {
+        "baffle_front",
+        "baffle_tpu_retention_front",
+        "baffle_airway",
+    }:
+        plane = (
+            "xz"
+            if view in {"baffle_front", "baffle_tpu_retention_front"}
+            else "yz"
+        )
         tray = projected_baffle_assembly_geometry("baffle_tray", plane)
         draw_projected_geometry(
             ax,
@@ -3000,7 +3335,7 @@ def draw_actual_view(ax, view: str):
             ORANGE,
             alpha=0.92,
         )
-        if view == "baffle_front":
+        if view in {"baffle_front", "baffle_tpu_retention_front"}:
             minimum_x, minimum_y, maximum_x, maximum_y = tray.bounds
             lid = projected_baffle_assembly_geometry("baffle_lid", "xz")
             draw_projected_geometry(
@@ -3192,6 +3527,47 @@ def draw_actual_view(ax, view: str):
                         zorder=8,
                     )
                 )
+            tpu_back_tabs = baffle_uses_tpu_back_tabs_for_drawings()
+            snap_reference_alpha = (
+                0.18
+                if tpu_back_tabs and view == "baffle_front"
+                else (0.0 if tpu_back_tabs else 1.0)
+            )
+            if tpu_back_tabs:
+                toe_section_y = (
+                    baffle_tpu_tab_toe_rear_y_for_drawings()
+                    + baffle_tpu_tab_toe_front_y_for_drawings()
+                ) / 2.0
+                tab_half_width = float(C["BAFFLE_TPU_BACK_TAB_WIDTH_X"]) / 2.0
+                toe_tip = baffle_tpu_tab_toe_tip_abs_z_for_drawings()
+                for start, end in stl_y_section_xz_segments(
+                    "back",
+                    toe_section_y,
+                ):
+                    midpoint_x = (start[0] + end[0]) / 2.0
+                    midpoint_z = (start[1] + end[1]) / 2.0
+                    if (
+                        abs(midpoint_x) <= tab_half_width + 0.75
+                        and abs(midpoint_z) >= toe_tip - 0.50
+                    ):
+                        ax.plot(
+                            (start[0], end[0]),
+                            (start[1], end[1]),
+                            color=BLUE,
+                            linewidth=1.0,
+                            zorder=10,
+                        )
+                ax.text(
+                    0.0,
+                    baffle_tpu_shoulder_outer_abs_z_for_drawings() + 7.0,
+                    "BLUE: ACTUAL TPU-BACK SQUARE-TOE SECTION · ORANGE: ACTUAL CARTRIDGE SHOULDERS",
+                    fontsize=4.1,
+                    color=BLUE,
+                    weight="bold",
+                    ha="center",
+                    va="bottom",
+                    zorder=11,
+                )
             receiver_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
             receiver_catch_y = (
                 receiver_y
@@ -3235,11 +3611,15 @@ def draw_actual_view(ax, view: str):
                             receiver_bevel,
                         ),
                         closed=True,
-                        facecolor="#dceaf3",
-                        edgecolor=RED,
+                        facecolor="#eeeeee" if tpu_back_tabs else "#dceaf3",
+                        edgecolor=GRAY if tpu_back_tabs else RED,
                         linewidth=0.7,
-                        hatch="//",
-                        alpha=0.75,
+                        hatch=".." if tpu_back_tabs else "//",
+                        alpha=(
+                            snap_reference_alpha
+                            if tpu_back_tabs
+                            else 0.75
+                        ),
                         zorder=8,
                     )
                 )
@@ -3269,8 +3649,9 @@ def draw_actual_view(ax, view: str):
                         tongue_width,
                         tongue_z1 - tongue_z0,
                         fill=False,
-                        edgecolor=ORANGE,
+                        edgecolor=GRAY if tpu_back_tabs else ORANGE,
                         linewidth=0.85,
+                        alpha=snap_reference_alpha if tpu_back_tabs else 1.0,
                         zorder=9,
                     )
                 )
@@ -3285,23 +3666,31 @@ def draw_actual_view(ax, view: str):
                         ),
                         closed=True,
                         fill=False,
-                        edgecolor=ORANGE,
+                        edgecolor=GRAY if tpu_back_tabs else ORANGE,
                         linewidth=0.85,
+                        alpha=snap_reference_alpha if tpu_back_tabs else 1.0,
                         zorder=9,
                     )
                 )
                 ax.plot(
                     (-tongue_width / 2.0 - 1.0, tongue_width / 2.0 + 1.0),
                     (side * hook_dome, side * hook_dome),
-                    color=BLUE,
+                    color=GRAY if tpu_back_tabs else BLUE,
                     linewidth=0.55,
                     linestyle="--",
+                    alpha=snap_reference_alpha if tpu_back_tabs else 1.0,
                     zorder=8,
                 )
             ax.text(
                 minimum_x,
                 minimum_y - 0.10 * (maximum_y - minimum_y),
-                "solid: tray/lid STL · dashed circle: inlet · white rectangle: outlet · green: continuous seal/scallops · fine dash: rigid-groove profile · hatch: receivers",
+                (
+                    "solid: actual tray/lid + TPU tabs/shoulders · dashed circle: inlet · white rectangle: outlet"
+                    if view == "baffle_tpu_retention_front"
+                    else "solid: actual tray/lid + TPU tabs/shoulders · faint dotted: inactive rigid-back snap reference · dashed circle: inlet · white rectangle: outlet"
+                    if tpu_back_tabs
+                    else "solid: tray/lid STL · dashed circle: inlet · white rectangle: outlet · green: continuous seal/scallops · fine dash: rigid-groove profile · hatch: receivers"
+                ),
                 fontsize=3.8,
                 color=GRAY,
                 ha="left",
@@ -3571,13 +3960,21 @@ def draw_actual_view(ax, view: str):
                 zorder=9,
             )
         return union_bounds(tuple(bounds_geometries))
-    if view == "baffle_snap":
-        tray = projected_baffle_assembly_geometry("baffle_tray", "yz")
-        lid_base = projected_baffle_assembly_geometry("baffle_lid", "yz")
-        lid = affinity.translate(
-            lid_base,
-            xoff=tray.bounds[2] - lid_base.bounds[0] + 8.0,
+    if view == "baffle_snap" or view.startswith(
+        "baffle_tpu_retention_side_"
+    ):
+        reference_snap_view = view == "baffle_snap"
+        tray_part = (
+            rigid_back_snap_part_for_drawings("baffle_tray")
+            if reference_snap_view
+            else "baffle_tray"
         )
+        back_part = (
+            rigid_back_snap_part_for_drawings("back")
+            if reference_snap_view
+            else "back"
+        )
+        tray = projected_baffle_assembly_geometry(tray_part, "yz")
         draw_projected_geometry(
             ax,
             tray,
@@ -3585,15 +3982,23 @@ def draw_actual_view(ax, view: str):
             ORANGE,
             alpha=0.90,
         )
-        draw_projected_geometry(
-            ax,
-            lid,
-            "#f8e8bd",
-            GREEN,
-            alpha=0.94,
-            zorder=5,
-        )
-        back_section = stl_x_section_yz_segments("back")
+        lid = None
+        if view == "baffle_snap":
+            lid_part = rigid_back_snap_part_for_drawings("baffle_lid")
+            lid_base = projected_baffle_assembly_geometry(lid_part, "yz")
+            lid = affinity.translate(
+                lid_base,
+                xoff=tray.bounds[2] - lid_base.bounds[0] + 8.0,
+            )
+            draw_projected_geometry(
+                ax,
+                lid,
+                "#f8e8bd",
+                GREEN,
+                alpha=0.94,
+                zorder=5,
+            )
+        back_section = stl_x_section_yz_segments(back_part)
         for start, end in back_section:
             ax.plot(
                 (start[0], end[0]),
@@ -3613,7 +4018,14 @@ def draw_actual_view(ax, view: str):
         ax.text(
             section_bounds[0],
             section_bounds[3] + 1.2,
-            "BLUE: ACTUAL BACK X=0 SECTION · SQUARE REAR CATCH + CAMERA-SIDE RAMP",
+            (
+                "ACTUAL GENERATED RIGID-BACK + TPU-CARTRIDGE SNAP REFERENCE · INACTIVE WHILE BACK_MATERIAL_MODE = TPU"
+                if reference_snap_view
+                and baffle_uses_tpu_back_tabs_for_drawings()
+                else "BLUE: ACTUAL CURRENT RIGID-BACK X=0 SECTION · SQUARE REAR CATCH + CAMERA-SIDE RAMP"
+                if reference_snap_view
+                else "BLUE: ACTUAL TPU-BACK X=0 SECTION · THICK RAIL + SQUARE FRONT TOE · NO SNAP"
+            ),
             fontsize=4.1,
             color=BLUE,
             weight="bold",
@@ -3621,7 +4033,9 @@ def draw_actual_view(ax, view: str):
             va="bottom",
             zorder=10,
         )
-        assembly_bounds = union_bounds((tray, lid))
+        assembly_bounds = (
+            union_bounds((tray, lid)) if lid is not None else tray.bounds
+        )
         return (
             min(assembly_bounds[0], section_bounds[0]),
             min(assembly_bounds[1], section_bounds[1]),
@@ -4683,33 +5097,46 @@ def draw_specific_graphical_annotation(
                     f"{label} CASE-LOCAL Z",
                 )
             if name == "REAR_FAN_ADAPTER_HOLE_CLEARANCE":
-                preset = values["preset"]
-                hole_center = (
-                    target_x + float(preset["hole_spacing"]) / 2.0,
-                    target_z + float(preset["hole_spacing"]) / 2.0,
-                )
-                nominal_radius = float(preset["hole_diameter"]) / 2.0
+                if values["target_captive_nuts"]:
+                    preset = values["preset"]
+                    hole_center = (
+                        target_x + float(preset["hole_spacing"]) / 2.0,
+                        target_z + float(preset["hole_spacing"]) / 2.0,
+                    )
+                    nominal_radius = float(preset["hole_diameter"]) / 2.0
+                    state = ""
+                else:
+                    hole_center = (
+                        values["source_x"]
+                        + float(C["FAN_HOLE_SPACING_X"]) / 2.0,
+                        values["source_z"]
+                        + float(C["FAN_HOLE_SPACING_Z"]) / 2.0,
+                    )
+                    nominal_radius = float(C["FAN_HOLE_DIAMETER"]) / 2.0
+                    state = (
+                        ""
+                        if values["source_captive_nuts"]
+                        else "INACTIVE REF · "
+                    )
                 cutter_radius = (
-                    float(preset["hole_diameter"]) + float(entry.value)
-                ) / 2.0
+                    nominal_radius + float(entry.value) / 2.0
+                )
                 return linear(
                     (hole_center[0] + nominal_radius, hole_center[1]),
                     (hole_center[0] + cutter_radius, hole_center[1]),
                     False,
                     2.0,
-                    f"{label} DIAMETRAL",
+                    f"{label} {state}DIAMETRAL",
                 )
             source_hole_center = (
-                values["source_x"]
-                + float(C["FAN_HOLE_SPACING_X"]) / 2.0,
-                values["source_z"]
-                + float(C["FAN_HOLE_SPACING_Z"]) / 2.0,
+                values["nut_reference_x"],
+                values["nut_reference_z"],
             )
             if name == "REAR_FAN_ADAPTER_NUT_ACROSS_FLATS":
                 half_width = float(entry.value) / 2.0
                 state = (
                     "INACTIVE REF · "
-                    if values["common_through_bolts"]
+                    if not values["nut_reference_active"]
                     else ""
                 )
                 return linear(
@@ -4722,8 +5149,10 @@ def draw_specific_graphical_annotation(
                         source_hole_center[1] + half_width,
                     ),
                     True,
-                    3.0,
-                    f"{label} {state}SIDE-LOADED M3 HEX A/F",
+                    -23.0
+                    if values["nut_reference_end"] == "target"
+                    else 3.0,
+                    f"{label} {state}".rstrip(),
                 )
             if name == "REAR_FAN_ADAPTER_NUT_SLOT_CLEARANCE":
                 slot_edge = (
@@ -4736,17 +5165,49 @@ def draw_specific_graphical_annotation(
                 )
                 state = (
                     "INACTIVE REF · "
-                    if values["common_through_bolts"]
+                    if not values["nut_reference_active"]
                     else ""
                 )
                 return leader(
                     (
-                        values["source_x"] + values["source_frame"] / 2.0,
+                        source_hole_center[0]
+                        + (
+                            values["nut_reference_frame"] / 2.0
+                            - abs(
+                                source_hole_center[0]
+                                - (
+                                    values["source_x"]
+                                    if values["nut_reference_end"] == "source"
+                                    else values["target_x"]
+                                )
+                            )
+                        ),
                         slot_edge,
                     ),
                     (
-                        values["source_x"] + values["source_frame"] / 2.0 + 9.0,
-                        slot_edge + 5.0,
+                        source_hole_center[0]
+                        + (
+                            values["nut_reference_frame"] / 2.0
+                            - abs(
+                                source_hole_center[0]
+                                - (
+                                    values["source_x"]
+                                    if values["nut_reference_end"] == "source"
+                                    else values["target_x"]
+                                )
+                            )
+                        )
+                        + (
+                            15.0
+                            if values["nut_reference_end"] == "target"
+                            else 9.0
+                        ),
+                        slot_edge
+                        + (
+                            14.0
+                            if values["nut_reference_end"] == "target"
+                            else 5.0
+                        ),
                     ),
                     f"{label} {state}TOTAL TRANSVERSE SLOT CLEARANCE",
                     "datum",
@@ -4755,7 +5216,7 @@ def draw_specific_graphical_annotation(
                 socket_radius = values["nut_circumradius"]
                 state = (
                     "INACTIVE REF · "
-                    if values["common_through_bolts"]
+                    if not values["nut_reference_active"]
                     else ""
                 )
                 return linear(
@@ -4770,7 +5231,9 @@ def draw_specific_graphical_annotation(
                         source_hole_center[1],
                     ),
                     False,
-                    -3.0,
+                    -8.0
+                    if values["nut_reference_end"] == "target"
+                    else -3.0,
                     f"{label} {state}REINFORCED LOCAL WALL",
                 )
         else:
@@ -4784,12 +5247,35 @@ def draw_specific_graphical_annotation(
                     values["target_inner"] + values["wall"] + 4.0,
                 )
             if name == "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y":
+                if values["source_captive_nuts"]:
+                    start_y = values["source_horn_y"]
+                    end_y = values["source_interface_y"]
+                    flange_z = source_z
+                elif values["target_captive_nuts"]:
+                    start_y = values["target_interface_y"]
+                    end_y = values["target_horn_y"]
+                    flange_z = target_z
+                else:
+                    start_y = values["source_interface_y"] - float(entry.value)
+                    end_y = values["source_interface_y"]
+                    flange_z = source_z
+                state = (
+                    "BOTH CAPTIVE FLANGES"
+                    if values["source_captive_nuts"]
+                    and values["target_captive_nuts"]
+                    else (
+                        "CAPTIVE FLANGE"
+                        if values["source_captive_nuts"]
+                        or values["target_captive_nuts"]
+                        else "INACTIVE CAPTIVE-FLANGE REFERENCE"
+                    )
+                )
                 return linear(
-                    (values["source_horn_y"], source_z),
-                    (values["source_interface_y"], source_z),
+                    (start_y, flange_z),
+                    (end_y, flange_z),
                     False,
                     values["source_inner"] + values["wall"] + 7.0,
-                    f"{label} BOTH FLANGES",
+                    f"{label} {state}",
                 )
             if name == "REAR_FAN_ADAPTER_HORN_WALL_THICKNESS":
                 mid_y = (
@@ -4806,25 +5292,28 @@ def draw_specific_graphical_annotation(
                     -3.0,
                 )
             if name == "REAR_FAN_ADAPTER_NUT_DEPTH_Y":
-                source_hole_z = (
-                    values["source_z"]
-                    + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
-                )
+                if values["nut_reference_end"] == "source":
+                    interface_y = values["source_interface_y"]
+                    direction = -1.0
+                else:
+                    interface_y = values["target_interface_y"]
+                    direction = 1.0
+                source_hole_z = values["nut_reference_z"]
                 state = (
                     "INACTIVE REF · "
-                    if values["common_through_bolts"]
+                    if not values["nut_reference_active"]
                     else ""
                 )
                 return linear(
                     (
-                        values["source_interface_y"]
-                        - values["nut_load_shoulder"]
-                        - float(entry.value),
+                        interface_y
+                        + direction
+                        * (values["nut_load_shoulder"] + float(entry.value)),
                         source_hole_z,
                     ),
                     (
-                        values["source_interface_y"]
-                        - values["nut_load_shoulder"],
+                        interface_y
+                        + direction * values["nut_load_shoulder"],
                         source_hole_z,
                     ),
                     False,
@@ -4832,21 +5321,24 @@ def draw_specific_graphical_annotation(
                     f"{label} {state}SIDE-LOADED CHAMBER",
                 )
             if name == "REAR_FAN_ADAPTER_NUT_LOAD_SHOULDER_Y":
-                source_hole_z = (
-                    values["source_z"]
-                    + float(C["FAN_HOLE_SPACING_Z"]) / 2.0
-                )
+                if values["nut_reference_end"] == "source":
+                    interface_y = values["source_interface_y"]
+                    direction = -1.0
+                else:
+                    interface_y = values["target_interface_y"]
+                    direction = 1.0
+                source_hole_z = values["nut_reference_z"]
                 state = (
                     "INACTIVE REF · "
-                    if values["common_through_bolts"]
+                    if not values["nut_reference_active"]
                     else ""
                 )
                 return linear(
                     (
-                        values["source_interface_y"] - float(entry.value),
+                        interface_y + direction * float(entry.value),
                         source_hole_z,
                     ),
-                    (values["source_interface_y"], source_hole_z),
+                    (interface_y, source_hole_z),
                     False,
                     values["nut_across_flats"] / 2.0 + 4.5,
                     f"{label} {state}LOADED INTERFACE SHOULDER",
@@ -4950,7 +5442,11 @@ def draw_specific_graphical_annotation(
                 -2.2,
             )
 
-    if view == "baffle_front":
+    if view in {
+        "baffle_front",
+        "baffle_snap_front",
+        "baffle_tpu_retention_front",
+    }:
         fan_x = float(C["FAN_CENTER_X"])
         body_half = float(C["BAFFLE_BODY_HEIGHT"]) / 2.0
         rear_half_width = float(C["BAFFLE_REAR_WIDTH"]) / 2.0
@@ -5029,6 +5525,32 @@ def draw_specific_graphical_annotation(
                 f"{label} PER EDGE",
             )
 
+        if name in {
+            "BAFFLE_TPU_BACK_TAB_WIDTH_X",
+            "BAFFLE_TPU_BACK_SHOULDER_WIDTH_X",
+        }:
+            width_value = float(entry.value)
+            if name == "BAFFLE_TPU_BACK_TAB_WIDTH_X":
+                z = baffle_tpu_tab_toe_tip_abs_z_for_drawings()
+                offset = 7.0
+                detail = "THICK CASE TAB"
+            else:
+                z = baffle_tpu_shoulder_outer_abs_z_for_drawings()
+                offset = -4.0
+                detail = "SOLID CARTRIDGE SHOULDER"
+            state = (
+                ""
+                if baffle_uses_tpu_back_tabs_for_drawings()
+                else "INACTIVE TPU-BACK REF · "
+            )
+            return linear(
+                (-width_value / 2.0, z),
+                (width_value / 2.0, z),
+                False,
+                offset,
+                f"{label} {state}{detail}",
+            )
+
         receiver_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
         hook_y = receiver_y - float(C["BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y"])
         receiver_catch_y = (
@@ -5067,7 +5589,9 @@ def draw_specific_graphical_annotation(
         if name == "BAFFLE_SNAP_INTERFERENCE_Z":
             return linear((3.0, -hook_tip), (3.0, -receiver_tip), True, 1.2)
 
-    if view in {"baffle_side", "baffle_airway", "baffle_snap"}:
+    if view in {"baffle_side", "baffle_airway", "baffle_snap"} or (
+        view.startswith("baffle_tpu_retention_side_")
+    ):
         rear_y = float(C["BAFFLE_REAR_Y"])
         front_y = float(C["BAFFLE_FRONT_Y"])
         body_half = float(C["BAFFLE_BODY_HEIGHT"]) / 2.0
@@ -5109,6 +5633,95 @@ def draw_specific_graphical_annotation(
             return linear(((first_y + second_y) / 2.0, second_half), ((first_y + second_y) / 2.0, second_half + float(entry.value)), True, 0.0)
         if name == "BAFFLE_MIN_THROAT_AREA":
             return leader((second_y, 0.0), (front_y - 3.0, -13.0), f"{label} MIN FLOW AREA", "construction")
+        if name.startswith("BAFFLE_TPU_BACK_"):
+            shoulder_rear_y = baffle_tpu_shoulder_rear_y_for_drawings()
+            shoulder_outer_z = baffle_tpu_shoulder_outer_abs_z_for_drawings()
+            rail_inner_z = baffle_tpu_tab_rail_inner_abs_z_for_drawings()
+            toe_rear_y = baffle_tpu_tab_toe_rear_y_for_drawings()
+            toe_front_y = baffle_tpu_tab_toe_front_y_for_drawings()
+            toe_tip_z = baffle_tpu_tab_toe_tip_abs_z_for_drawings()
+            state = (
+                ""
+                if baffle_uses_tpu_back_tabs_for_drawings()
+                else "INACTIVE TPU-BACK REF · "
+            )
+            if name == "BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y":
+                return linear(
+                    (0.0, rail_inner_z),
+                    (float(entry.value), rail_inner_z),
+                    False,
+                    4.0,
+                    f"{label} {state}RAIL ROOT STATION",
+                )
+            if name == "BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z":
+                y = shoulder_rear_y + 0.65
+                return linear(
+                    (y, shoulder_outer_z),
+                    (y, rail_inner_z),
+                    True,
+                    -14.0,
+                    f"{label} {state}RUNNING GAP",
+                )
+            if name == "BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y":
+                return linear(
+                    (toe_rear_y, toe_tip_z),
+                    (toe_front_y, toe_tip_z),
+                    False,
+                    3.0,
+                    f"{label} {state}SQUARE TOE",
+                )
+            if name == "BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y":
+                return linear(
+                    (front_y, shoulder_outer_z),
+                    (toe_rear_y, shoulder_outer_z),
+                    False,
+                    -3.0,
+                    f"{label} {state}SEATED GAP",
+                )
+            if name == "BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z":
+                return linear(
+                    (toe_rear_y + 0.55, toe_tip_z),
+                    (toe_rear_y + 0.55, shoulder_outer_z),
+                    True,
+                    -16.0,
+                    f"{label} {state}POSITIVE OVERLAP",
+                )
+            if name == "BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y":
+                return linear(
+                    (toe_rear_y - float(entry.value), rail_inner_z),
+                    (toe_rear_y, rail_inner_z),
+                    False,
+                    5.0,
+                    f"{label} {state}ONE-SIDED",
+                )
+            if name == "BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z":
+                return linear(
+                    (shoulder_rear_y + 1.25, shoulder_outer_z),
+                    (
+                        shoulder_rear_y + 1.25,
+                        shoulder_outer_z + float(entry.value),
+                    ),
+                    True,
+                    -14.0,
+                    f"{label} {state}ONE-SIDED",
+                )
+            if name == "BAFFLE_TPU_BACK_SHOULDER_DEPTH_Y":
+                return linear(
+                    (shoulder_rear_y, shoulder_outer_z),
+                    (front_y, shoulder_outer_z),
+                    False,
+                    -5.0,
+                    f"{label} {state}SOLID BODY TIE",
+                )
+            if name == "BAFFLE_TPU_BACK_SHOULDER_PROTRUSION_Z":
+                y = (shoulder_rear_y + front_y) / 2.0
+                return linear(
+                    (y, body_half),
+                    (y, shoulder_outer_z),
+                    True,
+                    -14.0,
+                    f"{label} {state}FROM BODY WALL",
+                )
         receiver_y = float(C["BAFFLE_SNAP_RECEIVER_Y"])
         hook_y = receiver_y - float(C["BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y"])
         receiver_rear_y = (
@@ -6188,6 +6801,14 @@ def validate_baffle_feature_annotation_records() -> None:
         receiver_y + float(C["BAFFLE_SNAP_RECEIVER_DEPTH_Y"]) / 2.0
     )
     hook_front_y = hook_y + float(C["BAFFLE_SNAP_HOOK_DEPTH_Y"]) / 2.0
+    tab_width = float(C["BAFFLE_TPU_BACK_TAB_WIDTH_X"])
+    shoulder_width = float(C["BAFFLE_TPU_BACK_SHOULDER_WIDTH_X"])
+    shoulder_rear_y = baffle_tpu_shoulder_rear_y_for_drawings()
+    shoulder_outer_z = baffle_tpu_shoulder_outer_abs_z_for_drawings()
+    rail_inner_z = baffle_tpu_tab_rail_inner_abs_z_for_drawings()
+    toe_rear_y = baffle_tpu_tab_toe_rear_y_for_drawings()
+    toe_front_y = baffle_tpu_tab_toe_front_y_for_drawings()
+    toe_tip_z = baffle_tpu_tab_toe_tip_abs_z_for_drawings()
     sleeve_depth = float(C["BAFFLE_LID_SLEEVE_DEPTH_X"])
     engagement = float(C["BAFFLE_LID_SLEEVE_ENGAGEMENT_X"])
     first_y = float(C["BAFFLE_FIRST_Y"])
@@ -6311,6 +6932,64 @@ def validate_baffle_feature_annotation_records() -> None:
                 receiver_tip,
             ),
             (receiver_catch_y, receiver_tip),
+        ),
+        "BAFFLE_TPU_BACK_TAB_WIDTH_X": (
+            (-tab_width / 2.0, toe_tip_z),
+            (tab_width / 2.0, toe_tip_z),
+        ),
+        "BAFFLE_TPU_BACK_SHOULDER_WIDTH_X": (
+            (-shoulder_width / 2.0, shoulder_outer_z),
+            (shoulder_width / 2.0, shoulder_outer_z),
+        ),
+        "BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y": (
+            (0.0, rail_inner_z),
+            (float(C["BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y"]), rail_inner_z),
+        ),
+        "BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z": (
+            (shoulder_rear_y + 0.65, shoulder_outer_z),
+            (shoulder_rear_y + 0.65, rail_inner_z),
+        ),
+        "BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y": (
+            (toe_rear_y, toe_tip_z),
+            (toe_front_y, toe_tip_z),
+        ),
+        "BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y": (
+            (float(C["BAFFLE_FRONT_Y"]), shoulder_outer_z),
+            (toe_rear_y, shoulder_outer_z),
+        ),
+        "BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z": (
+            (toe_rear_y + 0.55, toe_tip_z),
+            (toe_rear_y + 0.55, shoulder_outer_z),
+        ),
+        "BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y": (
+            (
+                toe_rear_y
+                - float(C["BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y"]),
+                rail_inner_z,
+            ),
+            (toe_rear_y, rail_inner_z),
+        ),
+        "BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z": (
+            (shoulder_rear_y + 1.25, shoulder_outer_z),
+            (
+                shoulder_rear_y + 1.25,
+                shoulder_outer_z
+                + float(C["BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z"]),
+            ),
+        ),
+        "BAFFLE_TPU_BACK_SHOULDER_DEPTH_Y": (
+            (shoulder_rear_y, shoulder_outer_z),
+            (float(C["BAFFLE_FRONT_Y"]), shoulder_outer_z),
+        ),
+        "BAFFLE_TPU_BACK_SHOULDER_PROTRUSION_Z": (
+            (
+                (shoulder_rear_y + float(C["BAFFLE_FRONT_Y"])) / 2.0,
+                float(C["BAFFLE_BODY_HEIGHT"]) / 2.0,
+            ),
+            (
+                (shoulder_rear_y + float(C["BAFFLE_FRONT_Y"])) / 2.0,
+                shoulder_outer_z,
+            ),
         ),
     }
     failures = []
