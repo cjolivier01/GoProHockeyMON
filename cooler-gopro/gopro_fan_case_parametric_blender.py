@@ -241,11 +241,11 @@ REAR_FAN_ADAPTER_DUCT_LENGTH_Y = 20.0
 # hole and 4.0 mm nominal thread engagement as the back-case fan mount:
 # BACK_FACE_THICKNESS plus its short FAN_HOLE_BOSS_HEIGHT.  Standard fan screws
 # pass through the fan frame and cut their own threads into that printed pilot.
-REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED = True
-REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED = True
+REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED = False
+REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED = False
 # Captive-nut flange thickness. Self-tapping ends derive their thinner flange
 # thickness directly from the back-case face plus enabled fan-hole boss.
-REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y = 4.5
+REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y = 3.5
 REAR_FAN_ADAPTER_HORN_WALL_THICKNESS = 1.8
 # Diametral clearance applies only to captive-nut clearance bores. A
 # self-tapping end deliberately uses FAN_HOLE_DIAMETER without this clearance.
