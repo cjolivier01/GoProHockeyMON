@@ -233,19 +233,31 @@ FAN_HOLE_BOSS_HEIGHT = 1.0
 # exposed, readily removable slicer supports outside the airflow passage.
 REAR_FAN_ADAPTER_ENABLED = True
 REAR_FAN_SIZE_MM = 60
-REAR_FAN_OFFSET_X_MM = 0.0
+REAR_FAN_OFFSET_X_MM = 10.0
 REAR_FAN_OFFSET_Z_MM = 0.0
-REAR_FAN_ADAPTER_DUCT_LENGTH_Y = 40.0
-REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y = 4.5
+REAR_FAN_ADAPTER_DUCT_LENGTH_Y = 20.0
+# Enable the side-loaded M3 chambers independently at the case/source flange
+# and fan/target flange.  A disabled end instead uses the same 3.6 mm pilot
+# hole and 4.0 mm nominal thread engagement as the back-case fan mount:
+# BACK_FACE_THICKNESS plus its short FAN_HOLE_BOSS_HEIGHT.  Standard fan screws
+# pass through the fan frame and cut their own threads into that printed pilot.
+REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED = False
+REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED = False
+# Captive-nut flange thickness. Self-tapping ends derive their thinner flange
+# thickness directly from the back-case face plus enabled fan-hole boss.
+REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y = 3.5
 REAR_FAN_ADAPTER_HORN_WALL_THICKNESS = 1.8
+# Diametral clearance applies only to captive-nut clearance bores. A
+# self-tapping end deliberately uses FAN_HOLE_DIAMETER without this clearance.
 REAR_FAN_ADAPTER_HOLE_CLEARANCE = 0.4
 # Side-loaded captive M3 nut chambers. Slide each nut through the exposed edge
 # tunnel before mating the adapter to the case or fan. Source screws enter from
 # inside the open case; target screws enter from the fan's exposed rear face.
 # Tightening pulls every nut against a printed interface-side shoulder, so the
 # shoulder transfers bolt tension into the adapter flange instead of letting
-# the nut escape toward its mating face. A centered 40 mm adapter instead uses
-# one long four-bolt set because its source and target patterns coincide.
+# the nut escape toward its mating face.  Both switches are literal: enabling
+# both ends always produces eight independent side-loaded nut chambers, even
+# when the two four-hole patterns happen to align.
 # Where a source chamber approaches the airway, a 45-degree-tapered local boss
 # preserves the configured wall without trapped support. The 5.8 mm chamber
 # fits an ordinary 5.5 mm-across-flats M3 nut; 2.5 mm depth fits its nominal
@@ -265,10 +277,11 @@ REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG = 45.0
 # printed keyed lid; it avoids bulk internal supports but retains one controlled
 # bridge across the existing-camera-stop relief. A groove-located TPU gasket,
 # or an integral bead when the tray itself is TPU, seals the circular inlet.
-# Two compliant top/bottom tongues engage receiver ribs added to the back shell
-# without changing its exterior envelope.  When either mating part is TPU, a
-# reinforced retention profile broadens and deepens both sides of the latch so
-# shell or cartridge deflection cannot let the cartridge walk toward the camera.
+# A rigid back uses two compliant top/bottom cartridge tongues that engage
+# receiver ribs inside the shell.  A TPU back instead uses two broad, square
+# L-tabs rooted into the shell that overlap solid shoulders on the cartridge's
+# camera-facing end.  The TPU shell is deliberately flexed apart for insertion;
+# no snap hook or interference fit is asked to resist long-term TPU creep.
 BAFFLE_CARTRIDGE_ENABLED = True
 BAFFLE_REAR_Y = -5.20
 BAFFLE_FRONT_Y = 14.00
@@ -338,10 +351,9 @@ BAFFLE_SECOND_END_FRAME_CONNECTION_X = 3.50
 # the front after the sleeve is removed. Their hooks seat just behind the
 # receiver crests, maintaining gasket preload until deliberately flexed toward
 # the cartridge center for removal. These dimensions are the rigid/rigid
-# baseline; BAFFLE_RETENTION_MATERIAL_PROFILES reinforces the complete latch
-# according to which side of the joint is TPU. A flexible back with a rigid
-# cartridge gets a smaller undercut than a TPU cartridge so its 1 mm tongue
-# remains releasable without excessive strain.
+# baseline; when the rigid back receives a TPU cartridge,
+# BAFFLE_RETENTION_MATERIAL_PROFILES reinforces the complete latch. TPU backs
+# use the separate square-tab dimensions below and build none of these parts.
 BAFFLE_SNAP_RECEIVER_Y = 12.20
 BAFFLE_SNAP_RECEIVER_WIDTH_X = 8.0
 BAFFLE_SNAP_RECEIVER_DEPTH_Y = 2.20
@@ -358,6 +370,26 @@ BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y = 1.95
 BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y = 0.25
 BAFFLE_SNAP_AXIAL_TOLERANCE_Y = 0.10
 BAFFLE_SNAP_INTERFERENCE_Z = 0.25
+
+# TPU-back cartridge retention.  Each centered top/bottom shell tab follows the
+# curved dome from the configured rear root to a square toe just beyond the
+# cartridge front.  Matching solid shoulders grow outward from the cartridge
+# body over its final few millimeters.  The toe blocks forward (+Y) withdrawal;
+# installation/removal is by bending the empty TPU shell, not by snapping a
+# hook.  The toe underside is directly reachable from the open camera side if a
+# slicer adds support.  Positions not listed here are derived from the cartridge
+# front/body surfaces so the fit stack cannot be configured inconsistently.
+BAFFLE_TPU_BACK_TAB_WIDTH_X = 16.0
+BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y = 11.0
+BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z = 0.55
+BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y = 2.00
+BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y = 0.22
+BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z = 1.75
+BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y = 0.10
+BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z = 0.15
+BAFFLE_TPU_BACK_SHOULDER_WIDTH_X = 19.0
+BAFFLE_TPU_BACK_SHOULDER_DEPTH_Y = 3.0
+BAFFLE_TPU_BACK_SHOULDER_PROTRUSION_Z = 3.50
 
 # Smooth rectangular vent and diagonal louvers to the fan's right.
 VENT_ENABLED = False
@@ -769,26 +801,6 @@ _RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE = {
 }
 BAFFLE_RETENTION_MATERIAL_PROFILES = {
     "RIGID_RIGID": _RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE,
-    "TPU_BACK": {
-        **_RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE,
-        # A 16 mm-wide catch doubles the receiver's rigid/rigid bearing width.
-        # Deeper ribs and larger hook faces resist either flexible part rolling
-        # free. Keep the rigid cartridge tongue's undercut moderate enough for
-        # service release while the flexible back supplies the extra compliance.
-        "BAFFLE_SNAP_RECEIVER_WIDTH_X": 16.0,
-        "BAFFLE_SNAP_RECEIVER_DEPTH_Y": 3.40,
-        "BAFFLE_SNAP_RECEIVER_PROJECTION_Z": 1.80,
-        "BAFFLE_SNAP_RECEIVER_LEAD_IN_Y": 1.00,
-        "BAFFLE_SNAP_TONGUE_WIDTH_X": 16.0,
-        "BAFFLE_SNAP_TONGUE_WALL_OFFSET": 2.40,
-        "BAFFLE_SNAP_ROOT_DEPTH_Y": 3.00,
-        "BAFFLE_SNAP_HOOK_DEPTH_Y": 1.80,
-        "BAFFLE_SNAP_HOOK_BEVEL": 0.05,
-        "BAFFLE_SNAP_HOOK_PROTRUSION_Z": 1.18,
-        "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y": 2.85,
-        "BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y": 0.25,
-        "BAFFLE_SNAP_INTERFERENCE_Z": 0.35,
-    },
     "TPU_CARTRIDGE": {
         **_RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE,
         # The 2 mm TPU tongue tolerates a deeper catch. The same substantial
@@ -812,11 +824,12 @@ _APPLIED_BAFFLE_RETENTION_MATERIAL_MODES = None
 
 
 def baffle_retention_material_profile_name() -> str:
-    """Select retention for the tongue material, then the back material."""
-    if BAFFLE_CARTRIDGE_MATERIAL_MODE == "TPU":
+    """Select the snap profile used only when the back itself is rigid."""
+    if (
+        BACK_MATERIAL_MODE == "RIGID"
+        and BAFFLE_CARTRIDGE_MATERIAL_MODE == "TPU"
+    ):
         return "TPU_CARTRIDGE"
-    if BACK_MATERIAL_MODE == "TPU":
-        return "TPU_BACK"
     return "RIGID_RIGID"
 
 
@@ -1387,6 +1400,61 @@ def baffle_snap_nominal_retaining_face_area() -> float:
     )
 
 
+def baffle_uses_tpu_back_tabs() -> bool:
+    """Use bend-to-install square capture tabs whenever the back is TPU."""
+    return BACK_MATERIAL_MODE == "TPU"
+
+
+def baffle_tpu_back_shoulder_rear_y() -> float:
+    return BAFFLE_FRONT_Y - BAFFLE_TPU_BACK_SHOULDER_DEPTH_Y
+
+
+def baffle_tpu_back_shoulder_outer_abs_z() -> float:
+    return BAFFLE_BODY_HEIGHT / 2.0 + BAFFLE_TPU_BACK_SHOULDER_PROTRUSION_Z
+
+
+def baffle_tpu_back_tab_rail_inner_abs_z() -> float:
+    return (
+        baffle_tpu_back_shoulder_outer_abs_z()
+        + BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z
+    )
+
+
+def baffle_tpu_back_tab_toe_rear_y() -> float:
+    return BAFFLE_FRONT_Y + BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y
+
+
+def baffle_tpu_back_tab_toe_front_y() -> float:
+    return (
+        baffle_tpu_back_tab_toe_rear_y()
+        + BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y
+    )
+
+
+def baffle_tpu_back_tab_toe_tip_abs_z() -> float:
+    return (
+        baffle_tpu_back_shoulder_outer_abs_z()
+        - BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z
+    )
+
+
+def baffle_tpu_back_tab_root_thickness_z() -> float:
+    return (
+        dome_cavity_half_height_at_y(BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y)
+        - baffle_tpu_back_tab_rail_inner_abs_z()
+    )
+
+
+def baffle_tpu_back_tab_retaining_face_area() -> float:
+    return (
+        min(
+            BAFFLE_TPU_BACK_TAB_WIDTH_X,
+            BAFFLE_TPU_BACK_SHOULDER_WIDTH_X,
+        )
+        * BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z
+    )
+
+
 def baffle_acoustic_visibility_required_inlet_z(
     internal_thickness_y: float | None = None,
 ) -> float:
@@ -1812,6 +1880,207 @@ def validate_retainer_config() -> None:
             )
 
 
+def validate_baffle_snap_config(compression: float) -> None:
+    """Validate the hook/receiver retention used with a rigid back."""
+    if not (
+        BAFFLE_SNAP_TONGUE_ROOT_Y
+        < baffle_snap_hook_y()
+        < BAFFLE_SNAP_RECEIVER_Y
+        < baffle_snap_tongue_front_y()
+    ):
+        raise ValueError(
+            "The seated hook and receiver must lie in order along each tongue"
+        )
+    seated_clearance = baffle_snap_seated_clearance_y()
+    if abs(
+        seated_clearance - BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y
+    ) > 1.0e-6:
+        raise ValueError(
+            "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y does not resolve to the "
+            "configured hook/receiver face clearance"
+        )
+    minimum_seated_clearance = (
+        seated_clearance - BAFFLE_SNAP_AXIAL_TOLERANCE_Y
+    )
+    if minimum_seated_clearance <= 0.0:
+        raise ValueError(
+            "The baffle hook must retain a positive seated gap at the axial "
+            "tolerance extreme; minimum gap="
+            f"{minimum_seated_clearance:.3f} mm"
+        )
+    if (
+        seated_clearance
+        + BAFFLE_SNAP_HOOK_BEVEL
+        + BAFFLE_SNAP_AXIAL_TOLERANCE_Y
+        >= compression
+    ):
+        raise ValueError(
+            "The hook clearance, retaining-face bevel, and axial tolerance "
+            "must preserve positive gasket preload during a forward pull"
+        )
+    if seated_clearance >= baffle_camera_clearance():
+        raise ValueError(
+            "The baffle latch permits enough forward travel to reach the "
+            "camera"
+        )
+    receiver_inner_z = (
+        dome_cavity_half_height_at_y(BAFFLE_SNAP_RECEIVER_Y)
+        - BAFFLE_SNAP_RECEIVER_PROJECTION_Z
+    )
+    tongue_outer_z = (
+        abs(
+            baffle_snap_tongue_center_z_at_y(
+                BAFFLE_SNAP_RECEIVER_Y,
+                1.0,
+            )
+        )
+        + BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
+    )
+    tongue_receiver_clearance = receiver_inner_z - tongue_outer_z
+    if tongue_receiver_clearance < 0.10:
+        raise ValueError(
+            "The seated snap tongue cannot clear the receiver before its "
+            f"hook; actual clearance={tongue_receiver_clearance:.3f} mm"
+        )
+    resolved_interference = baffle_snap_resolved_interference()
+    retention_profile_name = baffle_retention_material_profile_name()
+    if retention_profile_name != "RIGID_RIGID":
+        rigid_profile = _RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE
+        rigid_retaining_area = min(
+            rigid_profile["BAFFLE_SNAP_RECEIVER_WIDTH_X"],
+            rigid_profile["BAFFLE_SNAP_TONGUE_WIDTH_X"],
+        ) * rigid_profile["BAFFLE_SNAP_INTERFERENCE_Z"]
+        if baffle_snap_nominal_retaining_face_area() < (
+            4.0 * rigid_retaining_area
+        ):
+            raise ValueError(
+                f"The {retention_profile_name} baffle interface needs at "
+                "least 4.0 times the rigid/rigid nominal hook retaining-face "
+                "area"
+            )
+    if abs(resolved_interference - BAFFLE_SNAP_INTERFERENCE_Z) > 0.02:
+        raise ValueError(
+            "BAFFLE_SNAP_INTERFERENCE_Z does not match the receiver/hook "
+            f"stack; resolved {resolved_interference:.3f} mm"
+        )
+    release_strain = baffle_snap_release_strain()
+    maximum_release_strain = (
+        0.08 if BAFFLE_CARTRIDGE_MATERIAL_MODE == "TPU" else 0.02
+    )
+    if release_strain > maximum_release_strain:
+        raise ValueError(
+            f"The {BAFFLE_CARTRIDGE_MATERIAL_MODE} baffle tongue needs "
+            f"{release_strain:.3%} estimated release strain; maximum="
+            f"{maximum_release_strain:.3%}"
+        )
+
+
+def validate_baffle_tpu_back_tab_config(compression: float) -> None:
+    """Validate the bend-to-install square retention used by a TPU back."""
+    shoulder_rear_y = baffle_tpu_back_shoulder_rear_y()
+    toe_rear_y = baffle_tpu_back_tab_toe_rear_y()
+    toe_front_y = baffle_tpu_back_tab_toe_front_y()
+    if not (
+        BAFFLE_REAR_Y
+        < BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y
+        <= shoulder_rear_y
+        < BAFFLE_FRONT_Y
+        < toe_rear_y
+        < toe_front_y
+        < insert_sleeve_leading_y()
+    ):
+        raise ValueError(
+            "The TPU-back rail, shoulder, square toe, and sleeve must remain "
+            "in rear-to-front assembly order"
+        )
+    sleeve_clearance = insert_sleeve_leading_y() - toe_front_y
+    if sleeve_clearance < 0.50:
+        raise ValueError(
+            "The TPU-back retention toe needs at least 0.50 mm before the "
+            f"insert sleeve; actual={sleeve_clearance:.3f} mm"
+        )
+    root_thickness = baffle_tpu_back_tab_root_thickness_z()
+    if root_thickness < 2.0:
+        raise ValueError(
+            "The TPU-back retention rail needs a 2.0 mm shell root; actual="
+            f"{root_thickness:.3f} mm"
+        )
+    running_clearance = (
+        BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z
+        - BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z
+    )
+    if running_clearance < 0.30:
+        raise ValueError(
+            "The TPU-back shoulder needs 0.30 mm radial running clearance at "
+            f"the tolerance extreme; actual={running_clearance:.3f} mm"
+        )
+    radial_engagement = (
+        BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z
+        - BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z
+    )
+    if radial_engagement < 1.50:
+        raise ValueError(
+            "The TPU-back square toe needs at least 1.50 mm radial shoulder "
+            f"engagement; actual={radial_engagement:.3f} mm"
+        )
+    required_case_spread = (
+        BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z
+        + BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z
+    )
+    if required_case_spread > 2.50:
+        raise ValueError(
+            "The TPU back would need more than 2.50 mm spread per side for "
+            f"cartridge insertion; actual={required_case_spread:.3f} mm"
+        )
+    minimum_axial_gap = (
+        BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y
+        - BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y
+    )
+    maximum_axial_gap = (
+        BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y
+        + BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y
+    )
+    if minimum_axial_gap <= 0.0:
+        raise ValueError(
+            "The TPU-back toe must retain a positive seated axial gap"
+        )
+    if maximum_axial_gap >= compression:
+        raise ValueError(
+            "The TPU-back toe must catch before gasket preload is lost; "
+            f"maximum gap={maximum_axial_gap:.3f} mm compression="
+            f"{compression:.3f} mm"
+        )
+    if BAFFLE_TPU_BACK_TAB_WIDTH_X > BAFFLE_TPU_BACK_SHOULDER_WIDTH_X:
+        raise ValueError(
+            "The TPU-back cartridge shoulder must be at least as wide as its "
+            "case retention tab"
+        )
+    if (
+        baffle_tpu_back_tab_toe_tip_abs_z()
+        <= BAFFLE_BODY_HEIGHT / 2.0 + 0.50
+    ):
+        raise ValueError(
+            "The TPU-back retention toe must remain outside the cartridge "
+            "airway/body wall"
+        )
+    retention_half_width = max(
+        BAFFLE_TPU_BACK_TAB_WIDTH_X,
+        BAFFLE_TPU_BACK_SHOULDER_WIDTH_X,
+    ) / 2.0
+    for name, x0, x1, _z0, _z1, attachment in CAMERA_STOP_SPECS:
+        if attachment not in {"top", "bottom"}:
+            continue
+        if max(-retention_half_width, x0) < min(retention_half_width, x1):
+            raise ValueError(
+                f"The centered TPU-back retention overlaps camera stop {name}"
+            )
+    if baffle_tpu_back_tab_retaining_face_area() < 20.0:
+        raise ValueError(
+            "Each TPU-back square tab needs at least 20 mm2 nominal retaining "
+            "face area"
+        )
+
+
 def validate_baffle_cartridge_config() -> None:
     if not BAFFLE_CARTRIDGE_ENABLED:
         return
@@ -1897,17 +2166,48 @@ def validate_baffle_cartridge_config() -> None:
         ),
         "BAFFLE_SNAP_AXIAL_TOLERANCE_Y": BAFFLE_SNAP_AXIAL_TOLERANCE_Y,
         "BAFFLE_SNAP_INTERFERENCE_Z": BAFFLE_SNAP_INTERFERENCE_Z,
+        "BAFFLE_TPU_BACK_TAB_WIDTH_X": BAFFLE_TPU_BACK_TAB_WIDTH_X,
+        "BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z": (
+            BAFFLE_TPU_BACK_TAB_RUNNING_CLEARANCE_Z
+        ),
+        "BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y": (
+            BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y
+        ),
+        "BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y": (
+            BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y
+        ),
+        "BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z": (
+            BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z
+        ),
+        "BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y": (
+            BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y
+        ),
+        "BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z": (
+            BAFFLE_TPU_BACK_TAB_RADIAL_TOLERANCE_Z
+        ),
+        "BAFFLE_TPU_BACK_SHOULDER_WIDTH_X": (
+            BAFFLE_TPU_BACK_SHOULDER_WIDTH_X
+        ),
+        "BAFFLE_TPU_BACK_SHOULDER_DEPTH_Y": (
+            BAFFLE_TPU_BACK_SHOULDER_DEPTH_Y
+        ),
+        "BAFFLE_TPU_BACK_SHOULDER_PROTRUSION_Z": (
+            BAFFLE_TPU_BACK_SHOULDER_PROTRUSION_Z
+        ),
     }
     for name, value in positive.items():
         if value <= 0.0:
             raise ValueError(f"{name} must be positive")
     if BAFFLE_BODY_DEPTH_SECTIONS < 2:
         raise ValueError("BAFFLE_BODY_DEPTH_SECTIONS must be at least 2")
-    if BAFFLE_SNAP_RECEIVER_LEAD_IN_Y >= BAFFLE_SNAP_RECEIVER_DEPTH_Y:
+    if (
+        not baffle_uses_tpu_back_tabs()
+        and BAFFLE_SNAP_RECEIVER_LEAD_IN_Y >= BAFFLE_SNAP_RECEIVER_DEPTH_Y
+    ):
         raise ValueError(
             "The baffle receiver lead-in must leave a square rear catch face"
         )
-    if 2.0 * BAFFLE_SNAP_HOOK_BEVEL >= min(
+    if not baffle_uses_tpu_back_tabs() and 2.0 * BAFFLE_SNAP_HOOK_BEVEL >= min(
         BAFFLE_SNAP_HOOK_DEPTH_Y,
         BAFFLE_SNAP_HOOK_PROTRUSION_Z,
     ):
@@ -2218,100 +2518,10 @@ def validate_baffle_cartridge_config() -> None:
         or BAFFLE_OUTLET_HEIGHT >= front_top - front_bottom
     ):
         raise ValueError("The baffle outlet does not fit in the forward face")
-    if not (
-        BAFFLE_SNAP_TONGUE_ROOT_Y
-        < baffle_snap_hook_y()
-        < BAFFLE_SNAP_RECEIVER_Y
-        < baffle_snap_tongue_front_y()
-    ):
-        raise ValueError(
-            "The seated hook and receiver must lie in order along each tongue"
-        )
-    seated_clearance = baffle_snap_seated_clearance_y()
-    if abs(
-        seated_clearance - BAFFLE_SNAP_HOOK_SEATED_CLEARANCE_Y
-    ) > 1.0e-6:
-        raise ValueError(
-            "BAFFLE_SNAP_HOOK_SEATED_OFFSET_Y does not resolve to the "
-            "configured hook/receiver face clearance"
-        )
-    minimum_seated_clearance = (
-        seated_clearance - BAFFLE_SNAP_AXIAL_TOLERANCE_Y
-    )
-    if minimum_seated_clearance <= 0.0:
-        raise ValueError(
-            "The baffle hook must retain a positive seated gap at the axial "
-            "tolerance extreme; minimum gap="
-            f"{minimum_seated_clearance:.3f} mm"
-        )
-    if (
-        seated_clearance
-        + BAFFLE_SNAP_HOOK_BEVEL
-        + BAFFLE_SNAP_AXIAL_TOLERANCE_Y
-        >= compression
-    ):
-        raise ValueError(
-            "The hook clearance, retaining-face bevel, and axial tolerance "
-            "must preserve positive gasket preload during a forward pull"
-        )
-    if seated_clearance >= baffle_camera_clearance():
-        raise ValueError(
-            "The baffle latch permits enough forward travel to reach the "
-            "camera"
-        )
-    receiver_inner_z = (
-        dome_cavity_half_height_at_y(BAFFLE_SNAP_RECEIVER_Y)
-        - BAFFLE_SNAP_RECEIVER_PROJECTION_Z
-    )
-    tongue_outer_z = (
-        abs(
-            baffle_snap_tongue_center_z_at_y(
-                BAFFLE_SNAP_RECEIVER_Y,
-                1.0,
-            )
-        )
-        + BAFFLE_SNAP_TONGUE_THICKNESS_Z / 2.0
-    )
-    tongue_receiver_clearance = receiver_inner_z - tongue_outer_z
-    if tongue_receiver_clearance < 0.10:
-        raise ValueError(
-            "The seated snap tongue cannot clear the receiver before its "
-            f"hook; actual clearance={tongue_receiver_clearance:.3f} mm"
-        )
-    resolved_interference = baffle_snap_resolved_interference()
-    retention_profile_name = baffle_retention_material_profile_name()
-    if retention_profile_name != "RIGID_RIGID":
-        rigid_profile = _RIGID_BAFFLE_RETENTION_MATERIAL_PROFILE
-        rigid_retaining_area = min(
-            rigid_profile["BAFFLE_SNAP_RECEIVER_WIDTH_X"],
-            rigid_profile["BAFFLE_SNAP_TONGUE_WIDTH_X"],
-        ) * rigid_profile["BAFFLE_SNAP_INTERFERENCE_Z"]
-        minimum_area_multiplier = (
-            2.5 if retention_profile_name == "TPU_BACK" else 4.0
-        )
-        if baffle_snap_nominal_retaining_face_area() < (
-            minimum_area_multiplier * rigid_retaining_area
-        ):
-            raise ValueError(
-                f"The {retention_profile_name} baffle interface needs at "
-                f"least {minimum_area_multiplier:.1f} times the rigid/rigid "
-                "nominal hook retaining-face area"
-            )
-    if abs(resolved_interference - BAFFLE_SNAP_INTERFERENCE_Z) > 0.02:
-        raise ValueError(
-            "BAFFLE_SNAP_INTERFERENCE_Z does not match the receiver/hook "
-            f"stack; resolved {resolved_interference:.3f} mm"
-        )
-    release_strain = baffle_snap_release_strain()
-    maximum_release_strain = (
-        0.08 if BAFFLE_CARTRIDGE_MATERIAL_MODE == "TPU" else 0.02
-    )
-    if release_strain > maximum_release_strain:
-        raise ValueError(
-            f"The {BAFFLE_CARTRIDGE_MATERIAL_MODE} baffle tongue needs "
-            f"{release_strain:.3%} estimated release strain; maximum="
-            f"{maximum_release_strain:.3%}"
-        )
+    if baffle_uses_tpu_back_tabs():
+        validate_baffle_tpu_back_tab_config(compression)
+    else:
+        validate_baffle_snap_config(compression)
     step_x, step_z = baffle_stop_relief_corner()
     rear_left, rear_right, rear_bottom, rear_top = baffle_body_bounds_at_y(
         BAFFLE_REAR_Y
@@ -2948,6 +3158,18 @@ def validate_config() -> None:
             raise ValueError(
                 "REAR_FAN_ADAPTER_ENABLED requires FAN_OPENING_ENABLED"
             )
+        for name, enabled in (
+            (
+                "REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED",
+                REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED,
+            ),
+            (
+                "REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED",
+                REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED,
+            ),
+        ):
+            if not isinstance(enabled, bool):
+                raise ValueError(f"{name} must be True or False")
         try:
             target_preset = rear_fan_preset()
         except ValueError as error:
@@ -2979,36 +3201,53 @@ def validate_config() -> None:
             raise ValueError(
                 "REAR_FAN_ADAPTER_HORN_WALL_THICKNESS exceeds the rear fan frame"
             )
-        source_hole_radius = (
-            FAN_HOLE_DIAMETER + REAR_FAN_ADAPTER_HOLE_CLEARANCE
-        ) / 2.0
-        target_hole_radius = (
-            float(target_preset["hole_diameter"])
-            + REAR_FAN_ADAPTER_HOLE_CLEARANCE
-        ) / 2.0
+        source_hole_radius = rear_fan_adapter_source_hole_radius()
+        target_hole_radius = rear_fan_adapter_target_hole_radius()
+        source_captive_nuts = REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED
+        target_captive_nuts = REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED
+        self_tapping_thickness = (
+            rear_fan_adapter_self_tapping_flange_thickness_y()
+        )
+        if (
+            not REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED
+            or not REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED
+        ) and self_tapping_thickness < 3.0:
+            raise ValueError(
+                "A self-tapping rear-fan adapter end needs at least 3.0 mm "
+                f"of thread engagement; resolved {self_tapping_thickness:.3f} mm"
+            )
         nut_circumradius = rear_fan_adapter_nut_circumradius()
         if REAR_FAN_ADAPTER_NUT_ACROSS_FLATS <= 0.0:
             raise ValueError(
                 "REAR_FAN_ADAPTER_NUT_ACROSS_FLATS must be positive"
             )
         if (
+            (source_captive_nuts or target_captive_nuts)
+            and (
             REAR_FAN_ADAPTER_NUT_LOAD_SHOULDER_Y
             + REAR_FAN_ADAPTER_NUT_DEPTH_Y
             + BOOLEAN_OVERLAP
             + 0.35
             > REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y
+            )
         ):
             raise ValueError(
                 "The captive-nut load shoulder and chamber must leave at "
                 "least 0.35 mm of horn-side flange wall beyond the Boolean "
                 "overlap"
             )
-        minimum_nut_bearing = min(
-            REAR_FAN_ADAPTER_NUT_ACROSS_FLATS / 2.0
-            - source_hole_radius,
-            REAR_FAN_ADAPTER_NUT_ACROSS_FLATS / 2.0
-            - target_hole_radius,
-        )
+        nut_bearings = []
+        if source_captive_nuts:
+            nut_bearings.append(
+                REAR_FAN_ADAPTER_NUT_ACROSS_FLATS / 2.0
+                - source_hole_radius
+            )
+        if target_captive_nuts:
+            nut_bearings.append(
+                REAR_FAN_ADAPTER_NUT_ACROSS_FLATS / 2.0
+                - target_hole_radius
+            )
+        minimum_nut_bearing = min(nut_bearings, default=math.inf)
         if minimum_nut_bearing < 0.35:
             raise ValueError(
                 "The captive M3 nut would have less than 0.35 mm of radial "
@@ -3025,7 +3264,12 @@ def validate_config() -> None:
             - float(target_preset["hole_spacing"]) / 2.0
             - nut_circumradius
         )
-        if min(source_hardware_edge_gap, target_hardware_edge_gap) < 0.50:
+        captive_edge_gaps = []
+        if source_captive_nuts:
+            captive_edge_gaps.append(source_hardware_edge_gap)
+        if target_captive_nuts:
+            captive_edge_gaps.append(target_hardware_edge_gap)
+        if min(captive_edge_gaps, default=math.inf) < 0.50:
             raise ValueError(
                 "The rear-fan flange lacks a 0.50 mm edge margin around "
                 "the configured M3 captive-nut socket: "
@@ -3067,19 +3311,19 @@ def validate_config() -> None:
             for hole_x, hole_z in target_positions
         )
         if (
-            not rear_fan_adapter_uses_common_through_bolts()
+            target_captive_nuts
             and target_minimum_nut_wall < REAR_FAN_ADAPTER_NUT_MIN_WALL
         ):
             raise ValueError(
                 "The target-side captive M3 nut socket would leave only "
-                f"{target_minimum_nut_wall:.3f} mm at the airway; use the "
-                "centered 40 mm common-through-bolt configuration, select a "
-                "larger fan, or reduce the nut socket/minimum-wall settings. "
+                f"{target_minimum_nut_wall:.3f} mm at the airway; select a "
+                "larger fan, disable target captive nuts, or reduce the nut "
+                "socket/minimum-wall settings. "
                 "A far-side internal boss is intentionally not generated "
                 "because its underside would need trapped support."
             )
         source_requires_boss = (
-            not rear_fan_adapter_uses_common_through_bolts()
+            source_captive_nuts
             and source_minimum_nut_wall < REAR_FAN_ADAPTER_NUT_MIN_WALL
         )
         source_relief_span = 0.0
@@ -4424,14 +4668,54 @@ def rear_fan_adapter_source_flange_size() -> float:
     return min(BACK_OUTER_WIDTH, BACK_OUTER_HEIGHT)
 
 
+def rear_fan_adapter_self_tapping_flange_thickness_y() -> float:
+    """Mirror the back case's pilot-hole face plus its short boss depth."""
+    return BACK_FACE_THICKNESS + (
+        FAN_HOLE_BOSS_HEIGHT if FAN_HOLE_BOSSES_ENABLED else 0.0
+    )
+
+
+def rear_fan_adapter_source_flange_thickness_y() -> float:
+    if REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED:
+        return REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y
+    return rear_fan_adapter_self_tapping_flange_thickness_y()
+
+
+def rear_fan_adapter_target_flange_thickness_y() -> float:
+    if REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED:
+        return REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y
+    return rear_fan_adapter_self_tapping_flange_thickness_y()
+
+
+def rear_fan_adapter_source_hole_radius() -> float:
+    clearance = (
+        REAR_FAN_ADAPTER_HOLE_CLEARANCE
+        if REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED
+        else 0.0
+    )
+    return (FAN_HOLE_DIAMETER + clearance) / 2.0
+
+
+def rear_fan_adapter_target_hole_radius() -> float:
+    if REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED:
+        diameter = float(rear_fan_preset()["hole_diameter"])
+        clearance = REAR_FAN_ADAPTER_HOLE_CLEARANCE
+    else:
+        # A fan frame supplies its own clearance bore; the printed adapter end
+        # needs the same undersized thread-forming pilot used by the back case.
+        diameter = FAN_HOLE_DIAMETER
+        clearance = 0.0
+    return (diameter + clearance) / 2.0
+
+
 def rear_fan_adapter_y_planes():
     source_interface_y = back_exterior_y()
     source_horn_y = (
-        source_interface_y - REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y
+        source_interface_y - rear_fan_adapter_source_flange_thickness_y()
     )
     target_horn_y = source_horn_y - REAR_FAN_ADAPTER_DUCT_LENGTH_Y
     target_interface_y = (
-        target_horn_y - REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y
+        target_horn_y - rear_fan_adapter_target_flange_thickness_y()
     )
     return (
         source_interface_y,
@@ -4447,19 +4731,6 @@ def rear_fan_adapter_source_inner_radius() -> float:
 
 def rear_fan_adapter_target_inner_radius() -> float:
     return float(rear_fan_preset()["opening"]) / 2.0
-
-
-def rear_fan_adapter_uses_common_through_bolts() -> bool:
-    """Return whether all source and target fastener axes coincide."""
-    preset = rear_fan_preset()
-    return (
-        abs(REAR_FAN_OFFSET_X_MM) <= 1.0e-9
-        and abs(REAR_FAN_OFFSET_Z_MM) <= 1.0e-9
-        and abs(float(preset["hole_spacing"]) - FAN_HOLE_SPACING_X)
-        <= 1.0e-9
-        and abs(float(preset["hole_spacing"]) - FAN_HOLE_SPACING_Z)
-        <= 1.0e-9
-    )
 
 
 def rear_fan_adapter_nut_circumradius() -> float:
@@ -4767,18 +5038,13 @@ def create_rear_fan_adapter():
     relief_bosses = []
     hole_cutters = []
     nut_socket_cutters = []
-    common_through_bolts = rear_fan_adapter_uses_common_through_bolts()
-    source_hole_radius = (
-        FAN_HOLE_DIAMETER + REAR_FAN_ADAPTER_HOLE_CLEARANCE
-    ) / 2.0
-    target_hole_radius = (
-        float(preset["hole_diameter"]) + REAR_FAN_ADAPTER_HOLE_CLEARANCE
-    ) / 2.0
+    source_captive_nuts = REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED
+    target_captive_nuts = REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED
+    source_hole_radius = rear_fan_adapter_source_hole_radius()
+    target_hole_radius = rear_fan_adapter_target_hole_radius()
     for index, (hole_x, hole_z) in enumerate(fan_hole_positions(), start=1):
         hole_start_y = source_horn_y - BOOLEAN_OVERLAP
-        if common_through_bolts:
-            hole_start_y = target_interface_y - BOOLEAN_OVERLAP
-        else:
+        if source_captive_nuts:
             if (
                 rear_fan_adapter_nut_nominal_wall(
                     hole_x,
@@ -4828,9 +5094,7 @@ def create_rear_fan_adapter():
         hole_cutters.append(
             add_cylinder_y(
                 f"Rear_Fan_Adapter_Source_Hole_{index}",
-                max(source_hole_radius, target_hole_radius)
-                if common_through_bolts
-                else source_hole_radius,
+                source_hole_radius,
                 hole_start_y,
                 source_interface_y + BOOLEAN_OVERLAP,
                 x=hole_x,
@@ -4849,31 +5113,30 @@ def create_rear_fan_adapter():
     ):
         hole_x = target_x + x_sign * target_spacing / 2.0
         hole_z = target_z + z_sign * target_spacing / 2.0
-        if common_through_bolts:
-            continue
-        chamber_cutter = create_rear_fan_adapter_nut_socket(
-            f"Rear_Fan_Adapter_Target_Nut_{index}",
-            hole_x,
-            hole_z,
-            target_interface_y,
-            1.0,
-        )
-        side_slot_cutter = create_rear_fan_adapter_nut_side_slot(
-            f"Rear_Fan_Adapter_Target_Nut_{index}",
-            hole_x,
-            hole_z,
-            target_interface_y,
-            1.0,
-            target_x,
-            target_flange_size,
-        )
-        boolean_union(
-            chamber_cutter,
-            side_slot_cutter,
-            f"Rear_Fan_Adapter_Target_Nut_{index}_Insertion_Cutter",
-            require_geometry_change=True,
-        )
-        nut_socket_cutters.append(chamber_cutter)
+        if target_captive_nuts:
+            chamber_cutter = create_rear_fan_adapter_nut_socket(
+                f"Rear_Fan_Adapter_Target_Nut_{index}",
+                hole_x,
+                hole_z,
+                target_interface_y,
+                1.0,
+            )
+            side_slot_cutter = create_rear_fan_adapter_nut_side_slot(
+                f"Rear_Fan_Adapter_Target_Nut_{index}",
+                hole_x,
+                hole_z,
+                target_interface_y,
+                1.0,
+                target_x,
+                target_flange_size,
+            )
+            boolean_union(
+                chamber_cutter,
+                side_slot_cutter,
+                f"Rear_Fan_Adapter_Target_Nut_{index}_Insertion_Cutter",
+                require_geometry_change=True,
+            )
+            nut_socket_cutters.append(chamber_cutter)
         hole_cutters.append(
             add_cylinder_y(
                 f"Rear_Fan_Adapter_Target_Hole_{index}",
@@ -5237,6 +5500,100 @@ def cut_sleeve_capture_groove(back):
     return back
 
 
+def baffle_tpu_back_tab_loop_at_y(
+    y: float,
+    side: float,
+    inner_abs_z: float,
+):
+    half_width = BAFFLE_TPU_BACK_TAB_WIDTH_X / 2.0
+    inner_z = side * inner_abs_z
+    shell_z = side * (dome_cavity_half_height_at_y(y) + BOOLEAN_OVERLAP)
+    bottom_z, top_z = sorted((inner_z, shell_z))
+    return [
+        (-half_width, bottom_z),
+        (half_width, bottom_z),
+        (half_width, top_z),
+        (-half_width, top_z),
+    ]
+
+
+def create_baffle_tpu_back_retention_tab(side: float):
+    """Build one thick shell-rooted rail with a square front retaining toe."""
+    rail_rear_y = BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y
+    toe_front_y = baffle_tpu_back_tab_toe_front_y()
+    rail_section_count = 5
+    rail_y_positions = tuple(
+        rail_rear_y
+        + (toe_front_y - rail_rear_y) * index / (rail_section_count - 1)
+        for index in range(rail_section_count)
+    )
+    rail_loops = tuple(
+        baffle_tpu_back_tab_loop_at_y(
+            y,
+            side,
+            baffle_tpu_back_tab_rail_inner_abs_z(),
+        )
+        for y in rail_y_positions
+    )
+    name_side = "Top" if side > 0 else "Bottom"
+    rail = loft_through_loops_y(
+        f"Baffle_TPU_Back_Tab_{name_side}_Rail",
+        rail_loops,
+        rail_y_positions,
+        cap_centers=tuple(
+            (
+                sum(point[0] for point in loop) / len(loop),
+                sum(point[1] for point in loop) / len(loop),
+            )
+            for loop in (rail_loops[0], rail_loops[-1])
+        ),
+    )
+
+    toe_rear_y = baffle_tpu_back_tab_toe_rear_y()
+    toe_y_positions = (toe_rear_y, toe_front_y)
+    toe_loops = tuple(
+        baffle_tpu_back_tab_loop_at_y(
+            y,
+            side,
+            baffle_tpu_back_tab_toe_tip_abs_z(),
+        )
+        for y in toe_y_positions
+    )
+    toe = loft_through_loops_y(
+        f"Baffle_TPU_Back_Tab_{name_side}_Square_Toe",
+        toe_loops,
+        toe_y_positions,
+        cap_centers=tuple(
+            (
+                sum(point[0] for point in loop) / len(loop),
+                sum(point[1] for point in loop) / len(loop),
+            )
+            for loop in toe_loops
+        ),
+    )
+    boolean_union(
+        rail,
+        toe,
+        f"Baffle_TPU_Back_Tab_{name_side}_L_Union",
+        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        require_geometry_change=True,
+    )
+    return rail
+
+
+def add_baffle_tpu_back_retention_tabs(back):
+    for side in (-1.0, 1.0):
+        tab = create_baffle_tpu_back_retention_tab(side)
+        boolean_union(
+            back,
+            tab,
+            f"Baffle_TPU_Back_Tab_{'Top' if side > 0 else 'Bottom'}_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+    return back
+
+
 def create_baffle_snap_receiver(side: float):
     """Build one rib with a square rear catch and a front insertion ramp."""
     rear_y = (
@@ -5281,9 +5638,11 @@ def create_baffle_snap_receiver(side: float):
     )
 
 
-def add_baffle_snap_receivers(back):
+def add_baffle_retention_to_back(back):
     if not BAFFLE_CARTRIDGE_ENABLED:
         return back
+    if baffle_uses_tpu_back_tabs():
+        return add_baffle_tpu_back_retention_tabs(back)
     for side in (-1.0, 1.0):
         receiver = create_baffle_snap_receiver(side)
         boolean_union(
@@ -5480,7 +5839,7 @@ def create_back_shell():
             require_geometry_change=True,
         )
 
-    add_baffle_snap_receivers(back)
+    add_baffle_retention_to_back(back)
 
     # Cut last so later camera-stop and boss unions cannot bridge any portion
     # of the continuous four-sided groove.
@@ -5950,6 +6309,39 @@ def add_baffle_snap_tongues(component):
     return component
 
 
+def add_baffle_tpu_back_shoulders(component):
+    """Add solid front shoulders captured by a TPU back's square L-tabs."""
+    join_overlap = baffle_boolean_join_overlap()
+    shoulder_rear_y = baffle_tpu_back_shoulder_rear_y()
+    shoulder_front_y = BAFFLE_FRONT_Y
+    body_abs_z = BAFFLE_BODY_HEIGHT / 2.0
+    shoulder_outer_abs_z = baffle_tpu_back_shoulder_outer_abs_z()
+    inner_abs_z = body_abs_z - join_overlap
+    for side in (-1.0, 1.0):
+        name_side = "Top" if side > 0 else "Bottom"
+        shoulder = add_box(
+            f"Baffle_TPU_Back_Shoulder_{name_side}",
+            (
+                BAFFLE_TPU_BACK_SHOULDER_WIDTH_X,
+                shoulder_front_y - shoulder_rear_y + join_overlap,
+                shoulder_outer_abs_z - inner_abs_z,
+            ),
+            (
+                0.0,
+                (shoulder_rear_y - join_overlap + shoulder_front_y) / 2.0,
+                side * (inner_abs_z + shoulder_outer_abs_z) / 2.0,
+            ),
+        )
+        boolean_union(
+            component,
+            shoulder,
+            f"Baffle_TPU_Back_Shoulder_{name_side}_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            require_geometry_change=True,
+        )
+    return component
+
+
 def create_baffle_tray():
     outer_sections = baffle_shell_sections(inner=False)
     tray = loft_through_loops_y(
@@ -6057,7 +6449,10 @@ def create_baffle_tray():
     add_baffle_inlet_top_bridge(tray)
     add_baffle_second_end_frame(tray)
     add_baffle_first_lid_sleeve_tab(tray)
-    add_baffle_snap_tongues(tray)
+    if baffle_uses_tpu_back_tabs():
+        add_baffle_tpu_back_shoulders(tray)
+    else:
+        add_baffle_snap_tongues(tray)
     if baffle_gasket_is_integral():
         integral_seal = create_baffle_seal_ring(
             "Baffle_Integral_TPU_Inlet_Seal",
@@ -7592,41 +7987,10 @@ def validate_rear_fan_adapter(adapter) -> None:
             (1.0, 1.0),
         )
     )
-    common_through_bolts = rear_fan_adapter_uses_common_through_bolts()
     nut_socket_count = 0
     reinforced_relief_count = 0
-    if common_through_bolts:
-        through_radius = min(
-            (FAN_HOLE_DIAMETER + REAR_FAN_ADAPTER_HOLE_CLEARANCE) / 2.0,
-            (
-                float(preset["hole_diameter"])
-                + REAR_FAN_ADAPTER_HOLE_CLEARANCE
-            )
-            / 2.0,
-        )
-        for index, (hole_x, hole_z) in enumerate(source_positions, start=1):
-            for y_index, y in enumerate(
-                (
-                    source_flange_mid_y,
-                    (source_horn_y + target_horn_y) / 2.0,
-                    target_flange_mid_y,
-                ),
-                start=1,
-            ):
-                for angle_index, angle in enumerate(
-                    (0.0, math.pi / 2.0, math.pi, 3.0 * math.pi / 2.0),
-                    start=1,
-                ):
-                    probe = (
-                        hole_x + 0.70 * through_radius * math.cos(angle),
-                        y,
-                        hole_z + 0.70 * through_radius * math.sin(angle),
-                    )
-                    if bvh_point_is_inside(bvh, probe):
-                        failures.append(
-                            f"common_bolt_path_{index}_{y_index}_{angle_index}"
-                        )
-    for end_name, positions, horn_center, interface_y, direction, inner_radius, hole_radius, flange_size in (
+    self_tapping_hole_count = 0
+    for end_name, positions, horn_center, interface_y, direction, inner_radius, hole_radius, flange_size, captive_nuts in (
         (
             "source",
             source_positions,
@@ -7634,8 +7998,9 @@ def validate_rear_fan_adapter(adapter) -> None:
             source_interface_y,
             -1.0,
             source_inner,
-            (FAN_HOLE_DIAMETER + REAR_FAN_ADAPTER_HOLE_CLEARANCE) / 2.0,
+            rear_fan_adapter_source_hole_radius(),
             rear_fan_adapter_source_flange_size(),
+            REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED,
         ),
         (
             "target",
@@ -7644,15 +8009,46 @@ def validate_rear_fan_adapter(adapter) -> None:
             target_interface_y,
             1.0,
             target_inner,
-            (
-                float(preset["hole_diameter"])
-                + REAR_FAN_ADAPTER_HOLE_CLEARANCE
-            )
-            / 2.0,
+            rear_fan_adapter_target_hole_radius(),
             float(preset["frame"]),
+            REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED,
         ),
     ):
-        if common_through_bolts:
+        flange_mid_y = interface_y + direction * (
+            (
+                REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y
+                if captive_nuts
+                else rear_fan_adapter_self_tapping_flange_thickness_y()
+            )
+            / 2.0
+        )
+        if not captive_nuts:
+            self_tapping_hole_count += len(positions)
+            for index, (hole_x, hole_z) in enumerate(positions, start=1):
+                for angle_index, angle in enumerate(
+                    (0.0, math.pi / 2.0, math.pi, 3.0 * math.pi / 2.0),
+                    start=1,
+                ):
+                    pilot_probe = (
+                        hole_x + 0.70 * hole_radius * math.cos(angle),
+                        flange_mid_y,
+                        hole_z + 0.70 * hole_radius * math.sin(angle),
+                    )
+                    if bvh_point_is_inside(bvh, pilot_probe):
+                        failures.append(
+                            f"{end_name}_self_tapping_pilot_"
+                            f"{index}_{angle_index}"
+                        )
+                    thread_wall_probe = (
+                        hole_x + (hole_radius + 0.60) * math.cos(angle),
+                        flange_mid_y,
+                        hole_z + (hole_radius + 0.60) * math.sin(angle),
+                    )
+                    if not bvh_point_is_inside(bvh, thread_wall_probe):
+                        failures.append(
+                            f"{end_name}_self_tapping_thread_wall_"
+                            f"{index}_{angle_index}"
+                        )
             continue
         for index, (hole_x, hole_z) in enumerate(positions, start=1):
             nominal_wall = rear_fan_adapter_nut_nominal_wall(
@@ -7780,6 +8176,16 @@ def validate_rear_fan_adapter(adapter) -> None:
             "The source-flange-down adapter lacks broad print-bed contact: "
             f"area={contact_area:.2f} mm2"
         )
+    source_fastener_mode = (
+        "side_loaded_captive_nuts"
+        if REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED
+        else "self_tapping_fan_screws"
+    )
+    target_fastener_mode = (
+        "side_loaded_captive_nuts"
+        if REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED
+        else "self_tapping_fan_screws"
+    )
     print(
         "REAR_FAN_ADAPTER PASS "
         f"source_pattern={FAN_HOLE_SPACING_X:.1f}x{FAN_HOLE_SPACING_Z:.1f}mm "
@@ -7789,12 +8195,21 @@ def validate_rear_fan_adapter(adapter) -> None:
         f"duct_length={REAR_FAN_ADAPTER_DUCT_LENGTH_Y:.2f}mm "
         f"maximum_wall_angle={rear_fan_adapter_max_wall_angle_deg():.2f}deg "
         f"source_face_contact={contact_area:.1f}mm2 "
-        f"fastener_mode={'common_through_bolts' if common_through_bolts else 'side_loaded_captive_nuts'} "
+        f"source_fastener_mode={source_fastener_mode} "
+        f"target_fastener_mode={target_fastener_mode} "
+        f"source_flange_thickness="
+        f"{rear_fan_adapter_source_flange_thickness_y():.2f}mm "
+        f"target_flange_thickness="
+        f"{rear_fan_adapter_target_flange_thickness_y():.2f}mm "
         f"nut_sockets={nut_socket_count} "
+        f"self_tapping_holes={self_tapping_hole_count} "
+        f"self_tapping_pilot_diameter={FAN_HOLE_DIAMETER:.2f}mm "
+        f"self_tapping_thread_depth="
+        f"{rear_fan_adapter_self_tapping_flange_thickness_y():.2f}mm "
         f"reinforced_reliefs={reinforced_relief_count} "
         f"nut_across_flats={REAR_FAN_ADAPTER_NUT_ACROSS_FLATS:.2f}mm "
         f"nut_load_shoulder={REAR_FAN_ADAPTER_NUT_LOAD_SHOULDER_Y:.2f}mm "
-        "nut_insertion_paths=side_open_validated "
+        f"nut_insertion_paths={'side_open_validated' if nut_socket_count else 'none'} "
         "internal_supports=none_side_slots_are_externally_accessible_bridges "
         "external_supports=far_flange_corners_recommended"
     )
@@ -7868,8 +8283,16 @@ def validate_baffle_line_of_sight(back, tray, lid) -> None:
 
 def validate_baffle_assembled_collisions(back, tray, lid) -> None:
     """Reject seated shell/cartridge intersections outside the TPU seal."""
-    tongue_left = -BAFFLE_SNAP_TONGUE_WIDTH_X / 2.0
-    tongue_right = BAFFLE_SNAP_TONGUE_WIDTH_X / 2.0
+    retention_width = (
+        max(
+            BAFFLE_TPU_BACK_TAB_WIDTH_X,
+            BAFFLE_TPU_BACK_SHOULDER_WIDTH_X,
+        )
+        if baffle_uses_tpu_back_tabs()
+        else BAFFLE_SNAP_TONGUE_WIDTH_X
+    )
+    tongue_left = -retention_width / 2.0
+    tongue_right = retention_width / 2.0
     for name, x0, x1, _z0, _z1, attachment in CAMERA_STOP_SPECS:
         if attachment not in {"top", "bottom"}:
             continue
@@ -8045,6 +8468,107 @@ def validate_baffle_snap_retention_sweep(back, tray) -> None:
     )
 
 
+def validate_baffle_tpu_back_tab_retention_sweep(back, tray) -> None:
+    """Require both square toes to block a +Y pull after their running gap."""
+    back_bvh = mesh_bvh(back)
+    nominal_gap = BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y
+    pull_step = 0.02
+    maximum_pull = nominal_gap + min(
+        BAFFLE_TPU_BACK_TAB_TOE_DEPTH_Y / 2.0,
+        0.75,
+    )
+    pull_count = math.ceil(maximum_pull / pull_step)
+    first_contact = {-1: None, 1: None}
+    last_contact_sides = set()
+    x_limit = (
+        max(
+            BAFFLE_TPU_BACK_TAB_WIDTH_X,
+            BAFFLE_TPU_BACK_SHOULDER_WIDTH_X,
+        )
+        / 2.0
+        + 1.0
+    )
+    z_limit = BAFFLE_BODY_HEIGHT / 2.0 + 0.25
+
+    for pull_index in range(pull_count + 1):
+        pull_y = min(pull_index * pull_step, maximum_pull)
+        contacted_sides = set()
+        for tray_face_index, back_face_index in translated_mesh_bvh(
+            tray,
+            (0.0, pull_y, 0.0),
+        ).overlap(back_bvh):
+            tray_center = (
+                tray.data.polygons[tray_face_index].center
+                + Vector((0.0, pull_y, 0.0))
+            )
+            back_center = back.data.polygons[back_face_index].center
+            if (
+                abs(tray_center.x) <= x_limit
+                and abs(back_center.x) <= x_limit
+                and abs(tray_center.z) >= z_limit
+                and abs(back_center.z) >= z_limit
+                and tray_center.z * back_center.z > 0.0
+            ):
+                contacted_sides.add(1 if tray_center.z > 0.0 else -1)
+        for side in contacted_sides:
+            if first_contact[side] is None:
+                first_contact[side] = pull_y
+        if pull_index == pull_count:
+            last_contact_sides = contacted_sides
+
+    missing_sides = [
+        "top" if side > 0 else "bottom"
+        for side, pull_y in first_contact.items()
+        if pull_y is None
+    ]
+    if missing_sides:
+        raise RuntimeError(
+            "The TPU-back square toes did not engage both cartridge shoulders: "
+            + ", ".join(missing_sides)
+        )
+    minimum_expected_contact = (
+        nominal_gap - BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y
+    )
+    maximum_expected_contact = nominal_gap + pull_step + 0.02
+    invalid_contact = {
+        "top" if side > 0 else "bottom": pull_y
+        for side, pull_y in first_contact.items()
+        if not minimum_expected_contact <= pull_y <= maximum_expected_contact
+    }
+    if invalid_contact:
+        raise RuntimeError(
+            "The TPU-back square-toe contact does not match its axial gap: "
+            f"{invalid_contact}"
+        )
+    if last_contact_sides != {-1, 1}:
+        raise RuntimeError(
+            "The TPU-back square toes do not remain blocking through the "
+            f"validated pull; contacted={last_contact_sides}"
+        )
+    worst_case_contacts = {
+        side: pull_y + BAFFLE_TPU_BACK_TAB_AXIAL_TOLERANCE_Y
+        for side, pull_y in first_contact.items()
+    }
+    if any(
+        pull_y >= baffle_gasket_compression() - 1.0e-6
+        for pull_y in worst_case_contacts.values()
+    ):
+        raise RuntimeError(
+            "A TPU-back square toe catches only after gasket preload is lost"
+        )
+    print(
+        "BAFFLE_TPU_BACK_TAB_RETENTION_SWEEP PASS "
+        f"nominal_gap={nominal_gap:.2f}mm "
+        f"bottom_first_contact={first_contact[-1]:.2f}mm "
+        f"top_first_contact={first_contact[1]:.2f}mm "
+        f"continued_blocking_pull={maximum_pull:.2f}mm "
+        f"radial_engagement="
+        f"{BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z:.2f}mm "
+        f"retaining_face_area_each="
+        f"{baffle_tpu_back_tab_retaining_face_area():.1f}mm2"
+    )
+
+
 def validate_baffle_lid_insertion_clearance(tray, lid) -> None:
     """Sweep the lid outward from its seat and reject hidden intersections."""
     offsets_x = (0.0, 0.10, 0.25, 0.50, 1.0, 2.0, 4.0)
@@ -8105,7 +8629,10 @@ def validate_baffle_cartridge(back, components) -> None:
         validate_object(component)
     validate_baffle_line_of_sight(back, tray, lid)
     validate_baffle_assembled_collisions(back, tray, lid)
-    validate_baffle_snap_retention_sweep(back, tray)
+    if baffle_uses_tpu_back_tabs():
+        validate_baffle_tpu_back_tab_retention_sweep(back, tray)
+    else:
+        validate_baffle_snap_retention_sweep(back, tray)
     validate_baffle_lid_insertion_clearance(tray, lid)
 
     print_contact_areas = [
@@ -8661,25 +9188,74 @@ def validate_baffle_cartridge(back, components) -> None:
             raise RuntimeError("Too few gasket-floor support samples were tested")
 
     back_bvh = mesh_bvh(back)
-    receiver_half_height = dome_cavity_half_height_at_y(
-        BAFFLE_SNAP_RECEIVER_Y
-    )
-    for side in (-1.0, 1.0):
-        receiver_probe = (
-            baffle_snap_auxiliary_center_x_at_y(
-                BAFFLE_SNAP_RECEIVER_Y,
-                BAFFLE_SNAP_RECEIVER_DEPTH_Y
-                + 2.0 * baffle_boolean_join_overlap(),
-            ),
-            BAFFLE_SNAP_RECEIVER_Y,
-            side
-            * (
-                receiver_half_height
-                - BAFFLE_SNAP_RECEIVER_PROJECTION_Z / 2.0
-            ),
+    if baffle_uses_tpu_back_tabs():
+        rail_probe_y = BAFFLE_TPU_BACK_TAB_RAIL_REAR_Y + 0.50
+        toe_probe_y = (
+            baffle_tpu_back_tab_toe_rear_y()
+            + baffle_tpu_back_tab_toe_front_y()
+        ) / 2.0
+        shoulder_probe_y = (
+            baffle_tpu_back_shoulder_rear_y() + BAFFLE_FRONT_Y
+        ) / 2.0
+        for side in (-1.0, 1.0):
+            rail_probe = (
+                0.0,
+                rail_probe_y,
+                side
+                * (
+                    baffle_tpu_back_tab_rail_inner_abs_z()
+                    + dome_cavity_half_height_at_y(rail_probe_y)
+                )
+                / 2.0,
+            )
+            toe_probe = (
+                0.0,
+                toe_probe_y,
+                side
+                * (
+                    baffle_tpu_back_tab_toe_tip_abs_z()
+                    + baffle_tpu_back_tab_rail_inner_abs_z()
+                )
+                / 2.0,
+            )
+            shoulder_probe = (
+                0.0,
+                shoulder_probe_y,
+                side
+                * (
+                    BAFFLE_BODY_HEIGHT / 2.0
+                    + baffle_tpu_back_shoulder_outer_abs_z()
+                )
+                / 2.0,
+            )
+            if not bvh_point_is_inside(back_bvh, rail_probe):
+                raise RuntimeError("A TPU-back baffle retention rail is missing")
+            if not bvh_point_is_inside(back_bvh, toe_probe):
+                raise RuntimeError("A TPU-back square retention toe is missing")
+            if not bvh_point_is_inside(tray_bvh, shoulder_probe):
+                raise RuntimeError(
+                    "A cartridge TPU-back capture shoulder is missing"
+                )
+    else:
+        receiver_half_height = dome_cavity_half_height_at_y(
+            BAFFLE_SNAP_RECEIVER_Y
         )
-        if not bvh_point_is_inside(back_bvh, receiver_probe):
-            raise RuntimeError("A back-shell baffle receiver is missing")
+        for side in (-1.0, 1.0):
+            receiver_probe = (
+                baffle_snap_auxiliary_center_x_at_y(
+                    BAFFLE_SNAP_RECEIVER_Y,
+                    BAFFLE_SNAP_RECEIVER_DEPTH_Y
+                    + 2.0 * baffle_boolean_join_overlap(),
+                ),
+                BAFFLE_SNAP_RECEIVER_Y,
+                side
+                * (
+                    receiver_half_height
+                    - BAFFLE_SNAP_RECEIVER_PROJECTION_Z / 2.0
+                ),
+            )
+            if not bvh_point_is_inside(back_bvh, receiver_probe):
+                raise RuntimeError("A back-shell baffle receiver is missing")
 
     inlet_area = baffle_inlet_effective_area()
     first_area, second_area, outlet_area = baffle_throat_areas()
@@ -8689,7 +9265,10 @@ def validate_baffle_cartridge(back, components) -> None:
         f"parts={len(components)} seal="
         f"{'integral_TPU' if gasket is None else 'groove_located_TPU'} "
         "bulk_internal_supports_avoided=True "
-        f"localized_support_advisory=stop_relief_bridge_and_snap_roots "
+        "retention="
+        f"{'TPU_back_square_tabs' if baffle_uses_tpu_back_tabs() else 'snap_hooks'} "
+        "localized_support_advisory="
+        f"{'stop_relief_bridge_and_accessible_tab_toe_undersides' if baffle_uses_tpu_back_tabs() else 'stop_relief_bridge_and_snap_roots'} "
         f"stop_relief_bridge={BAFFLE_FRONT_Y - BAFFLE_REAR_Y:.2f}mm "
         f"body_depth={BAFFLE_FRONT_Y - BAFFLE_REAR_Y:.2f}mm "
         f"camera_clearance={baffle_camera_clearance():.2f}mm "
@@ -8707,12 +9286,24 @@ def validate_baffle_cartridge(back, components) -> None:
         + ")mm "
         "gasket_compression="
         f"{baffle_gasket_compression():.2f}mm "
-        f"snap_interference={baffle_snap_resolved_interference():.2f}mm "
-        f"snap_seated_clearance={baffle_snap_seated_clearance_y():.2f}mm "
-        f"snap_axial_tolerance={BAFFLE_SNAP_AXIAL_TOLERANCE_Y:.2f}mm "
-        f"snap_release_strain={baffle_snap_release_strain():.3%} "
-        "snap_retaining_face_area_each="
-        f"{baffle_snap_nominal_retaining_face_area():.1f}mm2 "
+        + (
+            "tab_axial_clearance="
+            f"{BAFFLE_TPU_BACK_TAB_AXIAL_CLEARANCE_Y:.2f}mm "
+            "tab_radial_engagement="
+            f"{BAFFLE_TPU_BACK_TAB_RADIAL_ENGAGEMENT_Z:.2f}mm "
+            "tab_retaining_face_area_each="
+            f"{baffle_tpu_back_tab_retaining_face_area():.1f}mm2 "
+            if baffle_uses_tpu_back_tabs()
+            else (
+                f"snap_interference={baffle_snap_resolved_interference():.2f}mm "
+                f"snap_seated_clearance={baffle_snap_seated_clearance_y():.2f}mm "
+                f"snap_axial_tolerance={BAFFLE_SNAP_AXIAL_TOLERANCE_Y:.2f}mm "
+                f"snap_release_strain={baffle_snap_release_strain():.3%} "
+                "snap_retaining_face_area_each="
+                f"{baffle_snap_nominal_retaining_face_area():.1f}mm2 "
+            )
+        )
+        +
         "print_bed_contact_areas=("
         + ",".join(f"{area:.1f}" for area in print_contact_areas)
         + ")mm2"
@@ -9453,7 +10044,8 @@ def build_gopro_fan_case():
         f"retainer={RETAINER_MATERIAL_MODE} "
         f"baffle={BAFFLE_CARTRIDGE_MATERIAL_MODE} buttons=TPU "
         f"seal={'integral_TPU' if baffle_gasket_is_integral() else 'separate_TPU'} "
-        f"baffle_retention={baffle_retention_material_profile_name()}"
+        "baffle_retention="
+        f"{'TPU_BACK_SQUARE_TABS' if baffle_uses_tpu_back_tabs() else baffle_retention_material_profile_name()}"
     )
     print(
         f"FRONT_CAMERA_RETAINER enabled={RETAINER_ENABLED} "
