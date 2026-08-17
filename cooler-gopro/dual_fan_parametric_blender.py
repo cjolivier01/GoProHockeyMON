@@ -125,8 +125,8 @@ EXPORT_AIRFLOW_SPLITTER_STL_PATH = None
 # a separate rigid part in every mode; only the holder dimensions and fastener
 # treatment change.  TPU is deliberately stiffened by geometry instead of
 # relying on very high slicer infill.
-MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
-# MATERIAL_MODE = "TPU"
+# MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
+MATERIAL_MODE = "TPU"
 
 # Slicer guidance is informational because STL files cannot encode these
 # settings.  Five to six walls should provide at least a 2.0-2.4 mm shell.
@@ -284,7 +284,10 @@ STALK_ROUTE_DROP_Y = 17.0
 STALK_ROUTE_BACK_Z = 50.0
 STALK_ROUTE_RETURN_RISE_Y = 10.0
 STALK_ROUTE_TRANSITION_ANGLE_DEG = 70.0
-# STALK_WIDTH and STALK_DEPTH_Y are selected in MATERIAL_PROFILES.
+# STALK_ROUTE_DROP_Y, STALK_ROUTE_RETURN_RISE_Y, STALK_WIDTH, and STALK_DEPTH_Y
+# are selected in MATERIAL_PROFILES.  The thicker TPU stalk needs longer
+# transition legs so their inside miters remain between the end print planes;
+# increasing drop and rise equally preserves the configured fan lowering.
 
 # Two-hole receiver block fixed to the end of the stalk.
 MOUNT_BLOCK_ENABLED = True
@@ -357,6 +360,8 @@ _RIGID_MATERIAL_PROFILE = {
     "SUPPORT_ARM_FAN_WIDTH": 22.0,
     "STALK_WIDTH": 16.1,
     "STALK_DEPTH_Y": 10.0,
+    "STALK_ROUTE_DROP_Y": 17.0,
+    "STALK_ROUTE_RETURN_RISE_Y": 10.0,
     "STALK_END_FLARES_ENABLED": False,
     "MOUNT_BLOCK_DEPTH_Y": 10.0,
     "MOUNT_HOLE_DIAMETER": 4.2,
@@ -382,6 +387,8 @@ MATERIAL_PROFILES = {
         "SUPPORT_ARM_FAN_WIDTH": 28.0,
         "STALK_WIDTH": 22.0,
         "STALK_DEPTH_Y": 15.0,
+        "STALK_ROUTE_DROP_Y": 22.0,
+        "STALK_ROUTE_RETURN_RISE_Y": 15.0,
         "STALK_END_FLARES_ENABLED": True,
         "MOUNT_BLOCK_DEPTH_Y": 11.0,
         "MOUNT_HOLE_DIAMETER": 3.6,
@@ -415,6 +422,8 @@ def apply_material_profile() -> None:
     global SUPPORT_ARM_FAN_WIDTH
     global STALK_WIDTH
     global STALK_DEPTH_Y
+    global STALK_ROUTE_DROP_Y
+    global STALK_ROUTE_RETURN_RISE_Y
     global STALK_END_FLARES_ENABLED
     global MOUNT_BLOCK_DEPTH_Y
     global MOUNT_HOLE_DIAMETER
@@ -441,6 +450,8 @@ def apply_material_profile() -> None:
     SUPPORT_ARM_FAN_WIDTH = profile["SUPPORT_ARM_FAN_WIDTH"]
     STALK_WIDTH = profile["STALK_WIDTH"]
     STALK_DEPTH_Y = profile["STALK_DEPTH_Y"]
+    STALK_ROUTE_DROP_Y = profile["STALK_ROUTE_DROP_Y"]
+    STALK_ROUTE_RETURN_RISE_Y = profile["STALK_ROUTE_RETURN_RISE_Y"]
     STALK_END_FLARES_ENABLED = profile["STALK_END_FLARES_ENABLED"]
     MOUNT_BLOCK_DEPTH_Y = profile["MOUNT_BLOCK_DEPTH_Y"]
     MOUNT_HOLE_DIAMETER = profile["MOUNT_HOLE_DIAMETER"]
