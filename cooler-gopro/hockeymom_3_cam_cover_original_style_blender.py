@@ -232,7 +232,7 @@ FOOTPRINT_POINTS = 192
 REAR_TAPER_SOLVER = "keepout"
 REAR_WIDTH_TAPER_SCALE = 0.5
 REAR_WIDTH_TAPER_START_FRACTION = 0.55
-REAR_HEIGHT_REDUCTION = 10.0
+REAR_HEIGHT_REDUCTION = 0.0
 REAR_HEIGHT_TAPER_START_FRACTION = 0.88
 # Minimum untapered run behind the protected camera/mechanism envelope and a
 # slope limit for the roof.  When a request is too aggressive the taper starts
@@ -1215,7 +1215,8 @@ CAMERA_BRACKET_MIN_COUNTERBORE_FLOOR = 1.5
 # the two 40 mm rear-wall stations and their optional acoustic cartridge.
 # "lid_single" replaces them with one external fan on the rear half of the
 # lid.  The lid fan defaults to a Noctua NF-A12x25-sized 120 mm exhaust.
-FAN_MOUNT_MODE = "rear_wall_pair"  # "rear_wall_pair" or "lid_single"
+# FAN_MOUNT_MODE = "rear_wall_pair"  # "rear_wall_pair" or "lid_single"
+FAN_MOUNT_MODE = "lid_single"
 
 # Two 40 mm fan stations on the rounded rear (+X) wall.  Each fan
 # seats against an exact 45 x 45 mm flat plane.  Standard 40 mm fan mounting
@@ -1275,6 +1276,15 @@ LID_FAN_EDGE_CLEARANCE = 3.0
 LID_FAN_FASTENER_KEEPOUT_CLEARANCE = 3.0
 LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO = 0.25
 VALIDATE_LID_FAN_FIT = True
+# A narrow, plug-free cable path runs from the main air opening to the selected
+# fan-frame corner.  Feed the connector through the large opening first, then
+# slide only the thin cable along this slot before seating the fan.  The slot
+# reaches just beyond the fan-frame side while remaining beneath the reinforced
+# seat.  In top view rear is +X and left is +Y.
+LID_FAN_CABLE_SLOT_ENABLED = True
+LID_FAN_CABLE_SLOT_CORNER = "rear_right"  # rear/front + left/right
+LID_FAN_CABLE_SLOT_WIDTH = 4.0
+LID_FAN_CABLE_SLOT_CORNER_INSET = 15.0
 # Treat the two lens/mouth gaps as the primary front flow openings: exhausts
 # for rear-wall intake fans, or inlets for the default lid-fan exhaust flow.
 # This avoids adding separate rain/debris-facing shell perforations.
@@ -1619,6 +1629,55 @@ def lid_fan_mount_centers():
             (1.0, 1.0),
         )
     )
+
+
+def lid_fan_cable_slot_geometry():
+    """Return the centerline geometry for the lid-fan cable feed slot."""
+    if not LID_FAN_CABLE_SLOT_ENABLED:
+        return None
+    corner_signs = {
+        "rear_left": (1.0, 1.0),
+        "rear_right": (1.0, -1.0),
+        "front_left": (-1.0, 1.0),
+        "front_right": (-1.0, -1.0),
+    }
+    try:
+        x_sign, y_sign = corner_signs[LID_FAN_CABLE_SLOT_CORNER]
+    except KeyError as exc:
+        raise ValueError(
+            "LID_FAN_CABLE_SLOT_CORNER must be rear_left, rear_right, "
+            "front_left, or front_right"
+        ) from exc
+
+    dimensions = lid_fan_reference_dimensions()
+    center = (float(LID_FAN_CENTER_X), float(LID_FAN_CENTER_Y))
+    half_frame = dimensions["frame"] / 2.0
+    exit_corner_offset = half_frame - LID_FAN_CABLE_SLOT_CORNER_INSET
+    outer_axis_offset = half_frame + LID_FAN_FLAT_SEAT_EDGE_MARGIN
+    end = (
+        center[0] + x_sign * outer_axis_offset,
+        center[1] + y_sign * exit_corner_offset,
+    )
+    direction_x = end[0] - center[0]
+    direction_y = end[1] - center[1]
+    direction_length = math.hypot(direction_x, direction_y)
+    opening_radius = dimensions["opening"] / 2.0
+    if direction_length <= opening_radius:
+        raise ValueError(
+            "Lid fan cable-slot corner must lie outside the fan air opening"
+        )
+    inner_overlap = max(BOOLEAN_OVERLAP, LID_FAN_CABLE_SLOT_WIDTH / 2.0)
+    start_radius = max(opening_radius - inner_overlap, 0.0)
+    start = (
+        center[0] + direction_x / direction_length * start_radius,
+        center[1] + direction_y / direction_length * start_radius,
+    )
+    return {
+        "start": start,
+        "end": end,
+        "length": math.hypot(end[0] - start[0], end[1] - start[1]),
+        "angle": math.atan2(end[1] - start[1], end[0] - start[0]),
+    }
 
 
 def circular_feature_intersects_lid_fan(position, feature_radius: float) -> bool:
@@ -3474,6 +3533,10 @@ def validate_config() -> None:
         "LID_FAN_FASTENER_KEEPOUT_CLEARANCE": (
             LID_FAN_FASTENER_KEEPOUT_CLEARANCE
         ),
+        "LID_FAN_CABLE_SLOT_WIDTH": LID_FAN_CABLE_SLOT_WIDTH,
+        "LID_FAN_CABLE_SLOT_CORNER_INSET": (
+            LID_FAN_CABLE_SLOT_CORNER_INSET
+        ),
         "BOTTOM_MOUNT_HOLE_DIAMETER": BOTTOM_MOUNT_HOLE_DIAMETER,
         "BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE": (
             BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE
@@ -3598,6 +3661,46 @@ def validate_config() -> None:
         raise ValueError(
             "LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO must be in (0, 1]"
         )
+    if LID_FAN_CABLE_SLOT_CORNER not in {
+        "rear_left",
+        "rear_right",
+        "front_left",
+        "front_right",
+    }:
+        raise ValueError(
+            "LID_FAN_CABLE_SLOT_CORNER must be rear_left, rear_right, "
+            "front_left, or front_right"
+        )
+    if LID_FAN_CABLE_SLOT_ENABLED:
+        half_frame = lid_fan_dimensions["frame"] / 2.0
+        if not (
+            LID_FAN_CABLE_SLOT_WIDTH / 2.0
+            < LID_FAN_CABLE_SLOT_CORNER_INSET
+            < half_frame - LID_FAN_CABLE_SLOT_WIDTH / 2.0
+        ):
+            raise ValueError(
+                "LID_FAN_CABLE_SLOT_CORNER_INSET must keep the full slot "
+                "inside one side of the selected fan corner"
+            )
+        cable_slot = lid_fan_cable_slot_geometry()
+        required_hole_clearance = (
+            LID_FAN_MOUNT_HOLE_DIAMETER / 2.0
+            + LID_FAN_CABLE_SLOT_WIDTH / 2.0
+            + LID_FAN_FASTENER_KEEPOUT_CLEARANCE
+        )
+        for index, mount_center in enumerate(lid_fan_mount_centers(), start=1):
+            actual_clearance = point_segment_distance(
+                mount_center,
+                cable_slot["start"],
+                cable_slot["end"],
+            )
+            if actual_clearance < required_hole_clearance:
+                raise ValueError(
+                    f"Lid fan cable slot is only {actual_clearance:.2f} mm "
+                    f"from mount hole {index}; require "
+                    f"{required_hole_clearance:.2f} mm. Increase "
+                    "LID_FAN_CABLE_SLOT_CORNER_INSET or select another corner."
+                )
     if not 0.0 <= FOOTPRINT_TRIANGULARITY < 0.85:
         raise ValueError("FOOTPRINT_TRIANGULARITY must be between 0 and 0.85")
     if FOOTPRINT_POINTS < 32 or FOOTPRINT_POINTS % 4:
@@ -22744,6 +22847,30 @@ def add_single_lid_fan_mount(lid, footprint):
         center_y,
     )
     boolean_difference(lid, [opening], "Single_Lid_Fan_Air_Opening_Cut")
+    cable_slot = lid_fan_cable_slot_geometry()
+    if cable_slot is not None:
+        slot_start = cable_slot["start"]
+        slot_end = cable_slot["end"]
+        slot = add_beveled_box(
+            "Single_Lid_Fan_Cable_Feed_Slot",
+            (
+                cable_slot["length"],
+                LID_FAN_CABLE_SLOT_WIDTH,
+                cutter_z1 - cutter_z0,
+            ),
+            (
+                (slot_start[0] + slot_end[0]) / 2.0,
+                (slot_start[1] + slot_end[1]) / 2.0,
+                (cutter_z0 + cutter_z1) / 2.0,
+            ),
+            rotation_z=cable_slot["angle"],
+            bevel=0.0,
+        )
+        boolean_difference(
+            lid,
+            [slot],
+            "Single_Lid_Fan_Cable_Feed_Slot_Cut",
+        )
     mount_holes = [
         add_cylinder_z(
             f"Single_Lid_Fan_Mount_Hole_{index}",
@@ -22767,6 +22894,15 @@ def add_single_lid_fan_mount(lid, footprint):
     lid["lid_fan_air_opening_mm"] = dimensions["opening"]
     lid["lid_fan_airflow_direction"] = LID_FAN_AIRFLOW_DIRECTION
     lid["lid_fan_external_mount"] = True
+    lid["lid_fan_cable_slot_enabled"] = LID_FAN_CABLE_SLOT_ENABLED
+    cable_slot_description = "disabled"
+    if cable_slot is not None:
+        lid["lid_fan_cable_slot_width_mm"] = LID_FAN_CABLE_SLOT_WIDTH
+        lid["lid_fan_cable_slot_corner"] = LID_FAN_CABLE_SLOT_CORNER
+        cable_slot_description = (
+            f"{LID_FAN_CABLE_SLOT_WIDTH:.1f}mm_to_"
+            f"{LID_FAN_CABLE_SLOT_CORNER}"
+        )
     print(
         "LID_FAN_MOUNT "
         f"reference=Noctua_{int(dimensions['frame'])}mm "
@@ -22776,7 +22912,8 @@ def add_single_lid_fan_mount(lid, footprint):
         f"opening={dimensions['opening']:.1f} "
         f"center=({center_x:.1f},{center_y:.1f}) external=True "
         f"airflow={LID_FAN_AIRFLOW_DIRECTION} "
-        f"flat_seat_z=({seat_z0:.2f},{seat_z1:.2f})"
+        f"flat_seat_z=({seat_z0:.2f},{seat_z1:.2f}) "
+        f"cable_slot={cable_slot_description}"
     )
     return lid
 
