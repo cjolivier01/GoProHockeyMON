@@ -327,7 +327,7 @@ FEATURE_RULES = (
     FeatureRule(
         "rear_fans",
         "Rear-wall and lid fans, pads and vibration gaskets",
-        "Selectable fan stations, mounting seats, openings, screw patterns and compliant gasket geometry.",
+        "Selectable fan stations, mounting seats, openings, screw patterns, lid cable-feed slot and compliant gasket geometry.",
         (r"^(?:REAR|LID)_FAN_", r"^FAN_GASKET_"),
     ),
     FeatureRule(
