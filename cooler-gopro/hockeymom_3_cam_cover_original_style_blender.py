@@ -1269,9 +1269,15 @@ LID_FAN_CENTER_Y = 0.0
 LID_FAN_AIRFLOW_DIRECTION = "exhaust"  # "exhaust" or "intake"
 LID_FAN_MOUNT_HOLE_DIAMETER = 4.5
 LID_FAN_FLAT_SEAT_EDGE_MARGIN = 2.0
-LID_FAN_FLAT_SEAT_EXTRA_THICKNESS = 2.4
+# Keep the exterior fan seat flush with the lid so the separate lid STL can be
+# printed exterior-face-down without the fan square lifting the surrounding
+# roof off the build plate.  A positive value remains available for prototypes
+# that intentionally use a raised pad, but those exports require support or a
+# different print orientation.
+LID_FAN_FLAT_SEAT_EXTRA_THICKNESS = 0.0
 LID_FAN_FLAT_SEAT_EMBED = 0.8
 LID_FAN_FLAT_SEAT_CORNER_RADIUS = 4.0
+LID_FAN_FLAT_SEAT_PLANARITY_TOLERANCE = 0.10
 LID_FAN_EDGE_CLEARANCE = 3.0
 LID_FAN_FASTENER_KEEPOUT_CLEARANCE = 3.0
 LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO = 0.25
@@ -1279,8 +1285,8 @@ VALIDATE_LID_FAN_FIT = True
 # A narrow, plug-free cable path runs from the main air opening to the selected
 # fan-frame corner.  Feed the connector through the large opening first, then
 # slide only the thin cable along this slot before seating the fan.  The slot
-# reaches just beyond the fan-frame side while remaining beneath the reinforced
-# seat.  In top view rear is +X and left is +Y.
+# reaches just beyond the fan-frame side while remaining within the lid.  In
+# top view rear is +X and left is +Y.
 LID_FAN_CABLE_SLOT_ENABLED = True
 LID_FAN_CABLE_SLOT_CORNER = "rear_right"  # rear/front + left/right
 LID_FAN_CABLE_SLOT_WIDTH = 4.0
@@ -3522,12 +3528,12 @@ def validate_config() -> None:
         "LID_FAN_SIZE_MM": LID_FAN_SIZE_MM,
         "LID_FAN_MOUNT_HOLE_DIAMETER": LID_FAN_MOUNT_HOLE_DIAMETER,
         "LID_FAN_FLAT_SEAT_EDGE_MARGIN": LID_FAN_FLAT_SEAT_EDGE_MARGIN,
-        "LID_FAN_FLAT_SEAT_EXTRA_THICKNESS": (
-            LID_FAN_FLAT_SEAT_EXTRA_THICKNESS
-        ),
         "LID_FAN_FLAT_SEAT_EMBED": LID_FAN_FLAT_SEAT_EMBED,
         "LID_FAN_FLAT_SEAT_CORNER_RADIUS": (
             LID_FAN_FLAT_SEAT_CORNER_RADIUS
+        ),
+        "LID_FAN_FLAT_SEAT_PLANARITY_TOLERANCE": (
+            LID_FAN_FLAT_SEAT_PLANARITY_TOLERANCE
         ),
         "LID_FAN_EDGE_CLEARANCE": LID_FAN_EDGE_CLEARANCE,
         "LID_FAN_FASTENER_KEEPOUT_CLEARANCE": (
@@ -3660,6 +3666,13 @@ def validate_config() -> None:
     if not 0.0 < LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO <= 1.0:
         raise ValueError(
             "LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO must be in (0, 1]"
+        )
+    if (
+        not math.isfinite(LID_FAN_FLAT_SEAT_EXTRA_THICKNESS)
+        or LID_FAN_FLAT_SEAT_EXTRA_THICKNESS < 0.0
+    ):
+        raise ValueError(
+            "LID_FAN_FLAT_SEAT_EXTRA_THICKNESS must be finite and nonnegative"
         )
     if LID_FAN_CABLE_SLOT_CORNER not in {
         "rear_left",
@@ -22824,15 +22837,33 @@ def add_single_lid_fan_mount(lid, footprint):
                     f"{LID_FAN_EDGE_CLEARANCE:.2f} mm"
                 )
     local_tops = [local_lid_top_z(x, y) for x, y in plan_samples]
-    seat_z0 = min(local_tops) - LID_FAN_FLAT_SEAT_EMBED
-    seat_z1 = max(local_tops) + LID_FAN_FLAT_SEAT_EXTRA_THICKNESS
-    seat = add_beveled_box(
-        "Single_Lid_Fan_Flat_Reinforced_Seat",
-        (seat_size, seat_size, seat_z1 - seat_z0),
-        (center_x, center_y, (seat_z0 + seat_z1) / 2.0),
-        bevel=min(LID_FAN_FLAT_SEAT_CORNER_RADIUS, half_seat),
-    )
-    boolean_union(lid, seat, "Single_Lid_Fan_Flat_Seat_Union")
+    local_top_min = min(local_tops)
+    local_top_max = max(local_tops)
+    local_top_variation = local_top_max - local_top_min
+    raised_seat = LID_FAN_FLAT_SEAT_EXTRA_THICKNESS > BOOLEAN_CLEANUP_DISTANCE
+    if raised_seat:
+        seat_z0 = local_top_min - LID_FAN_FLAT_SEAT_EMBED
+        seat_z1 = local_top_max + LID_FAN_FLAT_SEAT_EXTRA_THICKNESS
+        seat = add_beveled_box(
+            "Single_Lid_Fan_Flat_Reinforced_Seat",
+            (seat_size, seat_size, seat_z1 - seat_z0),
+            (center_x, center_y, (seat_z0 + seat_z1) / 2.0),
+            bevel=min(LID_FAN_FLAT_SEAT_CORNER_RADIUS, half_seat),
+        )
+        boolean_union(lid, seat, "Single_Lid_Fan_Flat_Seat_Union")
+        seat_style = "raised"
+    else:
+        if local_top_variation > LID_FAN_FLAT_SEAT_PLANARITY_TOLERANCE:
+            raise ValueError(
+                "Flush lid fan seat spans a non-planar roof: variation="
+                f"{local_top_variation:.2f} mm exceeds "
+                "LID_FAN_FLAT_SEAT_PLANARITY_TOLERANCE="
+                f"{LID_FAN_FLAT_SEAT_PLANARITY_TOLERANCE:.2f} mm. Reduce the "
+                "rear height taper or move the fan onto a planar lid region."
+            )
+        seat_z0 = local_top_min
+        seat_z1 = local_top_max
+        seat_style = "flush_support_free"
 
     cutter_z0 = min(
         local_base_seam_z(x, y) for x, y in plan_samples
@@ -22894,6 +22925,8 @@ def add_single_lid_fan_mount(lid, footprint):
     lid["lid_fan_air_opening_mm"] = dimensions["opening"]
     lid["lid_fan_airflow_direction"] = LID_FAN_AIRFLOW_DIRECTION
     lid["lid_fan_external_mount"] = True
+    lid["lid_fan_seat_style"] = seat_style
+    lid["lid_fan_top_variation_mm"] = local_top_variation
     lid["lid_fan_cable_slot_enabled"] = LID_FAN_CABLE_SLOT_ENABLED
     cable_slot_description = "disabled"
     if cable_slot is not None:
@@ -22912,7 +22945,8 @@ def add_single_lid_fan_mount(lid, footprint):
         f"opening={dimensions['opening']:.1f} "
         f"center=({center_x:.1f},{center_y:.1f}) external=True "
         f"airflow={LID_FAN_AIRFLOW_DIRECTION} "
-        f"flat_seat_z=({seat_z0:.2f},{seat_z1:.2f}) "
+        f"seat={seat_style} top_variation={local_top_variation:.2f}mm "
+        f"seat_z=({seat_z0:.2f},{seat_z1:.2f}) "
         f"cable_slot={cable_slot_description}"
     )
     return lid
