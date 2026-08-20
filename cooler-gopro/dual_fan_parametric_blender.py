@@ -18,6 +18,8 @@ fans relative to the GoPro receiver. For a single fan,
 splitter-vane module that redirects center airflow toward left/right cameras.
 ``STALK_LATERAL_DEFLECTION_X`` shifts the fan array sideways from the receiver
 and angles the stalk between them; zero retains the centered arrangement.
+The detachable adapter defaults to both three- and two-prong GoPro variants,
+so either interface can be printed without rebuilding the fan holder.
 
 Axes:
     X - across the fan array
@@ -117,7 +119,18 @@ EXPORT_STL = False
 # Leave None to derive a count/size-specific holder filename.  Build tooling or
 # Blender console users may set an explicit path to override it.
 EXPORT_STL_PATH = None
-EXPORT_ADAPTER_STL_PATH = "gopro_dual_fan_adapter.stl"
+# Keep the original three-prong filename for compatibility while giving the
+# additional male/two-prong variant an explicit output name.
+EXPORT_ADAPTER_STL_PATHS = {
+    3: "gopro_dual_fan_adapter.stl",
+    2: "gopro_dual_fan_adapter_2_prong.stl",
+}
+# Backward-compatible overrides for callers that previously selected and
+# named a single adapter through --python-expr or Blender's console. Leave
+# these as None to use GOPRO_ADAPTER_PRONG_COUNTS and the path mapping above.
+GOPRO_ADAPTER_PRONG_COUNT = None
+EXPORT_ADAPTER_STL_PATH = None
+_LEGACY_EXPORT_ADAPTER_STL_PATH = "gopro_dual_fan_adapter.stl"
 # Leave None for a size-specific single-fan splitter filename.
 EXPORT_AIRFLOW_SPLITTER_STL_PATH = None
 
@@ -309,7 +322,10 @@ MOUNT_COUNTERSINK_DEPTH = 3.6
 # It remains a separate object in its assembled position so the M3 fasteners
 # and heat inserts remain functional rather than being fused by the body union.
 GOPRO_ADAPTER_ENABLED = True
-GOPRO_ADAPTER_PRONG_COUNT = 3  # 3 matches the STL; set to 2 for a male mount.
+# Generate both detachable interfaces by default. Reorder this tuple to choose
+# which variant appears assembled in Blender, or remove an entry to build only
+# one adapter. The Makefile derives its expected outputs from this selection.
+GOPRO_ADAPTER_PRONG_COUNTS = (3, 2)
 GOPRO_ADAPTER_MATING_GAP = 0.0
 GOPRO_ADAPTER_PLATE_WIDTH = 28.0
 GOPRO_ADAPTER_PLATE_HEIGHT_Z = 18.09
@@ -587,6 +603,25 @@ def resolve_fan_specs():
     return specs
 
 
+def configured_gopro_adapter_prong_counts():
+    if GOPRO_ADAPTER_PRONG_COUNT is not None:
+        return (GOPRO_ADAPTER_PRONG_COUNT,)
+    return GOPRO_ADAPTER_PRONG_COUNTS
+
+
+def configured_gopro_adapter_stl_paths(prong_counts):
+    paths = dict(EXPORT_ADAPTER_STL_PATHS)
+    if GOPRO_ADAPTER_PRONG_COUNT is not None:
+        paths[prong_counts[0]] = (
+            EXPORT_ADAPTER_STL_PATH
+            if EXPORT_ADAPTER_STL_PATH is not None
+            else _LEGACY_EXPORT_ADAPTER_STL_PATH
+        )
+    elif EXPORT_ADAPTER_STL_PATH is not None:
+        paths[prong_counts[0]] = EXPORT_ADAPTER_STL_PATH
+    return paths
+
+
 def validate_config() -> None:
     fan_specs = resolve_fan_specs()
     resolved_hub_width = support_hub_width()
@@ -822,8 +857,44 @@ def validate_config() -> None:
             "to be no greater than STALK_DEPTH_Y"
         )
 
-    if GOPRO_ADAPTER_PRONG_COUNT not in {2, 3}:
-        raise ValueError("GOPRO_ADAPTER_PRONG_COUNT must be 2 or 3")
+    adapter_prong_counts = configured_gopro_adapter_prong_counts()
+    if not isinstance(adapter_prong_counts, (tuple, list)):
+        raise ValueError(
+            "Configured GoPro adapter prong counts must be a tuple or list"
+        )
+    if not adapter_prong_counts:
+        raise ValueError("Configured GoPro adapter prong counts cannot be empty")
+    if any(
+        not isinstance(prong_count, int) or prong_count not in {2, 3}
+        for prong_count in adapter_prong_counts
+    ):
+        raise ValueError(
+            "Configured GoPro adapter prong counts may contain only "
+            "integer 2 and 3"
+        )
+    if len(set(adapter_prong_counts)) != len(adapter_prong_counts):
+        raise ValueError("Configured GoPro adapter prong counts cannot duplicate")
+    if not isinstance(EXPORT_ADAPTER_STL_PATHS, dict):
+        raise ValueError("EXPORT_ADAPTER_STL_PATHS must be a dictionary")
+    adapter_stl_paths = configured_gopro_adapter_stl_paths(
+        adapter_prong_counts
+    )
+    missing_adapter_paths = set(adapter_prong_counts) - set(adapter_stl_paths)
+    if missing_adapter_paths:
+        raise ValueError(
+            "EXPORT_ADAPTER_STL_PATHS is missing prong counts: "
+            + ", ".join(str(count) for count in sorted(missing_adapter_paths))
+        )
+    selected_adapter_paths = []
+    for prong_count in adapter_prong_counts:
+        output_path = adapter_stl_paths[prong_count]
+        if not isinstance(output_path, (str, Path)) or not str(output_path):
+            raise ValueError(
+                f"EXPORT_ADAPTER_STL_PATHS[{prong_count}] must be a path"
+            )
+        selected_adapter_paths.append(str(Path(output_path)))
+    if len(set(selected_adapter_paths)) != len(selected_adapter_paths):
+        raise ValueError("GoPro adapter variants must use distinct STL paths")
     if GOPRO_ADAPTER_MATING_GAP < 0.0:
         raise ValueError("GOPRO_ADAPTER_MATING_GAP cannot be negative")
     if GOPRO_ADAPTER_ENABLED and not MOUNT_BLOCK_ENABLED:
@@ -844,12 +915,16 @@ def validate_config() -> None:
     )
     if adapter_hole_extent_z >= GOPRO_ADAPTER_PLATE_HEIGHT_Z / 2.0:
         raise ValueError("GoPro adapter insert sockets do not fit vertically")
-    prong_pack_width = (
-        GOPRO_ADAPTER_PRONG_COUNT * GOPRO_PRONG_THICKNESS
-        + (GOPRO_ADAPTER_PRONG_COUNT - 1) * GOPRO_PRONG_GAP
-    )
-    if prong_pack_width >= GOPRO_ADAPTER_ROOT_WIDTH:
-        raise ValueError("GoPro prong pack must be narrower than the adapter root")
+    for prong_count in adapter_prong_counts:
+        prong_pack_width = (
+            prong_count * GOPRO_PRONG_THICKNESS
+            + (prong_count - 1) * GOPRO_PRONG_GAP
+        )
+        if prong_pack_width >= GOPRO_ADAPTER_ROOT_WIDTH:
+            raise ValueError(
+                f"{prong_count}-prong GoPro pack must be narrower than "
+                "the adapter root"
+            )
     if GOPRO_PIVOT_HOLE_DIAMETER >= 2.0 * GOPRO_PRONG_RADIUS:
         raise ValueError("GOPRO_PIVOT_HOLE_DIAMETER must fit inside the prongs")
     if GOPRO_NUT_ACROSS_FLATS <= GOPRO_PIVOT_HOLE_DIAMETER:
@@ -2485,12 +2560,12 @@ def create_mount_block():
     return block
 
 
-def gopro_prong_centers_x():
+def gopro_prong_centers_x(prong_count: int):
     pitch = GOPRO_PRONG_THICKNESS + GOPRO_PRONG_GAP
-    center_index = (GOPRO_ADAPTER_PRONG_COUNT - 1) / 2.0
+    center_index = (prong_count - 1) / 2.0
     return [
         (index - center_index) * pitch
-        for index in range(GOPRO_ADAPTER_PRONG_COUNT)
+        for index in range(prong_count)
     ]
 
 
@@ -2509,7 +2584,7 @@ def gopro_prong_profile(root_y: float, pivot_y: float, pivot_z: float):
     return points
 
 
-def create_gopro_adapter():
+def create_gopro_adapter(prong_count: int):
     mount_hole_z = mount_block_center_z()
     mating_y = (
         mount_stalk_center_y()
@@ -2560,7 +2635,9 @@ def create_gopro_adapter():
         pivot_z,
     )
     prong_bounds = []
-    for index, center_x in enumerate(gopro_prong_centers_x(), start=1):
+    for index, center_x in enumerate(
+        gopro_prong_centers_x(prong_count), start=1
+    ):
         x0 = center_x - GOPRO_PRONG_THICKNESS / 2.0
         x1 = center_x + GOPRO_PRONG_THICKNESS / 2.0
         prong_bounds.append((x0, x1))
@@ -2574,9 +2651,7 @@ def create_gopro_adapter():
 
     left_prong_x = min(x0 for x0, _ in prong_bounds)
     right_prong_x = max(x1 for _, x1 in prong_bounds)
-    nut_trap_enabled = (
-        GOPRO_NUT_TRAP_ENABLED and GOPRO_ADAPTER_PRONG_COUNT == 3
-    )
+    nut_trap_enabled = GOPRO_NUT_TRAP_ENABLED and prong_count == 3
     pivot_cut_x0 = left_prong_x - BOOLEAN_OVERLAP
     if nut_trap_enabled:
         boss_outer_x = left_prong_x - GOPRO_NUT_BOSS_DEPTH
@@ -2655,7 +2730,7 @@ def create_gopro_adapter():
         )
     boolean_difference(adapter, insert_cuts, "GoPro_M3_Heat_Insert_Sockets")
 
-    adapter.name = f"Detachable_GoPro_Adapter_{GOPRO_ADAPTER_PRONG_COUNT}_Prong"
+    adapter.name = f"Detachable_GoPro_Adapter_{prong_count}_Prong"
     adapter.data.name = adapter.name + "_Mesh"
     return adapter
 
@@ -2853,6 +2928,10 @@ def build_dual_fan():
         apply_material_profile()
     validate_config()
     fan_specs = resolve_fan_specs()
+    adapter_prong_counts = tuple(configured_gopro_adapter_prong_counts())
+    adapter_stl_paths = configured_gopro_adapter_stl_paths(
+        adapter_prong_counts
+    )
     if CLEAR_SCENE:
         clear_scene()
     set_units()
@@ -2879,7 +2958,14 @@ def build_dual_fan():
         print_plane_contacts.append(("stalk_end", stalk))
     if MOUNT_BLOCK_ENABLED:
         parts.append(create_mount_block())
-    gopro_adapter = create_gopro_adapter() if GOPRO_ADAPTER_ENABLED else None
+    gopro_adapters = (
+        [
+            create_gopro_adapter(prong_count)
+            for prong_count in adapter_prong_counts
+        ]
+        if GOPRO_ADAPTER_ENABLED
+        else []
+    )
     airflow_splitter = (
         create_single_fan_airflow_splitter(fan_specs[0])
         if SINGLE_FAN_AIRFLOW_SPLITTER_ENABLED
@@ -2923,8 +3009,7 @@ def build_dual_fan():
                 part, fan_specs, wire_slot_extent_vertices
             )
     final_objects = list(holder_objects)
-    if gopro_adapter is not None:
-        final_objects.append(gopro_adapter)
+    final_objects.extend(gopro_adapters)
     if airflow_splitter is not None:
         final_objects.append(airflow_splitter)
     for part in final_objects:
@@ -2972,6 +3057,16 @@ def build_dual_fan():
         f"global_x_width={STALK_WIDTH * stalk_lateral_width_scale():.2f}mm"
     )
     print(f"FAN_COUNT={FAN_COUNT}")
+    if gopro_adapters:
+        print(
+            "GOPRO_ADAPTER_VARIANTS="
+            + ",".join(
+                f"{prong_count}-prong"
+                for prong_count in adapter_prong_counts
+            )
+        )
+    else:
+        print("GOPRO_ADAPTER_VARIANTS=DISABLED")
     if airflow_splitter is not None:
         clearance_notch = (
             "enabled"
@@ -3007,7 +3102,7 @@ def build_dual_fan():
             f"walls={TPU_RECOMMENDED_WALLS[0]}-"
             f"{TPU_RECOMMENDED_WALLS[1]}"
         )
-        print("Detachable_GoPro_Adapter material=RIGID")
+        print("Detachable_GoPro_Adapters material=RIGID")
         print(
             "TPU_MOUNT_HARDWARE "
             f"M3_screw_extra_length={TPU_MOUNT_SCREW_EXTRA_LENGTH_MM:.1f}mm"
@@ -3021,9 +3116,13 @@ def build_dual_fan():
         )
         holder_path = export_stl(holder_objects, holder_output_path)
         print(f"Wrote holder {holder_path}")
-        if gopro_adapter is not None:
-            adapter_path = export_stl([gopro_adapter], EXPORT_ADAPTER_STL_PATH)
-            print(f"Wrote rigid adapter {adapter_path}")
+        for prong_count, adapter in zip(
+            adapter_prong_counts, gopro_adapters
+        ):
+            adapter_path = export_stl(
+                [adapter], adapter_stl_paths[prong_count]
+            )
+            print(f"Wrote rigid {prong_count}-prong adapter {adapter_path}")
         if airflow_splitter is not None:
             splitter_output_path = (
                 EXPORT_AIRFLOW_SPLITTER_STL_PATH
@@ -3035,6 +3134,13 @@ def build_dual_fan():
                 splitter_output_path,
             )
             print(f"Wrote airflow splitter {splitter_path}")
+
+    # Keep the first configured adapter assembled. Move additional variants
+    # aside only after export so their STL coordinates retain the same mating
+    # datum and print orientation as the original adapter.
+    display_pitch = GOPRO_ADAPTER_PLATE_WIDTH + 2.0 * GOPRO_PRONG_RADIUS
+    for display_index, adapter in enumerate(gopro_adapters[1:], start=1):
+        adapter.location.x += display_index * display_pitch
 
     select_only(final)
     return final
