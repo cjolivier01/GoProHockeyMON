@@ -2594,10 +2594,8 @@ def fan_camera_rear_wash_metrics(station, camera, yaw_delta=0.0):
     )
 
 
-def validate_forced_air_camera_wash(footprint, cameras):
-    """Require one rear fan to wash each camera throughout its yaw sweep."""
-    if not rear_wall_fans_enabled():
-        return
+def resolved_rear_fan_camera_pairing(footprint, cameras):
+    """Return the fan/camera pairing with the best worst-yaw plume wash."""
     stations = sorted(
         (
             rear_fan_station_geometry(footprint, tangent)
@@ -2633,7 +2631,14 @@ def validate_forced_air_camera_wash(footprint, cameras):
                 minimum_ratio = min(minimum_ratio, ratio)
         return minimum_ratio
 
-    pairing = max(candidate_pairings, key=pairing_score)
+    return max(candidate_pairings, key=pairing_score)
+
+
+def validate_forced_air_camera_wash(footprint, cameras):
+    """Require one rear fan to wash each camera throughout its yaw sweep."""
+    if not rear_wall_fans_enabled():
+        return
+    pairing = resolved_rear_fan_camera_pairing(footprint, cameras)
     for fan_index, (station, camera) in enumerate(pairing, start=1):
         yaw_samples = (
             adjustable_yaw_samples(include_preview=True)
@@ -15532,6 +15537,46 @@ def point_inside_bvh_parity(tree, point):
     return inside_votes >= 2
 
 
+def closed_mesh_winding_occupancy(obj, points):
+    """Classify points against one closed mesh by generalized winding angle."""
+    points = tuple(tuple(float(value) for value in point) for point in points)
+    if not points:
+        return ()
+    obj.data.calc_loop_triangles()
+    world_matrix = current_object_world_matrix(obj)
+    world_vertices = tuple(
+        world_matrix @ vertex.co for vertex in obj.data.vertices
+    )
+    triangles = tuple(
+        tuple(world_vertices[index] for index in triangle.vertices)
+        for triangle in obj.data.loop_triangles
+    )
+    results = []
+    for point_values in points:
+        point = Vector(point_values)
+        solid_angle = 0.0
+        for first, second, third in triangles:
+            a = first - point
+            b = second - point
+            c = third - point
+            a_length = a.length
+            b_length = b.length
+            c_length = c.length
+            if min(a_length, b_length, c_length) <= 1e-10:
+                solid_angle = 4.0 * math.pi
+                break
+            numerator = a.dot(b.cross(c))
+            denominator = (
+                a_length * b_length * c_length
+                + a.dot(b) * c_length
+                + b.dot(c) * a_length
+                + c.dot(a) * b_length
+            )
+            solid_angle += 2.0 * math.atan2(numerator, denominator)
+        results.append(abs(solid_angle) > 2.0 * math.pi)
+    return tuple(results)
+
+
 def validate_acoustic_lid_counterbore_floors(cassette):
     """Measure the final remeshed plate floor below each socket head."""
     if cassette is None:
@@ -17093,25 +17138,19 @@ def paired_airflow_guide_wall_records(
     )
 
 
-def trim_airflow_guide_wall_before_loop(record, keepout_loop, clearance):
-    """Shorten a wall at its first entry into a closed XY service loop."""
-    start = record["start"]
-    end = record["end"]
+def segment_polygon_inside_intervals(start, end, loop):
+    """Return fractional intervals where an XY segment is inside a polygon."""
+    start = Vector(start)
+    end = Vector(end)
     delta = end - start
-    length = delta.length
-    if point_in_polygon((start.x, start.y), keepout_loop):
-        raise ValueError(
-            f"Air-guide wall {record['label']} starts inside its service "
-            "keepout"
-        )
 
     def cross_2d(first, second):
         return first[0] * second[1] - first[1] * second[0]
 
     direction = (delta.x, delta.y)
-    fractions = []
-    for index, point in enumerate(keepout_loop):
-        following = keepout_loop[(index + 1) % len(keepout_loop)]
+    fractions = {0.0, 1.0}
+    for index, point in enumerate(loop):
+        following = loop[(index + 1) % len(loop)]
         edge = (following[0] - point[0], following[1] - point[1])
         denominator = cross_2d(direction, edge)
         if abs(denominator) <= 1e-10:
@@ -17123,34 +17162,42 @@ def trim_airflow_guide_wall_before_loop(record, keepout_loop, clearance):
             -1e-9 <= wall_fraction <= 1.0 + 1e-9
             and -1e-9 <= edge_fraction <= 1.0 + 1e-9
         ):
-            fractions.append(min(max(wall_fraction, 0.0), 1.0))
-    fractions = sorted(
-        {
-            round(fraction, 12)
-            for fraction in fractions
-        }
-    )
-    entry_fraction = None
-    for fraction_index, fraction in enumerate(fractions):
-        following_fraction = (
-            fractions[fraction_index + 1]
-            if fraction_index + 1 < len(fractions)
-            else 1.0
-        )
-        probe_fraction = min(
-            fraction + max((following_fraction - fraction) / 2.0, 1e-7),
-            1.0,
-        )
+            fractions.add(round(min(max(wall_fraction, 0.0), 1.0), 12))
+    fractions = sorted(fractions)
+    intervals = []
+    for first, following in zip(fractions, fractions[1:]):
+        if following - first <= 1e-10:
+            continue
+        probe_fraction = (first + following) / 2.0
         probe = start + delta * probe_fraction
-        if point_in_polygon((probe.x, probe.y), keepout_loop):
-            entry_fraction = fraction
-            break
-    if entry_fraction is None:
+        if point_in_polygon((probe.x, probe.y), loop):
+            intervals.append((first, following))
+    return tuple(intervals)
+
+
+def trim_airflow_guide_wall_before_loop(record, keepout_loop, clearance):
+    """Shorten a wall at its first entry into a closed XY service loop."""
+    start = record["start"]
+    end = record["end"]
+    delta = end - start
+    length = delta.length
+    if point_in_polygon((start.x, start.y), keepout_loop):
+        raise ValueError(
+            f"Air-guide wall {record['label']} starts inside its service "
+            "keepout"
+        )
+    inside_intervals = segment_polygon_inside_intervals(
+        start,
+        end,
+        keepout_loop,
+    )
+    if not inside_intervals:
         if point_in_polygon((end.x, end.y), keepout_loop):
             raise RuntimeError(
                 f"Could not resolve service entry for {record['label']}"
             )
         return record
+    entry_fraction = inside_intervals[0][0]
     trimmed_fraction = entry_fraction - clearance / length
     if trimmed_fraction <= 0.0:
         raise ValueError(
@@ -17183,6 +17230,78 @@ def clear_airflow_guide_records_from_camera_service(records, camera):
         )
         for record in records
     )
+
+
+def clear_airflow_guide_records_from_worm_cap_sources(records, mechanism):
+    """Advance wall sources that begin inside a removable worm-cap keepout."""
+    if mechanism is None or CAMERA_WORM_BEARING_MOUNT_STYLE != "split_caps":
+        return tuple(records)
+    mount = worm_split_mount_geometry(mechanism)
+    direction = Vector(mount["direction"])
+    tangent = Vector(mount["tangent"])
+    half_length = (
+        worm_cap_plan_half_length()
+        + AIR_GUIDE_CAMERA_CLEARANCE
+        + AIR_GUIDE_VANE_THICKNESS / 2.0
+    )
+    half_width = (
+        worm_cap_plan_half_width()
+        + AIR_GUIDE_CAMERA_CLEARANCE
+        + AIR_GUIDE_VANE_THICKNESS / 2.0
+    )
+    keepout_loops = tuple(
+        tuple(
+            tuple(
+                (
+                    Vector((point.x, point.y, 0.0))
+                    + direction * axial_sign * half_length
+                    + tangent * tangent_sign * half_width
+                )[:2]
+            )
+            for axial_sign, tangent_sign in (
+                (-1.0, -1.0),
+                (1.0, -1.0),
+                (1.0, 1.0),
+                (-1.0, 1.0),
+            )
+        )
+        for point in (
+            mechanism["inner_block"],
+            mechanism["outer_block"],
+        )
+    )
+    cleared = []
+    for original in records:
+        record = original
+        for keepout_loop in keepout_loops:
+            intervals = segment_polygon_inside_intervals(
+                record["start"],
+                record["end"],
+                keepout_loop,
+            )
+            if not intervals or intervals[0][0] > 1e-8:
+                continue
+            exit_fraction = intervals[0][1]
+            delta = record["end"] - record["start"]
+            new_start = record["start"] + delta * min(
+                exit_fraction
+                + BOOLEAN_OVERLAP / max(record["length"], 1e-9),
+                1.0,
+            )
+            record = airflow_guide_wall_record(
+                record["label"],
+                new_start,
+                record["end"],
+                record["camera_index"],
+                record["source_kind"],
+            )
+            print(
+                "AIR_GUIDE_WORM_CAP_SOURCE_TRIM "
+                f"label={record['label']} "
+                f"trimmed={original['length'] - record['length']:.2f}mm"
+            )
+        cleared.append(record)
+    return tuple(cleared)
 
 
 def camera_service_lane_wall_records(
@@ -17263,11 +17382,163 @@ def airflow_guide_camera_service_target(camera, face):
     return target, half_span
 
 
+def validate_direct_rear_airflow_guide_alignment(
+    footprint,
+    cameras,
+    records,
+):
+    """Prove each camera-local rear funnel is fed by its resolved fan plume."""
+    records_by_camera = {
+        camera["index"]: tuple(
+            record
+            for record in records
+            if record["camera_index"] == camera["index"]
+        )
+        for camera in cameras
+    }
+    pairing = resolved_rear_fan_camera_pairing(footprint, cameras)
+    plume_slope = math.tan(
+        math.radians(CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG)
+    )
+    initial_radius = REAR_FAN_AIR_OPENING_DIAMETER / 2.0
+    for fan_index, (station, camera) in enumerate(pairing, start=1):
+        camera_records = records_by_camera[camera["index"]]
+        if len(camera_records) != 2:
+            raise RuntimeError(
+                f"Direct rear funnel for camera {camera['index']} must have "
+                "exactly two walls"
+            )
+        opening_center = sum(
+            (record["start"] for record in camera_records),
+            Vector((0.0, 0.0, 0.0)),
+        ) / 2.0
+        opening_center.z = REAR_FAN_CENTER_Z
+        origin, direction = fan_discharge_geometry(station)
+        delta = opening_center - origin
+        axial_distance = delta.dot(direction)
+        transverse_distance = math.sqrt(
+            max(
+                delta.length_squared - axial_distance * axial_distance,
+                0.0,
+            )
+        )
+        plume_radius = initial_radius + axial_distance * plume_slope
+        plume_margin = plume_radius - transverse_distance
+        yaw_samples = (
+            adjustable_yaw_samples(include_preview=True)
+            if camera_is_adjustable(camera)
+            else (0.0,)
+        )
+        wash_records = tuple(
+            (
+                yaw_delta,
+                *fan_camera_rear_wash_metrics(
+                    station,
+                    camera,
+                    yaw_delta,
+                ),
+            )
+            for yaw_delta in yaw_samples
+        )
+        worst_wash = min(wash_records, key=lambda record: record[1])
+        minimum_incidence = min(record[2] for record in wash_records)
+        if axial_distance <= 0.0:
+            raise ValueError(
+                f"Rear fan {fan_index} discharges away from camera "
+                f"{camera['index']} funnel opening"
+            )
+        if plume_margin < 0.0:
+            raise ValueError(
+                f"Rear fan {fan_index} plume misses camera "
+                f"{camera['index']} funnel opening by {-plume_margin:.2f} mm"
+            )
+        if worst_wash[1] < CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO:
+            raise ValueError(
+                f"Rear fan {fan_index} paired with camera {camera['index']} "
+                f"has only {worst_wash[1]:.3f} rear-face wash"
+            )
+        if minimum_incidence < CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE:
+            raise ValueError(
+                f"Rear fan {fan_index} paired with camera {camera['index']} "
+                f"has incidence cosine {minimum_incidence:.3f}"
+            )
+        print(
+            "AIR_GUIDE_REAR_FAN_ALIGNMENT "
+            f"fan={fan_index} camera={camera['index']} "
+            f"axial_distance={axial_distance:.2f}mm "
+            f"transverse_offset={transverse_distance:.2f}mm "
+            f"plume_radius={plume_radius:.2f}mm "
+            f"plume_margin={plume_margin:.2f}mm "
+            f"minimum_wash={worst_wash[1]:.3f} "
+            f"worst_yaw={worst_wash[0]:+.2f}deg"
+        )
+
+
+def align_direct_rear_airflow_guide_sources(footprint, cameras, records):
+    """Nudge each local funnel opening into its paired rear-fan plume."""
+    adjusted = list(records)
+    plume_slope = math.tan(
+        math.radians(CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG)
+    )
+    initial_radius = REAR_FAN_AIR_OPENING_DIAMETER / 2.0
+    desired_margin = AIR_GUIDE_SOURCE_SERVICE_GAP
+    for fan_index, (station, camera) in enumerate(
+        resolved_rear_fan_camera_pairing(footprint, cameras),
+        start=1,
+    ):
+        indices = tuple(
+            index
+            for index, record in enumerate(adjusted)
+            if record["camera_index"] == camera["index"]
+        )
+        if len(indices) != 2:
+            raise RuntimeError(
+                f"Direct rear funnel for camera {camera['index']} must have "
+                "exactly two source walls"
+            )
+        opening_center = sum(
+            (adjusted[index]["start"] for index in indices),
+            Vector((0.0, 0.0, 0.0)),
+        ) / 2.0
+        opening_center.z = REAR_FAN_CENTER_Z
+        origin, direction = fan_discharge_geometry(station)
+        delta = opening_center - origin
+        axial_distance = delta.dot(direction)
+        plume_center = origin + direction * axial_distance
+        transverse = opening_center - plume_center
+        transverse_distance = transverse.length
+        plume_radius = initial_radius + axial_distance * plume_slope
+        allowed_offset = max(plume_radius - desired_margin, 0.0)
+        if transverse_distance <= allowed_offset or transverse_distance <= 1e-9:
+            continue
+        shift = -transverse * (
+            (transverse_distance - allowed_offset) / transverse_distance
+        )
+        shift.z = 0.0
+        for index in indices:
+            record = adjusted[index]
+            adjusted[index] = airflow_guide_wall_record(
+                record["label"],
+                record["start"] + shift,
+                record["end"],
+                record["camera_index"],
+                record["source_kind"],
+            )
+        print(
+            "AIR_GUIDE_REAR_FAN_SOURCE_ALIGNMENT "
+            f"fan={fan_index} camera={camera['index']} "
+            f"shift=({shift.x:.2f},{shift.y:.2f})mm "
+            f"target_plume_margin={desired_margin:.2f}mm"
+        )
+    return tuple(adjusted)
+
+
 def resolve_airflow_guide_layout(
     footprint,
     cameras,
     acoustic_layout=None,
     bottom_mount_hole_position=None,
+    mechanism=None,
 ):
     """Resolve mode-specific vanes without changing the camera/shell solve."""
     if not airflow_guide_vanes_enabled():
@@ -17339,6 +17610,31 @@ def resolve_airflow_guide_layout(
             )
         source_description = "rear_camera_funnels"
         service_circles = ()
+    records = list(
+        clear_airflow_guide_records_from_worm_cap_sources(
+            records,
+            mechanism,
+        )
+    )
+    if source_description == "rear_camera_funnels":
+        records = list(
+            align_direct_rear_airflow_guide_sources(
+                footprint,
+                cameras,
+                records,
+            )
+        )
+        records = list(
+            clear_airflow_guide_records_from_worm_cap_sources(
+                records,
+                mechanism,
+            )
+        )
+        validate_direct_rear_airflow_guide_alignment(
+            footprint,
+            cameras,
+            records,
+        )
     if BOTTOM_MOUNT_HOLE_ENABLED and bottom_mount_hole_position is not None:
         mount_radius = (
             BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0
@@ -17372,94 +17668,174 @@ def resolve_airflow_guide_layout(
     }
 
 
-def create_airflow_guide_usb_notch(camera, yaw_delta, guide_top_z):
-    """Create one top-open connector/cable service cutter for the vanes."""
+def airflow_guide_usb_notch_geometry(camera, yaw_delta, guide_top_z):
+    """Return the shared plan and height geometry for one USB vane notch."""
     radial, tangent, vertical = camera_usb_local_access_bounds()
     extra = AIR_GUIDE_USB_NOTCH_EXTRA_CLEARANCE
     radial = (radial[0] - extra, radial[1] + extra)
     tangent = (tangent[0] - extra, tangent[1] + extra)
     notch_bottom = camera_eye_center_z() + vertical[0] - extra
     notch_top = guide_top_z + BOOLEAN_OVERLAP
-    center_z = (notch_bottom + notch_top) / 2.0
+    local_corners = (
+        (radial[0], tangent[0]),
+        (radial[1], tangent[0]),
+        (radial[1], tangent[1]),
+        (radial[0], tangent[1]),
+    )
     if camera_is_adjustable(camera):
-        center = adjustable_camera_local_point(
-            camera,
-            sum(radial) / 2.0,
-            sum(tangent) / 2.0,
-            center_z,
-            yaw_delta,
+        loop = tuple(
+            tuple(
+                adjustable_camera_local_point(
+                    camera,
+                    local_radial,
+                    local_tangent,
+                    0.0,
+                    yaw_delta,
+                )[:2]
+            )
+            for local_radial, local_tangent in local_corners
         )
     else:
         lens_face_radius = camera["radial"] + CAMERA_BODY_DEPTH / 2.0
-        center = axis_point(
-            camera["angle"],
-            lens_face_radius + sum(radial) / 2.0,
-            camera["eye_tangent"] + sum(tangent) / 2.0,
-            center_z,
+        loop = tuple(
+            tuple(
+                axis_point(
+                    camera["angle"],
+                    lens_face_radius + local_radial,
+                    camera["eye_tangent"] + local_tangent,
+                    0.0,
+                )[:2]
+            )
+            for local_radial, local_tangent in local_corners
         )
-    return add_beveled_box(
-        f"Air_Guide_USB_Notch_Camera_{camera['index']}_"
-        f"Yaw_{yaw_delta:+.1f}",
-        (
-            radial[1] - radial[0],
-            tangent[1] - tangent[0],
-            notch_top - notch_bottom,
-        ),
-        tuple(center),
-        rotation_z=math.radians(camera["angle"] + yaw_delta),
-        bevel=0.0,
+    return {
+        "radial": radial,
+        "tangent": tangent,
+        "notch_bottom": notch_bottom,
+        "notch_top": notch_top,
+        "loop": loop,
+    }
+
+
+def create_airflow_guide_usb_sweep_notch(
+    camera,
+    yaw_samples,
+    guide_top_z,
+):
+    """Create one watertight convex cutter for a camera's swept USB path."""
+    geometries = tuple(
+        airflow_guide_usb_notch_geometry(
+            camera,
+            yaw_delta,
+            guide_top_z,
+        )
+        for yaw_delta in yaw_samples
+    )
+    loop = convex_hull_2d(
+        point
+        for geometry in geometries
+        for point in geometry["loop"]
+    )
+    return polygon_prism_z(
+        f"Air_Guide_USB_Sweep_Notch_Camera_{camera['index']}",
+        loop,
+        min(geometry["notch_bottom"] for geometry in geometries),
+        max(geometry["notch_top"] for geometry in geometries),
     )
 
 
-def add_airflow_guide_vanes(base, footprint, cameras, layout, mechanism=None):
-    """Union all floor-rooted, support-free vanes into the case base."""
-    if layout is None:
-        base["air_guide_vanes_enabled"] = False
-        return base
-    wall_parts = []
-    for record in layout["records"]:
-        start = record["start"]
-        end = record["end"]
-        delta = end - start
-        wall_parts.append(
-            add_beveled_box(
-                f"Air_Guide_{record['label']}",
-                (
-                    record["length"],
-                    AIR_GUIDE_VANE_THICKNESS,
-                    record["z1"] - record["z0"],
-                ),
-                (
-                    (start.x + end.x) / 2.0,
-                    (start.y + end.y) / 2.0,
-                    (record["z0"] + record["z1"]) / 2.0,
-                ),
-                rotation_z=math.atan2(delta.y, delta.x),
-                bevel=0.0,
-            )
+def airflow_guide_segment_projected_interval(segment, record):
+    """Measure a final loose part along its original wall centerline."""
+    direction = record["end"] - record["start"]
+    direction.normalize()
+    world_matrix = current_object_world_matrix(segment)
+    parameters = tuple(
+        ((world_matrix @ vertex.co) - record["start"]).dot(direction)
+        for vertex in segment.data.vertices
+    )
+    if not parameters:
+        return (0.0, 0.0)
+    return (min(parameters), max(parameters))
+
+
+def airflow_guide_segment_solid_witnesses(segment, record, interval):
+    """Find interior candidates that can prove one final vane part survives."""
+    direction = record["end"] - record["start"]
+    direction.normalize()
+    first, last = interval
+    parameters = (
+        (first + last) / 2.0,
+        first * 0.25 + last * 0.75,
+        first * 0.75 + last * 0.25,
+        first * 0.125 + last * 0.875,
+        first * 0.875 + last * 0.125,
+    )
+    usable_z0 = max(BOTTOM_THICKNESS, record["z0"]) + 0.5
+    usable_z1 = record["z1"] - 0.5
+    z_values = (
+        usable_z0,
+        usable_z0 * 0.75 + usable_z1 * 0.25,
+        (usable_z0 + usable_z1) / 2.0,
+        usable_z0 * 0.25 + usable_z1 * 0.75,
+        usable_z1,
+    )
+    tree, inverse, bm = object_bvh_record(segment)
+    witnesses = []
+    try:
+        for parameter in parameters:
+            plan_point = record["start"] + direction * parameter
+            for z in z_values:
+                point = Vector((plan_point.x, plan_point.y, z))
+                if point_inside_closed_bvh(tree, inverse @ point):
+                    witnesses.append(tuple(point))
+        if len(witnesses) < 5:
+            world_matrix = current_object_world_matrix(segment)
+            face_inset = min(0.25, AIR_GUIDE_VANE_THICKNESS * 0.20)
+            for face in sorted(
+                bm.faces,
+                key=lambda candidate: candidate.calc_area(),
+                reverse=True,
+            ):
+                local_point = (
+                    face.calc_center_median() - face.normal * face_inset
+                )
+                world_point = world_matrix @ local_point
+                if world_point.z <= BOTTOM_THICKNESS + 0.25:
+                    continue
+                if not point_inside_closed_bvh(tree, local_point):
+                    continue
+                point_tuple = tuple(world_point)
+                if point_tuple not in witnesses:
+                    witnesses.append(point_tuple)
+                if len(witnesses) >= 5:
+                    break
+    finally:
+        bm.free()
+    if not witnesses:
+        raise RuntimeError(
+            f"Could not place an interior survival witness in air-guide "
+            f"wall {record['label']}"
         )
-    vanes = join_tools("Air_Guide_Vanes_Raw", wall_parts)
-    inner_loop = inset_footprint_loop(
-        footprint,
+    return tuple(witnesses)
+
+
+def airflow_guide_usb_void_witnesses(layout, cameras, footprint):
+    """Sample every wall-centerline crossing of every swept USB notch."""
+    if not CAMERA_USB_ACCESS_ENABLED:
+        return ()
+    guide_top_z = max(record["z1"] for record in layout["records"])
+    guide_bottom_z = min(record["z0"] for record in layout["records"])
+    minimum_scale = min(
+        body_scale_at_z(guide_bottom_z),
+        body_scale_at_z(guide_top_z),
+    )
+    interior_loop = inset_footprint_loop(
+        scale_loop(footprint, minimum_scale),
         BODY_WALL_THICKNESS + AIR_GUIDE_CASE_WALL_CLEARANCE,
     )
-    clip = polygon_prism_z(
-        "Air_Guide_Case_Interior_Clip",
-        inner_loop,
-        BOTTOM_THICKNESS - AIR_GUIDE_VANE_ROOT_EMBED - BOOLEAN_OVERLAP,
-        BASE_HEIGHT + BOOLEAN_OVERLAP,
-    )
-    apply_boolean(
-        vanes,
-        clip,
-        "INTERSECT",
-        "Air_Guide_Interior_Only",
-        solver="EXACT",
-    )
-    usb_cutters = []
-    notch_count = 0
-    if CAMERA_USB_ACCESS_ENABLED:
-        guide_top_z = max(record["z1"] for record in layout["records"])
+    witnesses = []
+    for record in layout["records"]:
+        delta = record["end"] - record["start"]
         for camera in cameras:
             yaw_samples = (
                 adjustable_yaw_samples(include_preview=True)
@@ -17467,25 +17843,134 @@ def add_airflow_guide_vanes(base, footprint, cameras, layout, mechanism=None):
                 else (0.0,)
             )
             for yaw_delta in yaw_samples:
-                usb_cutters.append(
-                    create_airflow_guide_usb_notch(
-                        camera,
-                        yaw_delta,
-                        guide_top_z,
-                    )
+                geometry = airflow_guide_usb_notch_geometry(
+                    camera,
+                    yaw_delta,
+                    guide_top_z,
                 )
-        notch_count = len(usb_cutters)
-        boolean_difference(
-            vanes,
-            usb_cutters,
-            "Air_Guide_Top_Open_USB_Service_Notches",
-            solver="EXACT",
+                vertical_low = max(
+                    geometry["notch_bottom"] + 0.5,
+                    BOTTOM_THICKNESS + 1.0,
+                    record["z0"] + 0.5,
+                )
+                vertical_high = min(
+                    geometry["notch_top"] - 0.5,
+                    record["z1"] - 0.5,
+                )
+                if vertical_high <= vertical_low:
+                    continue
+                for first, last in segment_polygon_inside_intervals(
+                    record["start"],
+                    record["end"],
+                    geometry["loop"],
+                ):
+                    if (last - first) * record["length"] <= (
+                        2.0 * BOOLEAN_CLEANUP_DISTANCE
+                    ):
+                        continue
+                    point = record["start"] + delta * (
+                        (first + last) / 2.0
+                    )
+                    if (
+                        not point_in_polygon(
+                            (point.x, point.y),
+                            interior_loop,
+                        )
+                        or polygon_boundary_distance(
+                            (point.x, point.y),
+                            interior_loop,
+                        )
+                        <= AIR_GUIDE_VANE_THICKNESS / 2.0
+                    ):
+                        continue
+                    witnesses.append(
+                        {
+                            "wall_label": record["label"],
+                            "camera_index": camera["index"],
+                            "yaw_delta": yaw_delta,
+                            "point": (
+                                point.x,
+                                point.y,
+                                (vertical_low + vertical_high) / 2.0,
+                            ),
+                        }
+                    )
+    return tuple(witnesses)
+
+
+def add_airflow_guide_vanes(
+    base,
+    footprint,
+    cameras,
+    layout,
+    mechanism=None,
+    camera_brackets=(),
+):
+    """Build and validate every floor-rooted vane record independently."""
+    if layout is None:
+        base["air_guide_vanes_enabled"] = False
+        return base
+    inner_loop = inset_footprint_loop(
+        footprint,
+        BODY_WALL_THICKNESS + AIR_GUIDE_CASE_WALL_CLEARANCE,
+    )
+    clip_template = polygon_prism_z(
+        "Air_Guide_Case_Interior_Clip_Template",
+        inner_loop,
+        BOTTOM_THICKNESS - AIR_GUIDE_VANE_ROOT_EMBED - BOOLEAN_OVERLAP,
+        BASE_HEIGHT + BOOLEAN_OVERLAP,
+    )
+    usb_cutter_templates = []
+    notch_count = 0
+    notch_pose_sample_count = 0
+    guide_bottom_z = min(record["z0"] for record in layout["records"])
+    guide_top_z = max(record["z1"] for record in layout["records"])
+    if CAMERA_USB_ACCESS_ENABLED:
+        for camera in cameras:
+            yaw_samples = (
+                adjustable_yaw_samples(include_preview=True)
+                if camera_is_adjustable(camera)
+                else (0.0,)
+            )
+            usb_cutter_templates.append(
+                create_airflow_guide_usb_sweep_notch(
+                    camera,
+                    yaw_samples,
+                    guide_top_z,
+                )
+            )
+            notch_pose_sample_count += len(yaw_samples)
+        notch_count = len(usb_cutter_templates)
+    camera_service_cutter_templates = []
+    for camera in cameras:
+        service_loop = (
+            adjustable_carrier_top_loading_chimney_loop(camera)[0]
+            if camera_is_adjustable(camera)
+            else convex_hull_2d(
+                camera_envelope_xy_corners_at_yaw(camera, 0.0)
+            )
         )
+        clearance = AIR_GUIDE_CAMERA_CLEARANCE
+        expanded_loop = convex_hull_2d(
+            (
+                x + dx,
+                y + dy,
+            )
+            for x, y in service_loop
+            for dx in (-clearance, clearance)
+            for dy in (-clearance, clearance)
+        )
+        cutter = polygon_prism_z(
+            f"Air_Guide_Camera_{camera['index']}_Cross_Lane_Service",
+            expanded_loop,
+            guide_bottom_z - BOOLEAN_OVERLAP,
+            guide_top_z + BOOLEAN_OVERLAP,
+        )
+        cutter["air_guide_camera_index"] = camera["index"]
+        camera_service_cutter_templates.append(cutter)
     mechanism_cutter_count = 0
-    mechanism_cutters = []
+    mechanism_cutter_templates = []
     if mechanism is not None:
-        guide_bottom_z = min(record["z0"] for record in layout["records"])
-        guide_top_z = max(record["z1"] for record in layout["records"])
         cutter_z0 = guide_bottom_z - BOOLEAN_OVERLAP
         cutter_z1 = guide_top_z + BOOLEAN_OVERLAP
         cutter_height = cutter_z1 - cutter_z0
@@ -17497,13 +17982,13 @@ def add_airflow_guide_vanes(base, footprint, cameras, layout, mechanism=None):
                 ("Inner", mechanism["inner_block"]),
                 ("Outer", mechanism["outer_block"]),
             ):
-                mechanism_cutters.append(
+                mechanism_cutter_templates.append(
                     add_beveled_box(
                         f"Air_Guide_{label}_Worm_Cap_Service",
                         (
-                            CAMERA_WORM_BLOCK_LENGTH
+                            2.0 * worm_cap_plan_half_length()
                             + 2.0 * service_clearance,
-                            CAMERA_WORM_CAP_TOTAL_WIDTH
+                            2.0 * worm_cap_plan_half_width()
                             + 2.0 * service_clearance,
                             cutter_height,
                         ),
@@ -17512,26 +17997,10 @@ def add_airflow_guide_vanes(base, footprint, cameras, layout, mechanism=None):
                         bevel=0.0,
                     )
                 )
-                for ear_index, ear_center in enumerate(
-                    worm_cap_screw_centers(point, mount),
-                    start=1,
-                ):
-                    mechanism_cutters.append(
-                        add_cylinder_z(
-                            f"Air_Guide_{label}_Worm_Cap_Ear_"
-                            f"{ear_index}_Service",
-                            CAMERA_WORM_CAP_EAR_DIAMETER / 2.0
-                            + service_clearance,
-                            cutter_z0,
-                            cutter_z1,
-                            ear_center.x,
-                            ear_center.y,
-                        )
-                    )
-                mechanism_cutter_count += 3
+                mechanism_cutter_count += 1
         if CAMERA_IDLER_WHEEL_ENABLED:
             idler_center = mechanism["idler_center"]
-            mechanism_cutters.append(
+            mechanism_cutter_templates.append(
                 add_cylinder_z(
                     "Air_Guide_Idler_Stack_Vertical_Service",
                     CAMERA_IDLER_CAP_POST_TANGENTIAL_OFFSET
@@ -17544,67 +18013,213 @@ def add_airflow_guide_vanes(base, footprint, cameras, layout, mechanism=None):
                 )
             )
             mechanism_cutter_count += 1
-    for cutter_index, cutter in enumerate(mechanism_cutters, start=1):
-        if object_bounds_overlap(vanes, cutter):
-            boolean_difference(
-                vanes,
-                [cutter],
-                f"Air_Guide_Mechanism_Service_{cutter_index}",
-                solver="EXACT",
-            )
-        else:
-            bpy.data.objects.remove(cutter, do_unlink=True)
-    hardware_service_cutters = [
+    hardware_cutter_templates = [
         add_cylinder_z(
             f"Air_Guide_{service['label']}_Service",
             service["radius"],
-            min(record["z0"] for record in layout["records"])
-            - BOOLEAN_OVERLAP,
-            max(record["z1"] for record in layout["records"])
-            + BOOLEAN_OVERLAP,
+            guide_bottom_z - BOOLEAN_OVERLAP,
+            guide_top_z + BOOLEAN_OVERLAP,
             service["center"][0],
             service["center"][1],
         )
         for service in layout["service_circles"]
     ]
-    hardware_service_count = len(hardware_service_cutters)
-    boolean_difference(
-        vanes,
-        hardware_service_cutters,
-        "Air_Guide_Removable_Hardware_Service",
-        solver="EXACT",
+    camera_bracket_cutter_templates = []
+    for index, bracket in enumerate(camera_brackets, start=1):
+        installed = duplicate_object_with_bounds_clearance(
+            bracket,
+            f"Air_Guide_Camera_Bracket_{index}_Installed_Service",
+            BOOLEAN_OVERLAP,
+        )
+        tightened = duplicate_object_with_bounds_clearance(
+            bracket,
+            f"Air_Guide_Camera_Bracket_{index}_Tightened_Service",
+            BOOLEAN_OVERLAP,
+        )
+        tightened.location.z -= float(
+            bracket.get("clamp_travel_z", camera_bracket_clamp_travel())
+        )
+        camera_bracket_cutter_templates.extend((installed, tightened))
+    hardware_service_count = len(hardware_cutter_templates)
+    cutter_groups = (
+        ("USB_Notch", usb_cutter_templates),
+        ("Camera_Service", camera_service_cutter_templates),
+        ("Camera_Bracket", camera_bracket_cutter_templates),
+        ("Mechanism_Service", mechanism_cutter_templates),
+        ("Removable_Hardware_Service", hardware_cutter_templates),
     )
-    # Blender's exact solver can retain open root seams when one Boolean
-    # operand contains several disconnected tall walls.  Fuse each final
-    # service-cut segment independently so every segment becomes a true part
-    # of the floor instead of merely sharing the same object data block.
-    vane_segments = separate_loose_mesh_parts(
-        vanes,
-        "Air_Guide_Final_Segment",
+    layout["usb_void_witnesses"] = airflow_guide_usb_void_witnesses(
+        layout,
+        cameras,
+        footprint,
     )
-    expected_root_z = min(record["z0"] for record in layout["records"])
-    for segment_index, segment in enumerate(vane_segments, start=1):
-        bounds = object_world_bounds(segment)
-        non_manifold = non_manifold_edge_count(segment)
-        shells = connected_shell_count(segment)
-        if non_manifold or shells != 1:
-            raise RuntimeError(
-                f"Air-guide segment {segment_index} is not one manifold "
-                f"shell: non_manifold={non_manifold} shells={shells}"
-            )
-        if bounds[2][0] > expected_root_z + BOOLEAN_CLEANUP_DISTANCE:
-            raise RuntimeError(
-                f"Air-guide segment {segment_index} is not rooted in the "
-                "case floor"
-            )
-        boolean_union(
-            base,
-            segment,
-            f"Air_Guide_Vane_Segment_{segment_index}",
+    final_wall_records = {}
+    final_segment_count = 0
+    removed_fragment_count = 0
+    for record_index, record in enumerate(layout["records"], start=1):
+        start = record["start"]
+        end = record["end"]
+        delta = end - start
+        wall = add_beveled_box(
+            f"Air_Guide_{record['label']}_Raw",
+            (
+                record["length"],
+                AIR_GUIDE_VANE_THICKNESS,
+                record["z1"] - record["z0"],
+            ),
+            (
+                (start.x + end.x) / 2.0,
+                (start.y + end.y) / 2.0,
+                (record["z0"] + record["z1"]) / 2.0,
+            ),
+            rotation_z=math.atan2(delta.y, delta.x),
+            bevel=0.0,
+        )
+        apply_boolean(
+            wall,
+            duplicate_object(
+                clip_template,
+                f"Air_Guide_{record['label']}_Interior_Clip",
+            ),
+            "INTERSECT",
+            f"Air_Guide_{record['label']}_Interior_Only",
             solver="EXACT",
         )
+        relevant_cutter_counts = {}
+        for cutter_group_name, cutter_templates in cutter_groups:
+            relevant_cutters = [
+                duplicate_object(
+                    cutter,
+                    f"Air_Guide_{record['label']}_{cutter_group_name}_"
+                    f"{cutter_index}",
+                )
+                for cutter_index, cutter in enumerate(
+                    cutter_templates,
+                    start=1,
+                )
+                if object_bounds_overlap(wall, cutter)
+                and (
+                    cutter_group_name != "Camera_Service"
+                    or int(cutter["air_guide_camera_index"])
+                    != record["camera_index"]
+                )
+            ]
+            relevant_cutter_counts[cutter_group_name] = len(
+                relevant_cutters
+            )
+            if cutter_group_name in (
+                "Camera_Bracket",
+                "Mechanism_Service",
+            ):
+                for cutter_index, cutter in enumerate(
+                    relevant_cutters,
+                    start=1,
+                ):
+                    boolean_difference(
+                        wall,
+                        [cutter],
+                        f"Air_Guide_{record['label']}_"
+                        f"{cutter_group_name}_{cutter_index}",
+                        solver="EXACT",
+                    )
+            else:
+                boolean_difference(
+                    wall,
+                    relevant_cutters,
+                    f"Air_Guide_{record['label']}_{cutter_group_name}",
+                    solver="EXACT",
+                )
+            if not wall.data.polygons:
+                bpy.data.objects.remove(wall, do_unlink=True)
+                raise RuntimeError(
+                    f"Air-guide wall {record['label']} was completely "
+                    f"removed by {cutter_group_name} "
+                    f"({len(relevant_cutters)} relevant cutters)"
+                )
+        if not wall.data.polygons:
+            bpy.data.objects.remove(wall, do_unlink=True)
+            raise RuntimeError(
+                f"Air-guide wall {record['label']} was completely removed"
+            )
+        loose_parts = separate_loose_mesh_parts(
+            wall,
+            f"Air_Guide_{record['label']}_Final_Part",
+        )
+        retained_parts = []
+        segment_spans = []
+        segment_witness_groups = []
+        for part in loose_parts:
+            interval = airflow_guide_segment_projected_interval(part, record)
+            span = interval[1] - interval[0]
+            if span + BOOLEAN_CLEANUP_DISTANCE < (
+                AIR_GUIDE_MIN_FINAL_WALL_LENGTH
+            ):
+                removed_fragment_count += 1
+                bpy.data.objects.remove(part, do_unlink=True)
+                continue
+            bounds = object_world_bounds(part)
+            non_manifold = non_manifold_edge_count(part)
+            shells = connected_shell_count(part)
+            if non_manifold or shells != 1:
+                raise RuntimeError(
+                    f"Air-guide wall {record['label']} part is not one "
+                    f"manifold shell: non_manifold={non_manifold} "
+                    f"shells={shells}"
+                )
+            if bounds[2][0] > (
+                record["z0"] + BOOLEAN_CLEANUP_DISTANCE
+            ):
+                raise RuntimeError(
+                    f"Air-guide wall {record['label']} part is not rooted "
+                    "in the case floor"
+                )
+            retained_parts.append(part)
+            segment_spans.append(span)
+            segment_witness_groups.append(
+                airflow_guide_segment_solid_witnesses(
+                    part,
+                    record,
+                    interval,
+                )
+            )
+        if not retained_parts:
+            raise RuntimeError(
+                f"Air-guide wall {record['label']} has no final segment at "
+                f"least {AIR_GUIDE_MIN_FINAL_WALL_LENGTH:.2f} mm long"
+            )
+        final_wall_records[record["label"]] = {
+            "segment_spans": tuple(segment_spans),
+            "segment_witness_groups": tuple(segment_witness_groups),
+        }
+        for part_index, part in enumerate(retained_parts, start=1):
+            final_segment_count += 1
+            boolean_union(
+                base,
+                part,
+                f"Air_Guide_{record_index}_Part_{part_index}",
+                solver="MANIFOLD",
+            )
+        print(
+            "AIR_GUIDE_WALL_FINAL "
+            f"label={record['label']} segments={len(retained_parts)} "
+            f"spans={tuple(round(span, 2) for span in segment_spans)} "
+            f"cutter_hits={relevant_cutter_counts} "
+            f"centerline=({tuple(round(value, 2) for value in start[:2])},"
+            f"{tuple(round(value, 2) for value in end[:2])})"
+        )
+    layout["final_wall_records"] = final_wall_records
+    for template in (
+        clip_template,
+        *usb_cutter_templates,
+        *camera_service_cutter_templates,
+        *camera_bracket_cutter_templates,
+        *mechanism_cutter_templates,
+        *hardware_cutter_templates,
+    ):
+        bpy.data.objects.remove(template, do_unlink=True)
     base["air_guide_vanes_enabled"] = True
     base["air_guide_vane_count"] = len(layout["records"])
+    base["air_guide_final_segment_count"] = final_segment_count
     base["air_guide_vane_height_mm"] = AIR_GUIDE_VANE_HEIGHT
     base["air_guide_vane_thickness_mm"] = AIR_GUIDE_VANE_THICKNESS
     base["air_guide_source"] = layout["source"]
@@ -17612,14 +18227,218 @@ def add_airflow_guide_vanes(base, footprint, cameras, layout, mechanism=None):
     print(
         "AIR_GUIDE_VANES "
         f"mode={layout['mode']} walls={len(layout['records'])} "
-        f"final_segments={len(vane_segments)} "
+        f"surviving_wall_records={len(final_wall_records)} "
+        f"final_segments={final_segment_count} "
+        f"removed_short_fragments={removed_fragment_count} "
         f"usb_notch_cutters={notch_count} "
+        f"usb_notch_pose_samples={notch_pose_sample_count} "
+        f"usb_void_witnesses={len(layout['usb_void_witnesses'])} "
         f"mechanism_service_cutters={mechanism_cutter_count} root=floor "
         f"removable_hardware_cutters={hardware_service_count} "
         "print_orientation=vertical support_required=False "
         "camera_layout_changed=False lens_protrusion_changed=False"
     )
+    vane_stage_non_manifold = non_manifold_edge_count(base)
+    if vane_stage_non_manifold:
+        raise RuntimeError(
+            "Air-guide unions leave the base non-manifold: "
+            f"{vane_stage_non_manifold} edges"
+        )
     return base
+
+
+def restore_final_airflow_guide_usb_notches(
+    base,
+    footprint,
+    cameras,
+    layout,
+):
+    """Re-cut swept USB paths inside the cavity after all base-side unions."""
+    if layout is None or not CAMERA_USB_ACCESS_ENABLED:
+        return base
+    guide_top_z = max(record["z1"] for record in layout["records"])
+    guide_bottom_z = min(record["z0"] for record in layout["records"])
+    minimum_scale = min(
+        body_scale_at_z(guide_bottom_z),
+        body_scale_at_z(guide_top_z),
+    )
+    cavity_loop = inset_footprint_loop(
+        scale_loop(footprint, minimum_scale),
+        BODY_WALL_THICKNESS + AIR_GUIDE_CASE_WALL_CLEARANCE,
+    )
+    relief_count = 0
+    pose_sample_count = 0
+    for camera in cameras:
+        yaw_samples = (
+            adjustable_yaw_samples(include_preview=True)
+            if camera_is_adjustable(camera)
+            else (0.0,)
+        )
+        cutter = create_airflow_guide_usb_sweep_notch(
+            camera,
+            yaw_samples,
+            guide_top_z,
+        )
+        cavity_clip = polygon_prism_z(
+            f"Air_Guide_Final_USB_Cavity_Clip_Camera_{camera['index']}",
+            cavity_loop,
+            guide_bottom_z - BOOLEAN_OVERLAP,
+            guide_top_z + 2.0 * BOOLEAN_OVERLAP,
+        )
+        apply_boolean(
+            cutter,
+            cavity_clip,
+            "INTERSECT",
+            f"Air_Guide_Final_USB_Interior_Only_Camera_{camera['index']}",
+            solver="EXACT",
+        )
+        cutter_tree, cutter_inverse, cutter_bm = object_bvh_record(cutter)
+        try:
+            missed_witnesses = tuple(
+                witness
+                for witness in layout.get("usb_void_witnesses", ())
+                if witness["camera_index"] == camera["index"]
+                and not point_inside_bvh_parity(
+                    cutter_tree,
+                    cutter_inverse @ Vector(witness["point"]),
+                )
+            )
+        finally:
+            cutter_bm.free()
+        if missed_witnesses:
+            raise RuntimeError(
+                f"Final interior USB cutter for camera {camera['index']} "
+                f"misses {len(missed_witnesses)} intended vane witnesses"
+            )
+        for record in layout["records"]:
+            start = record["start"]
+            end = record["end"]
+            delta = end - start
+            wall_mask = add_beveled_box(
+                f"Air_Guide_Final_USB_Mask_{record['label']}_"
+                f"Camera_{camera['index']}",
+                (
+                    record["length"] + 2.0 * BOOLEAN_OVERLAP,
+                    AIR_GUIDE_VANE_THICKNESS + 2.0 * BOOLEAN_OVERLAP,
+                    record["z1"] - record["z0"]
+                    + 2.0 * BOOLEAN_OVERLAP,
+                ),
+                (
+                    (start.x + end.x) / 2.0,
+                    (start.y + end.y) / 2.0,
+                    (record["z0"] + record["z1"]) / 2.0,
+                ),
+                rotation_z=math.atan2(delta.y, delta.x),
+                bevel=0.0,
+            )
+            if not object_bounds_overlap(wall_mask, cutter):
+                bpy.data.objects.remove(wall_mask, do_unlink=True)
+                continue
+            apply_boolean(
+                wall_mask,
+                duplicate_object(
+                    cutter,
+                    f"Air_Guide_Final_USB_Cutter_Copy_"
+                    f"{record['label']}_Camera_{camera['index']}",
+                ),
+                "INTERSECT",
+                f"Air_Guide_Final_USB_Vane_Only_{record['label']}_"
+                f"Camera_{camera['index']}",
+                solver="EXACT",
+            )
+            if not wall_mask.data.polygons:
+                bpy.data.objects.remove(wall_mask, do_unlink=True)
+                continue
+            boolean_difference(
+                base,
+                [wall_mask],
+                f"Air_Guide_Final_USB_Service_{record['label']}_"
+                f"Camera_{camera['index']}",
+                solver="EXACT",
+            )
+            relief_count += 1
+        bpy.data.objects.remove(cutter, do_unlink=True)
+        pose_sample_count += len(yaw_samples)
+    print(
+        "AIR_GUIDE_FINAL_USB_SERVICE "
+        f"vane_shaped_reliefs={relief_count} "
+        f"yaw_pose_samples={pose_sample_count} exterior_shell_preserved=True"
+    )
+    return base
+
+
+def validate_final_airflow_guide_witnesses(base, layout):
+    """Prove all guide records and their USB notches survive final base work."""
+    if layout is None:
+        return
+    expected_labels = {record["label"] for record in layout["records"]}
+    final_wall_records = layout.get("final_wall_records", {})
+    if set(final_wall_records) != expected_labels:
+        missing = sorted(expected_labels - set(final_wall_records))
+        raise RuntimeError(
+            f"Final air-guide build lost wall records: {missing}"
+        )
+    for label, final_record in final_wall_records.items():
+        if not final_record["segment_witness_groups"]:
+            raise RuntimeError(f"Final air-guide wall {label} has no witness")
+        if any(
+            span + BOOLEAN_CLEANUP_DISTANCE
+            < AIR_GUIDE_MIN_FINAL_WALL_LENGTH
+            for span in final_record["segment_spans"]
+        ):
+            raise RuntimeError(
+                f"Final air-guide wall {label} retains an undersized part"
+            )
+    solid_points = tuple(
+        point
+        for final_record in final_wall_records.values()
+        for witness_group in final_record["segment_witness_groups"]
+        for point in witness_group
+    )
+    void_witnesses = layout.get("usb_void_witnesses", ())
+    void_points = tuple(witness["point"] for witness in void_witnesses)
+    all_points = tuple(dict.fromkeys((*solid_points, *void_points)))
+    occupancy = dict(
+        zip(
+            all_points,
+            closed_mesh_winding_occupancy(base, all_points),
+        )
+    )
+    solid_candidate_count = 0
+    surviving_segment_count = 0
+    void_count = 0
+    for label, final_record in final_wall_records.items():
+        for witness_group in final_record["segment_witness_groups"]:
+            solid_candidate_count += len(witness_group)
+            if not any(occupancy[point] for point in witness_group):
+                raise RuntimeError(
+                    f"Final base erased one retained segment of "
+                    f"air-guide wall {label}"
+                )
+            surviving_segment_count += 1
+    for witness in void_witnesses:
+        void_count += 1
+        if occupancy[witness["point"]]:
+            raise RuntimeError(
+                "Final base refilled air-guide USB notch in "
+                f"{witness['wall_label']} for camera "
+                f"{witness['camera_index']} at yaw "
+                f"{witness['yaw_delta']:+.1f} at "
+                f"{tuple(round(value, 3) for value in witness['point'])}"
+            )
+    base["air_guide_final_wall_records_validated"] = len(
+        final_wall_records
+    )
+    base["air_guide_final_usb_void_witnesses"] = void_count
+    print(
+        "FINAL_AIR_GUIDE_WITNESSES PASS "
+        f"wall_records={len(final_wall_records)} "
+        f"surviving_segments={surviving_segment_count} "
+        f"solid_witness_candidates={solid_candidate_count} "
+        f"usb_void_witnesses={void_count} "
+        f"minimum_segment_span={AIR_GUIDE_MIN_FINAL_WALL_LENGTH:.2f}mm "
+        "classifier=solid_angle_winding"
+    )
 
 
 def annular_sector_prism(
@@ -23143,6 +23962,7 @@ def create_base(
     acoustic_layout=None,
     airflow_guide_layout=None,
     mechanism=None,
+    camera_brackets=(),
 ):
     taper_anchor = min(effective_rear_height_taper_anchor_z(), BASE_HEIGHT)
     mesh_break_x = height_taper_mesh_break_x()
@@ -23233,6 +24053,7 @@ def create_base(
         cameras,
         airflow_guide_layout,
         mechanism,
+        camera_brackets,
     )
     add_camera_cradles(base, cameras)
     add_adjustable_camera_base_hardware(base, cameras, footprint)
@@ -23261,6 +24082,20 @@ def create_base(
     # hardware so no post, fan pad, or worm structure can silently refill the
     # service corridor.  The default closed-case build skips these cuts.
     add_camera_usb_access_openings(base, cameras)
+    # Guide notches are always interior-only: re-cut them after every base
+    # union even when the optional outside-in shell openings remain disabled.
+    if airflow_guide_layout is not None:
+        triangulate_mesh(base)
+        if non_manifold_edge_count(base):
+            raise RuntimeError(
+                "Base must be manifold before final air-guide service cuts"
+            )
+    restore_final_airflow_guide_usb_notches(
+        base,
+        footprint,
+        cameras,
+        airflow_guide_layout,
+    )
     if (
         CAMERA_CARTRIDGE_WORM_ENABLED
         and CAMERA_CARRIER_CHIMNEY_REMOVE_SMALL_FRAGMENTS
@@ -23283,6 +24118,7 @@ def create_base(
             BASE_MAX_FRAGMENT_EXTENT,
             "Final_Base_Boolean_Cleanup",
         )
+    validate_final_airflow_guide_witnesses(base, airflow_guide_layout)
     base.name = "Hockeymom_3_Cam_Cover_Closed_Base"
     return base
 
@@ -25068,6 +25904,33 @@ def duplicate_object(obj, name: str):
     duplicate.data = obj.data.copy()
     duplicate.name = name
     bpy.context.collection.objects.link(duplicate)
+    return duplicate
+
+
+def duplicate_object_with_bounds_clearance(
+    obj,
+    name: str,
+    clearance: float,
+):
+    """Duplicate a cutter and expand it about its world AABB center."""
+    duplicate = duplicate_object(obj, name)
+    bounds = object_world_bounds(duplicate)
+    center = Vector(
+        tuple((low + high) / 2.0 for low, high in bounds)
+    )
+    extents = tuple(high - low for low, high in bounds)
+    world_matrix = current_object_world_matrix(duplicate)
+    inverse = world_matrix.inverted()
+    for vertex in duplicate.data.vertices:
+        world_point = world_matrix @ vertex.co
+        for axis, extent in enumerate(extents):
+            if extent > 1e-9:
+                world_point[axis] = center[axis] + (
+                    world_point[axis] - center[axis]
+                ) * (extent + 2.0 * clearance) / extent
+        vertex.co = inverse @ world_point
+    duplicate.data.update()
+    recalc_normals(duplicate)
     return duplicate
 
 
@@ -27967,6 +28830,11 @@ def build_original_style_cover():
         cameras,
         acoustic_layout,
         bottom_mount_hole_position,
+        mechanism,
+    )
+    camera_brackets = create_camera_brackets(
+        cameras,
+        bracket_position_pairs,
     )
     base = create_base(
         positions,
@@ -27978,9 +28846,9 @@ def build_original_style_cover():
         acoustic_layout,
         airflow_guide_layout,
         mechanism,
+        camera_brackets,
     )
     lid = create_lid(positions, footprint, cameras)
-    camera_brackets = create_camera_brackets(cameras, bracket_position_pairs)
     add_acoustic_microphone_deflectors_to_brackets(
         camera_brackets,
         cameras,
