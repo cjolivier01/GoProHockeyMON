@@ -41,10 +41,6 @@ HERE = Path(__file__).absolute().parent
 MODEL_SOURCE = HERE / "dual_fan_parametric_blender.py"
 PRESET_SOURCE = HERE / "fan_size_presets.py"
 OUTPUT_PDF = HERE / "gopro_dual_fan_configuration_dimensions.pdf"
-PART_STLS = {
-    "holder": HERE / "gopro_dual_fan_parametric.stl",
-    "adapter": HERE / "gopro_dual_fan_adapter.stl",
-}
 
 INK = "#152536"
 BLUE = "#176ea6"
@@ -163,6 +159,9 @@ EXACT_DESCRIPTIONS = {
     "SUPPORT_HUB_WIDTH_OVERRIDE": "Optional explicit support-hub width; None uses width-per-fan times fan count.",
     "GOPRO_PIVOT_FROM_MATING_FACE_Y": "Distance from the adapter mating face to the GoPro pivot axis.",
     "GOPRO_PIVOT_BELOW_MOUNT_HOLES_Z": "Vertical offset from the receiver fastener row to the GoPro pivot axis.",
+    "GOPRO_ADAPTER_PRONG_COUNTS": "Ordered detachable-adapter variants; the first appears assembled in Blender and every entry receives its own STL.",
+    "GOPRO_ADAPTER_PRONG_COUNT": "Legacy single-adapter override; None enables the ordered multi-variant setting.",
+    "EXPORT_ADAPTER_STL_PATH": "Legacy primary-adapter output override; None uses the per-prong path mapping.",
 }
 
 
@@ -335,6 +334,34 @@ def read_model_config():
 
 ENV, CONFIG_ENTRIES, EXPECTED_CONFIG_NAMES = read_model_config()
 C = {entry.name: entry.value for entry in CONFIG_ENTRIES}
+
+
+def configured_adapter_outputs():
+    legacy_count = C["GOPRO_ADAPTER_PRONG_COUNT"]
+    counts = (
+        (legacy_count,)
+        if legacy_count is not None
+        else tuple(C["GOPRO_ADAPTER_PRONG_COUNTS"])
+    )
+    paths = dict(C["EXPORT_ADAPTER_STL_PATHS"])
+    legacy_path = C["EXPORT_ADAPTER_STL_PATH"]
+    if legacy_count is not None:
+        paths[counts[0]] = legacy_path or "gopro_dual_fan_adapter.stl"
+    elif legacy_path is not None:
+        paths[counts[0]] = legacy_path
+    return tuple((count, Path(paths[count])) for count in counts)
+
+
+ADAPTER_OUTPUTS = configured_adapter_outputs()
+PART_STLS = {"holder": HERE / "gopro_dual_fan_parametric.stl"}
+ADAPTER_PARTS = []
+for adapter_index, (prong_count, adapter_path) in enumerate(ADAPTER_OUTPUTS):
+    part_name = "adapter" if adapter_index == 0 else f"adapter_{prong_count}_prong"
+    if not adapter_path.is_absolute():
+        adapter_path = HERE / adapter_path
+    PART_STLS[part_name] = adapter_path
+    ADAPTER_PARTS.append((part_name, prong_count))
+ADAPTER_PARTS = tuple(ADAPTER_PARTS)
 
 
 def require_current_part_stls() -> None:
@@ -1423,6 +1450,45 @@ def draw_adapter_view(ax, plane):
     return geometry.bounds
 
 
+def draw_adapter_variants_front(ax):
+    bounds = None
+    cursor_x = 0.0
+    gap = 8.0
+    colors = (ORANGE, PURPLE)
+    for index, (part_name, prong_count) in enumerate(ADAPTER_PARTS):
+        geometry = projected_part_geometry(part_name, "xy")
+        translated = affinity.translate(
+            geometry,
+            xoff=cursor_x - geometry.bounds[0],
+        )
+        color = colors[index % len(colors)]
+        draw_projected_geometry(
+            ax,
+            translated,
+            "#f7d9ca" if index == 0 else "#eadff4",
+            color,
+            alpha=0.9,
+        )
+        translated_bounds = translated.bounds
+        ax.text(
+            (translated_bounds[0] + translated_bounds[2]) / 2.0,
+            translated_bounds[1] - 1.5,
+            f"{prong_count}-PRONG",
+            fontsize=5.0,
+            color=color,
+            ha="center",
+            va="top",
+            weight="bold",
+        )
+        bounds = (
+            translated_bounds
+            if bounds is None
+            else merged_bounds(bounds, translated_bounds)
+        )
+        cursor_x = translated_bounds[2] + gap
+    return bounds
+
+
 def draw_standard_fan(ax, size: int):
     preset = STANDARD_FAN_PRESETS[size]
     frame = float(preset["frame"])
@@ -1507,6 +1573,11 @@ def draw_actual_view(ax, view: str):
         return draw_adapter_view(ax, "xz"), "ACTUAL STL ORTHOGRAPHIC PROJECTION"
     if view == "adapter_side":
         return draw_adapter_view(ax, "yz"), "ACTUAL STL ORTHOGRAPHIC PROJECTION"
+    if view == "adapter_variants_front":
+        return (
+            draw_adapter_variants_front(ax),
+            "ACTUAL STL ORTHOGRAPHIC PROJECTIONS",
+        )
     if view == "splitter_front":
         return draw_splitter_front(ax), "PARAMETRIC PRINTED-PART GEOMETRY"
     if view == "splitter_side":
@@ -2411,11 +2482,11 @@ def page_cover(pdf):
 
 
 def page_parts_overview(pdf, page_number: int):
-    fig = new_page(page_number, "PRINTED PARTS AND ORTHOGRAPHIC DATUMS", "Holder and adapter views come from the current generated STL files; the optional splitter is drawn from its live parameters.")
+    fig = new_page(page_number, "PRINTED PARTS AND ORTHOGRAPHIC DATUMS", "Holder and all configured adapter variants come from the current generated STL files; the optional splitter is drawn from its live parameters.")
     views = (
         ([0.055, 0.49, 0.42, 0.34], "assembly_front", "HOLDER — FRONT / XY"),
         ([0.515, 0.49, 0.42, 0.34], "assembly_side", "HOLDER + ADAPTER — SIDE / YZ"),
-        ([0.055, 0.12, 0.42, 0.29], "adapter_front", "DETACHABLE ADAPTER — XZ"),
+        ([0.055, 0.12, 0.42, 0.29], "adapter_variants_front", "DETACHABLE ADAPTER VARIANTS — XY"),
         ([0.515, 0.12, 0.42, 0.29], "splitter_side", "BOLT-ON SPLITTER — XZ"),
     )
     for rect, view, title in views:
@@ -2519,7 +2590,7 @@ def page_coverage(pdf, page_number: int):
         "Profile dimension is absent from the selected profile inventory",
         "Dimension is missing, duplicated, or routed to an unknown view",
         "Graphical callout or exact variable text is absent from the PDF",
-        "Current holder/adapter STL is missing or stale",
+        "Current holder or configured adapter STL is missing or stale",
         "Source fingerprint, coverage marker, page count, or PDF EOF drifts",
     )
     for index, text in enumerate(checks):
@@ -2529,7 +2600,7 @@ def page_coverage(pdf, page_number: int):
     fig.text(0.545, 0.49, VISUAL_COVERAGE_MARKER, fontsize=5.5, color=GREEN, wrap=True)
     fig.text(0.545, 0.45, FEATURE_CALLOUT_MARKER, fontsize=5.5, color=BLUE)
     fig.text(0.545, 0.41, SETTINGS_COVERAGE_MARKER, fontsize=5.5, color=PURPLE)
-    fig.text(0.545, 0.34, "STL-derived views: holder + detachable adapter\nParameter-derived parts: splitter + lowered route\nShared references: 40/60/80/120 mm fans", fontsize=6.0, color=GRAY, linespacing=1.45)
+    fig.text(0.545, 0.34, "STL-derived views: holder + configured detachable adapters\nParameter-derived parts: splitter + lowered route\nShared references: 40/60/80/120 mm fans", fontsize=6.0, color=GRAY, linespacing=1.45)
     pdf.savefig(fig)
     plt.close(fig)
 

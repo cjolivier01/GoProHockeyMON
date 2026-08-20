@@ -10,9 +10,14 @@ FLAT_FAN_COVER_STLS := flat-fan-cover.stl
 WRAPPING_FAN_COVER_STLS := wrapping-fan-cover.stl
 HORN_STLS := horn_parametric_blender.stl
 MISSION1_DUMMY_STLS := gopro_mission1_dummy_recreated.stl
-DUAL_FAN_STLS := \
-	gopro_dual_fan_parametric.stl \
-	gopro_dual_fan_adapter.stl
+DUAL_FAN_HOLDER_STL := gopro_dual_fan_parametric.stl
+DUAL_FAN_ADAPTER_STLS := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('dual_fan_parametric_blender.py', encoding='utf-8').read()); names={'GOPRO_ADAPTER_PRONG_COUNTS','GOPRO_ADAPTER_PRONG_COUNT','EXPORT_ADAPTER_STL_PATHS','EXPORT_ADAPTER_STL_PATH'}; values={target.id:ast.literal_eval(node.value) for node in tree.body if isinstance(node,(ast.Assign,ast.AnnAssign)) for target in ([node.target] if isinstance(node,ast.AnnAssign) else node.targets) if isinstance(target,ast.Name) and target.id in names}; legacy_count=values['GOPRO_ADAPTER_PRONG_COUNT']; counts=(legacy_count,) if legacy_count is not None else values['GOPRO_ADAPTER_PRONG_COUNTS']; paths=dict(values['EXPORT_ADAPTER_STL_PATHS']); legacy_path=values['EXPORT_ADAPTER_STL_PATH']; paths[counts[0]]=(legacy_path or 'gopro_dual_fan_adapter.stl') if legacy_count is not None else (legacy_path or paths[counts[0]]); print(' '.join(paths[count] for count in counts))")
+DUAL_FAN_KNOWN_ADAPTER_STLS := \
+	gopro_dual_fan_adapter.stl \
+	gopro_dual_fan_adapter_2_prong.stl \
+	gopro_dual_fan_adapter_3_prong.stl
+DUAL_FAN_STLS := $(DUAL_FAN_HOLDER_STL) $(DUAL_FAN_ADAPTER_STLS)
+DUAL_FAN_ALL_STLS := $(sort $(DUAL_FAN_STLS) $(DUAL_FAN_KNOWN_ADAPTER_STLS))
 DUAL_FAN_OPTIONAL_STLS := $(foreach size,40 60 80 120,\
 	gopro_single_fan_$(size)mm_airflow_splitter.stl)
 DUAL_FAN_BUILD_SENTINEL := .gopro_dual_fan_build_complete
@@ -146,7 +151,7 @@ print_targets:
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
-		'dual-fan                  Build the parametric fan holder; optional splitter follows CONFIG.' \
+		'dual-fan                  Build the fan holder and both GoPro adapter variants; optional splitter follows CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \
 		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
@@ -172,7 +177,7 @@ print_targets:
 		'clean-wrapping-fan-cover  Remove the wrapping fan cover STL.' \
 		'clean-horn                Remove the parametric horn STL.' \
 		'clean-mission1-dummy      Remove the Mission 1 dummy STL.' \
-		'clean-dual-fan            Remove the dual-fan STL.' \
+		'clean-dual-fan            Remove the dual-fan holder and adapter STLs.' \
 		'clean-fan-silencer        Remove fan-silencer STLs and generated render images.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
 		'clean-hockeymom-cover     Remove all HOCKEYMOM 3 camera-cover STLs.' \
@@ -246,9 +251,9 @@ $(MISSION1_DUMMY_STLS): gopro_mission1_dummy_blender.py
 	$(call run_single_output_generator,$<,main,EXPORT_PATH)
 
 $(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py fan_size_presets.py
-	$(RM) $(DUAL_FAN_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
+	$(RM) $(DUAL_FAN_ALL_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
-		"import os,sys; p='$<'; sys.path.insert(0,os.path.dirname(os.path.abspath(p))); ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_STL_PATH']='$(word 1,$(DUAL_FAN_STLS))'; ns['EXPORT_ADAPTER_STL_PATH']='$(word 2,$(DUAL_FAN_STLS))'; ns['build_dual_fan'](); __import__('pathlib').Path('$(DUAL_FAN_BUILD_SENTINEL)').write_text('complete',encoding='utf-8')"
+		"import os,sys; p='$<'; sys.path.insert(0,os.path.dirname(os.path.abspath(p))); ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_STL_PATH']='$(DUAL_FAN_HOLDER_STL)'; ns['build_dual_fan'](); __import__('pathlib').Path('$(DUAL_FAN_BUILD_SENTINEL)').write_text('complete',encoding='utf-8')"
 	$(PDF_PYTHON) -c "from pathlib import Path; sentinel=Path('$(DUAL_FAN_BUILD_SENTINEL)'); paths=[Path(name) for name in '$(DUAL_FAN_STLS)'.split()]+[sentinel]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; sentinel.unlink()"
 
 $(FAN_SILENCER_STLS): $(FAN_SILENCER_SOURCE_DEPS)
@@ -303,7 +308,7 @@ clean-mission1-dummy:
 	$(RM) $(MISSION1_DUMMY_STLS)
 
 clean-dual-fan:
-	$(RM) $(DUAL_FAN_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
+	$(RM) $(DUAL_FAN_ALL_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
 
 clean-fan-silencer:
 	$(RM) $(FAN_SILENCER_KNOWN_STLS) $(FAN_SILENCER_KNOWN_CROSS_SECTIONS) \
