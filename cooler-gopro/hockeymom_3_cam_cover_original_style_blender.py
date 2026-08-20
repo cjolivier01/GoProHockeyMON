@@ -5499,6 +5499,12 @@ def validate_config() -> None:
             "CAMERA_HARD_STOP_MIRRORED_EXTRA_LIMIT_DEG": (
                 CAMERA_HARD_STOP_MIRRORED_EXTRA_LIMIT_DEG
             ),
+            "CAMERA_HOLD_DOWN_PAD_REARWARD_OFFSET": (
+                CAMERA_HOLD_DOWN_PAD_REARWARD_OFFSET
+            ),
+            "CAMERA_HOLD_DOWN_LENS_CLEARANCE": (
+                CAMERA_HOLD_DOWN_LENS_CLEARANCE
+            ),
             "CAMERA_HARD_STOP_PIN_DIAMETER": CAMERA_HARD_STOP_PIN_DIAMETER,
             "CAMERA_HARD_STOP_SLOT_RADIUS": CAMERA_HARD_STOP_SLOT_RADIUS,
             "CAMERA_HARD_STOP_SLOT_LOCAL_ANGLE_DEG": (
@@ -8256,6 +8262,19 @@ def adjustable_yaw_samples(include_preview=False):
     values.append(0.0)
     if include_preview:
         values.append(ADJUSTABLE_CAMERA_PREVIEW_YAW_DEG)
+    return tuple(sorted(set(round(value, 9) for value in values)))
+
+
+def adjustable_hold_down_yaw_samples(camera):
+    """Include physically reachable travel through both hard-stop contacts."""
+    limit = adjustable_hard_stop_geometry(camera)["hard_stop_limit_deg"]
+    step = ADJUSTABLE_CAMERA_SWEEP_STEP_DEG
+    count = max(1, int(math.ceil(2.0 * limit / step)))
+    values = list(adjustable_yaw_samples(include_preview=True))
+    values.extend(
+        -limit + 2.0 * limit * index / count
+        for index in range(count + 1)
+    )
     return tuple(sorted(set(round(value, 9) for value in values)))
 
 
@@ -25976,8 +25995,9 @@ def validate_adjustable_hold_down_sweep(camera, bracket, camera_mockup):
     maximum_printed_lens_overlap = 0.0
     maximum_disk_lens_overlap = 0.0
     minimum_body_contact = math.inf
+    yaw_samples = adjustable_hold_down_yaw_samples(camera)
     try:
-        for yaw_delta in adjustable_yaw_samples(include_preview=True):
+        for yaw_delta in yaw_samples:
             posed_lens = duplicate_object(
                 lens_keepout,
                 f"Hold_Down_Lens_Keepout_Yaw_{yaw_delta:+.1f}",
@@ -26049,6 +26069,7 @@ def validate_adjustable_hold_down_sweep(camera, bracket, camera_mockup):
                 bpy.data.objects.remove(temporary, do_unlink=True)
     print(
         "ADJUSTABLE_HOLD_DOWN_SWEEP PASS "
+        f"physical_yaw=({min(yaw_samples):+.2f},{max(yaw_samples):+.2f}) "
         f"lens_clearance={CAMERA_HOLD_DOWN_LENS_CLEARANCE:.2f} "
         f"max_printed_lens_overlap={maximum_printed_lens_overlap:.9f} "
         f"max_disk_lens_overlap={maximum_disk_lens_overlap:.9f} "
@@ -27568,6 +27589,7 @@ def build_original_style_cover():
         cameras,
         force=(
             VALIDATE_ASSEMBLY_CLEARANCES
+            or VALIDATE_TIGHTENED_BRACKET_CLEARANCES
             or VALIDATE_CAMERA_USB_ACCESS
             or VALIDATE_CAMERA_INSTALLATION_PATH
             or VALIDATE_REAR_FAN_BODY_CLEARANCE
