@@ -890,17 +890,25 @@ CAMERA_HARD_STOP_MIN_ENDPOINT_CLEARANCE = 0.5
 # limit and use a torque-limited knob or slip clutch where practical.
 CAMERA_WORM_MAX_INPUT_TORQUE_NMM = 2.0
 
-# The selected camera's removable bridge bears directly over the yaw pivot,
-# supplying vertical preload without an appreciable yaw moment.  A second
-# rotating top cap is deliberately omitted: this small stationary interface is
-# stiffer, cannot desynchronize from the lower carrier, and obstructs less air.
+# The selected camera's removable bridge spans the yaw pivot.  Its contact pad
+# is shifted slightly rearward onto the flat body roof so the rotating lens
+# housing cannot rub it; keeping that shift small and using a low-friction disk
+# still limits yaw drag.  A second rotating top cap is deliberately omitted:
+# this small stationary interface is stiffer, cannot desynchronize from the
+# lower carrier, and obstructs less air.
 CAMERA_HOLD_DOWN_PAD_DIAMETER = 14.0
 CAMERA_HOLD_DOWN_CENTER_PLATE_DIAMETER = 18.0
-# Bond a replaceable PTFE/UHMW/acetal disk to the printed pivot pad.  It is
-# centered on the yaw axis, so the stationary bridge adds negligible yaw drag.
+# Positive distance moves the pad away from the lens along the camera's local
+# rearward axis.  Five millimetres keeps the complete disk on the body roof
+# throughout the yaw sweep while retaining a compact, low-moment interface.
+CAMERA_HOLD_DOWN_PAD_REARWARD_OFFSET = 5.0
+# Bond a replaceable PTFE/UHMW/acetal disk to the printed contact pad.
 CAMERA_HOLD_DOWN_PAD_MATERIAL_THICKNESS = 0.25
 CAMERA_HOLD_DOWN_PAD_MATERIAL_CLEARANCE = 0.20
 CAMERA_HOLD_DOWN_MIN_FINAL_PAD_AREA_RATIO = 0.95
+# Validate the tightened printed bridge and its replaceable disk against an
+# expanded lens-only mesh at every configured yaw sample.
+CAMERA_HOLD_DOWN_LENS_CLEARANCE = 0.50
 # The descending eye-closure tongue receives a pocket above the stationary
 # hold-down disk.  Keep the cut below the structural lid underside by at least
 # this web while preserving the normal bracket/lid running clearance.
@@ -3096,6 +3104,10 @@ def validate_config() -> None:
             CAMERA_FRONT_STOP_CONTACT_TOLERANCE
         ),
         "CAMERA_BRACKET_THICKNESS": CAMERA_BRACKET_THICKNESS,
+        "CAMERA_HOLD_DOWN_PAD_DIAMETER": CAMERA_HOLD_DOWN_PAD_DIAMETER,
+        "CAMERA_HOLD_DOWN_LENS_CLEARANCE": (
+            CAMERA_HOLD_DOWN_LENS_CLEARANCE
+        ),
         "CAMERA_BRACKET_CONTACT_RAIL_WIDTH": (
             CAMERA_BRACKET_CONTACT_RAIL_WIDTH
         ),
@@ -3479,7 +3491,6 @@ def validate_config() -> None:
             CAMERA_IDLER_SHAFT_TOP_COLLAR_CLEARANCE
         ),
         "CAMERA_HARD_STOP_PIN_DIAMETER": CAMERA_HARD_STOP_PIN_DIAMETER,
-        "CAMERA_HOLD_DOWN_PAD_DIAMETER": CAMERA_HOLD_DOWN_PAD_DIAMETER,
         "CAMERA_HOLD_DOWN_PAD_MATERIAL_THICKNESS": (
             CAMERA_HOLD_DOWN_PAD_MATERIAL_THICKNESS
         ),
@@ -4648,6 +4659,12 @@ def validate_config() -> None:
         ),
         "CAMERA_HOLD_DOWN_PAD_MATERIAL_CLEARANCE": (
             CAMERA_HOLD_DOWN_PAD_MATERIAL_CLEARANCE
+        ),
+        "CAMERA_HOLD_DOWN_PAD_REARWARD_OFFSET": (
+            CAMERA_HOLD_DOWN_PAD_REARWARD_OFFSET
+        ),
+        "CAMERA_HOLD_DOWN_LENS_CLEARANCE": (
+            CAMERA_HOLD_DOWN_LENS_CLEARANCE
         ),
         "CAMERA_HOLD_DOWN_LID_RELIEF_MIN_UNDERSIDE_WEB": (
             CAMERA_HOLD_DOWN_LID_RELIEF_MIN_UNDERSIDE_WEB
@@ -6048,6 +6065,14 @@ def validate_config() -> None:
         )
         if hold_down_disk_diameter <= 0.0:
             raise ValueError("Hold-down material clearance consumes its pad")
+        if CAMERA_HOLD_DOWN_PAD_REARWARD_OFFSET >= (
+            CAMERA_HOLD_DOWN_PAD_DIAMETER
+            + CAMERA_HOLD_DOWN_CENTER_PLATE_DIAMETER
+        ) / 2.0:
+            raise ValueError(
+                "Rearward hold-down pad offset disconnects it from the "
+                "center plate"
+            )
         if not 0.0 < CAMERA_HOLD_DOWN_MIN_FINAL_PAD_AREA_RATIO <= 1.0:
             raise ValueError(
                 "CAMERA_HOLD_DOWN_MIN_FINAL_PAD_AREA_RATIO must be in (0, 1]"
@@ -8289,6 +8314,17 @@ def adjustable_camera_local_point(camera, radial, tangent, z, yaw_delta=0.0):
             + math.cos(angle) * relative_tangent,
             z,
         )
+    )
+
+
+def adjustable_hold_down_pad_center(camera):
+    """Return the stationary pad center on the camera's nominal body roof."""
+    return adjustable_camera_local_point(
+        camera,
+        ADJUSTABLE_CAMERA_PIVOT_RADIAL
+        - CAMERA_HOLD_DOWN_PAD_REARWARD_OFFSET,
+        adjustable_camera_pivot_tangential(camera),
+        0.0,
     )
 
 
@@ -20906,7 +20942,7 @@ def add_bottom_keystone_mounts(base, positions):
 
 
 def create_adjustable_camera_hold_down(camera, post_positions):
-    """Stationary two-screw bridge with a low-friction pad on the yaw axis."""
+    """Stationary bridge with a body-safe, low-friction camera contact pad."""
     if len(post_positions) != 2:
         raise ValueError("Adjustable camera hold-down requires two posts")
     pivot = adjustable_camera_pivot(camera)
@@ -20966,6 +21002,7 @@ def create_adjustable_camera_hold_down(camera, post_positions):
     body_top = camera_eye_center_z() + mission1.canonical_body_bounds(
         CAMERA_UPSIDE_DOWN
     )[2][1]
+    pad_center = adjustable_hold_down_pad_center(camera)
     pad_bottom = (
         body_top
         + CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z
@@ -20976,13 +21013,13 @@ def create_adjustable_camera_hold_down(camera, post_positions):
         CAMERA_HOLD_DOWN_PAD_DIAMETER / 2.0,
         pad_bottom,
         underside + BOOLEAN_OVERLAP,
-        pivot.x,
-        pivot.y,
+        pad_center.x,
+        pad_center.y,
     )
     boolean_union(bridge, pad, "Adjustable_Hold_Down_Pivot_Pad")
     # The pivot is deliberately near the camera's front plane.  Relieve the
-    # outward cap of the center plate at the direct eye mouth while retaining
-    # the smaller contact pad, which ends just inside this cutter.
+    # outward cap of the center plate at the direct eye mouth; the rear-shifted
+    # contact pad stays on the protected camera-body land behind this cut.
     eye_clearance = CAMERA_BRACKET_WALL_CLEARANCE
     mouth_cutter = rounded_rectangle_prism_axis(
         "Adjustable_Hold_Down_Eye_Mouth_Clearance",
@@ -21038,7 +21075,14 @@ def create_adjustable_camera_hold_down(camera, post_positions):
     pad_solid_samples = int(
         point_inside_closed_bvh(
             pad_record[0],
-            pad_record[1] @ Vector((pivot.x, pivot.y, (pad_bottom + underside) / 2.0)),
+            pad_record[1]
+            @ Vector(
+                (
+                    pad_center.x,
+                    pad_center.y,
+                    (pad_bottom + underside) / 2.0,
+                )
+            ),
         )
     )
     try:
@@ -21053,8 +21097,8 @@ def create_adjustable_camera_hold_down(camera, post_positions):
                 angle = 2.0 * math.pi * angle_index / 48.0
                 point = Vector(
                     (
-                        pivot.x + radius * math.cos(angle),
-                        pivot.y + radius * math.sin(angle),
+                        pad_center.x + radius * math.cos(angle),
+                        pad_center.y + radius * math.sin(angle),
                         (pad_bottom + underside) / 2.0,
                     )
                 )
@@ -21077,6 +21121,11 @@ def create_adjustable_camera_hold_down(camera, post_positions):
     bridge["camera_angle_deg"] = camera["angle"]
     bridge["pivot_x"] = pivot.x
     bridge["pivot_y"] = pivot.y
+    bridge["contact_pad_center_x"] = pad_center.x
+    bridge["contact_pad_center_y"] = pad_center.y
+    bridge["contact_pad_rearward_offset_mm"] = (
+        CAMERA_HOLD_DOWN_PAD_REARWARD_OFFSET
+    )
     bridge["contact_pad_bottom_z"] = pad_bottom
     bridge["final_contact_pad_area_ratio"] = final_pad_area_ratio
     bridge["low_friction_disk_diameter_mm"] = (
@@ -21092,6 +21141,7 @@ def create_adjustable_camera_hold_down(camera, post_positions):
         f"disk=PTFE/UHMW/acetal "
         f"diameter={bridge['low_friction_disk_diameter_mm']:.2f} "
         f"thickness={CAMERA_HOLD_DOWN_PAD_MATERIAL_THICKNESS:.2f} "
+        f"rearward_offset={CAMERA_HOLD_DOWN_PAD_REARWARD_OFFSET:.2f} "
         f"designed_compression={CAMERA_BRACKET_CLAMP_PRELOAD_Z:.2f}"
     )
     return bridge
@@ -23108,6 +23158,46 @@ def create_camera_mockups(cameras, force=False):
         assign_material(mockup, "Camera_Keepout_Material", CAMERA_COLOR)
         mockups.append(mockup)
     return mockups
+
+
+def create_adjustable_camera_lens_clearance_keepout(camera):
+    """Build a lens-only mesh expanded by the hold-down safety clearance."""
+    keepout = mission1.lens_housing("Adjustable_Camera_Lens_Clearance")
+    mission1.canonicalize_about_lens(
+        keepout,
+        upside_down=CAMERA_UPSIDE_DOWN,
+    )
+    clearance = CAMERA_HOLD_DOWN_LENS_CLEARANCE
+    radial_depth = mission1.LENS_FACE_Y - mission1.LENS_SHOULDER_Y
+    radial_center = -radial_depth / 2.0
+    radial_scale = (radial_depth + 2.0 * clearance) / radial_depth
+    # Scale both cross-section axes from the smaller shoulder.  The wider
+    # front face consequently receives at least the configured clearance too.
+    tangent_scale = (
+        mission1.LENS_SHOULDER_WIDTH + 2.0 * clearance
+    ) / mission1.LENS_SHOULDER_WIDTH
+    vertical_scale = (
+        mission1.LENS_SHOULDER_HEIGHT + 2.0 * clearance
+    ) / mission1.LENS_SHOULDER_HEIGHT
+    for vertex in keepout.data.vertices:
+        vertex.co.x = radial_center + (
+            vertex.co.x - radial_center
+        ) * radial_scale
+        vertex.co.y *= tangent_scale
+        vertex.co.z *= vertical_scale
+    keepout.data.update()
+    mission1.recalc_normals(keepout)
+    lens_center = adjustable_camera_local_point(
+        camera,
+        0.0,
+        0.0,
+        camera_eye_center_z(),
+        0.0,
+    )
+    keepout.location = tuple(lens_center)
+    keepout.rotation_euler.z = math.radians(camera["angle"])
+    bpy.context.view_layer.update()
+    return keepout
 
 
 def create_camera_usb_access_keepout(camera, yaw_delta=None):
@@ -25854,6 +25944,118 @@ def validate_idler_drivetrain_stack(
     )
 
 
+def validate_adjustable_hold_down_sweep(camera, bracket, camera_mockup):
+    """Prove body preload and lens clearance over the complete yaw sweep."""
+    if not VALIDATE_TIGHTENED_BRACKET_CLEARANCES:
+        return
+    if bracket is None or camera_mockup is None:
+        raise RuntimeError(
+            "Adjustable hold-down sweep validation requires its bracket and "
+            "camera mockup"
+        )
+    travel = float(
+        bracket.get("clamp_travel_z", camera_bracket_clamp_travel(camera))
+    )
+    tightened = duplicate_object(
+        bracket,
+        "Tightened_Adjustable_Hold_Down_Lens_Check",
+    )
+    tightened.location.z -= travel
+    disk_thickness = float(bracket["low_friction_disk_thickness_mm"])
+    disk_top = float(bracket["contact_pad_bottom_z"]) - travel
+    disk = add_cylinder_z(
+        "Tightened_Adjustable_Low_Friction_Disk_Check",
+        float(bracket["low_friction_disk_diameter_mm"]) / 2.0,
+        disk_top - disk_thickness,
+        disk_top,
+        float(bracket["contact_pad_center_x"]),
+        float(bracket["contact_pad_center_y"]),
+    )
+    lens_keepout = create_adjustable_camera_lens_clearance_keepout(camera)
+    pivot = adjustable_camera_pivot(camera)
+    maximum_printed_lens_overlap = 0.0
+    maximum_disk_lens_overlap = 0.0
+    minimum_body_contact = math.inf
+    try:
+        for yaw_delta in adjustable_yaw_samples(include_preview=True):
+            posed_lens = duplicate_object(
+                lens_keepout,
+                f"Hold_Down_Lens_Keepout_Yaw_{yaw_delta:+.1f}",
+            )
+            posed_camera = duplicate_object(
+                camera_mockup,
+                f"Hold_Down_Body_Contact_Yaw_{yaw_delta:+.1f}",
+            )
+            for posed in (posed_lens, posed_camera):
+                rotate_mesh_about_world_axis(
+                    posed,
+                    (pivot.x, pivot.y, 0.0),
+                    (0.0, 0.0, 1.0),
+                    yaw_delta,
+                )
+            try:
+                printed_overlap = intersection_metrics(
+                    tightened,
+                    posed_lens,
+                    f"hold_down_printed_lens_yaw_{yaw_delta:+.1f}",
+                )[2]
+                disk_overlap = intersection_metrics(
+                    disk,
+                    posed_lens,
+                    f"hold_down_disk_lens_yaw_{yaw_delta:+.1f}",
+                )[2]
+                body_contact = intersection_metrics(
+                    disk,
+                    posed_camera,
+                    f"hold_down_disk_body_yaw_{yaw_delta:+.1f}",
+                )[2]
+                maximum_printed_lens_overlap = max(
+                    maximum_printed_lens_overlap,
+                    printed_overlap,
+                )
+                maximum_disk_lens_overlap = max(
+                    maximum_disk_lens_overlap,
+                    disk_overlap,
+                )
+                minimum_body_contact = min(
+                    minimum_body_contact,
+                    body_contact,
+                )
+                print(
+                    "ADJUSTABLE_HOLD_DOWN_SWEEP "
+                    f"yaw={yaw_delta:+.1f} "
+                    f"printed_lens_overlap={printed_overlap:.9f} "
+                    f"disk_lens_overlap={disk_overlap:.9f} "
+                    f"body_contact={body_contact:.9f}"
+                )
+                if max(printed_overlap, disk_overlap) > (
+                    ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE
+                ):
+                    raise RuntimeError(
+                        "Adjustable hold-down enters the lens clearance "
+                        f"envelope at yaw {yaw_delta:+.1f}"
+                    )
+                if body_contact < CAMERA_BRACKET_MIN_PRELOAD_CONTACT_VOLUME:
+                    raise RuntimeError(
+                        "Adjustable hold-down loses required body preload at "
+                        f"yaw {yaw_delta:+.1f}: {body_contact:.9f} mm^3"
+                    )
+            finally:
+                bpy.data.objects.remove(posed_lens, do_unlink=True)
+                bpy.data.objects.remove(posed_camera, do_unlink=True)
+    finally:
+        for temporary in (tightened, disk, lens_keepout):
+            if temporary.name in bpy.data.objects:
+                bpy.data.objects.remove(temporary, do_unlink=True)
+    print(
+        "ADJUSTABLE_HOLD_DOWN_SWEEP PASS "
+        f"lens_clearance={CAMERA_HOLD_DOWN_LENS_CLEARANCE:.2f} "
+        f"max_printed_lens_overlap={maximum_printed_lens_overlap:.9f} "
+        f"max_disk_lens_overlap={maximum_disk_lens_overlap:.9f} "
+        f"min_body_contact={minimum_body_contact:.9f}"
+    )
+
+
 def validate_adjustable_camera_range(
     cameras,
     footprint,
@@ -25900,6 +26102,16 @@ def validate_adjustable_camera_range(
         camera_mockups[moving_camera_index]
         if len(camera_mockups) == len(cameras)
         else None
+    )
+    moving_bracket = (
+        camera_brackets[moving_camera_index]
+        if len(camera_brackets) == len(cameras)
+        else None
+    )
+    validate_adjustable_hold_down_sweep(
+        camera,
+        moving_bracket,
+        moving_mockup,
     )
     fixed_envelope = convex_hull_2d(camera_xy_corners(fixed_camera))
     required_lens_edge_clearance = CAMERA_LENS_OPENING_CLEARANCE
