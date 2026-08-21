@@ -38,6 +38,7 @@ from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Pol
 HERE = Path(__file__).absolute().parent
 MODEL_SOURCE = HERE / "hockeymom_cam_case_blender.py"
 CAMERA_SOURCE = HERE / "gopro_mission1_dummy_blender.py"
+FAN_PRESET_SOURCE = HERE / "fan_size_presets.py"
 OUTPUT_PDF = HERE / "hockeymom_cam_case_configuration_dimensions.pdf"
 TOTAL_SHEETS = 0
 UNDERSIZED_NOTE_BOXES: list[tuple[str, float]] = []
@@ -403,6 +404,7 @@ OPTIONAL_DIMENSION_NAMES = {
     "LID_FAN_DEPTH_MM",
     "LID_FAN_HUB_DIAMETER_MM",
     "LID_FAN_MOUNT_SPACING_MM",
+    "LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET",
     "REAR_FAN_CENTER_TANGENTS",
 }
 
@@ -699,6 +701,8 @@ SOURCE_HASH = hashlib.sha256(
     MODEL_SOURCE.read_bytes()
     + b"\0"
     + CAMERA_SOURCE.read_bytes()
+    + b"\0"
+    + FAN_PRESET_SOURCE.read_bytes()
     + b"\0"
     + Path(__file__).read_bytes()
 ).hexdigest()[:12]
@@ -3091,24 +3095,40 @@ def page_carrier_guard(pdf):
 def page_fans(pdf):
     fan_mode=str(val("FAN_MOUNT_MODE","lid_single"))
     fig=new_sheet(11,"SELECTABLE FAN STATIONS & TWO-PIECE LID-FAN POD",
-                  f"FAN_MOUNT_MODE={fan_mode}; a curved fairing hides the square fan and a flat-bottomed domed grille slides on separately")
-    ax=panel(fig,[0.065,0.40,0.52,0.47],"PAD, OPENING & MOUNT PATTERN","REAR ELEVATION")
-    pad=float(val("REAR_FAN_PAD_SIZE",45)); offset=float(val("REAR_FAN_CENTERLINE_OFFSET",50)); z=float(val("REAR_FAN_CENTER_Z",35)); spacing=float(val("REAR_FAN_MOUNT_SPACING",32)); opening=float(val("REAR_FAN_AIR_OPENING_DIAMETER",36))
-    ax.add_patch(Rectangle((-90,0),180,76,facecolor="#edf4f7",edgecolor=BLUE,lw=1.1))
-    for cy in (-offset,offset):
-        ax.add_patch(Rectangle((cy-pad/2,z-pad/2),pad,pad,facecolor=WHITE,edgecolor=GREEN,lw=1.5))
-        ax.add_patch(Circle((cy,z),opening/2,facecolor="#e6f4eb",edgecolor=GREEN,lw=1.2))
+                  f"FAN_MOUNT_MODE={fan_mode}; lid_pair holds two standard 40 or 60 mm fans beneath one curved TPU pod")
+    ax=panel(fig,[0.065,0.40,0.52,0.47],"LID_PAIR: TWO STANDARD FANS","PLAN — NTS")
+    # Normalized plan: the exact 40/60 mm frame, depth, opening, hub and hole
+    # spacing come from fan_size_presets.py and scale together at build time.
+    frame=52.0
+    pair_gap=8.0
+    pitch=frame+pair_gap
+    spacing=42.0
+    opening=45.0
+    array_depth=2*frame+pair_gap
+    ax.add_patch(FancyBboxPatch((-39,-array_depth/2-12),78,array_depth+24,
+                                boxstyle="round,pad=0,rounding_size=12",
+                                facecolor="#eee8f5",edgecolor=PURPLE,lw=1.5))
+    for cy in (-pitch/2,pitch/2):
+        ax.add_patch(Rectangle((-frame/2,cy-frame/2),frame,frame,
+                               facecolor=WHITE,edgecolor=INK,lw=1.1))
+        ax.add_patch(Circle((0,cy),opening/2,facecolor="#e6f4eb",edgecolor=GREEN,lw=1.2))
         for sx in (-1,1):
-            for sz in (-1,1):
-                ax.add_patch(Circle((cy+sx*spacing/2,z+sz*spacing/2),1.7,facecolor=WHITE,edgecolor=PURPLE,lw=0.8))
-    centerline(ax,(-98,z),(98,z)); centerline(ax,(0,-7),(0,82))
-    dim_h(ax,-offset,offset,72,z,"2 * REAR_FAN_CENTERLINE_OFFSET")
-    dim_h(ax,-offset-pad/2,-offset+pad/2,-9,0,"REAR_FAN_PAD_SIZE")
-    dim_v(ax,z-pad/2,z+pad/2,-99,-offset-pad/2,"REAR_FAN_PAD_SIZE")
-    dim_h(ax,-offset-spacing/2,-offset+spacing/2,z+11,z,"REAR_FAN_MOUNT_SPACING",PURPLE)
-    leader(ax,(-offset+opening/2,z),(-18,11),"REAR_FAN_AIR_OPENING_DIAMETER",GREEN)
-    leader(ax,(offset+spacing/2,z+spacing/2),(90,66),f"mount hole dia {mm('REAR_FAN_MOUNT_HOLE_DIAMETER',3.4)}",PURPLE,"right")
-    setup(ax,-110,110,-18,88)
+            for sy in (-1,1):
+                ax.add_patch(Circle((sx*spacing/2,cy+sy*spacing/2),1.7,
+                                    facecolor=WHITE,edgecolor=PURPLE,lw=0.8))
+        ax.add_patch(Rectangle((frame/2-4,cy-2.5),12,5,
+                               facecolor=WHITE,edgecolor=ORANGE,lw=0.9))
+    centerline(ax,(-46,0),(46,0))
+    centerline(ax,(0,-76),(0,76))
+    dim_h(ax,-frame/2,frame/2,-72,-array_depth/2,"LID_FAN_SIZE_MM (40 or 60)")
+    dim_v(ax,-pair_gap/2,pair_gap/2,34,frame/2,
+          "LID_FAN_PAIR_FRAME_GAP_MM",PURPLE)
+    dim_h(ax,-spacing/2,spacing/2,pitch/2+8,pitch/2,
+          "preset hole spacing",PURPLE)
+    leader(ax,(opening/2,-pitch/2),(51,-47),"preset opening",GREEN,"right")
+    leader(ax,(38,0),(51,17),"shared fairing uses\nX/Y margin controls",PURPLE,"right")
+    leader(ax,(frame/2+4,pitch/2),(52,56),"one covered cable\ngroove per fan",ORANGE,"right")
+    setup(ax,-62,66,-80,80)
 
     ax2=panel(fig,[0.61,0.47,0.325,0.40],"TPU FAN POD + SLIDE-IN GRILLE","SECTION")
     dome_rise=float(val("LID_FAN_COVER_DOME_RISE",5))
@@ -3131,17 +3151,17 @@ def page_fans(pdf):
     for x in (-15,0,15):
         ax2.add_patch(FancyArrowPatch((x,15),(x,31),arrowstyle="-|>",mutation_scale=9,color=GREEN,lw=1.0))
     leader(ax2,(0,21+dome_rise),(-8,31),"LID_FAN_COVER_DOME_RISE",PURPLE,"center")
-    leader(ax2,(-38,5),(-56,36),"thin shell: FAIRING BOTTOM / TOP WIDTH",PURPLE)
+    leader(ax2,(-38,5),(-56,36),"thin shell: FAIRING X/Y MARGINS",PURPLE)
     leader(ax2,(31,7),(59,30),"4 mm lead / 5.6 mm groove\nAIR_OPENING_OVERLAP / OUTSET",ORANGE,"right")
     leader(ax2,(34,18),(60,15),"6 mm curved covered drop",ORANGE,"right")
     leader(ax2,(-10,21),(-57,-2),"separate flat-bottomed grille",PURPLE)
     setup(ax2,-61,65,-5,41)
 
-    note_box(fig,[0.065,0.16,0.25,0.17],"SELECTABLE HARDWARE",
-             ["FAN_MOUNT_MODE selects lid_single or rear_wall_pair.",
-              "LID_FAN_SIZE_MM chooses the top-fan preset.",
-              "REAR_FAN_FRAME_SIZE / REAR_FAN_DEPTH",
-              "REAR_FAN_ALIGN_TO_LOCAL_WALL preserves tangent alignment."],GREEN)
+    note_box(fig,[0.065,0.16,0.25,0.24],"SELECTABLE HARDWARE",
+             ["Modes: rear_wall_pair, lid_single, or lid_pair.",
+              "lid_pair: two equal 40 or 60 mm fans.",
+              "Pair bridge: LID_FAN_PAIR_FRAME_GAP_MM.",
+              "Standards: fan_size_presets.py."],GREEN)
     note_box(fig,[0.335,0.16,0.25,0.17],"POD / AIRFLOW",
              ["LID_FAN_COVER_MATERIAL_MODE selects TPU or RIGID.",
               "LID_MATERIAL_MODE defaults to vibration-damping TPU.",
@@ -3154,8 +3174,8 @@ def page_fans(pdf):
               "Dual rail detents snap into grille notches against vibration.",
               "LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER preserves access.",
               "Print fairing open-side-down and grille flat-side-down; no supports.",
-              "Pass the loose PWM plug through the 110 mm fan opening first.",
-              "Lower the fan while only its captive lead settles into the groove.",
+              "Pass each loose PWM plug through its airflow opening first.",
+              "Lower each fan while its captive lead settles into its groove.",
               "The curved blister hides the high frame exit and preserves screw access."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
@@ -3377,9 +3397,9 @@ def page_index(pdf):
             ("Carrier guide / front-stop margin","CAMERA_CARRIER_GUIDE_HEIGHT / CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN"),
         ]),
         ("FANS / ACOUSTICS",[
-            ("Fan mounting mode / lid-fan frame","FAN_MOUNT_MODE / LID_FAN_SIZE_MM / LID_FAN_DEPTH_MM / LID_FAN_MOUNT_SPACING_MM"),
-            ("Curved fan fairing / domed grille","LID_FAN_COVER_MATERIAL_MODE / LID_FAN_FAIRING_BOTTOM_WIDTH / LID_FAN_FAIRING_TOP_WIDTH / LID_FAN_FAIRING_MAX_SOLID_VOLUME / LID_FAN_GRILLE_OUTER_SIZE / LID_FAN_COVER_DOME_RISE"),
-            ("Slide rails / snap detents","LID_FAN_GRILLE_RAIL_OVERHANG / LID_FAN_GRILLE_RAIL_LENGTH / LID_FAN_GRILLE_SLIDE_CLEARANCE / LID_FAN_GRILLE_VERTICAL_CLEARANCE / LID_FAN_GRILLE_RIGID_DETENT_PROTRUSION / LID_FAN_GRILLE_TPU_DETENT_PROTRUSION / LID_FAN_GRILLE_DETENT_RADIUS"),
+            ("Fan mounting mode / lid array","FAN_MOUNT_MODE / LID_FAN_SIZE_MM / LID_FAN_PAIR_FRAME_GAP_MM / LID_FAN_DEPTH_MM / LID_FAN_MOUNT_SPACING_MM"),
+            ("Curved fan fairing / domed grille","LID_FAN_COVER_MATERIAL_MODE / LID_FAN_FAIRING_BOTTOM_X_MARGIN / LID_FAN_FAIRING_BOTTOM_Y_MARGIN / LID_FAN_FAIRING_TOP_X_MARGIN / LID_FAN_FAIRING_TOP_Y_MARGIN / LID_FAN_FAIRING_MAX_SOLID_VOLUME / LID_FAN_GRILLE_EDGE_MARGIN / LID_FAN_COVER_DOME_RISE"),
+            ("Slide rails / snap detents","LID_FAN_GRILLE_RAIL_OVERHANG / LID_FAN_GRILLE_RAIL_FRONT_ENTRY_CLEARANCE / LID_FAN_GRILLE_RAIL_REAR_OVERTRAVEL / LID_FAN_GRILLE_SLIDE_CLEARANCE / LID_FAN_GRILLE_VERTICAL_CLEARANCE / LID_FAN_GRILLE_RIGID_DETENT_PROTRUSION / LID_FAN_GRILLE_TPU_DETENT_PROTRUSION / LID_FAN_GRILLE_DETENT_RADIUS"),
             ("Fairing friction / thumbscrew access","LID_FAN_COVER_RIGID_RETENTION_PROTRUSION / LID_FAN_COVER_TPU_RETENTION_PROTRUSION / LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER"),
             ("Direct lid-fan cord route","LID_FAN_CABLE_OUTER_DIAMETER / LID_FAN_CABLE_SLOT_AIR_OPENING_OVERLAP / LID_FAN_CABLE_SLOT_OUTSET / LID_FAN_CABLE_SLOT_CLEARANCE / LID_FAN_CABLE_BEND_RADIUS"),
             ("Fan pad / hardware frame","REAR_FAN_PAD_SIZE / REAR_FAN_FRAME_SIZE"),

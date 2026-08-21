@@ -105,7 +105,7 @@ HOCKEYMOM_CAM_CASE_LID_FAN_STLS := \
 	hockeymom_cam_case_lid_fan_fairing.stl \
 	hockeymom_cam_case_lid_fan_grille.stl
 HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS :=
-ifeq ($(HOCKEYMOM_FAN_MOUNT_MODE),lid_single)
+ifneq (,$(filter lid_single lid_pair,$(HOCKEYMOM_FAN_MOUNT_MODE)))
 ifeq ($(HOCKEYMOM_LID_FAN_COVER_ENABLED),True)
 HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS += $(HOCKEYMOM_CAM_CASE_LID_FAN_STLS)
 endif
@@ -239,7 +239,8 @@ check-fan-case-dim-pdf-sync: $(FAN_CASE_DIMENSION_PDF)
 	$(PDF_PYTHON) generate_fan_case_config_dimension_pdf.py --check-sync
 
 $(DIMENSION_PDF): generate_hockeymom_cam_case_dimension_pdf.py \
-	hockeymom_cam_case_blender.py gopro_mission1_dummy_blender.py
+	hockeymom_cam_case_blender.py gopro_mission1_dummy_blender.py \
+	fan_size_presets.py
 	$(PDF_PYTHON) $<
 
 $(FAN_CASE_DIMENSION_PDF): generate_fan_case_config_dimension_pdf.py \
@@ -311,7 +312,8 @@ $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py fan_size_presets.py
 # Hockeymom component.  This keeps direct component targets useful and avoids
 # rebuilding an unchanged cover every time `make all` is run.  Artifacts behind
 # explicit opt-in export switches remain outside this group.
-$(HOCKEYMOM_CAM_CASE_STLS) &: hockeymom_cam_case_blender.py gopro_mission1_dummy_blender.py
+$(HOCKEYMOM_CAM_CASE_STLS) &: hockeymom_cam_case_blender.py \
+	gopro_mission1_dummy_blender.py fan_size_presets.py
 	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
 		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_hockeymom_cam_case']()"
