@@ -35,9 +35,11 @@ from __future__ import annotations
 import math
 import hashlib
 import functools
+import gc
 import heapq
 import itertools
 import sys
+from array import array
 from pathlib import Path
 
 import bmesh
@@ -20415,6 +20417,8 @@ def validate_final_airflow_guide_open_channels(base, layout):
                 )
             z_count = max(int(math.ceil((z_max - z_min) / z_target_step)), 1)
             z_step = (z_max - z_min) / z_count
+            layer_stride = x_count * y_count
+            grid_node_count = layer_stride * (z_count + 1)
             xy_points = {}
             for x_index in range(x_count):
                 x = x_min + (x_index + 0.5) * x_step
@@ -20440,8 +20444,13 @@ def validate_final_airflow_guide_open_channels(base, layout):
             )
             gate_band = 1.75 * max(x_step, y_step) + core_radius
 
+            def node_indices(node):
+                z_index, planar_index = divmod(node, layer_stride)
+                y_index, x_index = divmod(planar_index, x_count)
+                return x_index, y_index, z_index
+
             def node_point(node):
-                x_index, y_index, z_index = node
+                x_index, y_index, z_index = node_indices(node)
                 return Vector(
                     (
                         x_min + (x_index + 0.5) * x_step,
@@ -20537,43 +20546,69 @@ def validate_final_airflow_guide_open_channels(base, layout):
                     point,
                 )
 
-            free_nodes = set()
-            source_nodes = set()
-            target_nodes = set()
+            # Encode grid coordinates as dense integer node IDs.  Byte masks
+            # and four-byte queues avoid retaining several three-int tuples
+            # in the free/source/target/reachability sets simultaneously.
+            free_node_mask = bytearray(grid_node_count)
+            target_node_mask = bytearray(grid_node_count)
+            source_nodes = array("i")
+            target_nodes = array("i")
+            free_node_count = 0
             for z_index in range(z_count + 1):
                 z = z_min + z_index * z_step
                 for (x_index, y_index), (x, y) in xy_points.items():
                     if not point_has_open_core((x, y, z)):
                         continue
-                    node = (x_index, y_index, z_index)
-                    free_nodes.add(node)
+                    node = (
+                        z_index * layer_stride
+                        + y_index * x_count
+                        + x_index
+                    )
+                    free_node_mask[node] = 1
+                    free_node_count += 1
                     if (
                         point_segment_distance((x, y), *source_gate)
                         <= gate_band
                         and node_connects_to_gate(node, source_gate)
                     ):
-                        source_nodes.add(node)
+                        source_nodes.append(node)
                     if (
                         point_segment_distance((x, y), *target_gate)
                         <= gate_band
                         and node_connects_to_gate(node, target_gate)
                     ):
-                        target_nodes.add(node)
+                        target_node_mask[node] = 1
+                        target_nodes.append(node)
             if not source_nodes or not target_nodes:
                 raise RuntimeError(
                     f"Final air-guide lane {lane_id} has no open source or "
                     "target gate at airflow height"
                 )
-            queue = list(source_nodes)
-            visited = set(source_nodes)
+            queue = array("i", source_nodes)
+            visited_node_mask = bytearray(grid_node_count)
+            for node in source_nodes:
+                visited_node_mask[node] = 1
             reached = None
             queue_index = 0
-            edge_clearance_cache = {}
+            # State 0 is untested, 1 is blocked, and 2 is open.  Every grid
+            # edge is identified by its lower node ID and positive axis.
+            edge_clearance_cache = bytearray(3 * grid_node_count)
 
             def edge_has_open_core(first_node, second_node):
-                key = tuple(sorted((first_node, second_node)))
-                if key in edge_clearance_cache:
-                    return edge_clearance_cache[key]
+                lower_node = min(first_node, second_node)
+                delta = abs(first_node - second_node)
+                if delta == 1:
+                    axis = 0
+                elif delta == x_count:
+                    axis = 1
+                elif delta == layer_stride:
+                    axis = 2
+                else:
+                    raise RuntimeError("Air-guide graph edge is not axial")
+                cache_index = 3 * lower_node + axis
+                cached = edge_clearance_cache[cache_index]
+                if cached:
+                    return cached == 2
                 start = node_point(first_node)
                 end = node_point(second_node)
                 clear = segment_has_open_core(
@@ -20581,36 +20616,41 @@ def validate_final_airflow_guide_open_channels(base, layout):
                     end,
                     endpoints_are_open=True,
                 )
-                edge_clearance_cache[key] = clear
+                edge_clearance_cache[cache_index] = 2 if clear else 1
                 return clear
 
             while queue_index < len(queue):
                 node = queue[queue_index]
                 queue_index += 1
-                if reached is None and node in target_nodes:
+                if reached is None and target_node_mask[node]:
                     reached = node
-                x_index, y_index, z_index = node
+                x_index, y_index, z_index = node_indices(node)
                 for neighbor in (
-                    (x_index - 1, y_index, z_index),
-                    (x_index + 1, y_index, z_index),
-                    (x_index, y_index - 1, z_index),
-                    (x_index, y_index + 1, z_index),
-                    (x_index, y_index, z_index - 1),
-                    (x_index, y_index, z_index + 1),
+                    node - 1 if x_index > 0 else -1,
+                    node + 1 if x_index + 1 < x_count else -1,
+                    node - x_count if y_index > 0 else -1,
+                    node + x_count if y_index + 1 < y_count else -1,
+                    node - layer_stride if z_index > 0 else -1,
+                    (
+                        node + layer_stride
+                        if z_index + 1 <= z_count
+                        else -1
+                    ),
                 ):
                     if (
-                        neighbor in free_nodes
-                        and neighbor not in visited
+                        neighbor >= 0
+                        and free_node_mask[neighbor]
+                        and not visited_node_mask[neighbor]
                         and edge_has_open_core(node, neighbor)
                     ):
-                        visited.add(neighbor)
+                        visited_node_mask[neighbor] = 1
                         queue.append(neighbor)
             if reached is None:
                 raise RuntimeError(
                     f"Final base blocks the guided airflow channel in lane "
                     f"{lane_id}: source_cells={len(source_nodes)} "
                     f"target_cells={len(target_nodes)} "
-                    f"free_voxels={len(free_nodes)}"
+                    f"free_voxels={free_node_count}"
                 )
             # Require enough mutually node-disjoint swept-core paths to prove
             # useful duct capacity, not merely one thread through a pinhole.
@@ -20625,12 +20665,15 @@ def validate_final_airflow_guide_open_channels(base, layout):
             )
             source_entries = {
                 node: gate_entry_point(node_point(node), source_gate)
-                for node in source_nodes & visited
+                for node in source_nodes
+                if visited_node_mask[node]
             }
             target_entries = {
                 node: gate_entry_point(node_point(node), target_gate)
-                for node in target_nodes & visited
+                for node in target_nodes
+                if visited_node_mask[node]
             }
+
             def gate_entry_groups(entries):
                 groups = []
                 candidates = sorted(
@@ -20670,37 +20713,54 @@ def validate_final_airflow_guide_open_channels(base, layout):
 
             source_groups = gate_entry_groups(source_entries)
             target_groups = gate_entry_groups(target_entries)
-            flow_nodes = tuple(sorted(visited))
-            flow_node_index = {
-                node: index for index, node in enumerate(flow_nodes)
-            }
+            flow_nodes = array("i", sorted(queue))
+            flow_node_index = array("i", [-1]) * grid_node_count
+            for index, node in enumerate(flow_nodes):
+                flow_node_index[node] = index
             split_vertex_count = 2 * len(flow_nodes)
             source_group_offset = split_vertex_count
             target_group_offset = source_group_offset + len(source_groups)
             flow_source = target_group_offset + len(target_groups)
             flow_target = flow_source + 1
-            flow_graph = [[] for _ in range(flow_target + 1)]
+            flow_vertex_count = flow_target + 1
+            # Keep the residual graph in four-byte integer arrays.  A nested
+            # Python list of three-item edge lists retains several Python
+            # objects per swept voxel edge and materially raises Blender's
+            # peak RSS in the acoustic layout.  Forward/reverse edge pairs
+            # remain adjacent, so ``edge_index ^ 1`` resolves the reverse.
+            flow_head = array("i", [-1]) * flow_vertex_count
+            flow_edge_to = array("i")
+            flow_edge_capacity = array("i")
+            flow_next_edge = array("i")
 
             def add_flow_edge(start, end, capacity):
-                forward = [end, capacity, len(flow_graph[end])]
-                reverse = [start, 0, len(flow_graph[start])]
-                flow_graph[start].append(forward)
-                flow_graph[end].append(reverse)
+                edge_index = len(flow_edge_to)
+                flow_edge_to.extend((end, start))
+                flow_edge_capacity.extend((capacity, 0))
+                flow_next_edge.extend((flow_head[start], flow_head[end]))
+                flow_head[start] = edge_index
+                flow_head[end] = edge_index + 1
 
             infinite_capacity = required_disjoint_paths
             for index in range(len(flow_nodes)):
                 add_flow_edge(2 * index, 2 * index + 1, 1)
             for node in flow_nodes:
                 node_index = flow_node_index[node]
-                x_index, y_index, z_index = node
+                x_index, y_index, z_index = node_indices(node)
                 for neighbor in (
-                    (x_index + 1, y_index, z_index),
-                    (x_index, y_index + 1, z_index),
-                    (x_index, y_index, z_index + 1),
+                    node + 1 if x_index + 1 < x_count else -1,
+                    node + x_count if y_index + 1 < y_count else -1,
+                    (
+                        node + layer_stride
+                        if z_index + 1 <= z_count
+                        else -1
+                    ),
                 ):
-                    neighbor_index = flow_node_index.get(neighbor)
+                    neighbor_index = (
+                        flow_node_index[neighbor] if neighbor >= 0 else -1
+                    )
                     if (
-                        neighbor_index is None
+                        neighbor_index < 0
                         or not edge_has_open_core(node, neighbor)
                     ):
                         continue
@@ -20735,35 +20795,45 @@ def validate_final_airflow_guide_open_channels(base, layout):
 
             disjoint_path_count = 0
             while disjoint_path_count < required_disjoint_paths:
-                levels = [-1] * len(flow_graph)
+                levels = array("i", [-1]) * flow_vertex_count
                 levels[flow_source] = 0
-                level_queue = [flow_source]
+                level_queue = array("i", (flow_source,))
                 level_queue_index = 0
                 while level_queue_index < len(level_queue):
                     vertex = level_queue[level_queue_index]
                     level_queue_index += 1
-                    for end, capacity, _reverse_index in flow_graph[vertex]:
-                        if capacity > 0 and levels[end] < 0:
+                    edge_index = flow_head[vertex]
+                    while edge_index >= 0:
+                        end = flow_edge_to[edge_index]
+                        if (
+                            flow_edge_capacity[edge_index] > 0
+                            and levels[end] < 0
+                        ):
                             levels[end] = levels[vertex] + 1
                             level_queue.append(end)
+                        edge_index = flow_next_edge[edge_index]
                 if levels[flow_target] < 0:
                     break
-                next_edges = [0] * len(flow_graph)
+                next_edges = array("i", flow_head)
 
                 def send_flow(vertex, amount):
                     if vertex == flow_target:
                         return amount
-                    while next_edges[vertex] < len(flow_graph[vertex]):
-                        edge_index = next_edges[vertex]
-                        edge = flow_graph[vertex][edge_index]
-                        end, capacity, reverse_index = edge
-                        if capacity > 0 and levels[end] == levels[vertex] + 1:
+                    edge_index = next_edges[vertex]
+                    while edge_index >= 0:
+                        end = flow_edge_to[edge_index]
+                        capacity = flow_edge_capacity[edge_index]
+                        if (
+                            capacity > 0
+                            and levels[end] == levels[vertex] + 1
+                        ):
                             sent = send_flow(end, min(amount, capacity))
                             if sent:
-                                edge[1] -= sent
-                                flow_graph[end][reverse_index][1] += sent
+                                flow_edge_capacity[edge_index] -= sent
+                                flow_edge_capacity[edge_index ^ 1] += sent
                                 return sent
-                        next_edges[vertex] += 1
+                        edge_index = flow_next_edge[edge_index]
+                        next_edges[vertex] = edge_index
                     return 0
 
                 while disjoint_path_count < required_disjoint_paths:
@@ -20774,6 +20844,10 @@ def validate_final_airflow_guide_open_channels(base, layout):
                     if not sent:
                         break
                     disjoint_path_count += sent
+                # ``send_flow`` is recursive, so its closure cell refers back
+                # to the function.  Break that cycle after each level graph;
+                # an unreachable sink exits above before this function exists.
+                del send_flow
             proven_connected_area = disjoint_path_count * single_core_area
             if disjoint_path_count < required_disjoint_paths:
                 residual_reachable = {flow_source}
@@ -20782,13 +20856,19 @@ def validate_final_airflow_guide_open_channels(base, layout):
                 while residual_queue_index < len(residual_queue):
                     vertex = residual_queue[residual_queue_index]
                     residual_queue_index += 1
-                    for end, capacity, _reverse_index in flow_graph[vertex]:
-                        if capacity > 0 and end not in residual_reachable:
+                    edge_index = flow_head[vertex]
+                    while edge_index >= 0:
+                        end = flow_edge_to[edge_index]
+                        if (
+                            flow_edge_capacity[edge_index] > 0
+                            and end not in residual_reachable
+                        ):
                             residual_reachable.add(end)
                             residual_queue.append(end)
+                        edge_index = flow_next_edge[edge_index]
                 cut_nodes = tuple(
                     node
-                    for node, index in flow_node_index.items()
+                    for index, node in enumerate(flow_nodes)
                     if 2 * index in residual_reachable
                     and 2 * index + 1 not in residual_reachable
                 )
@@ -20815,8 +20895,8 @@ def validate_final_airflow_guide_open_channels(base, layout):
                     f"minimum_cut_bounds={cut_bounds}"
                 )
             channel_records[lane_id] = {
-                "free_voxels": len(free_nodes),
-                "connected_voxels": len(visited),
+                "free_voxels": free_node_count,
+                "connected_voxels": len(flow_nodes),
                 "source_gate_voxels": len(source_nodes),
                 "target_gate_voxels": len(target_nodes),
                 "core_diameter_mm": 2.0 * core_radius,
@@ -20827,8 +20907,8 @@ def validate_final_airflow_guide_open_channels(base, layout):
             }
             print(
                 "FINAL_AIR_GUIDE_OPEN_CHANNEL "
-                f"lane={lane_id} free_voxels={len(free_nodes)} "
-                f"connected_voxels={len(visited)} "
+                f"lane={lane_id} free_voxels={free_node_count} "
+                f"connected_voxels={len(flow_nodes)} "
                 f"source_gate_voxels={len(source_nodes)} "
                 f"target_gate_voxels={len(target_nodes)} "
                 f"core_diameter={2.0 * core_radius:.2f}mm "
@@ -26540,6 +26620,12 @@ def create_base(
         )
     validate_final_airflow_guide_witnesses(base, airflow_guide_layout)
     validate_final_airflow_guide_open_channels(base, airflow_guide_layout)
+    # The validator intentionally constructs many short-lived swept-edge and
+    # residual-search objects.  Reclaim any cyclic closures before the later
+    # whole-assembly BVH cache is populated, so the two validation phases do
+    # not overlap at peak memory.
+    if airflow_guide_layout is not None:
+        gc.collect()
     base.name = "Hockeymom_3_Cam_Cover_Closed_Base"
     return base
 
