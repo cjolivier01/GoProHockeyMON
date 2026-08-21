@@ -36,6 +36,7 @@ import math
 import hashlib
 import functools
 import heapq
+import itertools
 import sys
 from pathlib import Path
 
@@ -1561,6 +1562,18 @@ BOTTOM_KEYSTONE_REAR_EDGE_INSET = 10.0
 BOTTOM_KEYSTONE_SIDE_EDGE_INSET = 10.0
 BOTTOM_KEYSTONE_EDGE_CLEARANCE = 2.0
 BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE = 2.0
+# Internal right-angle USB lead used by the camera-power path validator.  The
+# plug body straddles the top of the generic keystone-module envelope; its
+# cable then leaves through a finite-radius 90-degree bend.  These dimensions
+# intentionally exceed a bare USB-C shell so molded power leads remain viable.
+BOTTOM_KEYSTONE_USB_PLUG_BODY_X = 14.0
+BOTTOM_KEYSTONE_USB_PLUG_BODY_Y = 10.0
+BOTTOM_KEYSTONE_USB_PLUG_BODY_HEIGHT = 8.0
+BOTTOM_KEYSTONE_USB_PLUG_ABOVE_MODULE = 4.0
+CAMERA_POWER_CABLE_DIAMETER = 5.0
+CAMERA_POWER_CABLE_CLEARANCE = 1.0
+CAMERA_POWER_CABLE_CONNECTOR_BEND_RADIUS = 8.0
+CAMERA_POWER_CABLE_PATH_GRID_STEP = 5.0
 BOTTOM_KEYSTONE_AUTO_PLACEMENT = True
 BOTTOM_KEYSTONE_SEARCH_RANGE = 110.0
 BOTTOM_KEYSTONE_SEARCH_STEP = 2.0
@@ -4935,6 +4948,33 @@ def validate_config() -> None:
         raise ValueError("Keystone face recess must leave a snap-in panel floor")
     if BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT >= BASE_HEIGHT - BOTTOM_THICKNESS:
         raise ValueError("Keystone internal body keepout exceeds the base height")
+    for name, value in (
+        ("BOTTOM_KEYSTONE_USB_PLUG_BODY_X", BOTTOM_KEYSTONE_USB_PLUG_BODY_X),
+        ("BOTTOM_KEYSTONE_USB_PLUG_BODY_Y", BOTTOM_KEYSTONE_USB_PLUG_BODY_Y),
+        (
+            "BOTTOM_KEYSTONE_USB_PLUG_BODY_HEIGHT",
+            BOTTOM_KEYSTONE_USB_PLUG_BODY_HEIGHT,
+        ),
+        (
+            "BOTTOM_KEYSTONE_USB_PLUG_ABOVE_MODULE",
+            BOTTOM_KEYSTONE_USB_PLUG_ABOVE_MODULE,
+        ),
+        ("CAMERA_POWER_CABLE_DIAMETER", CAMERA_POWER_CABLE_DIAMETER),
+        ("CAMERA_POWER_CABLE_CLEARANCE", CAMERA_POWER_CABLE_CLEARANCE),
+        (
+            "CAMERA_POWER_CABLE_CONNECTOR_BEND_RADIUS",
+            CAMERA_POWER_CABLE_CONNECTOR_BEND_RADIUS,
+        ),
+        ("CAMERA_POWER_CABLE_PATH_GRID_STEP", CAMERA_POWER_CABLE_PATH_GRID_STEP),
+    ):
+        if not math.isfinite(float(value)) or value <= 0.0:
+            raise ValueError(f"{name} must be finite and positive")
+    if BOTTOM_KEYSTONE_USB_PLUG_ABOVE_MODULE >= (
+        BOTTOM_KEYSTONE_USB_PLUG_BODY_HEIGHT
+    ):
+        raise ValueError("Keystone USB plug must overlap its module envelope")
+    if BOTTOM_KEYSTONE_COUNT < len(camera_azimuths()):
+        raise ValueError("Camera power routing needs one keystone per camera")
     socket_keepout_x, socket_keepout_y = bottom_keystone_socket_plan_dimensions()
     keystone_row_size = (
         max(
@@ -12307,6 +12347,8 @@ def resolve_bottom_keystone_positions(
     lid_post_positions,
     bracket_position_pairs,
     bottom_mount_hole_position,
+    acoustic_preliminary_geometry=None,
+    mechanism=None,
 ):
     if not BOTTOM_KEYSTONES_ENABLED:
         return ()
@@ -12396,6 +12438,34 @@ def resolve_bottom_keystone_positions(
                     )
                 )
             )
+    acoustic_module_keepout = None
+    if acoustic_preliminary_geometry is not None:
+        acoustic_module_keepout = expanded_airflow_guide_keepout_loop(
+            convex_hull_2d(
+                (
+                    *acoustic_preliminary_geometry["boot_plan_points"],
+                    (
+                        acoustic_preliminary_geometry["plenum_front_x"],
+                        acoustic_preliminary_geometry["plenum_y_min"],
+                    ),
+                    (
+                        acoustic_preliminary_geometry["plenum_rear_x"],
+                        acoustic_preliminary_geometry["plenum_y_min"],
+                    ),
+                    (
+                        acoustic_preliminary_geometry["plenum_rear_x"],
+                        acoustic_preliminary_geometry["plenum_y_max"],
+                    ),
+                    (
+                        acoustic_preliminary_geometry["plenum_front_x"],
+                        acoustic_preliminary_geometry["plenum_y_max"],
+                    ),
+                )
+            ),
+            BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE,
+        )
+    moving_camera = adjustable_camera(cameras)
+
     def cluster_positions(shift_x, shift_y):
         positions = []
         for index in range(BOTTOM_KEYSTONE_COUNT):
@@ -12465,6 +12535,14 @@ def resolve_bottom_keystone_positions(
             for source_keepout in rear_air_guide_source_keepouts
         ):
             return False
+        if (
+            acoustic_module_keepout is not None
+            and convex_polygons_overlap(
+                body_rectangle,
+                acoustic_module_keepout,
+            )
+        ):
+            return False
         if VALIDATE_CAMERA_INSTALLATION_PATH and any(
             convex_polygons_overlap(
                 body_rectangle,
@@ -12474,6 +12552,17 @@ def resolve_bottom_keystone_positions(
                 ),
             )
             for camera in cameras
+        ):
+            return False
+        if (
+            mechanism is not None
+            and moving_camera is not None
+            and adjustable_mechanism_intersects_post(
+                position,
+                math.hypot(keystone_keepout_x, keystone_keepout_y) / 2.0,
+                moving_camera,
+                mechanism,
+            )
         ):
             return False
         if any(
@@ -12532,6 +12621,98 @@ def resolve_bottom_keystone_positions(
                 "BOTTOM_KEYSTONE_POSITIONS "
                 f"corner_y_sign={side_sign:+.0f} axis="
                 f"{BOTTOM_KEYSTONE_ROW_AXIS} xy={positions}"
+            )
+            return positions
+    if acoustic_module_keepout is not None and BOTTOM_KEYSTONE_AUTO_PLACEMENT:
+        # The normal row search is intentionally local to the configured rear
+        # corner.  An acoustic cassette can occupy that whole neighborhood,
+        # though, while leaving ample socket-safe floor elsewhere.  Search the
+        # complete inner footprint for the acoustic-only scattered fallback so
+        # a valid layout is not rejected merely because it lies outside the
+        # row search radius.
+        center_x_min = (
+            min(point[0] for point in inner_loop)
+            + keystone_keepout_x / 2.0
+            + BOTTOM_KEYSTONE_EDGE_CLEARANCE
+        )
+        center_x_max = (
+            max(point[0] for point in inner_loop)
+            - keystone_keepout_x / 2.0
+            - BOTTOM_KEYSTONE_EDGE_CLEARANCE
+        )
+        center_y_min = (
+            min(point[1] for point in inner_loop)
+            + keystone_keepout_y / 2.0
+            + BOTTOM_KEYSTONE_EDGE_CLEARANCE
+        )
+        center_y_max = (
+            max(point[1] for point in inner_loop)
+            - keystone_keepout_y / 2.0
+            - BOTTOM_KEYSTONE_EDGE_CLEARANCE
+        )
+        x_count = max(
+            int(math.floor((center_x_max - center_x_min) /
+                           BOTTOM_KEYSTONE_SEARCH_STEP)),
+            0,
+        )
+        y_count = max(
+            int(math.floor((center_y_max - center_y_min) /
+                           BOTTOM_KEYSTONE_SEARCH_STEP)),
+            0,
+        )
+        individual_candidates = [
+            position
+            for x_index in range(x_count + 1)
+            for y_index in range(y_count + 1)
+            for position in ((
+                center_x_min + x_index * BOTTOM_KEYSTONE_SEARCH_STEP,
+                center_y_min + y_index * BOTTOM_KEYSTONE_SEARCH_STEP,
+            ),)
+            if position_is_valid(position)
+        ]
+        individual_candidates.sort(
+            key=lambda position: (
+                math.dist(position, (target_x, target_y)),
+                abs(position[1] - target_y),
+                abs(position[0] - target_x),
+                position,
+            )
+        )
+        best = None
+        for anchor in individual_candidates:
+            selected = [anchor]
+            for candidate in individual_candidates:
+                if all(
+                    abs(candidate[0] - accepted[0])
+                    >= keystone_keepout_x
+                    + 2.0 * BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
+                    or abs(candidate[1] - accepted[1])
+                    >= keystone_keepout_y
+                    + 2.0 * BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
+                    for accepted in selected
+                ):
+                    selected.append(candidate)
+                if len(selected) == BOTTOM_KEYSTONE_COUNT:
+                    break
+            if len(selected) != BOTTOM_KEYSTONE_COUNT:
+                continue
+            score = sum(
+                math.dist(position, (target_x, target_y))
+                for position in selected
+            ) + 0.25 * sum(
+                math.dist(first, second)
+                for first_index, first in enumerate(selected)
+                for second in selected[first_index + 1 :]
+            )
+            candidate_record = (score, tuple(selected))
+            if best is None or candidate_record < best:
+                best = candidate_record
+        if best is not None:
+            positions = best[1]
+            print(
+                "BOTTOM_KEYSTONE_POSITIONS "
+                "layout=acoustic_scattered_service_safe "
+                f"corner_y_sign={side_sign:+.0f} xy={positions}"
             )
             return positions
     raise ValueError(
@@ -19521,7 +19702,7 @@ def restore_final_airflow_guide_usb_notches(
 
 
 def restore_final_airflow_guide_keystone_reliefs(base, layout):
-    """Cut support-free vane arches above installed keystone modules."""
+    """Cut support-free arches from vanes while preserving snap sockets."""
     if layout is None:
         return base
     keystone_keepouts = tuple(
@@ -19544,21 +19725,26 @@ def restore_final_airflow_guide_keystone_reliefs(base, layout):
         half_diagonal = max(
             math.hypot(x, y) for x, y in local_loop
         )
-        roof_top_z = min(
-            module_top_z + half_diagonal,
-            guide_z1 - AIR_GUIDE_VANE_THICKNESS,
+        top_scale = 0.02
+        lateral_roof_run = half_diagonal * (1.0 - top_scale)
+        required_roof_rise = lateral_roof_run
+        available_roof_rise = (
+            guide_z1 - AIR_GUIDE_VANE_THICKNESS - module_top_z
         )
-        if roof_top_z <= module_top_z:
-            raise RuntimeError(
-                f"Air-guide relief above {label} has no printable roof"
+        if available_roof_rise + BOOLEAN_CLEANUP_DISTANCE < required_roof_rise:
+            raise ValueError(
+                f"Air-guide relief above {label} needs "
+                f"{required_roof_rise:.2f} mm rise for a support-free "
+                "45-degree underside, but the configured vane height leaves "
+                f"only {available_roof_rise:.2f} mm"
             )
+        roof_top_z = module_top_z + required_roof_rise
         lower = polygon_prism_z(
             f"Air_Guide_{label}_Lower_Service",
             service_loop,
-            BOTTOM_KEYSTONE_SOCKET_HEIGHT - BOOLEAN_OVERLAP,
+            BOTTOM_KEYSTONE_SOCKET_HEIGHT + BOOLEAN_CLEANUP_DISTANCE,
             module_top_z,
         )
-        top_scale = 0.02
         roof = loft_solid(
             f"Air_Guide_{label}_Gabled_Service_Roof",
             (
@@ -19588,17 +19774,55 @@ def restore_final_airflow_guide_keystone_reliefs(base, layout):
             )
             <= BOOLEAN_CLEANUP_DISTANCE
         )
-        boolean_difference(
-            base,
-            [
+        vane_relief_masks = []
+        for record in intersecting_records:
+            wall_mask = create_airflow_guide_wall_solid(
+                f"Air_Guide_{label}_{record['label']}_Vane_Relief_Mask",
+                record,
+                thickness=AIR_GUIDE_VANE_THICKNESS + 2.0 * BOOLEAN_OVERLAP,
+                z0=BOTTOM_KEYSTONE_SOCKET_HEIGHT + BOOLEAN_CLEANUP_DISTANCE,
+                z1=record["z1"] + BOOLEAN_OVERLAP,
+            )
+            apply_boolean(
+                wall_mask,
                 duplicate_object(
                     lower,
-                    f"Air_Guide_{label}_Final_Service_Copy",
-                )
-            ],
-            f"Air_Guide_{label}_Support_Free_Service",
-            solver="EXACT",
+                    f"Air_Guide_{label}_{record['label']}_Arch_Copy",
+                ),
+                "INTERSECT",
+                f"Air_Guide_{label}_{record['label']}_Vane_Only_Arch",
+                solver="EXACT",
+            )
+            if wall_mask.data.polygons:
+                vane_relief_masks.append(wall_mask)
+            else:
+                bpy.data.objects.remove(wall_mask, do_unlink=True)
+        socket_index = int(label.split("_")[2])
+        socket = import_bottom_keystone_reference_socket(
+            socket_index,
+            (center_x, center_y),
         )
+        socket_relief_overlap = sum(
+            intersection_metrics(
+                mask,
+                socket,
+                f"{label}_{mask.name}_Snap_Interface_Preservation",
+            )[2]
+            for mask in vane_relief_masks
+        )
+        bpy.data.objects.remove(socket, do_unlink=True)
+        if socket_relief_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+            raise RuntimeError(
+                f"Air-guide relief would remove {socket_relief_overlap:.6f} "
+                f"mm^3 from the proven {label} snap socket"
+            )
+        if vane_relief_masks:
+            boolean_difference(
+                base,
+                vane_relief_masks,
+                f"Air_Guide_{label}_Support_Free_Vane_Service",
+                solver="EXACT",
+            )
         relief_count += len(intersecting_records)
         bpy.data.objects.remove(lower, do_unlink=True)
         proxy_loop = axis_aligned_rectangle_corners(
@@ -19635,14 +19859,143 @@ def restore_final_airflow_guide_keystone_reliefs(base, layout):
             "AIR_GUIDE_KEYSTONE_SERVICE "
             f"label={label} roof_z=({module_top_z:.2f},{roof_top_z:.2f})mm "
             f"installed_proxy_overlap={overlap:.6f}mm3 "
-            "underside_slope_max=45deg support_required=False"
+            f"snap_socket_relief_overlap={socket_relief_overlap:.6f}mm3 "
+            "underside_slope_from_horizontal=45.0deg "
+            "support_required=False"
         )
     layout["installed_keystone_proxy_records"] = tuple(proxy_records)
     print(
         "AIR_GUIDE_KEYSTONE_SERVICE PASS "
         f"gabled_vane_reliefs={relief_count} modules={len(proxy_records)} "
-        "cable_bend_clearance="
+        "module_plan_clearance="
         f"{BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE:.2f}mm"
+    )
+    return base
+
+
+def resolve_keystone_camera_power_assignment(positions, target_points):
+    """Assign one unique nearest keystone to every camera USB target."""
+    if len(positions) < len(target_points):
+        raise ValueError("Camera power routing needs one keystone per camera")
+    return min(
+        itertools.permutations(range(len(positions)), len(target_points)),
+        key=lambda candidate: sum(
+            math.dist(positions[module_index], target_points[target_index])
+            for target_index, module_index in enumerate(candidate)
+        ),
+    )
+
+
+def restore_final_airflow_guide_power_cable_slots(
+    base,
+    cameras,
+    bottom_keystone_positions,
+    layout,
+):
+    """Cut top-open cable-sized slots from vane material along power routes."""
+    if layout is None or not bottom_keystone_positions:
+        return base
+    target_keepouts = tuple(
+        create_camera_usb_access_keepout(camera, 0.0) for camera in cameras
+    )
+    target_points = tuple(
+        tuple(keepout.location[:2]) for keepout in target_keepouts
+    )
+    assignment = resolve_keystone_camera_power_assignment(
+        bottom_keystone_positions,
+        target_points,
+    )
+    cable_core_radius = (
+        CAMERA_POWER_CABLE_DIAMETER / 2.0
+        + CAMERA_POWER_CABLE_CLEARANCE
+    )
+    module_top_z = BOTTOM_THICKNESS + BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT
+    plug_z1 = module_top_z + BOTTOM_KEYSTONE_USB_PLUG_ABOVE_MODULE
+    slot_z0 = (
+        plug_z1
+        + CAMERA_POWER_CABLE_CONNECTOR_BEND_RADIUS
+        - cable_core_radius
+    )
+    guide_z1 = max(record["z1"] for record in layout["records"])
+    slot_count = 0
+    route_records = []
+    for camera_index, module_index in enumerate(assignment):
+        source = bottom_keystone_positions[module_index]
+        target = target_points[camera_index]
+        slot_loop = tuple(
+            convex_hull_2d(
+                (
+                    point[0] + cable_core_radius * math.cos(angle),
+                    point[1] + cable_core_radius * math.sin(angle),
+                )
+                for point in (source, target)
+                for angle in (
+                    2.0 * math.pi * sample_index / 20.0
+                    for sample_index in range(20)
+                )
+            )
+        )
+        slot = polygon_prism_z(
+            f"Camera_{camera_index + 1}_Power_Cable_Vane_Slot",
+            slot_loop,
+            slot_z0,
+            guide_z1 + BOOLEAN_OVERLAP,
+        )
+        slot_masks = []
+        for record in layout["records"]:
+            if airflow_guide_plan_loop_separation(
+                airflow_guide_wall_plan_loop(record),
+                slot_loop,
+            ) > BOOLEAN_CLEANUP_DISTANCE:
+                continue
+            wall_mask = create_airflow_guide_wall_solid(
+                f"Camera_{camera_index + 1}_{record['label']}_Cable_Slot_Mask",
+                record,
+                thickness=AIR_GUIDE_VANE_THICKNESS + 2.0 * BOOLEAN_OVERLAP,
+                z0=slot_z0,
+                z1=record["z1"] + BOOLEAN_OVERLAP,
+            )
+            apply_boolean(
+                wall_mask,
+                duplicate_object(
+                    slot,
+                    f"Camera_{camera_index + 1}_{record['label']}_Slot_Copy",
+                ),
+                "INTERSECT",
+                f"Camera_{camera_index + 1}_{record['label']}_Vane_Only_Slot",
+                solver="EXACT",
+            )
+            if wall_mask.data.polygons:
+                slot_masks.append(wall_mask)
+            else:
+                bpy.data.objects.remove(wall_mask, do_unlink=True)
+        if slot_masks:
+            boolean_difference(
+                base,
+                slot_masks,
+                f"Camera_{camera_index + 1}_Power_Cable_Vane_Slots",
+                solver="EXACT",
+            )
+        slot_count += len(slot_masks)
+        route_records.append(
+            {
+                "module_index": module_index + 1,
+                "camera_index": camera_index + 1,
+                "source": tuple(source),
+                "target": tuple(target),
+                "slot_z0": slot_z0,
+                "slot_width": 2.0 * cable_core_radius,
+            }
+        )
+        bpy.data.objects.remove(slot, do_unlink=True)
+    for keepout in target_keepouts:
+        bpy.data.objects.remove(keepout, do_unlink=True)
+    layout["camera_power_cable_route_records"] = tuple(route_records)
+    print(
+        "AIR_GUIDE_POWER_CABLE_SLOTS "
+        f"assignments={tuple((record['module_index'], record['camera_index']) for record in route_records)} "
+        f"vane_slots={slot_count} width={2.0 * cable_core_radius:.2f}mm "
+        f"bottom_z={slot_z0:.2f}mm top_open=True base_features_preserved=True"
     )
     return base
 
@@ -19818,6 +20171,19 @@ def validate_final_airflow_guide_open_channels(base, layout):
     z_target_step = 4.0
     core_radius = min(1.0, AIR_GUIDE_MIN_CHANNEL_GAP / 6.0)
     installed_proxies = layout.get("installed_keystone_proxy_records", ())
+    core_offsets = (
+        (0.0, 0.0, 0.0),
+        *tuple(
+            tuple(
+                value * core_radius / math.sqrt(dx * dx + dy * dy + dz * dz)
+                for value in (dx, dy, dz)
+            )
+            for dx in (-1.0, 0.0, 1.0)
+            for dy in (-1.0, 0.0, 1.0)
+            for dz in (-1.0, 0.0, 1.0)
+            if dx != 0.0 or dy != 0.0 or dz != 0.0
+        ),
+    )
 
     def point_occupied_by_installed_proxy(point):
         return any(
@@ -19826,7 +20192,44 @@ def validate_final_airflow_guide_open_channels(base, layout):
             for proxy in installed_proxies
         )
 
+    def segment_intersects_expanded_installed_proxy(start, end):
+        """Slab-test a core centerline against every expanded module AABB."""
+        for proxy in installed_proxies:
+            bounds = (
+                (
+                    min(point[0] for point in proxy["loop"]) - core_radius,
+                    max(point[0] for point in proxy["loop"]) + core_radius,
+                ),
+                (
+                    min(point[1] for point in proxy["loop"]) - core_radius,
+                    max(point[1] for point in proxy["loop"]) + core_radius,
+                ),
+                (proxy["z0"] - core_radius, proxy["z1"] + core_radius),
+            )
+            first = 0.0
+            last = 1.0
+            delta = Vector(end) - Vector(start)
+            for axis, (low, high) in enumerate(bounds):
+                if abs(delta[axis]) <= 1e-12:
+                    if start[axis] < low or start[axis] > high:
+                        first = 1.0
+                        last = 0.0
+                        break
+                    continue
+                axis_first = (low - start[axis]) / delta[axis]
+                axis_last = (high - start[axis]) / delta[axis]
+                if axis_first > axis_last:
+                    axis_first, axis_last = axis_last, axis_first
+                first = max(first, axis_first)
+                last = min(last, axis_last)
+                if first > last:
+                    break
+            if first <= last:
+                return True
+        return False
+
     tree, inverse, bm = object_bvh_record(base)
+    base_bvh_record = (tree, inverse, bm)
     channel_records = {}
     try:
         for lane_id, lane_records in records_by_lane.items():
@@ -19858,12 +20261,10 @@ def validate_final_airflow_guide_open_channels(base, layout):
                 x = x_min + (x_index + 0.5) * x_step
                 for y_index in range(y_count):
                     y = y_min + (y_index + 0.5) * y_step
-                    clearance_points = (
-                        (x, y),
-                        (x - core_radius, y),
-                        (x + core_radius, y),
-                        (x, y - core_radius),
-                        (x, y + core_radius),
+                    clearance_points = tuple(
+                        (x + offset[0], y + offset[1])
+                        for offset in core_offsets
+                        if abs(offset[2]) <= BOOLEAN_CLEANUP_DISTANCE
                     )
                     if all(
                         point_in_polygon(point, corridor)
@@ -19885,14 +20286,13 @@ def validate_final_airflow_guide_open_channels(base, layout):
             for z_index in range(z_count + 1):
                 z = z_min + z_index * z_step
                 for (x_index, y_index), (x, y) in xy_points.items():
-                    clearance_points = (
-                        (x, y, z),
-                        (x - core_radius, y, z),
-                        (x + core_radius, y, z),
-                        (x, y - core_radius, z),
-                        (x, y + core_radius, z),
-                        (x, y, z - core_radius),
-                        (x, y, z + core_radius),
+                    clearance_points = tuple(
+                        (
+                            x + offset[0],
+                            y + offset[1],
+                            z + offset[2],
+                        )
+                        for offset in core_offsets
                     )
                     if any(
                         point_occupied_by_installed_proxy(point)
@@ -19917,6 +20317,58 @@ def validate_final_airflow_guide_open_channels(base, layout):
             visited = set(source_nodes)
             reached = None
             queue_index = 0
+            edge_clearance_cache = {}
+
+            def node_point(node):
+                x_index, y_index, z_index = node
+                return Vector(
+                    (
+                        x_min + (x_index + 0.5) * x_step,
+                        y_min + (y_index + 0.5) * y_step,
+                        z_min + z_index * z_step,
+                    )
+                )
+
+            def edge_has_open_core(first_node, second_node):
+                key = tuple(sorted((first_node, second_node)))
+                if key in edge_clearance_cache:
+                    return edge_clearance_cache[key]
+                start = node_point(first_node)
+                end = node_point(second_node)
+                direction = end - start
+                length = direction.length
+                direction.normalize()
+                reference = (
+                    Vector((0.0, 0.0, 1.0))
+                    if abs(direction.z) < 0.9
+                    else Vector((1.0, 0.0, 0.0))
+                )
+                first_axis = direction.cross(reference).normalized()
+                second_axis = direction.cross(first_axis).normalized()
+                swept_lines = [(start, end)]
+                for sample_index in range(8):
+                    angle = 2.0 * math.pi * sample_index / 8.0
+                    offset = core_radius * (
+                        first_axis * math.cos(angle)
+                        + second_axis * math.sin(angle)
+                    )
+                    swept_lines.append((start + offset, end + offset))
+                clear = not segment_intersects_expanded_installed_proxy(
+                    start,
+                    end,
+                ) and not any(
+                    segment_intersects_bvh_record(
+                        line_start,
+                        line_end,
+                        base_bvh_record,
+                        endpoint_margin=0.0,
+                    )
+                    for line_start, line_end in swept_lines
+                    if (line_end - line_start).length >= length - 1e-9
+                )
+                edge_clearance_cache[key] = clear
+                return clear
+
             while queue_index < len(queue):
                 node = queue[queue_index]
                 queue_index += 1
@@ -19932,7 +20384,11 @@ def validate_final_airflow_guide_open_channels(base, layout):
                     (x_index, y_index, z_index - 1),
                     (x_index, y_index, z_index + 1),
                 ):
-                    if neighbor in free_nodes and neighbor not in visited:
+                    if (
+                        neighbor in free_nodes
+                        and neighbor not in visited
+                        and edge_has_open_core(node, neighbor)
+                    ):
                         visited.add(neighbor)
                         queue.append(neighbor)
             if reached is None:
@@ -25629,6 +26085,12 @@ def create_base(
         base,
         airflow_guide_layout,
     )
+    restore_final_airflow_guide_power_cable_slots(
+        base,
+        cameras,
+        bottom_keystone_positions,
+        airflow_guide_layout,
+    )
     if (
         CAMERA_CARTRIDGE_WORM_ENABLED
         and CAMERA_CARRIER_CHIMNEY_REMOVE_SMALL_FRAGMENTS
@@ -27947,6 +28409,531 @@ def validate_camera_usb_access_clearances(
         "USB_ACCESS_CLEARANCE PASS "
         f"case_openings={CAMERA_USB_CASE_OPENINGS_ENABLED}"
     )
+
+
+def validate_keystone_camera_power_paths(
+    base,
+    lid,
+    footprint,
+    bottom_keystone_positions,
+    cameras,
+    camera_brackets,
+    camera_mockups,
+    camera_carrier=None,
+    camera_worm=None,
+    worm_bearing_caps=(),
+    idler_stationary_hardware=(),
+    acoustic_cassette=None,
+):
+    """Prove plug-, cable-, and bend-sized routes from keystones to cameras."""
+    if (
+        not CAMERA_USB_ACCESS_ENABLED
+        or not bottom_keystone_positions
+        or len(bottom_keystone_positions) < len(cameras)
+    ):
+        return
+    module_top_z = BOTTOM_THICKNESS + BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT
+    plug_z1 = module_top_z + BOTTOM_KEYSTONE_USB_PLUG_ABOVE_MODULE
+    plug_z0 = plug_z1 - BOTTOM_KEYSTONE_USB_PLUG_BODY_HEIGHT
+    cable_core_radius = (
+        CAMERA_POWER_CABLE_DIAMETER / 2.0
+        + CAMERA_POWER_CABLE_CLEARANCE
+    )
+    connector_bend_radius = CAMERA_POWER_CABLE_CONNECTOR_BEND_RADIUS
+    grid_target_step = CAMERA_POWER_CABLE_PATH_GRID_STEP
+    acoustic_parts = (
+        (acoustic_cassette["trough"], acoustic_cassette["lid"])
+        if acoustic_cassette is not None
+        else ()
+    )
+    printed_obstacles = tuple(
+        dict.fromkeys(
+            part
+            for part in (
+                base,
+                lid,
+                *camera_brackets,
+                camera_carrier,
+                camera_worm,
+                *worm_bearing_caps,
+                *idler_stationary_hardware,
+                *acoustic_parts,
+                *camera_mockups,
+            )
+            if part is not None
+        )
+    )
+    connector_collision_obstacles = tuple(
+        part for part in printed_obstacles if part not in camera_mockups
+    )
+    module_proxies = []
+    connector_proxies = []
+    module_proxy_records = []
+    for index, position in enumerate(bottom_keystone_positions, start=1):
+        module_proxy = polygon_prism_z(
+            f"Bottom_Keystone_{index}_Installed_Power_Module_Proxy",
+            axis_aligned_rectangle_corners(
+                position,
+                BOTTOM_KEYSTONE_INTERNAL_BODY_X,
+                BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
+            ),
+            BOTTOM_KEYSTONE_SOCKET_HEIGHT + BOOLEAN_CLEANUP_DISTANCE,
+            module_top_z,
+        )
+        connector_proxy = add_beveled_box(
+            f"Bottom_Keystone_{index}_Internal_USB_Plug_Envelope",
+            (
+                BOTTOM_KEYSTONE_USB_PLUG_BODY_X,
+                BOTTOM_KEYSTONE_USB_PLUG_BODY_Y,
+                BOTTOM_KEYSTONE_USB_PLUG_BODY_HEIGHT,
+            ),
+            (
+                position[0],
+                position[1],
+                (plug_z0 + plug_z1) / 2.0,
+            ),
+            bevel=0.0,
+        )
+        for obstacle in connector_collision_obstacles:
+            module_overlap = intersection_metrics(
+                module_proxy,
+                obstacle,
+                f"Keystone_{index}_Module_{obstacle.name}_Clearance",
+            )[2]
+            plug_overlap = intersection_metrics(
+                connector_proxy,
+                obstacle,
+                f"Keystone_{index}_Plug_{obstacle.name}_Clearance",
+            )[2]
+            if module_overlap > CAMERA_USB_ACCESS_INTERSECTION_VOLUME_TOLERANCE:
+                raise RuntimeError(
+                    f"Installed keystone module {index} overlaps "
+                    f"{obstacle.name} by {module_overlap:.6f} mm^3"
+                )
+            if plug_overlap > CAMERA_USB_ACCESS_INTERSECTION_VOLUME_TOLERANCE:
+                raise RuntimeError(
+                    f"Internal USB plug {index} overlaps {obstacle.name} by "
+                    f"{plug_overlap:.6f} mm^3"
+                )
+        module_proxies.append(module_proxy)
+        connector_proxies.append(connector_proxy)
+        module_proxy_records.append(
+            {
+                "index": index,
+                "bounds": (
+                    (
+                        position[0] - BOTTOM_KEYSTONE_INTERNAL_BODY_X / 2.0,
+                        position[0] + BOTTOM_KEYSTONE_INTERNAL_BODY_X / 2.0,
+                    ),
+                    (
+                        position[1] - BOTTOM_KEYSTONE_INTERNAL_BODY_Y / 2.0,
+                        position[1] + BOTTOM_KEYSTONE_INTERNAL_BODY_Y / 2.0,
+                    ),
+                    (
+                        BOTTOM_KEYSTONE_SOCKET_HEIGHT,
+                        module_top_z,
+                    ),
+                ),
+            }
+        )
+
+    target_keepouts = []
+    target_records = []
+    for camera in cameras:
+        keepout = create_camera_usb_access_keepout(camera, 0.0)
+        target_keepouts.append(keepout)
+        target_records.append(
+            {
+                "camera": camera,
+                "keepout": keepout,
+                "bounds": object_world_bounds(keepout),
+                "bvh": object_bvh_record(keepout),
+            }
+        )
+    assignment = resolve_keystone_camera_power_assignment(
+        bottom_keystone_positions,
+        tuple(
+            tuple(record["keepout"].location[:2]) for record in target_records
+        ),
+    )
+    assigned_modules = set(assignment)
+    obstacle_records = tuple(
+        {
+            "object": obstacle,
+            "bounds": object_world_bounds(obstacle),
+            "bvh": object_bvh_record(obstacle),
+        }
+        for obstacle in printed_obstacles
+    )
+    sphere_offsets = (
+        (0.0, 0.0, 0.0),
+        (-cable_core_radius, 0.0, 0.0),
+        (cable_core_radius, 0.0, 0.0),
+        (0.0, -cable_core_radius, 0.0),
+        (0.0, cable_core_radius, 0.0),
+        (0.0, 0.0, -cable_core_radius),
+        (0.0, 0.0, cable_core_radius),
+    )
+
+    def point_in_bounds(point, bounds, margin=0.0):
+        return all(
+            low - margin <= point[axis] <= high + margin
+            for axis, (low, high) in enumerate(bounds)
+        )
+
+    def point_inside_module(point, ignored_module=None, margin=0.0):
+        return any(
+            record["index"] != ignored_module
+            and point_in_bounds(point, record["bounds"], margin)
+            for record in module_proxy_records
+        )
+
+    def point_has_case_clearance(point):
+        z = point[2]
+        if z <= BOTTOM_THICKNESS + cable_core_radius or z >= BASE_HEIGHT:
+            return False
+        loop = inset_footprint_loop(
+            scale_loop(footprint, body_scale_at_z(z)),
+            BODY_WALL_THICKNESS + CAMERA_POWER_CABLE_CLEARANCE,
+        )
+        return point_in_polygon((point[0], point[1]), loop) and (
+            polygon_boundary_distance((point[0], point[1]), loop)
+            >= cable_core_radius
+        )
+
+    def point_core_is_open(point, ignored_module=None):
+        for offset in sphere_offsets:
+            sample = Vector(point) + Vector(offset)
+            if (
+                not point_has_case_clearance(sample)
+                or point_inside_module(sample, ignored_module)
+            ):
+                return False
+            for record in obstacle_records:
+                if not point_in_bounds(sample, record["bounds"]):
+                    continue
+                tree, inverse, _bm = record["bvh"]
+                if point_inside_closed_bvh(tree, inverse @ sample):
+                    return False
+        return True
+
+    def segment_core_is_open(start, end, ignored_module=None):
+        start = Vector(start)
+        end = Vector(end)
+        delta = end - start
+        length = delta.length
+        if length <= BOOLEAN_CLEANUP_DISTANCE:
+            return point_core_is_open(start, ignored_module)
+        direction = delta / length
+        case_samples = max(int(math.ceil(length / (grid_target_step / 2.0))), 1)
+        if any(
+            not point_has_case_clearance(start.lerp(end, index / case_samples))
+            for index in range(case_samples + 1)
+        ):
+            return False
+        for record in module_proxy_records:
+            if record["index"] == ignored_module:
+                continue
+            expanded_bounds = tuple(
+                (low - cable_core_radius, high + cable_core_radius)
+                for low, high in record["bounds"]
+            )
+            first = 0.0
+            last = 1.0
+            for axis, (low, high) in enumerate(expanded_bounds):
+                if abs(delta[axis]) <= 1e-12:
+                    if start[axis] < low or start[axis] > high:
+                        first = 1.0
+                        last = 0.0
+                        break
+                    continue
+                axis_first = (low - start[axis]) / delta[axis]
+                axis_last = (high - start[axis]) / delta[axis]
+                if axis_first > axis_last:
+                    axis_first, axis_last = axis_last, axis_first
+                first = max(first, axis_first)
+                last = min(last, axis_last)
+                if first > last:
+                    break
+            if first <= last:
+                return False
+        reference = (
+            Vector((0.0, 0.0, 1.0))
+            if abs(direction.z) < 0.9
+            else Vector((1.0, 0.0, 0.0))
+        )
+        first_axis = direction.cross(reference).normalized()
+        second_axis = direction.cross(first_axis).normalized()
+        swept_lines = [(start, end)]
+        for sample_index in range(12):
+            angle = 2.0 * math.pi * sample_index / 12.0
+            offset = cable_core_radius * (
+                first_axis * math.cos(angle)
+                + second_axis * math.sin(angle)
+            )
+            swept_lines.append((start + offset, end + offset))
+        for record in obstacle_records:
+            line_bounds = tuple(
+                (
+                    min(
+                        min(line_start[axis], line_end[axis])
+                        for line_start, line_end in swept_lines
+                    ),
+                    max(
+                        max(line_start[axis], line_end[axis])
+                        for line_start, line_end in swept_lines
+                    ),
+                )
+                for axis in range(3)
+            )
+            if not all(
+                line_bounds[axis][1] >= record["bounds"][axis][0]
+                and record["bounds"][axis][1] >= line_bounds[axis][0]
+                for axis in range(3)
+            ):
+                continue
+            if any(
+                segment_intersects_bvh_record(
+                    line_start,
+                    line_end,
+                    record["bvh"],
+                    endpoint_margin=0.0,
+                )
+                for line_start, line_end in swept_lines
+            ):
+                return False
+        return True
+
+    def valid_source_bends(module_index):
+        position = bottom_keystone_positions[module_index]
+        source = Vector((position[0], position[1], plug_z1))
+        candidates = []
+        for direction_index in range(8):
+            angle = 2.0 * math.pi * direction_index / 8.0
+            direction = Vector((math.cos(angle), math.sin(angle), 0.0))
+            points = []
+            for sample_index in range(13):
+                theta = math.pi - (math.pi / 2.0) * sample_index / 12.0
+                points.append(
+                    source
+                    + direction
+                    * (connector_bend_radius * (1.0 + math.cos(theta)))
+                    + Vector(
+                        (
+                            0.0,
+                            0.0,
+                            connector_bend_radius * math.sin(theta),
+                        )
+                    )
+                )
+            if all(
+                segment_core_is_open(
+                    first,
+                    second,
+                    ignored_module=module_index + 1,
+                )
+                for first, second in zip(points, points[1:])
+            ):
+                candidates.append((direction, points[-1]))
+        return tuple(candidates)
+
+    source_bends_by_module = {
+        module_index: valid_source_bends(module_index)
+        for module_index in range(len(bottom_keystone_positions))
+    }
+    if any(not bends for bends in source_bends_by_module.values()):
+        blocked = tuple(
+            index + 1
+            for index, bends in source_bends_by_module.items()
+            if not bends
+        )
+        raise RuntimeError(
+            f"Keystone USB plug cable bends are blocked for modules {blocked}"
+        )
+
+    path_results = []
+    for camera_index, module_index in enumerate(assignment):
+        target_record = target_records[camera_index]
+        target_bounds = target_record["bounds"]
+        source_xy = bottom_keystone_positions[module_index]
+        routing_margin = connector_bend_radius + cable_core_radius + 24.0
+        x_min = min(source_xy[0], target_bounds[0][0]) - routing_margin
+        x_max = max(source_xy[0], target_bounds[0][1]) + routing_margin
+        y_min = min(source_xy[1], target_bounds[1][0]) - routing_margin
+        y_max = max(source_xy[1], target_bounds[1][1]) + routing_margin
+        case_x = [point[0] for point in footprint]
+        case_y = [point[1] for point in footprint]
+        x_min = max(x_min, min(case_x) + BODY_WALL_THICKNESS)
+        x_max = min(x_max, max(case_x) - BODY_WALL_THICKNESS)
+        y_min = max(y_min, min(case_y) + BODY_WALL_THICKNESS)
+        y_max = min(y_max, max(case_y) - BODY_WALL_THICKNESS)
+        route_z = plug_z1 + connector_bend_radius
+        if route_z + cable_core_radius >= BASE_HEIGHT:
+            raise RuntimeError("Keystone cable bend leaves no under-lid route")
+        counts = tuple(
+            max(int(math.ceil((high - low) / grid_target_step)), 1)
+            for low, high in (
+                (x_min, x_max),
+                (y_min, y_max),
+            )
+        )
+        steps = (
+            (x_max - x_min) / counts[0],
+            (y_max - y_min) / counts[1],
+        )
+
+        def node_point(node):
+            return Vector(
+                (
+                    x_min + (node[0] + 0.5) * steps[0],
+                    y_min + (node[1] + 0.5) * steps[1],
+                    route_z,
+                )
+            )
+
+        free_nodes = set()
+        target_tree, target_inverse, _target_bm = target_record["bvh"]
+        target_z = (target_bounds[2][0] + target_bounds[2][1]) / 2.0
+        target_approaches = []
+        for x_sample in range(7):
+            x = target_bounds[0][0] + (
+                target_bounds[0][1] - target_bounds[0][0]
+            ) * (x_sample + 0.5) / 7.0
+            for y_sample in range(7):
+                y = target_bounds[1][0] + (
+                    target_bounds[1][1] - target_bounds[1][0]
+                ) * (y_sample + 0.5) / 7.0
+                target_point = Vector((x, y, target_z))
+                route_point = Vector((x, y, route_z))
+                if not point_inside_closed_bvh(
+                    target_tree,
+                    target_inverse @ target_point,
+                ):
+                    continue
+                if (
+                    point_core_is_open(target_point)
+                    and point_core_is_open(route_point)
+                    and segment_core_is_open(route_point, target_point)
+                ):
+                    target_approaches.append(route_point)
+        for x_index in range(counts[0]):
+            for y_index in range(counts[1]):
+                node = (x_index, y_index)
+                point = node_point(node)
+                if point_core_is_open(point):
+                    free_nodes.add(node)
+        source_nodes = set()
+        for _direction, endpoint in source_bends_by_module[module_index]:
+            for node in free_nodes:
+                point = node_point(node)
+                if (point - endpoint).length > 1.75 * max(steps):
+                    continue
+                if segment_core_is_open(
+                    endpoint,
+                    point,
+                    ignored_module=module_index + 1,
+                ):
+                    source_nodes.add(node)
+        target_nodes = set()
+        for endpoint in target_approaches:
+            for node in free_nodes:
+                point = node_point(node)
+                if (point - endpoint).length > 1.75 * max(steps):
+                    continue
+                if segment_core_is_open(point, endpoint):
+                    target_nodes.add(node)
+        if not source_nodes or not target_nodes:
+            raise RuntimeError(
+                f"Camera {camera_index + 1} power route has no plug or USB "
+                f"gate: source={len(source_nodes)} target={len(target_nodes)}"
+            )
+        queue = list(source_nodes)
+        predecessor = {node: None for node in source_nodes}
+        queue_index = 0
+        reached = None
+        edge_cache = {}
+        while queue_index < len(queue):
+            node = queue[queue_index]
+            queue_index += 1
+            if node in target_nodes:
+                reached = node
+                break
+            for axis in range(2):
+                for sign in (-1, 1):
+                    values = list(node)
+                    values[axis] += sign
+                    neighbor = tuple(values)
+                    if neighbor not in free_nodes or neighbor in predecessor:
+                        continue
+                    edge_key = tuple(sorted((node, neighbor)))
+                    clear = edge_cache.get(edge_key)
+                    if clear is None:
+                        clear = segment_core_is_open(
+                            node_point(node),
+                            node_point(neighbor),
+                        )
+                        edge_cache[edge_key] = clear
+                    if not clear:
+                        continue
+                    predecessor[neighbor] = node
+                    queue.append(neighbor)
+        if reached is None:
+            raise RuntimeError(
+                f"No {2.0 * cable_core_radius:.1f} mm service path connects "
+                f"keystone {module_index + 1} to camera {camera_index + 1}"
+            )
+        node_path = []
+        node = reached
+        while node is not None:
+            node_path.append(node)
+            node = predecessor[node]
+        node_path.reverse()
+        path_length = sum(
+            (node_point(second) - node_point(first)).length
+            for first, second in zip(node_path, node_path[1:])
+        ) + (
+            math.pi * connector_bend_radius / 2.0
+            + abs(route_z - target_z)
+        )
+        path_results.append(
+            {
+                "camera_index": camera_index + 1,
+                "module_index": module_index + 1,
+                "path_length": path_length,
+                "visited": len(predecessor),
+                "grid_steps": steps,
+            }
+        )
+        print(
+            "CAMERA_POWER_CABLE_PATH "
+            f"keystone={module_index + 1} camera={camera_index + 1} "
+            f"plug=({BOTTOM_KEYSTONE_USB_PLUG_BODY_X:.1f}x"
+            f"{BOTTOM_KEYSTONE_USB_PLUG_BODY_Y:.1f}x"
+            f"{BOTTOM_KEYSTONE_USB_PLUG_BODY_HEIGHT:.1f})mm "
+            f"cable_diameter={CAMERA_POWER_CABLE_DIAMETER:.1f}mm "
+            f"radial_clearance={CAMERA_POWER_CABLE_CLEARANCE:.1f}mm "
+            "connector_exit_bend_radius="
+            f"{connector_bend_radius:.1f}mm "
+            f"path_length={path_length:.1f}mm visited={len(predecessor)}"
+        )
+    spare_modules = tuple(
+        index + 1
+        for index in range(len(bottom_keystone_positions))
+        if index not in assigned_modules
+    )
+    base["camera_power_cable_paths_validated"] = len(path_results)
+    print(
+        "CAMERA_POWER_CABLE_PATHS PASS "
+        f"assignments={tuple((record['module_index'], record['camera_index']) for record in path_results)} "
+        f"spare_keystones={spare_modules} "
+        f"connector_exit_bends_validated={len(bottom_keystone_positions)}"
+    )
+    for record in (*obstacle_records, *target_records):
+        tree, inverse, bm = record["bvh"]
+        del tree, inverse
+        bm.free()
+    for proxy in (*module_proxies, *connector_proxies, *target_keepouts):
+        bpy.data.objects.remove(proxy, do_unlink=True)
 
 
 def validate_camera_installation_paths(
@@ -30293,6 +31280,8 @@ def build_original_style_cover():
         positions,
         bracket_position_pairs,
         bottom_mount_hole_position,
+        acoustic_preliminary_geometry,
+        mechanism,
     )
     acoustic_case_post_keepouts = (
         *(
@@ -30924,6 +31913,20 @@ def build_original_style_cover():
         camera_mockups,
         cameras,
         camera_carrier,
+    )
+    validate_keystone_camera_power_paths(
+        base,
+        lid,
+        footprint,
+        bottom_keystone_positions,
+        cameras,
+        camera_brackets,
+        camera_mockups,
+        camera_carrier,
+        camera_worm,
+        worm_bearing_caps,
+        idler_stationary_hardware,
+        acoustic_cassette,
     )
     validate_rear_fan_body_clearances(
         footprint,
