@@ -1342,37 +1342,19 @@ LID_FAN_EDGE_CLEARANCE = 3.0
 LID_FAN_FASTENER_KEEPOUT_CLEARANCE = 3.0
 LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO = 0.25
 VALIDATE_LID_FAN_FIT = True
-# Direct corner feedthrough for the captive fan lead.  A connector-sized bulb
-# outside the fan frame joins a cable-sized neck beneath the fan/cover, so the
-# standard four-pin plug can be fed into the case before the fan is fastened
-# while the narrower neck supports the cable afterward.  Dimensions below are
-# a deliberately conservative fit envelope for the NF-A12 PWM plug/harness;
-# the 15 x 10 mm swept envelope includes its latch, and the printed passage
-# adds a separate 1 mm manufacturing clearance on every side.
+# Small cable-only exit for the captive fan lead.  The plug remains inside the
+# case during assembly; only the flexible lead passes through this slot beside
+# the fan.  The slot reaches just 3 mm beyond the rear fan edge and is shifted
+# toward the middle of that edge so it cannot cut into the nearby lid post.
+# The fan cover adds a localized hood over the complete exit.
 # In top view rear is +X and left is +Y.
 LID_FAN_CABLE_FEEDTHROUGH_ENABLED = True
-LID_FAN_CABLE_FEEDTHROUGH_CORNER = "rear_right"  # rear/front + left/right
-LID_FAN_CONNECTOR_BODY_WIDTH = 13.0
-LID_FAN_CONNECTOR_BODY_THICKNESS = 8.0
-LID_FAN_CONNECTOR_BODY_LENGTH = 18.0
-LID_FAN_CONNECTOR_LATCH_ALLOWANCE = 1.0
-LID_FAN_CONNECTOR_PRINT_CLEARANCE = 1.0
 LID_FAN_CABLE_OUTER_DIAMETER = 3.2
-LID_FAN_CABLE_MIN_BEND_RADIUS = 8.0
-LID_FAN_CABLE_NECK_PRINT_CLEARANCE = 1.0
-LID_FAN_CABLE_FEEDTHROUGH_WIDTH = (
-    LID_FAN_CONNECTOR_BODY_THICKNESS
-    + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
-    + 2.0 * LID_FAN_CONNECTOR_PRINT_CLEARANCE
-)
-LID_FAN_CABLE_FEEDTHROUGH_LENGTH = (
-    LID_FAN_CONNECTOR_BODY_WIDTH
-    + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
-    + 2.0 * LID_FAN_CONNECTOR_PRINT_CLEARANCE
-)
-LID_FAN_CABLE_FEEDTHROUGH_FRAME_OVERLAP = 1.5
-LID_FAN_CABLE_FEEDTHROUGH_CORNER_INSET = 24.0
-LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE = 0.9
+LID_FAN_CABLE_SLOT_CLEARANCE = 0.8
+LID_FAN_CABLE_SLOT_FRAME_OVERLAP = 2.0
+LID_FAN_CABLE_SLOT_OUTSET = 3.0
+LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET = -15.0
+LID_FAN_CABLE_POST_CLEARANCE = 2.0
 LID_FAN_CABLE_CHASE_CLEARANCE = 0.8
 # Optional separate cover for an external lid fan.  It sleeves over the fan
 # from above and uses four shallow internal pads for friction retention.  The
@@ -1874,115 +1856,30 @@ def lid_fan_mount_centers():
 
 
 def lid_fan_cable_feedthrough_geometry():
-    """Return the covered connector bulb and cable-neck geometry."""
+    """Return the small covered cable-only exit beside the rear fan edge."""
     if not lid_fan_enabled() or not LID_FAN_CABLE_FEEDTHROUGH_ENABLED:
         return None
-    corner_signs = {
-        "rear_left": (1.0, 1.0),
-        "rear_right": (1.0, -1.0),
-        "front_left": (-1.0, 1.0),
-        "front_right": (-1.0, -1.0),
-    }
-    try:
-        x_sign, y_sign = corner_signs[LID_FAN_CABLE_FEEDTHROUGH_CORNER]
-    except KeyError as exc:
-        raise ValueError(
-            "LID_FAN_CABLE_FEEDTHROUGH_CORNER must be rear_left, rear_right, "
-            "front_left, or front_right"
-        ) from exc
-
     frame = lid_fan_reference_dimensions()["frame"]
     half_frame = frame / 2.0
-    cleared_cable_radius = (
-        LID_FAN_CABLE_OUTER_DIAMETER / 2.0
-        + LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE
-    )
-    bend_tangent_radial = half_frame + LID_FAN_CABLE_CHASE_CLEARANCE
-    connector_center_radial = (
-        bend_tangent_radial + LID_FAN_CABLE_MIN_BEND_RADIUS
-    )
-    connector_radial_inner = (
-        connector_center_radial - LID_FAN_CABLE_FEEDTHROUGH_WIDTH / 2.0
-    )
-    connector_radial_outer = (
-        connector_center_radial + LID_FAN_CABLE_FEEDTHROUGH_WIDTH / 2.0
-    )
-    # Clear the complete sleeved cable where its centerline intentionally
-    # starts beneath the fan frame, not merely the centerline itself.
-    neck_radial_inner = (
-        half_frame
-        - LID_FAN_CABLE_FEEDTHROUGH_FRAME_OVERLAP
-        - cleared_cable_radius
-        - LID_FAN_CABLE_NECK_PRINT_CLEARANCE
-    )
-    neck_radial_outer = max(
-        connector_radial_inner + BOOLEAN_OVERLAP,
-        bend_tangent_radial
-        + cleared_cable_radius
-        + LID_FAN_CABLE_NECK_PRINT_CLEARANCE,
-    )
-    tangent = (
-        y_sign
-        * (half_frame - LID_FAN_CABLE_FEEDTHROUGH_CORNER_INSET)
-    )
-    connector_center = (
-        float(LID_FAN_CENTER_X)
-        + x_sign * connector_center_radial,
-        float(LID_FAN_CENTER_Y) + tangent,
-    )
-    neck_center = (
-        float(LID_FAN_CENTER_X)
-        + x_sign * (neck_radial_inner + neck_radial_outer) / 2.0,
-        float(LID_FAN_CENTER_Y) + tangent,
-    )
-    neck_length = (
+    radial_inner = half_frame - LID_FAN_CABLE_SLOT_FRAME_OVERLAP
+    radial_outer = half_frame + LID_FAN_CABLE_SLOT_OUTSET
+    slot_width = radial_outer - radial_inner
+    slot_length = (
         LID_FAN_CABLE_OUTER_DIAMETER
-        + 2.0
-        * (
-            LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE
-            + LID_FAN_CABLE_NECK_PRINT_CLEARANCE
-        )
+        + 2.0 * LID_FAN_CABLE_SLOT_CLEARANCE
     )
-    chase_radial_inner = neck_radial_inner
-    chase_radial_outer = connector_radial_outer
-    chase_center = (
-        float(LID_FAN_CENTER_X)
-        + x_sign * (chase_radial_inner + chase_radial_outer) / 2.0,
-        float(LID_FAN_CENTER_Y) + tangent,
+    slot_center = (
+        float(LID_FAN_CENTER_X) + (radial_inner + radial_outer) / 2.0,
+        float(LID_FAN_CENTER_Y) + LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET,
     )
     return {
-        # ``center``/``width``/``length`` describe the complete covered chase
-        # envelope and remain convenient for thumbscrew/footprint keepouts.
-        "center": chase_center,
-        "x_sign": x_sign,
-        "y_sign": y_sign,
-        "width": chase_radial_outer - chase_radial_inner,
-        "length": LID_FAN_CABLE_FEEDTHROUGH_LENGTH,
-        "connector_center": connector_center,
-        "connector_width": LID_FAN_CABLE_FEEDTHROUGH_WIDTH,
-        "connector_length": LID_FAN_CABLE_FEEDTHROUGH_LENGTH,
-        "connector_envelope_width": (
-            LID_FAN_CONNECTOR_BODY_THICKNESS
-            + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
-        ),
-        "connector_envelope_length": (
-            LID_FAN_CONNECTOR_BODY_WIDTH
-            + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
-        ),
-        "neck_center": neck_center,
-        "neck_width": neck_radial_outer - neck_radial_inner,
-        "neck_length": neck_length,
-        "frame_outer_x": float(LID_FAN_CENTER_X) + x_sign * half_frame,
-        "cable_route_radius": cleared_cable_radius,
-        "cable_horizontal_start_x": (
-            float(LID_FAN_CENTER_X)
-            + x_sign
-            * (half_frame - LID_FAN_CABLE_FEEDTHROUGH_FRAME_OVERLAP)
-        ),
-        "cable_bend_tangent_x": (
-            float(LID_FAN_CENTER_X) + x_sign * bend_tangent_radial
-        ),
-        "cable_vertical_x": connector_center[0],
+        "center": slot_center,
+        "x_sign": 1.0,
+        "width": slot_width,
+        "length": slot_length,
+        "frame_outer_x": float(LID_FAN_CENTER_X) + half_frame,
+        "cable_route_radius": LID_FAN_CABLE_OUTER_DIAMETER / 2.0,
+        "cable_vertical_x": slot_center[0],
     }
 
 
@@ -3840,28 +3737,13 @@ def validate_config() -> None:
         "LID_FAN_FASTENER_KEEPOUT_CLEARANCE": (
             LID_FAN_FASTENER_KEEPOUT_CLEARANCE
         ),
-        "LID_FAN_CABLE_FEEDTHROUGH_WIDTH": (
-            LID_FAN_CABLE_FEEDTHROUGH_WIDTH
+        "LID_FAN_CABLE_SLOT_CLEARANCE": LID_FAN_CABLE_SLOT_CLEARANCE,
+        "LID_FAN_CABLE_SLOT_FRAME_OVERLAP": (
+            LID_FAN_CABLE_SLOT_FRAME_OVERLAP
         ),
-        "LID_FAN_CABLE_FEEDTHROUGH_LENGTH": (
-            LID_FAN_CABLE_FEEDTHROUGH_LENGTH
-        ),
-        "LID_FAN_CABLE_FEEDTHROUGH_CORNER_INSET": (
-            LID_FAN_CABLE_FEEDTHROUGH_CORNER_INSET
-        ),
-        "LID_FAN_CONNECTOR_BODY_WIDTH": LID_FAN_CONNECTOR_BODY_WIDTH,
-        "LID_FAN_CONNECTOR_BODY_THICKNESS": (
-            LID_FAN_CONNECTOR_BODY_THICKNESS
-        ),
-        "LID_FAN_CONNECTOR_BODY_LENGTH": LID_FAN_CONNECTOR_BODY_LENGTH,
-        "LID_FAN_CONNECTOR_LATCH_ALLOWANCE": (
-            LID_FAN_CONNECTOR_LATCH_ALLOWANCE
-        ),
+        "LID_FAN_CABLE_SLOT_OUTSET": LID_FAN_CABLE_SLOT_OUTSET,
+        "LID_FAN_CABLE_POST_CLEARANCE": LID_FAN_CABLE_POST_CLEARANCE,
         "LID_FAN_CABLE_OUTER_DIAMETER": LID_FAN_CABLE_OUTER_DIAMETER,
-        "LID_FAN_CABLE_MIN_BEND_RADIUS": LID_FAN_CABLE_MIN_BEND_RADIUS,
-        "LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE": (
-            LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE
-        ),
         "LID_FAN_CABLE_CHASE_CLEARANCE": (
             LID_FAN_CABLE_CHASE_CLEARANCE
         ),
@@ -3935,6 +3817,10 @@ def validate_config() -> None:
     for name, value in positive.items():
         if not math.isfinite(value) or value <= 0.0:
             raise ValueError(f"{name} must be finite and positive")
+    if not math.isfinite(LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET):
+        raise ValueError(
+            "LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET must be finite"
+        )
     if CASE_BODY_MATERIAL_MODE not in {"RIGID", "TPU"}:
         raise ValueError('CASE_BODY_MATERIAL_MODE must be "RIGID" or "TPU"')
     if LID_FAN_COVER_MATERIAL_MODE not in {"RIGID", "TPU"}:
@@ -4031,13 +3917,6 @@ def validate_config() -> None:
         "LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO": (
             LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO
         ),
-        "LID_FAN_CONNECTOR_PRINT_CLEARANCE": (
-            LID_FAN_CONNECTOR_PRINT_CLEARANCE
-        ),
-        "LID_FAN_CABLE_NECK_PRINT_CLEARANCE": (
-            LID_FAN_CABLE_NECK_PRINT_CLEARANCE
-        ),
-        "LID_FAN_CABLE_MIN_BEND_RADIUS": LID_FAN_CABLE_MIN_BEND_RADIUS,
     }
     for name, value in material_dimensions.items():
         if not math.isfinite(value) or value <= 0.0:
@@ -4207,76 +4086,33 @@ def validate_config() -> None:
         raise ValueError(
             "LID_FAN_FLAT_SEAT_EXTRA_THICKNESS must be finite and nonnegative"
         )
-    if LID_FAN_CABLE_FEEDTHROUGH_CORNER not in {
-        "rear_left",
-        "rear_right",
-        "front_left",
-        "front_right",
-    }:
-        raise ValueError(
-            "LID_FAN_CABLE_FEEDTHROUGH_CORNER must be rear_left, rear_right, "
-            "front_left, or front_right"
-        )
     if lid_fan_enabled() and LID_FAN_CABLE_FEEDTHROUGH_ENABLED:
         half_frame = lid_fan_dimensions["frame"] / 2.0
-        if not (
-            LID_FAN_CABLE_FEEDTHROUGH_LENGTH / 2.0
-            < LID_FAN_CABLE_FEEDTHROUGH_CORNER_INSET
-            < half_frame - LID_FAN_CABLE_FEEDTHROUGH_LENGTH / 2.0
-        ):
-            raise ValueError(
-                "LID_FAN_CABLE_FEEDTHROUGH_CORNER_INSET must keep the full hole "
-                "inside one side of the selected fan corner"
-            )
-        if not 0.0 < LID_FAN_CABLE_FEEDTHROUGH_FRAME_OVERLAP < (
-            LID_FAN_CABLE_FEEDTHROUGH_WIDTH
-        ):
-            raise ValueError(
-                "Cable feedthrough frame overlap must be positive and smaller "
-                "than the hole width"
-            )
         feedthrough = lid_fan_cable_feedthrough_geometry()
-        required_vertical_offset = (
-            LID_FAN_CABLE_CHASE_CLEARANCE
-            + LID_FAN_CABLE_MIN_BEND_RADIUS
-        )
-        actual_vertical_offset = abs(
-            feedthrough["cable_vertical_x"] - feedthrough["frame_outer_x"]
-        )
-        if actual_vertical_offset + 1e-9 < required_vertical_offset:
-            raise ValueError(
-                "Fan cable vertical leg is too close to the fan edge for the "
-                f"configured bend: {actual_vertical_offset:.2f} mm < "
-                f"{required_vertical_offset:.2f} mm"
-            )
-        if feedthrough["connector_width"] < (
-            LID_FAN_CONNECTOR_BODY_THICKNESS
-            + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
-            + 2.0 * LID_FAN_CONNECTOR_PRINT_CLEARANCE
-        ) or feedthrough["connector_length"] < (
-            LID_FAN_CONNECTOR_BODY_WIDTH
-            + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
-            + 2.0 * LID_FAN_CONNECTOR_PRINT_CLEARANCE
-        ):
-            raise ValueError("Fan connector passage does not clear its body/latch envelope")
-        if feedthrough["neck_length"] < (
+        required_slot_length = (
             LID_FAN_CABLE_OUTER_DIAMETER
-            + 2.0
-            * (
-                LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE
-                + LID_FAN_CABLE_NECK_PRINT_CLEARANCE
-            )
-        ):
-            raise ValueError("Fan cable neck does not clear the sleeved lead")
-        chase_height = (
-            lid_fan_dimensions["depth"] + LID_FAN_COVER_TOP_CLEARANCE
+            + 2.0 * LID_FAN_CABLE_SLOT_CLEARANCE
         )
-        if chase_height < (
-            LID_FAN_CONNECTOR_BODY_LENGTH + LID_FAN_CABLE_MIN_BEND_RADIUS
+        if feedthrough["length"] + 1e-9 < required_slot_length:
+            raise ValueError(
+                "Fan cable slot does not clear the configured cable diameter"
+            )
+        if not 0.0 < LID_FAN_CABLE_SLOT_FRAME_OVERLAP < feedthrough["width"]:
+            raise ValueError(
+                "Cable slot frame overlap must be positive and smaller than "
+                "the radial slot width"
+            )
+        if LID_FAN_CABLE_SLOT_OUTSET <= 0.0:
+            raise ValueError(
+                "Fan cable slot must extend beyond the fan frame"
+            )
+        if (
+            abs(LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET)
+            + feedthrough["length"] / 2.0
+            >= half_frame
         ):
             raise ValueError(
-                "Fan-cover chase is too shallow for the captive plug plus "
-                "the configured cable bend radius"
+                "Fan cable slot tangential offset leaves the rear fan edge"
             )
         required_hole_clearance = (
             LID_FAN_MOUNT_HOLE_DIAMETER / 2.0
@@ -4291,10 +4127,10 @@ def validate_config() -> None:
             )
             if actual_clearance < required_hole_clearance:
                 raise ValueError(
-                    f"Lid fan cable feedthrough is only {actual_clearance:.2f} mm "
+                    f"Lid fan cable slot is only {actual_clearance:.2f} mm "
                     f"from mount hole {index}; require "
-                    f"{required_hole_clearance:.2f} mm. Increase "
-                    "LID_FAN_CABLE_FEEDTHROUGH_CORNER_INSET or select another corner."
+                    f"{required_hole_clearance:.2f} mm. Adjust "
+                    "LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET."
                 )
     if not 0.0 <= FOOTPRINT_TRIANGULARITY < 0.85:
         raise ValueError("FOOTPRINT_TRIANGULARITY must be between 0 and 0.85")
@@ -28201,7 +28037,38 @@ def add_lid_fastener_seating_islands(lid, positions):
     return lid
 
 
-def add_single_lid_fan_mount(lid, footprint):
+def validate_lid_fan_cable_slot_post_clearance(positions, feedthrough):
+    """Keep the cable-only lid cut completely clear of every support post."""
+    if feedthrough is None:
+        return
+    required_center_clearance = (
+        FASTENER_POST_DIAMETER / 2.0 + LID_FAN_CABLE_POST_CLEARANCE
+    )
+    clearances = []
+    for index, position in enumerate(positions, start=1):
+        actual_clearance = point_to_axis_aligned_rectangle_distance(
+            position,
+            feedthrough["center"],
+            feedthrough["width"],
+            feedthrough["length"],
+        )
+        clearances.append(actual_clearance)
+        if actual_clearance + 1e-9 < required_center_clearance:
+            raise RuntimeError(
+                f"Lid fan cable slot overlaps lid support post {index}: "
+                f"center clearance={actual_clearance:.2f} mm, require "
+                f"{required_center_clearance:.2f} mm"
+            )
+    minimum_edge_web = min(clearances) - FASTENER_POST_DIAMETER / 2.0
+    print(
+        "LID_FAN_CABLE_SLOT_POST_CLEARANCE PASS "
+        f"slot={feedthrough['width']:.2f}x{feedthrough['length']:.2f}mm "
+        f"outset={LID_FAN_CABLE_SLOT_OUTSET:.2f}mm "
+        f"minimum_post_edge_web={minimum_edge_web:.2f}mm"
+    )
+
+
+def add_single_lid_fan_mount(lid, footprint, positions):
     """Add one flat, reinforced external-fan seat and its airflow opening."""
     if not lid_fan_enabled():
         return lid
@@ -28285,26 +28152,12 @@ def add_single_lid_fan_mount(lid, footprint):
     boolean_difference(lid, [opening], "Single_Lid_Fan_Air_Opening_Cut")
     feedthrough = lid_fan_cable_feedthrough_geometry()
     if feedthrough is not None:
-        cut_regions = (
-            (
-                "Connector_Passage",
-                feedthrough["connector_center"],
-                feedthrough["connector_width"],
-                feedthrough["connector_length"],
-            ),
-            (
-                "Cable_Strain_Relief_Neck",
-                feedthrough["neck_center"],
-                feedthrough["neck_width"],
-                feedthrough["neck_length"],
-            ),
-        )
+        validate_lid_fan_cable_slot_post_clearance(positions, feedthrough)
         corners = tuple(
             (
-                center[0] + x_sign * width / 2.0,
-                center[1] + y_sign * length / 2.0,
+                feedthrough["center"][0] + x_sign * feedthrough["width"] / 2.0,
+                feedthrough["center"][1] + y_sign * feedthrough["length"] / 2.0,
             )
-            for _label, center, width, length in cut_regions
             for x_sign, y_sign in (
                 (-1.0, -1.0),
                 (-1.0, 1.0),
@@ -28315,24 +28168,31 @@ def add_single_lid_fan_mount(lid, footprint):
         if VALIDATE_LID_FAN_FIT and any(
             not point_in_polygon(point, footprint) for point in corners
         ):
-            raise ValueError("Lid fan cable feedthrough leaves the lid footprint")
-        for label, center, width, length in cut_regions:
-            hole = add_beveled_box(
-                f"Single_Lid_Fan_{label}",
-                (width, length, cutter_z1 - cutter_z0),
-                (
-                    center[0],
-                    center[1],
-                    (cutter_z0 + cutter_z1) / 2.0,
-                ),
-                bevel=min(1.2, width / 3.0, length / 3.0),
-            )
-            boolean_difference(
-                lid,
-                [hole],
-                f"Single_Lid_Fan_{label}_Cut",
-                solver="EXACT",
-            )
+            raise ValueError("Lid fan cable slot leaves the lid footprint")
+        hole = add_beveled_box(
+            "Single_Lid_Fan_Cable_Only_Exit",
+            (
+                feedthrough["width"],
+                feedthrough["length"],
+                cutter_z1 - cutter_z0,
+            ),
+            (
+                feedthrough["center"][0],
+                feedthrough["center"][1],
+                (cutter_z0 + cutter_z1) / 2.0,
+            ),
+            bevel=min(
+                0.8,
+                feedthrough["width"] / 3.0,
+                feedthrough["length"] / 3.0,
+            ),
+        )
+        boolean_difference(
+            lid,
+            [hole],
+            "Single_Lid_Fan_Cable_Only_Exit_Cut",
+            solver="EXACT",
+        )
     mount_holes = [
         add_cylinder_z(
             f"Single_Lid_Fan_Mount_Hole_{index}",
@@ -28364,22 +28224,16 @@ def add_single_lid_fan_mount(lid, footprint):
     )
     cable_feedthrough_description = "disabled"
     if feedthrough is not None:
-        lid["lid_fan_connector_passage_width_mm"] = feedthrough[
-            "connector_width"
-        ]
-        lid["lid_fan_connector_passage_length_mm"] = feedthrough[
-            "connector_length"
-        ]
-        lid["lid_fan_cable_neck_width_mm"] = feedthrough["neck_width"]
-        lid["lid_fan_cable_neck_length_mm"] = feedthrough["neck_length"]
-        lid["lid_fan_cable_feedthrough_corner"] = (
-            LID_FAN_CABLE_FEEDTHROUGH_CORNER
+        lid["lid_fan_cable_slot_radial_width_mm"] = feedthrough["width"]
+        lid["lid_fan_cable_slot_tangential_width_mm"] = feedthrough["length"]
+        lid["lid_fan_cable_slot_outset_mm"] = LID_FAN_CABLE_SLOT_OUTSET
+        lid["lid_fan_cable_slot_tangential_offset_mm"] = (
+            LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET
         )
         cable_feedthrough_description = (
-            f"keyhole_{feedthrough['connector_width']:.1f}x"
-            f"{feedthrough['connector_length']:.1f}mm_neck_"
-            f"{feedthrough['neck_length']:.1f}mm_at_"
-            f"{LID_FAN_CABLE_FEEDTHROUGH_CORNER}"
+            f"cable_only_slot_{feedthrough['width']:.1f}x"
+            f"{feedthrough['length']:.1f}mm_outset_"
+            f"{LID_FAN_CABLE_SLOT_OUTSET:.1f}mm"
         )
     print(
         "LID_FAN_MOUNT "
@@ -28459,7 +28313,7 @@ def create_lid(positions, footprint, cameras):
     add_camera_eye_body_reliefs(lid, cameras, "Lid")
     add_lid_camera_bracket_reliefs(lid, cameras)
     add_lid_fastener_seating_islands(lid, positions)
-    add_single_lid_fan_mount(lid, footprint)
+    add_single_lid_fan_mount(lid, footprint, positions)
 
     if FASTENERS_ENABLED:
         clearance_cutters = [
@@ -28529,9 +28383,9 @@ def create_lid_fan_cover(lid, positions):
     ring_top_z = ring_bottom_z + profile["grille_thickness"]
     feedthrough = lid_fan_cable_feedthrough_geometry()
     if feedthrough is not None:
-        # Carry the complete sleeve down to the cable chase's lid-side plane.
+        # Carry the complete sleeve down to the cable hood's lid-side plane.
         # This gives the open-side-down STL a broad first-layer rim instead of
-        # an isolated chase projection below an otherwise shallow sleeve.
+        # an isolated hood projection below an otherwise shallow sleeve.
         skirt_bottom_z = fan_base_z + profile["fit_clearance"]
     else:
         skirt_bottom_z = fan_top_z - min(
@@ -28641,11 +28495,32 @@ def create_lid_fan_cover(lid, positions):
     if feedthrough is not None:
         chase_margin = profile["wall_thickness"] + LID_FAN_CABLE_CHASE_CLEARANCE
         chase_bottom_z = fan_base_z + profile["fit_clearance"]
+        chase_width = feedthrough["width"] + 2.0 * chase_margin
+        chase_length = feedthrough["length"] + 2.0 * chase_margin
+        required_access_clearance = (
+            LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER / 2.0
+            + LID_FAN_CABLE_POST_CLEARANCE
+        )
+        chase_post_clearances = tuple(
+            point_to_axis_aligned_rectangle_distance(
+                position,
+                feedthrough["center"],
+                chase_width,
+                chase_length,
+            )
+            for position in positions
+        )
+        if min(chase_post_clearances) + 1e-9 < required_access_clearance:
+            raise RuntimeError(
+                "Protected fan-cable hood obstructs a lid thumbscrew access "
+                f"zone: clearance={min(chase_post_clearances):.2f} mm, "
+                f"require {required_access_clearance:.2f} mm"
+            )
         chase = add_beveled_box(
-            "Lid_Fan_Cover_Protected_Cable_Chase",
+            "Lid_Fan_Cover_Protected_Cable_Hood",
             (
-                feedthrough["width"] + 2.0 * chase_margin,
-                feedthrough["length"] + 2.0 * chase_margin,
+                chase_width,
+                chase_length,
                 ring_top_z - chase_bottom_z,
             ),
             (
@@ -28655,17 +28530,21 @@ def create_lid_fan_cover(lid, positions):
             ),
             bevel=min(2.0, feedthrough["width"] / 3.0),
         )
-        boolean_union(cover, chase, "Lid_Fan_Cover_Cable_Chase_Union")
+        boolean_union(cover, chase, "Lid_Fan_Cover_Cable_Hood_Union")
         half_frame = frame / 2.0
-        inner_x = center_x + feedthrough["x_sign"] * (
-            half_frame - 2.0 * BOOLEAN_OVERLAP
+        inner_x = (
+            center_x
+            + half_frame
+            - LID_FAN_CABLE_SLOT_FRAME_OVERLAP
+            - feedthrough["cable_route_radius"]
+            - LID_FAN_CABLE_CHASE_CLEARANCE
         )
         outer_x = feedthrough["center"][0] + feedthrough["x_sign"] * (
             feedthrough["width"] / 2.0 + LID_FAN_CABLE_CHASE_CLEARANCE
         )
         cavity_x0, cavity_x1 = sorted((inner_x, outer_x))
         cavity = add_beveled_box(
-            "Lid_Fan_Cover_Cable_Chase_Cavity",
+            "Lid_Fan_Cover_Cable_Hood_Cavity",
             (
                 cavity_x1 - cavity_x0,
                 feedthrough["length"] + 2.0 * LID_FAN_CABLE_CHASE_CLEARANCE,
@@ -28676,12 +28555,18 @@ def create_lid_fan_cover(lid, positions):
                 feedthrough["center"][1],
                 (ring_bottom_z + fan_base_z) / 2.0,
             ),
-            bevel=min(1.5, feedthrough["width"] / 3.0),
+            bevel=0.0,
         )
         boolean_difference(
             cover,
             [cavity],
-            "Lid_Fan_Cover_Protected_Cable_Chase_Cavity_Cut",
+            "Lid_Fan_Cover_Protected_Cable_Hood_Cavity_Cut",
+        )
+        print(
+            "LID_FAN_CABLE_COVER_HOOD_CLEARANCE PASS "
+            f"hood={chase_width:.2f}x{chase_length:.2f}mm "
+            f"minimum_thumbscrew_center_clearance="
+            f"{min(chase_post_clearances):.2f}mm"
         )
 
     access_radius = LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER / 2.0
@@ -33209,8 +33094,8 @@ def validate_lid_fan_cover_printability(cover):
     )
 
 
-def validate_lid_fan_connector_route(lid, cover):
-    """Sweep the captive four-pin plug and cable through their final voids."""
+def validate_lid_fan_cable_route(lid, cover):
+    """Sweep only the captive fan cable through the final slot and cover."""
     if not lid_fan_enabled():
         return
     feedthrough = lid_fan_cable_feedthrough_geometry()
@@ -33222,155 +33107,69 @@ def validate_lid_fan_connector_route(lid, cover):
             local_lid_top_z(LID_FAN_CENTER_X, LID_FAN_CENTER_Y),
         )
     )
-    seam_z = local_base_seam_z(*feedthrough["connector_center"])
-    sweep_z0 = seam_z - LID_FAN_CONNECTOR_BODY_LENGTH - 1.0
-    sweep_z1 = fan_base_z + LID_FAN_CONNECTOR_BODY_LENGTH + 1.0
-    connector_sweep = add_beveled_box(
-        "Lid_Fan_Captive_Connector_Vertical_Sweep",
-        (
-            feedthrough["connector_envelope_width"],
-            feedthrough["connector_envelope_length"],
-            sweep_z1 - sweep_z0,
-        ),
-        (
-            feedthrough["connector_center"][0],
-            feedthrough["connector_center"][1],
-            (sweep_z0 + sweep_z1) / 2.0,
-        ),
-        bevel=min(1.0, feedthrough["connector_envelope_width"] / 4.0),
-    )
-    bend_radius = LID_FAN_CABLE_MIN_BEND_RADIUS
-    horizontal_z = fan_base_z + bend_radius
+    seam_z = local_base_seam_z(*feedthrough["center"])
+    sweep_z0 = seam_z - 1.0
+    horizontal_z = fan_base_z + feedthrough["cable_route_radius"]
     cable_path = [
         (
-            feedthrough["cable_horizontal_start_x"],
-            feedthrough["connector_center"][1],
+            feedthrough["frame_outer_x"],
+            feedthrough["center"][1],
             horizontal_z,
         ),
-        (
-            feedthrough["cable_bend_tangent_x"],
-            feedthrough["connector_center"][1],
-            horizontal_z,
-        ),
-    ]
-    arc_steps = max(12, int(math.ceil(math.pi * bend_radius / 2.0)))
-    for index in range(1, arc_steps + 1):
-        theta = math.pi * index / (2.0 * arc_steps)
-        cable_path.append(
-            (
-                feedthrough["cable_vertical_x"]
-                - feedthrough["x_sign"] * bend_radius * math.cos(theta),
-                feedthrough["connector_center"][1],
-                horizontal_z - bend_radius * math.sin(theta),
-            )
-        )
-    cable_path.append(
         (
             feedthrough["cable_vertical_x"],
-            feedthrough["connector_center"][1],
+            feedthrough["center"][1],
+            horizontal_z,
+        ),
+        (
+            feedthrough["cable_vertical_x"],
+            feedthrough["center"][1],
             sweep_z0,
-        )
-    )
+        ),
+    ]
     cable_sweep = add_xz_polyline_tube(
-        "Lid_Fan_Cable_Straight_Bend_And_Vertical_Sweep",
+        "Lid_Fan_Cable_Only_Exit_Sweep",
         cable_path,
         feedthrough["cable_route_radius"],
     )
-    chase_keepout = None
     try:
-        connector_lid_overlap = intersection_metrics(
-            connector_sweep,
-            lid,
-            "lid_fan_connector_vertical_sweep",
-        )[2]
         cable_lid_overlap = intersection_metrics(
             cable_sweep,
             lid,
-            "lid_fan_cable_straight_bend_vertical_sweep",
+            "lid_fan_cable_only_exit_lid_sweep",
         )[2]
-        connector_cover_overlap = 0.0
         cable_cover_overlap = 0.0
-        chase_cover_overlap = 0.0
         if cover is not None:
-            dimensions = lid_fan_reference_dimensions()
-            half_frame = dimensions["frame"] / 2.0
-            inner_x = LID_FAN_CENTER_X + feedthrough["x_sign"] * (
-                half_frame - BOOLEAN_CLEANUP_DISTANCE
-            )
-            outer_x = feedthrough["center"][0] + feedthrough["x_sign"] * (
-                feedthrough["width"] / 2.0
-                + LID_FAN_CABLE_CHASE_CLEARANCE / 2.0
-            )
-            chase_x0, chase_x1 = sorted((inner_x, outer_x))
-            chase_height = (
-                dimensions["depth"] + LID_FAN_COVER_TOP_CLEARANCE
-            )
-            chase_keepout = add_beveled_box(
-                "Lid_Fan_Connector_And_Bend_Chase_Sweep",
-                (
-                    chase_x1 - chase_x0,
-                    LID_FAN_CONNECTOR_BODY_WIDTH,
-                    chase_height - 2.0 * BOOLEAN_CLEANUP_DISTANCE,
-                ),
-                (
-                    (chase_x0 + chase_x1) / 2.0,
-                    feedthrough["center"][1],
-                    fan_base_z
-                    + BOOLEAN_CLEANUP_DISTANCE
-                    + (chase_height - 2.0 * BOOLEAN_CLEANUP_DISTANCE) / 2.0,
-                ),
-                bevel=min(1.0, LID_FAN_CONNECTOR_BODY_THICKNESS / 4.0),
-            )
-            connector_cover_overlap = intersection_metrics(
-                connector_sweep,
-                cover,
-                "lid_fan_connector_cover_sweep",
-            )[2]
             cable_cover_overlap = intersection_metrics(
                 cable_sweep,
                 cover,
-                "lid_fan_cable_cover_sweep",
-            )[2]
-            chase_cover_overlap = intersection_metrics(
-                chase_keepout,
-                cover,
-                "lid_fan_connector_cover_chase_sweep",
+                "lid_fan_cable_only_exit_cover_sweep",
             )[2]
         maximum_overlap = max(
-            connector_lid_overlap,
             cable_lid_overlap,
-            connector_cover_overlap,
             cable_cover_overlap,
-            chase_cover_overlap,
         )
         if maximum_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
             raise RuntimeError(
-                "Fan connector/cable route is obstructed: "
-                f"connector_lid={connector_lid_overlap:.9f}mm3, "
+                "Fan cable-only exit is obstructed: "
                 f"cable_lid={cable_lid_overlap:.9f}mm3, "
-                f"connector_cover={connector_cover_overlap:.9f}mm3, "
-                f"cable_cover={cable_cover_overlap:.9f}mm3, "
-                f"chase_cover={chase_cover_overlap:.9f}mm3"
+                f"cable_cover={cable_cover_overlap:.9f}mm3"
             )
-        lid["fan_connector_vertical_sweep_validated"] = True
+        lid["fan_cable_only_exit_sweep_validated"] = True
         if cover is not None:
-            cover["fan_connector_bend_chase_validated"] = True
+            cover["fan_cable_hood_sweep_validated"] = True
         print(
-            "LID_FAN_CONNECTOR_ROUTE PASS "
-            f"plug={LID_FAN_CONNECTOR_BODY_WIDTH:.1f}x"
-            f"{LID_FAN_CONNECTOR_BODY_THICKNESS:.1f}x"
-            f"{LID_FAN_CONNECTOR_BODY_LENGTH:.1f}mm "
-            f"latch_allowance={LID_FAN_CONNECTOR_LATCH_ALLOWANCE:.1f}mm "
+            "LID_FAN_CABLE_ONLY_ROUTE PASS "
+            f"slot={feedthrough['width']:.1f}x"
+            f"{feedthrough['length']:.1f}mm "
+            f"outset={LID_FAN_CABLE_SLOT_OUTSET:.1f}mm "
             f"cable={LID_FAN_CABLE_OUTER_DIAMETER:.1f}mm "
-            f"bend_radius={LID_FAN_CABLE_MIN_BEND_RADIUS:.1f}mm "
-            f"cleared_radius={feedthrough['cable_route_radius']:.1f}mm "
-            f"bend_offset={abs(feedthrough['cable_vertical_x'] - feedthrough['frame_outer_x']):.1f}mm "
+            f"tangential_offset={LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET:.1f}mm "
             f"max_overlap={maximum_overlap:.9f}"
         )
     finally:
-        for temporary in (connector_sweep, cable_sweep, chase_keepout):
-            if temporary is not None and temporary.name in bpy.data.objects:
-                bpy.data.objects.remove(temporary, do_unlink=True)
+        if cable_sweep.name in bpy.data.objects:
+            bpy.data.objects.remove(cable_sweep, do_unlink=True)
 
 
 def validate_front_lid_anchor(base, lid, footprint):
@@ -34987,7 +34786,7 @@ def build_hockeymom_cam_case():
     if lid_fan_cover is not None:
         validate_object(lid_fan_cover)
         validate_lid_fan_cover_printability(lid_fan_cover)
-    validate_lid_fan_connector_route(lid, lid_fan_cover)
+    validate_lid_fan_cable_route(lid, lid_fan_cover)
     for bracket in camera_brackets:
         validate_object(bracket)
     for moving_part in (

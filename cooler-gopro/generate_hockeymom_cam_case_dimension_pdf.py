@@ -328,7 +328,7 @@ FEATURE_RULES = (
     FeatureRule(
         "rear_fans",
         "Rear-wall and lid fans, cover, cable route and gaskets",
-        "Selectable fan stations, mounting seats, openings, screw patterns, domed friction cover, direct cable feedthrough/chase and compliant gaskets.",
+        "Selectable fan stations, mounting seats, openings, screw patterns, domed friction cover, post-safe cable-only exit/hood and compliant gaskets.",
         (r"^(?:REAR|LID)_FAN_", r"^FAN_GASKET_"),
     ),
     FeatureRule(
@@ -3088,7 +3088,7 @@ def page_carrier_guard(pdf):
 def page_fans(pdf):
     fan_mode=str(val("FAN_MOUNT_MODE","lid_single"))
     fig=new_sheet(11,"SELECTABLE FAN STATIONS & DOMED LID-FAN COVER",
-                  f"FAN_MOUNT_MODE={fan_mode}; the external lid fan gets a high-open-area friction sleeve and protected direct cord route")
+                  f"FAN_MOUNT_MODE={fan_mode}; the external lid fan gets a high-open-area friction sleeve and protected cable-only exit")
     ax=panel(fig,[0.065,0.40,0.52,0.47],"PAD, OPENING & MOUNT PATTERN","REAR ELEVATION")
     pad=float(val("REAR_FAN_PAD_SIZE",45)); offset=float(val("REAR_FAN_CENTERLINE_OFFSET",50)); z=float(val("REAR_FAN_CENTER_Z",35)); spacing=float(val("REAR_FAN_MOUNT_SPACING",32)); opening=float(val("REAR_FAN_AIR_OPENING_DIAMETER",36))
     ax.add_patch(Rectangle((-90,0),180,76,facecolor="#edf4f7",edgecolor=BLUE,lw=1.1))
@@ -3118,18 +3118,18 @@ def page_fans(pdf):
     dome_z=[21+dome_rise*(1-(x/30)**2) for x in dome_x]
     ax2.plot(dome_x,dome_z,color=PURPLE,lw=2.1)
     ax2.plot([-30,30],[21,21],color=PURPLE,lw=1.3)
-    # The selected-corner blister shields the lead as it turns directly through the lid.
-    ax2.add_patch(FancyBboxPatch((27,2),12,20,boxstyle="round,pad=0,rounding_size=2",
+    # A small localized hood shields the cable-only lid slot.
+    ax2.add_patch(FancyBboxPatch((27,2),8,20,boxstyle="round,pad=0,rounding_size=2",
                                  facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
-    ax2.add_patch(Rectangle((27,-1),7,9,facecolor=WHITE,edgecolor=ORANGE,lw=1.0))
-    ax2.plot([24,31,31],[10,7,1],color=ORANGE,lw=2.0,solid_capstyle="round")
+    ax2.add_patch(Rectangle((27,-1),4,6,facecolor=WHITE,edgecolor=ORANGE,lw=1.0))
+    ax2.plot([25,29,29],[8,5,1],color=ORANGE,lw=2.0,solid_capstyle="round")
     ax2.add_patch(Circle((-31,10),6,facecolor=WHITE,edgecolor=PURPLE,lw=1.0,ls="--"))
     for x in (-15,0,15):
         ax2.add_patch(FancyArrowPatch((x,15),(x,31),arrowstyle="-|>",mutation_scale=9,color=GREEN,lw=1.0))
     dim_v(ax2,21,21+dome_rise,-44,-31,"LID_FAN_COVER_DOME_RISE",PURPLE)
     leader(ax2,(-30,10),(-54,34),"LID_FAN_COVER_WRAP_DEPTH",PURPLE)
-    leader(ax2,(34,7),(58,29),"LID_FAN_CABLE_FEEDTHROUGH_WIDTH / LENGTH\nLID_FAN_CABLE_CHASE_CLEARANCE",ORANGE,"right")
-    leader(ax2,(32,19),(59,13),"local chase; no loose side loop",ORANGE,"right")
+    leader(ax2,(31,7),(58,29),"LID_FAN_CABLE_SLOT_FRAME_OVERLAP / OUTSET\nLID_FAN_CABLE_SLOT_CLEARANCE",ORANGE,"right")
+    leader(ax2,(32,19),(59,13),"small covered hood; screw zones preserved",ORANGE,"right")
     leader(ax2,(-31,5),(-59,-2),"THUMBSCREW ACCESS",PURPLE)
     setup(ax2,-61,65,-5,41)
 
@@ -3149,8 +3149,8 @@ def page_fans(pdf):
               "LID_FAN_COVER_RIGID_RETENTION_PROTRUSION",
               "LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER cuts access notches.",
               "Print open sleeve side down; enable slicer support beneath the grille dome.",
-              "The selected cable corner overlaps the fan edge, bends into the case,",
-              "and stays entirely inside the protected cover chase."],ORANGE)
+              "Only the flexible cable enters the 3 mm-outset slot; the plug stays inside.",
+              "The offset slot clears every lid post and stays beneath a local cover hood."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -3374,7 +3374,7 @@ def page_index(pdf):
             ("Fan mounting mode / lid-fan frame","FAN_MOUNT_MODE / LID_FAN_SIZE_MM / LID_FAN_DEPTH_MM / LID_FAN_MOUNT_SPACING_MM"),
             ("Lid-fan domed cover","LID_FAN_COVER_MATERIAL_MODE / LID_FAN_COVER_WRAP_DEPTH / LID_FAN_COVER_DOME_RISE / LID_FAN_COVER_SPOKE_WIDTH"),
             ("Cover friction / thumbscrew access","LID_FAN_COVER_TPU_RETENTION_PROTRUSION / LID_FAN_COVER_RIGID_RETENTION_PROTRUSION / LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER"),
-            ("Direct lid-fan cord route","LID_FAN_CABLE_FEEDTHROUGH_WIDTH / LID_FAN_CABLE_FEEDTHROUGH_LENGTH / LID_FAN_CABLE_CHASE_CLEARANCE"),
+            ("Direct lid-fan cord route","LID_FAN_CABLE_SLOT_FRAME_OVERLAP / LID_FAN_CABLE_SLOT_OUTSET / LID_FAN_CABLE_SLOT_CLEARANCE / LID_FAN_CABLE_CHASE_CLEARANCE"),
             ("Fan pad / hardware frame","REAR_FAN_PAD_SIZE / REAR_FAN_FRAME_SIZE"),
             ("Symmetric center offset / center height","REAR_FAN_CENTERLINE_OFFSET / REAR_FAN_CENTER_Z"),
             ("Mount-hole spacing / air opening","REAR_FAN_MOUNT_SPACING / REAR_FAN_AIR_OPENING_DIAMETER"),
