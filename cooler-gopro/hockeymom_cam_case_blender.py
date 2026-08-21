@@ -158,7 +158,8 @@ FAN_ACOUSTIC_BOOT_SEAL_1_STL_NAME = "hockeymom_cam_case_fan_acoustic_boot_seal_1
 FAN_ACOUSTIC_BOOT_SEAL_2_STL_NAME = "hockeymom_cam_case_fan_acoustic_boot_seal_2.stl"
 FAN_GASKET_1_STL_NAME = "hockeymom_cam_case_fan_gasket_1.stl"
 FAN_GASKET_2_STL_NAME = "hockeymom_cam_case_fan_gasket_2.stl"
-LID_FAN_COVER_STL_NAME = "hockeymom_cam_case_lid_fan_cover.stl"
+LID_FAN_FAIRING_STL_NAME = "hockeymom_cam_case_lid_fan_fairing.stl"
+LID_FAN_GRILLE_STL_NAME = "hockeymom_cam_case_lid_fan_grille.stl"
 EXPORT_PURCHASED_WORM_REFERENCE_STL = False
 EXPORT_PURCHASED_IDLER_WHEEL_REFERENCE_STL = False
 EXPORT_PURCHASED_IDLER_SHAFT_REFERENCE_STL = False
@@ -228,6 +229,10 @@ BODY_WALL_THICKNESS = 3.2
 # own thread in the flexible post.  Removable parts retain their independently
 # configured hardware because they are not necessarily printed in case TPU.
 CASE_BODY_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
+# TPU is also the normal lid material: its damping helps keep the 120 mm fan
+# from turning the broad roof into a sounding board.  It remains independent
+# so a rigid base/TPU lid combination can be generated intentionally.
+LID_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
 CASE_BODY_TPU_M3_PILOT_DIAMETER = 1.8
 CASE_BODY_TPU_M3_PILOT_MAX_DEPTH = 12.0
 CASE_BODY_TPU_RECOMMENDED_INFILL_PERCENT = (45, 55)
@@ -1339,28 +1344,34 @@ LID_FAN_FLAT_SEAT_EMBED = 0.8
 LID_FAN_FLAT_SEAT_CORNER_RADIUS = 4.0
 LID_FAN_FLAT_SEAT_PLANARITY_TOLERANCE = 0.10
 LID_FAN_EDGE_CLEARANCE = 3.0
-LID_FAN_FASTENER_KEEPOUT_CLEARANCE = 3.0
+# Reserve enough room for the pod's 22 mm thumbscrew scallops as well as the
+# M3 post itself.  The automatic solver moves the nearby pairs clear of the
+# fan cavity, leaving a printable web around every access scallop.
+LID_FAN_FASTENER_KEEPOUT_CLEARANCE = 6.0
 LID_FAN_MIN_INLET_TO_OPENING_AREA_RATIO = 0.25
 VALIDATE_LID_FAN_FIT = True
-# Small cable-only exit for the captive fan lead.  The plug remains inside the
-# case during assembly; only the flexible lead passes through this slot beside
-# the fan.  The slot reaches just 3 mm beyond the rear fan edge and is shifted
-# toward the middle of that edge so it cannot cut into the nearby lid post.
+# Small cable-only exit for the captive fan lead.  Pass the loose 4-pin plug
+# through the 110 mm airflow opening before lowering the fan; only the flexible
+# lead occupies this groove.  The groove overlaps the airflow opening, reaches
+# just 3 mm beyond the rear fan edge, and is shifted away from the lid post.
 # The fan cover adds a localized hood over the complete exit.
 # In top view rear is +X and left is +Y.
 LID_FAN_CABLE_FEEDTHROUGH_ENABLED = True
-LID_FAN_CABLE_OUTER_DIAMETER = 3.2
+LID_FAN_CABLE_OUTER_DIAMETER = 4.0
 LID_FAN_CABLE_SLOT_CLEARANCE = 0.8
-LID_FAN_CABLE_SLOT_FRAME_OVERLAP = 2.0
+LID_FAN_CABLE_SLOT_AIR_OPENING_OVERLAP = 2.5
 LID_FAN_CABLE_SLOT_OUTSET = 3.0
 LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET = -15.0
 LID_FAN_CABLE_POST_CLEARANCE = 2.0
 LID_FAN_CABLE_CHASE_CLEARANCE = 0.8
-# Optional separate cover for an external lid fan.  It sleeves over the fan
-# from above and uses four shallow internal pads for friction retention.  The
-# top is a curved polar grille rather than a plate: two thin rings and eight
-# narrow spokes protect the blades while keeping most of the flow area open.
-# Thumb-access cylinders are always removed at the four case-lid screw axes.
+# Optional two-piece pod for an external lid fan.  A broad rounded fairing
+# flares down to the lid and hides the fan's square frame.  Its exterior loft
+# narrows upward, so the open-bottom part prints without support.  A separate
+# flat-bottomed turbine grille slides into short side rails and snaps into two
+# anti-vibration detents; only its top face rises into a shallow dome.  Thumb-
+# access cylinders are removed at all case-lid screw axes, and one localized
+# curved blister covers the fan lead.  The fairing is a true thin shell with
+# localized ribs, rather than a solid wedge between the fan and exterior.
 LID_FAN_COVER_ENABLED = True
 LID_FAN_COVER_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
 LID_FAN_COVER_RIGID_FIT_CLEARANCE = 0.25
@@ -1369,9 +1380,8 @@ LID_FAN_COVER_RIGID_WALL_THICKNESS = 1.4
 LID_FAN_COVER_TPU_WALL_THICKNESS = 1.8
 LID_FAN_COVER_RIGID_GRILLE_THICKNESS = 1.4
 LID_FAN_COVER_TPU_GRILLE_THICKNESS = 1.8
-LID_FAN_COVER_WRAP_DEPTH = 10.0
 LID_FAN_COVER_TOP_CLEARANCE = 1.0
-LID_FAN_COVER_DOME_RISE = 8.0
+LID_FAN_COVER_DOME_RISE = 5.0
 LID_FAN_COVER_BORDER_WIDTH = 2.5
 LID_FAN_COVER_RING_WIDTH = 2.0
 LID_FAN_COVER_SPOKE_WIDTH = 2.2
@@ -1380,18 +1390,39 @@ LID_FAN_COVER_CENTER_HUB_DIAMETER = 18.0
 LID_FAN_COVER_RING_RADII_FRACTIONS = (0.55,)
 LID_FAN_COVER_RADIAL_SEGMENTS = 48
 LID_FAN_COVER_ANGULAR_SEGMENTS = 192
-LID_FAN_COVER_RIGID_RETENTION_PROTRUSION = 0.15
+LID_FAN_COVER_RIGID_RETENTION_PROTRUSION = 0.40
 LID_FAN_COVER_TPU_RETENTION_PROTRUSION = 0.35
 LID_FAN_COVER_RETENTION_PAD_LENGTH = 22.0
 LID_FAN_COVER_RETENTION_PAD_HEIGHT = 2.0
-LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER = 22.0
+LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER = 22.5
 LID_FAN_COVER_MAX_BLOCKED_AREA_RATIO = 0.32
 LID_FAN_COVER_MIN_FIRST_LAYER_CONTACT_AREA = 350.0
 LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO = 0.85
-# The shallow protective dome is intentionally too low to self-support over a
-# 120 mm fan.  Export it sleeve-side-down on a broad continuous rim and let the
-# slicer generate removable support beneath only the open grille.
-LID_FAN_COVER_DOME_SUPPORT_MODE = "slicer_required"
+LID_FAN_FAIRING_MAX_SOLID_VOLUME = 35000.0
+LID_FAN_FAIRING_BOTTOM_WIDTH = 144.0
+LID_FAN_FAIRING_BOTTOM_DEPTH = 144.0
+LID_FAN_FAIRING_BOTTOM_CENTER_X = -15.0
+LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS = 16.0
+LID_FAN_FAIRING_TOP_WIDTH = 132.0
+LID_FAN_FAIRING_TOP_DEPTH = 130.0
+LID_FAN_FAIRING_TOP_CENTER_X = -8.0
+LID_FAN_FAIRING_TOP_CORNER_RADIUS = 8.0
+LID_FAN_GRILLE_OUTER_SIZE = 124.0
+LID_FAN_GRILLE_CORNER_RADIUS = 18.0
+LID_FAN_GRILLE_RAIL_OVERHANG = 1.4
+LID_FAN_GRILLE_RAIL_THICKNESS = 1.4
+LID_FAN_GRILLE_RAIL_LENGTH = 118.0
+LID_FAN_GRILLE_SLIDE_CLEARANCE = 0.25
+LID_FAN_GRILLE_VERTICAL_CLEARANCE = 0.15
+LID_FAN_GRILLE_RIGID_DETENT_PROTRUSION = 0.40
+LID_FAN_GRILLE_TPU_DETENT_PROTRUSION = 0.60
+LID_FAN_GRILLE_DETENT_RADIUS = 1.8
+LID_FAN_GRILLE_DETENT_FRONT_EDGE_OFFSET = 24.0
+LID_FAN_GRILLE_DETENT_Z_INSET = 0.25
+LID_FAN_GRILLE_DETENT_NOTCH_CLEARANCE = 0.15
+LID_FAN_GRILLE_MAX_SUPPORT_FREE_LIP_SPAN = 2.0
+LID_FAN_CABLE_BEND_RADIUS = 6.0
+LID_FAN_COVER_DOME_SUPPORT_MODE = "support_free_flat_bottom"
 # Treat the two lens/mouth gaps as the primary front flow openings: exhausts
 # for rear-wall intake fans, or inlets for the default lid-fan exhaust flow.
 # This avoids adding separate rain/debris-facing shell perforations.
@@ -1704,6 +1735,10 @@ def case_body_uses_tpu() -> bool:
     return CASE_BODY_MATERIAL_MODE == "TPU"
 
 
+def lid_uses_tpu() -> bool:
+    return LID_MATERIAL_MODE == "TPU"
+
+
 def case_body_fastener_profile(
     rigid_hole_diameter: float,
     rigid_hole_depth: float,
@@ -1737,22 +1772,21 @@ def case_body_fastener_profile(
 
 def front_lid_anchor_profile():
     """Return the material-specific hidden front tongue/receiver dimensions."""
-    if case_body_uses_tpu():
-        return {
-            "slot_depth": LID_FRONT_ANCHOR_TPU_SLOT_DEPTH,
-            "tab_width": LID_FRONT_ANCHOR_TPU_TAB_WIDTH,
-            "tab_thickness": LID_FRONT_ANCHOR_TPU_TAB_THICKNESS,
-            "root_length": LID_FRONT_ANCHOR_TPU_ROOT_LENGTH,
-            "fit_clearance": LID_FRONT_ANCHOR_TPU_FIT_CLEARANCE,
-            "receiver_wall": LID_FRONT_ANCHOR_TPU_RECEIVER_WALL,
-        }
+    body_suffix = "TPU" if case_body_uses_tpu() else "RIGID"
+    lid_suffix = "TPU" if lid_uses_tpu() else "RIGID"
     return {
-        "slot_depth": LID_FRONT_ANCHOR_RIGID_SLOT_DEPTH,
-        "tab_width": LID_FRONT_ANCHOR_RIGID_TAB_WIDTH,
-        "tab_thickness": LID_FRONT_ANCHOR_RIGID_TAB_THICKNESS,
-        "root_length": LID_FRONT_ANCHOR_RIGID_ROOT_LENGTH,
-        "fit_clearance": LID_FRONT_ANCHOR_RIGID_FIT_CLEARANCE,
-        "receiver_wall": LID_FRONT_ANCHOR_RIGID_RECEIVER_WALL,
+        "slot_depth": globals()[f"LID_FRONT_ANCHOR_{body_suffix}_SLOT_DEPTH"],
+        "tab_width": globals()[f"LID_FRONT_ANCHOR_{lid_suffix}_TAB_WIDTH"],
+        "tab_thickness": globals()[
+            f"LID_FRONT_ANCHOR_{lid_suffix}_TAB_THICKNESS"
+        ],
+        "root_length": globals()[f"LID_FRONT_ANCHOR_{lid_suffix}_ROOT_LENGTH"],
+        "fit_clearance": globals()[
+            f"LID_FRONT_ANCHOR_{body_suffix}_FIT_CLEARANCE"
+        ],
+        "receiver_wall": globals()[
+            f"LID_FRONT_ANCHOR_{body_suffix}_RECEIVER_WALL"
+        ],
     }
 
 
@@ -1774,6 +1808,9 @@ def lid_fan_cover_profile():
             "retention_protrusion": (
                 LID_FAN_COVER_TPU_RETENTION_PROTRUSION
             ),
+            "grille_detent_protrusion": (
+                LID_FAN_GRILLE_TPU_DETENT_PROTRUSION
+            ),
         }
     return {
         "fit_clearance": LID_FAN_COVER_RIGID_FIT_CLEARANCE,
@@ -1781,6 +1818,9 @@ def lid_fan_cover_profile():
         "grille_thickness": LID_FAN_COVER_RIGID_GRILLE_THICKNESS,
         "retention_protrusion": (
             LID_FAN_COVER_RIGID_RETENTION_PROTRUSION
+        ),
+        "grille_detent_protrusion": (
+            LID_FAN_GRILLE_RIGID_DETENT_PROTRUSION
         ),
     }
 
@@ -1860,8 +1900,19 @@ def lid_fan_cable_feedthrough_geometry():
     if not lid_fan_enabled() or not LID_FAN_CABLE_FEEDTHROUGH_ENABLED:
         return None
     frame = lid_fan_reference_dimensions()["frame"]
+    opening = lid_fan_reference_dimensions()["opening"]
     half_frame = frame / 2.0
-    radial_inner = half_frame - LID_FAN_CABLE_SLOT_FRAME_OVERLAP
+    tangent = LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET
+    opening_radius = opening / 2.0
+    if abs(tangent) >= opening_radius:
+        raise ValueError("Fan cable slot misses the main airflow opening")
+    opening_boundary_radial = math.sqrt(
+        opening_radius * opening_radius - tangent * tangent
+    )
+    radial_inner = (
+        opening_boundary_radial
+        - LID_FAN_CABLE_SLOT_AIR_OPENING_OVERLAP
+    )
     radial_outer = half_frame + LID_FAN_CABLE_SLOT_OUTSET
     slot_width = radial_outer - radial_inner
     slot_length = (
@@ -1878,8 +1929,22 @@ def lid_fan_cable_feedthrough_geometry():
         "width": slot_width,
         "length": slot_length,
         "frame_outer_x": float(LID_FAN_CENTER_X) + half_frame,
+        "air_opening_boundary_x": (
+            float(LID_FAN_CENTER_X) + opening_boundary_radial
+        ),
         "cable_route_radius": LID_FAN_CABLE_OUTER_DIAMETER / 2.0,
-        "cable_vertical_x": slot_center[0],
+        "cable_horizontal_start_x": (
+            float(LID_FAN_CENTER_X)
+            + half_frame
+            + LID_FAN_CABLE_SLOT_OUTSET
+            - LID_FAN_CABLE_OUTER_DIAMETER / 2.0
+        ),
+        "cable_vertical_x": (
+            float(LID_FAN_CENTER_X)
+            + opening_boundary_radial
+            - LID_FAN_CABLE_OUTER_DIAMETER / 2.0
+            - LID_FAN_CABLE_SLOT_CLEARANCE / 2.0
+        ),
     }
 
 
@@ -3738,8 +3803,8 @@ def validate_config() -> None:
             LID_FAN_FASTENER_KEEPOUT_CLEARANCE
         ),
         "LID_FAN_CABLE_SLOT_CLEARANCE": LID_FAN_CABLE_SLOT_CLEARANCE,
-        "LID_FAN_CABLE_SLOT_FRAME_OVERLAP": (
-            LID_FAN_CABLE_SLOT_FRAME_OVERLAP
+        "LID_FAN_CABLE_SLOT_AIR_OPENING_OVERLAP": (
+            LID_FAN_CABLE_SLOT_AIR_OPENING_OVERLAP
         ),
         "LID_FAN_CABLE_SLOT_OUTSET": LID_FAN_CABLE_SLOT_OUTSET,
         "LID_FAN_CABLE_POST_CLEARANCE": LID_FAN_CABLE_POST_CLEARANCE,
@@ -3823,6 +3888,8 @@ def validate_config() -> None:
         )
     if CASE_BODY_MATERIAL_MODE not in {"RIGID", "TPU"}:
         raise ValueError('CASE_BODY_MATERIAL_MODE must be "RIGID" or "TPU"')
+    if LID_MATERIAL_MODE not in {"RIGID", "TPU"}:
+        raise ValueError('LID_MATERIAL_MODE must be "RIGID" or "TPU"')
     if LID_FAN_COVER_MATERIAL_MODE not in {"RIGID", "TPU"}:
         raise ValueError(
             'LID_FAN_COVER_MATERIAL_MODE must be "RIGID" or "TPU"'
@@ -3893,7 +3960,6 @@ def validate_config() -> None:
         "LID_FRONT_ANCHOR_INSTALLATION_INTERSECTION_TOLERANCE": (
             LID_FRONT_ANCHOR_INSTALLATION_INTERSECTION_TOLERANCE
         ),
-        "LID_FAN_COVER_WRAP_DEPTH": LID_FAN_COVER_WRAP_DEPTH,
         "LID_FAN_COVER_TOP_CLEARANCE": LID_FAN_COVER_TOP_CLEARANCE,
         "LID_FAN_COVER_DOME_RISE": LID_FAN_COVER_DOME_RISE,
         "LID_FAN_COVER_BORDER_WIDTH": LID_FAN_COVER_BORDER_WIDTH,
@@ -3917,6 +3983,48 @@ def validate_config() -> None:
         "LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO": (
             LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO
         ),
+        "LID_FAN_FAIRING_MAX_SOLID_VOLUME": (
+            LID_FAN_FAIRING_MAX_SOLID_VOLUME
+        ),
+        "LID_FAN_FAIRING_BOTTOM_WIDTH": LID_FAN_FAIRING_BOTTOM_WIDTH,
+        "LID_FAN_FAIRING_BOTTOM_DEPTH": LID_FAN_FAIRING_BOTTOM_DEPTH,
+        "LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS": (
+            LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS
+        ),
+        "LID_FAN_FAIRING_TOP_WIDTH": LID_FAN_FAIRING_TOP_WIDTH,
+        "LID_FAN_FAIRING_TOP_DEPTH": LID_FAN_FAIRING_TOP_DEPTH,
+        "LID_FAN_FAIRING_TOP_CORNER_RADIUS": (
+            LID_FAN_FAIRING_TOP_CORNER_RADIUS
+        ),
+        "LID_FAN_GRILLE_OUTER_SIZE": LID_FAN_GRILLE_OUTER_SIZE,
+        "LID_FAN_GRILLE_CORNER_RADIUS": LID_FAN_GRILLE_CORNER_RADIUS,
+        "LID_FAN_GRILLE_RAIL_OVERHANG": LID_FAN_GRILLE_RAIL_OVERHANG,
+        "LID_FAN_GRILLE_RAIL_THICKNESS": LID_FAN_GRILLE_RAIL_THICKNESS,
+        "LID_FAN_GRILLE_RAIL_LENGTH": LID_FAN_GRILLE_RAIL_LENGTH,
+        "LID_FAN_GRILLE_SLIDE_CLEARANCE": (
+            LID_FAN_GRILLE_SLIDE_CLEARANCE
+        ),
+        "LID_FAN_GRILLE_VERTICAL_CLEARANCE": (
+            LID_FAN_GRILLE_VERTICAL_CLEARANCE
+        ),
+        "LID_FAN_GRILLE_RIGID_DETENT_PROTRUSION": (
+            LID_FAN_GRILLE_RIGID_DETENT_PROTRUSION
+        ),
+        "LID_FAN_GRILLE_TPU_DETENT_PROTRUSION": (
+            LID_FAN_GRILLE_TPU_DETENT_PROTRUSION
+        ),
+        "LID_FAN_GRILLE_DETENT_RADIUS": LID_FAN_GRILLE_DETENT_RADIUS,
+        "LID_FAN_GRILLE_DETENT_FRONT_EDGE_OFFSET": (
+            LID_FAN_GRILLE_DETENT_FRONT_EDGE_OFFSET
+        ),
+        "LID_FAN_GRILLE_DETENT_Z_INSET": LID_FAN_GRILLE_DETENT_Z_INSET,
+        "LID_FAN_GRILLE_DETENT_NOTCH_CLEARANCE": (
+            LID_FAN_GRILLE_DETENT_NOTCH_CLEARANCE
+        ),
+        "LID_FAN_GRILLE_MAX_SUPPORT_FREE_LIP_SPAN": (
+            LID_FAN_GRILLE_MAX_SUPPORT_FREE_LIP_SPAN
+        ),
+        "LID_FAN_CABLE_BEND_RADIUS": LID_FAN_CABLE_BEND_RADIUS,
     }
     for name, value in material_dimensions.items():
         if not math.isfinite(value) or value <= 0.0:
@@ -3977,6 +4085,58 @@ def validate_config() -> None:
     ):
         if not math.isfinite(value) or value < 0.0:
             raise ValueError(f"{name} must be finite and nonnegative")
+    for material, fit_clearance, retention_protrusion in (
+        (
+            "RIGID",
+            LID_FAN_COVER_RIGID_FIT_CLEARANCE,
+            LID_FAN_COVER_RIGID_RETENTION_PROTRUSION,
+        ),
+        (
+            "TPU",
+            LID_FAN_COVER_TPU_FIT_CLEARANCE,
+            LID_FAN_COVER_TPU_RETENTION_PROTRUSION,
+        ),
+    ):
+        interference = retention_protrusion - fit_clearance
+        if not 0.10 <= interference <= 0.35:
+            raise ValueError(
+                f"{material} fan-fairing retention interference must be "
+                f"between 0.10 and 0.35 mm; resolved={interference:.2f} mm"
+            )
+    for material, detent_protrusion, maximum_preload in (
+        ("RIGID", LID_FAN_GRILLE_RIGID_DETENT_PROTRUSION, 0.20),
+        ("TPU", LID_FAN_GRILLE_TPU_DETENT_PROTRUSION, 0.40),
+    ):
+        preload = detent_protrusion - LID_FAN_GRILLE_SLIDE_CLEARANCE
+        if not 0.10 <= preload <= maximum_preload:
+            raise ValueError(
+                f"{material} fan-grille detent preload must be between 0.10 "
+                f"and {maximum_preload:.2f} mm; resolved={preload:.2f} mm"
+            )
+    if 2.0 * LID_FAN_GRILLE_DETENT_Z_INSET >= min(
+        LID_FAN_COVER_RIGID_GRILLE_THICKNESS,
+        LID_FAN_COVER_TPU_GRILLE_THICKNESS,
+    ):
+        raise ValueError("Fan-grille detents need positive vertical engagement")
+    detent_straight_edge_margin = (
+        min(
+            LID_FAN_GRILLE_DETENT_FRONT_EDGE_OFFSET,
+            LID_FAN_GRILLE_OUTER_SIZE
+            - LID_FAN_GRILLE_DETENT_FRONT_EDGE_OFFSET,
+        )
+        - LID_FAN_GRILLE_CORNER_RADIUS
+    )
+    required_detent_straight_edge_margin = (
+        LID_FAN_GRILLE_DETENT_RADIUS
+        + LID_FAN_GRILLE_DETENT_NOTCH_CLEARANCE
+    )
+    if detent_straight_edge_margin < required_detent_straight_edge_margin:
+        raise ValueError(
+            "Fan-grille detent and notch must lie entirely on a straight "
+            "side edge; resolved margin="
+            f"{detent_straight_edge_margin:.2f}mm, required="
+            f"{required_detent_straight_edge_margin:.2f}mm"
+        )
     for name, value in (
         ("LID_FAN_COVER_SPOKE_COUNT", LID_FAN_COVER_SPOKE_COUNT),
         ("LID_FAN_COVER_RADIAL_SEGMENTS", LID_FAN_COVER_RADIAL_SEGMENTS),
@@ -4000,11 +4160,21 @@ def validate_config() -> None:
         raise ValueError("Fan-cover blocked-area ratio must be in (0, 1)")
     if not 0.0 < LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO <= 1.0:
         raise ValueError("Fan-cover first-layer span ratio must be in (0, 1]")
-    if LID_FAN_COVER_DOME_SUPPORT_MODE != "slicer_required":
+    if LID_FAN_COVER_DOME_SUPPORT_MODE != "support_free_flat_bottom":
         raise ValueError(
-            'LID_FAN_COVER_DOME_SUPPORT_MODE must be "slicer_required" for '
-            "the shallow 120 mm dome"
+            "LID_FAN_COVER_DOME_SUPPORT_MODE must be "
+            '"support_free_flat_bottom" for the separate grille'
         )
+    if min(
+        LID_FAN_FAIRING_BOTTOM_WIDTH,
+        LID_FAN_FAIRING_BOTTOM_DEPTH,
+    ) <= max(
+        LID_FAN_FAIRING_TOP_WIDTH,
+        LID_FAN_FAIRING_TOP_DEPTH,
+    ):
+        raise ValueError("Fan fairing must flare outward toward the lid")
+    if LID_FAN_GRILLE_OUTER_SIZE <= lid_fan_reference_dimensions()["frame"]:
+        raise ValueError("Slide-in fan grille must overlap the 120 mm frame")
     if not isinstance(AIR_GUIDE_VANES_ENABLED, bool):
         raise ValueError("AIR_GUIDE_VANES_ENABLED must be a Boolean")
     if AIR_GUIDE_VANE_ROOT_EMBED >= BOTTOM_THICKNESS:
@@ -4097,10 +4267,12 @@ def validate_config() -> None:
             raise ValueError(
                 "Fan cable slot does not clear the configured cable diameter"
             )
-        if not 0.0 < LID_FAN_CABLE_SLOT_FRAME_OVERLAP < feedthrough["width"]:
+        if (
+            feedthrough["center"][0] - feedthrough["width"] / 2.0
+            >= feedthrough["air_opening_boundary_x"]
+        ):
             raise ValueError(
-                "Cable slot frame overlap must be positive and smaller than "
-                "the radial slot width"
+                "Fan cable slot must overlap the main airflow opening"
             )
         if LID_FAN_CABLE_SLOT_OUTSET <= 0.0:
             raise ValueError(
@@ -8271,6 +8443,97 @@ def stepped_ring_sleeve(
     return create_mesh_object(name, vertices, faces)
 
 
+def faired_ring_sleeve(
+    name: str,
+    outer_sections,
+    inner_sections,
+):
+    """Build an open, thin rounded shell from paired exterior/interior lofts."""
+    count = len(outer_sections[0][1])
+    if (
+        count < 3
+        or len(outer_sections) < 2
+        or len(inner_sections) != len(outer_sections)
+        or any(len(loop) != count for _z, loop in outer_sections)
+        or any(len(loop) != count for _z, loop in inner_sections)
+        or any(
+            abs(float(outer[0]) - float(inner[0])) > 1e-9
+            for outer, inner in zip(outer_sections, inner_sections)
+        )
+        or any(
+            float(following[0]) <= float(previous[0])
+            for previous, following in zip(
+                outer_sections,
+                outer_sections[1:],
+            )
+        )
+    ):
+        raise ValueError(
+            "Faired ring sleeve needs paired equal loops and ordered Z sections"
+        )
+    vertices = []
+
+    def add_loop(loop, z):
+        offset = len(vertices)
+        vertices.extend((x, y, float(z)) for x, y in loop)
+        return offset
+
+    outer_offsets = [
+        add_loop(loop, z)
+        for z, loop in outer_sections
+    ]
+    inner_offsets = [
+        add_loop(loop, z)
+        for z, loop in inner_sections
+    ]
+    faces = []
+    for lower, upper in zip(outer_offsets, outer_offsets[1:]):
+        for index in range(count):
+            following = (index + 1) % count
+            faces.append(
+                [
+                    lower + index,
+                    lower + following,
+                    upper + following,
+                    upper + index,
+                ]
+            )
+    for lower, upper in zip(inner_offsets, inner_offsets[1:]):
+        for index in range(count):
+            following = (index + 1) % count
+            faces.append(
+                [
+                    lower + following,
+                    lower + index,
+                    upper + index,
+                    upper + following,
+                ]
+            )
+    outer0 = outer_offsets[0]
+    outer1 = outer_offsets[-1]
+    inner0 = inner_offsets[0]
+    inner1 = inner_offsets[-1]
+    for index in range(count):
+        following = (index + 1) % count
+        faces.extend(
+            (
+                [
+                    outer0 + index,
+                    inner0 + index,
+                    inner0 + following,
+                    outer0 + following,
+                ],
+                [
+                    outer1 + following,
+                    inner1 + following,
+                    inner1 + index,
+                    outer1 + index,
+                ],
+            )
+        )
+    return create_mesh_object(name, vertices, faces)
+
+
 def domed_polar_grille(
     name: str,
     center_x: float,
@@ -8279,7 +8542,7 @@ def domed_polar_grille(
     edge_top_z: float,
     thickness: float,
 ):
-    """Build one watertight, high-open-area curved ring/spoke grille."""
+    """Build a watertight polar grille with a flat bed face and domed top."""
     radial_count = LID_FAN_COVER_RADIAL_SEGMENTS
     angular_count = LID_FAN_COVER_ANGULAR_SEGMENTS
     radial_step = outer_radius / radial_count
@@ -8321,7 +8584,7 @@ def domed_polar_grille(
     )
     vertices = [
         (center_x, center_y, dome_z(0.0)),
-        (center_x, center_y, dome_z(0.0) - thickness),
+        (center_x, center_y, edge_top_z - thickness),
     ]
     for radial_index in range(1, radial_count + 1):
         radius = radial_index * radial_step
@@ -8331,7 +8594,7 @@ def domed_polar_grille(
             x = center_x + radius * math.cos(angle)
             y = center_y + radius * math.sin(angle)
             vertices.append((x, y, top_z))
-            vertices.append((x, y, top_z - thickness))
+            vertices.append((x, y, edge_top_z - thickness))
 
     def vertex(radial_index, angular_index, bottom=False):
         if radial_index == 0:
@@ -28363,8 +28626,68 @@ def create_lid(positions, footprint, cameras):
     return lid
 
 
-def create_lid_fan_cover(lid, positions):
-    """Create a shallow domed, friction-fit cover for the external lid fan."""
+def lid_fan_cable_route_points(lid):
+    """Return the real high-frame-exit lead path down into the airflow hole."""
+    feedthrough = lid_fan_cable_feedthrough_geometry()
+    if feedthrough is None:
+        return (), ()
+    dimensions = lid_fan_reference_dimensions()
+    fan_base_z = float(
+        lid.get(
+            "lid_fan_seat_top_z",
+            local_lid_top_z(LID_FAN_CENTER_X, LID_FAN_CENTER_Y),
+        )
+    )
+    fan_top_z = fan_base_z + dimensions["depth"]
+    cable_radius = feedthrough["cable_route_radius"]
+    bend_radius = LID_FAN_CABLE_BEND_RADIUS
+    route_x = feedthrough["cable_horizontal_start_x"]
+    route_y = feedthrough["center"][1]
+    upper_center_z = fan_top_z - cable_radius - bend_radius
+    lower_center_z = fan_base_z + cable_radius + bend_radius
+    upper_arc = tuple(
+        (
+            route_x + bend_radius * math.cos(math.radians(angle)),
+            route_y,
+            upper_center_z + bend_radius * math.sin(math.radians(angle)),
+        )
+        for angle in (90.0, 67.5, 45.0, 22.5, 0.0)
+    )
+    chase_x = route_x + bend_radius
+    lower_arc = tuple(
+        (
+            route_x + bend_radius * math.cos(math.radians(angle)),
+            route_y,
+            lower_center_z + bend_radius * math.sin(math.radians(angle)),
+        )
+        for angle in (0.0, -22.5, -45.0, -67.5, -90.0)
+    )
+    seam_z = local_base_seam_z(*feedthrough["center"])
+    cable_path = (
+        *upper_arc,
+        (chase_x, route_y, lower_center_z),
+        *lower_arc[1:],
+        (route_x, route_y, fan_base_z - cable_radius),
+        (
+            feedthrough["cable_vertical_x"],
+            route_y,
+            fan_base_z - cable_radius,
+        ),
+        (feedthrough["cable_vertical_x"], route_y, seam_z - 1.0),
+    )
+    hood_path = (
+        *upper_arc,
+        (
+            chase_x,
+            route_y,
+            fan_base_z + lid_fan_cover_profile()["fit_clearance"],
+        ),
+    )
+    return cable_path, hood_path
+
+
+def create_lid_fan_pod(lid, positions):
+    """Create a curved fan fairing and a separate slide-in domed grille."""
     if not (lid_fan_enabled() and LID_FAN_COVER_ENABLED):
         return None
     dimensions = lid_fan_reference_dimensions()
@@ -28379,270 +28702,538 @@ def create_lid_fan_cover(lid, positions):
         )
     )
     fan_top_z = fan_base_z + dimensions["depth"]
-    ring_bottom_z = fan_top_z + LID_FAN_COVER_TOP_CLEARANCE
-    ring_top_z = ring_bottom_z + profile["grille_thickness"]
-    feedthrough = lid_fan_cable_feedthrough_geometry()
-    if feedthrough is not None:
-        # Carry the complete sleeve down to the cable hood's lid-side plane.
-        # This gives the open-side-down STL a broad first-layer rim instead of
-        # an isolated hood projection below an otherwise shallow sleeve.
-        skirt_bottom_z = fan_base_z + profile["fit_clearance"]
-    else:
-        skirt_bottom_z = fan_top_z - min(
-            LID_FAN_COVER_WRAP_DEPTH,
-            dimensions["depth"],
-        )
+    fairing_bottom_z = fan_base_z + profile["fit_clearance"]
+    fairing_top_z = fan_top_z + LID_FAN_COVER_TOP_CLEARANCE
+    grille_bottom_z = fairing_top_z + LID_FAN_GRILLE_VERTICAL_CLEARANCE
+    grille_edge_top_z = grille_bottom_z + profile["grille_thickness"]
     inner_size = frame + 2.0 * profile["fit_clearance"]
-    outer_size = inner_size + 2.0 * profile["wall_thickness"]
-    airflow_square = frame - 2.0 * LID_FAN_COVER_BORDER_WIDTH
-    outer_loop = [
-        (center_x + x, center_y + y)
-        for x, y in rounded_rectangle_loop(
-            outer_size,
-            outer_size,
-            min(5.0, outer_size / 8.0),
+
+    def translated_rounded_loop(width, depth, radius, x_offset, y_offset=0.0):
+        return [
+            (x_offset + x, y_offset + y)
+            for x, y in rounded_rectangle_loop(width, depth, radius)
+        ]
+
+    def fairing_section_profile(fraction):
+        eased = fraction * fraction * (3.0 - 2.0 * fraction)
+        return {
+            "z": fairing_bottom_z + fraction * (
+                fairing_top_z - fairing_bottom_z
+            ),
+            "width": LID_FAN_FAIRING_BOTTOM_WIDTH + eased * (
+                LID_FAN_FAIRING_TOP_WIDTH - LID_FAN_FAIRING_BOTTOM_WIDTH
+            ),
+            "depth": LID_FAN_FAIRING_BOTTOM_DEPTH + eased * (
+                LID_FAN_FAIRING_TOP_DEPTH - LID_FAN_FAIRING_BOTTOM_DEPTH
+            ),
+            "center_x": LID_FAN_FAIRING_BOTTOM_CENTER_X + eased * (
+                LID_FAN_FAIRING_TOP_CENTER_X
+                - LID_FAN_FAIRING_BOTTOM_CENTER_X
+            ),
+            "radius": LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS + eased * (
+                LID_FAN_FAIRING_TOP_CORNER_RADIUS
+                - LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS
+            ),
+        }
+
+    section_fractions = (0.0, 0.12, 0.28, 0.48, 0.70, 0.86, 1.0)
+    outer_sections = []
+    inner_sections = []
+    for fraction in section_fractions:
+        section = fairing_section_profile(fraction)
+        outer_sections.append(
+            (
+                section["z"],
+                translated_rounded_loop(
+                    section["width"],
+                    section["depth"],
+                    section["radius"],
+                    section["center_x"],
+                    center_y,
+                ),
+            )
         )
-    ]
-    inner_loop = [
-        (center_x + x, center_y + y)
-        for x, y in rounded_rectangle_loop(
-            airflow_square,
-            airflow_square,
-            min(4.0, airflow_square / 8.0),
+        inner_sections.append(
+            (
+                section["z"],
+                translated_rounded_loop(
+                    section["width"] - 2.0 * profile["wall_thickness"],
+                    section["depth"] - 2.0 * profile["wall_thickness"],
+                    max(
+                        section["radius"] - profile["wall_thickness"],
+                        0.5,
+                    ),
+                    section["center_x"],
+                    center_y,
+                ),
+            )
         )
-    ]
-    sleeve_inner_loop = [
-        (center_x + x, center_y + y)
-        for x, y in rounded_rectangle_loop(
-            inner_size,
-            inner_size,
-            min(4.5, inner_size / 8.0),
-        )
-    ]
-    cover = stepped_ring_sleeve(
-        "Lid_Fan_Cover_One_Piece_Sleeve_And_Top_Frame",
-        outer_loop,
-        sleeve_inner_loop,
-        inner_loop,
-        skirt_bottom_z,
-        ring_bottom_z,
-        ring_top_z,
+    fairing = faired_ring_sleeve(
+        "Lid_Fan_Pod_Curved_Lower_Fairing",
+        outer_sections,
+        inner_sections,
     )
 
-    grille_outer_radius = airflow_square / 2.0 + BOOLEAN_OVERLAP
-    grille = domed_polar_grille(
-        "Lid_Fan_Cover_High_Open_Area_Dome",
-        center_x,
-        center_y,
-        grille_outer_radius,
-        ring_top_z,
-        profile["grille_thickness"],
-    )
-    blocked_ratio = float(grille["blocked_area_ratio"])
-    boolean_union(cover, grille, "Lid_Fan_Cover_Domed_Grille_Union")
-
-    pad_z = skirt_bottom_z + LID_FAN_COVER_RETENTION_PAD_HEIGHT * 1.5
+    pad_z = fairing_bottom_z + LID_FAN_COVER_RETENTION_PAD_HEIGHT * 1.5
     pad_depth = LID_FAN_COVER_RETENTION_PAD_HEIGHT
     protrusion = profile["retention_protrusion"]
     if protrusion > 0.0:
+        pad_fraction = (pad_z - fairing_bottom_z) / (
+            fairing_top_z - fairing_bottom_z
+        )
+        pad_section = fairing_section_profile(pad_fraction)
+        positive_x_contact = (
+            center_x + frame / 2.0 + profile["fit_clearance"] - protrusion
+        )
+        negative_x_contact = (
+            center_x - frame / 2.0 - profile["fit_clearance"] + protrusion
+        )
+        positive_y_contact = (
+            center_y + frame / 2.0 + profile["fit_clearance"] - protrusion
+        )
+        negative_y_contact = (
+            center_y - frame / 2.0 - profile["fit_clearance"] + protrusion
+        )
+        positive_x_shell = (
+            pad_section["center_x"] + pad_section["width"] / 2.0
+        )
+        negative_x_shell = (
+            pad_section["center_x"] - pad_section["width"] / 2.0
+        )
+        positive_y_shell = center_y + pad_section["depth"] / 2.0
+        negative_y_shell = center_y - pad_section["depth"] / 2.0
         pad_specs = (
             (
                 "Rear",
-                (profile["wall_thickness"] + protrusion, LID_FAN_COVER_RETENTION_PAD_LENGTH, pad_depth),
                 (
-                    center_x + inner_size / 2.0 + (profile["wall_thickness"] - protrusion) / 2.0,
-                    center_y,
+                    positive_x_shell - positive_x_contact,
+                    LID_FAN_COVER_RETENTION_PAD_LENGTH,
+                    pad_depth,
+                ),
+                (
+                    (positive_x_shell + positive_x_contact) / 2.0,
+                    center_y + LID_FAN_COVER_RETENTION_PAD_LENGTH,
                     pad_z,
                 ),
             ),
             (
                 "Front",
-                (profile["wall_thickness"] + protrusion, LID_FAN_COVER_RETENTION_PAD_LENGTH, pad_depth),
                 (
-                    center_x - inner_size / 2.0 - (profile["wall_thickness"] - protrusion) / 2.0,
+                    negative_x_contact - negative_x_shell,
+                    LID_FAN_COVER_RETENTION_PAD_LENGTH,
+                    pad_depth,
+                ),
+                (
+                    (negative_x_shell + negative_x_contact) / 2.0,
                     center_y,
                     pad_z,
                 ),
             ),
             (
                 "Left",
-                (LID_FAN_COVER_RETENTION_PAD_LENGTH, profile["wall_thickness"] + protrusion, pad_depth),
+                (
+                    LID_FAN_COVER_RETENTION_PAD_LENGTH,
+                    positive_y_shell - positive_y_contact,
+                    pad_depth,
+                ),
                 (
                     center_x,
-                    center_y + inner_size / 2.0 + (profile["wall_thickness"] - protrusion) / 2.0,
+                    (positive_y_shell + positive_y_contact) / 2.0,
                     pad_z,
                 ),
             ),
             (
                 "Right",
-                (LID_FAN_COVER_RETENTION_PAD_LENGTH, profile["wall_thickness"] + protrusion, pad_depth),
+                (
+                    LID_FAN_COVER_RETENTION_PAD_LENGTH,
+                    negative_y_contact - negative_y_shell,
+                    pad_depth,
+                ),
                 (
                     center_x,
-                    center_y - inner_size / 2.0 - (profile["wall_thickness"] - protrusion) / 2.0,
+                    (negative_y_shell + negative_y_contact) / 2.0,
                     pad_z,
                 ),
             ),
         )
         for label, size, location in pad_specs:
             pad = add_beveled_box(
-                f"Lid_Fan_Cover_{label}_Friction_Pad",
+                f"Lid_Fan_Fairing_{label}_Friction_Pad",
                 size,
                 location,
                 bevel=min(0.35, pad_depth / 3.0),
             )
-            boolean_union(cover, pad, f"Lid_Fan_Cover_{label}_Pad_Union")
+            boolean_union(fairing, pad, f"Lid_Fan_Fairing_{label}_Pad_Union")
 
-    if feedthrough is not None:
-        chase_margin = profile["wall_thickness"] + LID_FAN_CABLE_CHASE_CLEARANCE
-        chase_bottom_z = fan_base_z + profile["fit_clearance"]
-        chase_width = feedthrough["width"] + 2.0 * chase_margin
-        chase_length = feedthrough["length"] + 2.0 * chase_margin
-        required_access_clearance = (
-            LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER / 2.0
-            + LID_FAN_CABLE_POST_CLEARANCE
+    cap_half = LID_FAN_GRILLE_OUTER_SIZE / 2.0
+    top_half_depth = LID_FAN_FAIRING_TOP_DEPTH / 2.0
+    rail_gap_half = cap_half + LID_FAN_GRILLE_SLIDE_CLEARANCE
+    rail_top_z = (
+        grille_edge_top_z
+        + LID_FAN_GRILLE_SLIDE_CLEARANCE
+        + LID_FAN_GRILLE_RAIL_THICKNESS
+    )
+    rail_center_x = center_x + 4.0
+    lip_inner = cap_half - LID_FAN_GRILLE_RAIL_OVERHANG
+    unsupported_lip_span = rail_gap_half - lip_inner
+    if unsupported_lip_span > LID_FAN_GRILLE_MAX_SUPPORT_FREE_LIP_SPAN:
+        raise ValueError(
+            "Fan-grille rail lip exceeds the support-free bridge bound: "
+            f"{unsupported_lip_span:.2f}mm > "
+            f"{LID_FAN_GRILLE_MAX_SUPPORT_FREE_LIP_SPAN:.2f}mm"
         )
+    detent_specs = []
+    detent_x = (
+        center_x
+        - cap_half
+        + LID_FAN_GRILLE_DETENT_FRONT_EDGE_OFFSET
+    )
+    detent_z0 = grille_bottom_z + LID_FAN_GRILLE_DETENT_Z_INSET
+    detent_z1 = grille_edge_top_z - LID_FAN_GRILLE_DETENT_Z_INSET
+    for side_label, y_sign in (("Left", 1.0), ("Right", -1.0)):
+        wall_y0 = rail_gap_half
+        wall_y1 = top_half_depth + BOOLEAN_OVERLAP
+        rail_wall = add_beveled_box(
+            f"Lid_Fan_Grille_{side_label}_Slide_Rail_Wall",
+            (
+                LID_FAN_GRILLE_RAIL_LENGTH,
+                wall_y1 - wall_y0,
+                rail_top_z - fairing_top_z,
+            ),
+            (
+                rail_center_x,
+                center_y + y_sign * (wall_y0 + wall_y1) / 2.0,
+                (fairing_top_z + rail_top_z) / 2.0,
+            ),
+            bevel=0.45,
+        )
+        boolean_union(
+            fairing,
+            rail_wall,
+            f"Lid_Fan_Grille_{side_label}_Rail_Wall_Union",
+        )
+        rail_lip = add_beveled_box(
+            f"Lid_Fan_Grille_{side_label}_Slide_Rail_Lip",
+            (
+                LID_FAN_GRILLE_RAIL_LENGTH,
+                wall_y1 - lip_inner,
+                LID_FAN_GRILLE_RAIL_THICKNESS,
+            ),
+            (
+                rail_center_x,
+                center_y + y_sign * (lip_inner + wall_y1) / 2.0,
+                rail_top_z - LID_FAN_GRILLE_RAIL_THICKNESS / 2.0,
+            ),
+            bevel=0.45,
+        )
+        boolean_union(
+            fairing,
+            rail_lip,
+            f"Lid_Fan_Grille_{side_label}_Rail_Lip_Union",
+        )
+        rear_stop = add_beveled_box(
+            f"Lid_Fan_Grille_{side_label}_Rear_Stop",
+            (
+                2.0,
+                8.0,
+                profile["grille_thickness"]
+                + LID_FAN_GRILLE_SLIDE_CLEARANCE,
+            ),
+            (
+                center_x
+                + cap_half
+                + LID_FAN_GRILLE_SLIDE_CLEARANCE
+                + 1.0,
+                center_y + y_sign * (cap_half - 2.5),
+                grille_bottom_z
+                + (
+                    profile["grille_thickness"]
+                    + LID_FAN_GRILLE_SLIDE_CLEARANCE
+                ) / 2.0,
+            ),
+            bevel=0.35,
+        )
+        boolean_union(
+            fairing,
+            rear_stop,
+            f"Lid_Fan_Grille_{side_label}_Rear_Stop_Union",
+        )
+        detent_y = center_y + y_sign * (
+            rail_gap_half
+            + LID_FAN_GRILLE_DETENT_RADIUS
+            - profile["grille_detent_protrusion"]
+        )
+        detent = add_cylinder_z(
+            f"Lid_Fan_Grille_{side_label}_Entry_Detent",
+            LID_FAN_GRILLE_DETENT_RADIUS,
+            detent_z0,
+            detent_z1,
+            detent_x,
+            detent_y,
+        )
+        detent_specs.append((side_label, detent_x, detent_y))
+        boolean_union(
+            fairing,
+            detent,
+            f"Lid_Fan_Grille_{side_label}_Entry_Detent_Union",
+        )
+
+    cable_path, hood_path = lid_fan_cable_route_points(lid)
+    feedthrough = lid_fan_cable_feedthrough_geometry()
+    if cable_path:
+        chase_cavity_radius = (
+            feedthrough["cable_route_radius"]
+            + LID_FAN_CABLE_CHASE_CLEARANCE
+        )
+        chase_outer_radius = chase_cavity_radius + profile["wall_thickness"]
+        hood = add_xz_polyline_tube(
+            "Lid_Fan_Fairing_Curved_Cable_Blister",
+            hood_path,
+            chase_outer_radius,
+        )
+        boolean_union(
+            fairing,
+            hood,
+            "Lid_Fan_Fairing_Curved_Cable_Blister_Union",
+        )
+        projected_min_x = min(point[0] for point in hood_path)
+        projected_max_x = max(point[0] for point in hood_path)
         chase_post_clearances = tuple(
-            point_to_axis_aligned_rectangle_distance(
-                position,
-                feedthrough["center"],
-                chase_width,
-                chase_length,
+            math.hypot(
+                position[0]
+                - min(max(position[0], projected_min_x), projected_max_x),
+                position[1] - feedthrough["center"][1],
             )
             for position in positions
         )
-        if min(chase_post_clearances) + 1e-9 < required_access_clearance:
+        required_clearance = (
+            LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER / 2.0
+            + chase_outer_radius
+            + LID_FAN_CABLE_POST_CLEARANCE
+        )
+        if min(chase_post_clearances) + 1e-9 < required_clearance:
             raise RuntimeError(
-                "Protected fan-cable hood obstructs a lid thumbscrew access "
-                f"zone: clearance={min(chase_post_clearances):.2f} mm, "
-                f"require {required_access_clearance:.2f} mm"
+                "Curved fan-cable blister obstructs a thumbscrew access zone: "
+                f"clearance={min(chase_post_clearances):.2f}mm, "
+                f"required={required_clearance:.2f}mm"
             )
-        chase = add_beveled_box(
-            "Lid_Fan_Cover_Protected_Cable_Hood",
-            (
-                chase_width,
-                chase_length,
-                ring_top_z - chase_bottom_z,
+        cable_start = Vector(cable_path[0])
+        cable_start_direction = (
+            cable_start - Vector(cable_path[1])
+        ).normalized()
+        chase_cutter_path = (
+            tuple(
+                cable_start
+                + cable_start_direction
+                * (profile["wall_thickness"] + 2.0 * BOOLEAN_OVERLAP)
             ),
-            (
-                feedthrough["center"][0],
-                feedthrough["center"][1],
-                (ring_top_z + chase_bottom_z) / 2.0,
-            ),
-            bevel=min(2.0, feedthrough["width"] / 3.0),
+            *cable_path[:-1],
         )
-        boolean_union(cover, chase, "Lid_Fan_Cover_Cable_Hood_Union")
-        half_frame = frame / 2.0
-        inner_x = (
-            center_x
-            + half_frame
-            - LID_FAN_CABLE_SLOT_FRAME_OVERLAP
-            - feedthrough["cable_route_radius"]
-            - LID_FAN_CABLE_CHASE_CLEARANCE
-        )
-        outer_x = feedthrough["center"][0] + feedthrough["x_sign"] * (
-            feedthrough["width"] / 2.0 + LID_FAN_CABLE_CHASE_CLEARANCE
-        )
-        cavity_x0, cavity_x1 = sorted((inner_x, outer_x))
-        cavity = add_beveled_box(
-            "Lid_Fan_Cover_Cable_Hood_Cavity",
-            (
-                cavity_x1 - cavity_x0,
-                feedthrough["length"] + 2.0 * LID_FAN_CABLE_CHASE_CLEARANCE,
-                ring_bottom_z - fan_base_z + 2.0 * BOOLEAN_OVERLAP,
-            ),
-            (
-                (cavity_x0 + cavity_x1) / 2.0,
-                feedthrough["center"][1],
-                (ring_bottom_z + fan_base_z) / 2.0,
-            ),
-            bevel=0.0,
+        chase_cutter = add_xz_polyline_tube(
+            "Lid_Fan_Fairing_Curved_Cable_Chase",
+            chase_cutter_path,
+            chase_cavity_radius,
         )
         boolean_difference(
-            cover,
-            [cavity],
-            "Lid_Fan_Cover_Protected_Cable_Hood_Cavity_Cut",
+            fairing,
+            [chase_cutter],
+            "Lid_Fan_Fairing_Curved_Cable_Chase_Cut",
         )
         print(
-            "LID_FAN_CABLE_COVER_HOOD_CLEARANCE PASS "
-            f"hood={chase_width:.2f}x{chase_length:.2f}mm "
+            "LID_FAN_CABLE_FAIRING_CHASE PASS "
+            f"bend_radius={LID_FAN_CABLE_BEND_RADIUS:.2f}mm "
+            f"cavity_diameter={2.0 * chase_cavity_radius:.2f}mm "
             f"minimum_thumbscrew_center_clearance="
             f"{min(chase_post_clearances):.2f}mm"
         )
 
-    access_radius = LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER / 2.0
-    access_cutters = []
-    pre_cut_clearances = []
-    for index, position in enumerate(positions, start=1):
-        edge_clearance = point_to_axis_aligned_rectangle_distance(
-            position,
-            (center_x, center_y),
-            outer_size,
-            outer_size,
+    airflow_square = frame - 2.0 * LID_FAN_COVER_BORDER_WIDTH
+    grille_outer_radius = airflow_square / 2.0
+    grille_outer_loop = translated_rounded_loop(
+        LID_FAN_GRILLE_OUTER_SIZE,
+        LID_FAN_GRILLE_OUTER_SIZE,
+        LID_FAN_GRILLE_CORNER_RADIUS,
+        center_x,
+        center_y,
+    )
+    loop_count = len(grille_outer_loop)
+    grille_frame_inner_radius = grille_outer_radius - 0.7
+    grille_inner_loop = [
+        (
+            center_x
+            + grille_frame_inner_radius
+            * math.cos(2.0 * math.pi * index / loop_count),
+            center_y
+            + grille_frame_inner_radius
+            * math.sin(2.0 * math.pi * index / loop_count),
         )
-        pre_cut_clearances.append(edge_clearance)
-        chase_overlap = (
-            feedthrough is not None
-            and point_to_axis_aligned_rectangle_distance(
-                position,
-                feedthrough["center"],
-                feedthrough["width"] + 2.0 * (
-                    profile["wall_thickness"] + LID_FAN_CABLE_CHASE_CLEARANCE
-                ),
-                feedthrough["length"] + 2.0 * (
-                    profile["wall_thickness"] + LID_FAN_CABLE_CHASE_CLEARANCE
-                ),
-            ) < access_radius
+        for index in range(loop_count)
+    ]
+    grille = ring_prism(
+        "Lid_Fan_Grille_Rounded_Slide_Frame",
+        grille_outer_loop,
+        grille_inner_loop,
+        grille_bottom_z,
+        grille_edge_top_z,
+    )
+    polar_grille = domed_polar_grille(
+        "Lid_Fan_Grille_Flat_Bottom_Turbine_Dome",
+        center_x,
+        center_y,
+        grille_outer_radius,
+        grille_edge_top_z,
+        profile["grille_thickness"],
+    )
+    blocked_ratio = float(polar_grille["blocked_area_ratio"])
+    boolean_union(
+        grille,
+        polar_grille,
+        "Lid_Fan_Grille_Turbine_Dome_Union",
+    )
+    detent_notch_cutters = [
+        add_cylinder_z(
+            f"Lid_Fan_Grille_{side_label}_Detent_Seat_Notch",
+            (
+                LID_FAN_GRILLE_DETENT_RADIUS
+                + LID_FAN_GRILLE_DETENT_NOTCH_CLEARANCE
+            ),
+            grille_bottom_z - BOOLEAN_OVERLAP,
+            grille_edge_top_z + BOOLEAN_OVERLAP,
+            notch_x,
+            notch_y,
         )
-        if edge_clearance < access_radius or chase_overlap:
-            cutter_radius = access_radius + (
-                profile["wall_thickness"] + LID_FAN_CABLE_CHASE_CLEARANCE
-                if chase_overlap
-                else 0.0
-            )
-            access_cutters.append(
-                add_cylinder_z(
-                    f"Lid_Fan_Cover_Thumbscrew_Access_{index}",
-                    cutter_radius,
-                    fan_base_z - BOOLEAN_OVERLAP,
-                    ring_top_z + LID_FAN_COVER_DOME_RISE + BOOLEAN_OVERLAP,
-                    position[0],
-                    position[1],
-                )
-            )
-    if access_cutters:
+        for side_label, notch_x, notch_y in detent_specs
+    ]
+    boolean_difference(
+        grille,
+        detent_notch_cutters,
+        "Lid_Fan_Grille_Seated_Detent_Notches",
+    )
+    if cable_path:
+        cable_notch_x0 = center_x + frame / 2.0 - 1.0
+        cable_notch_x1 = center_x + cap_half + 2.0
+        cable_notch = add_beveled_box(
+            "Lid_Fan_Grille_Cable_Blister_Relief",
+            (
+                cable_notch_x1 - cable_notch_x0,
+                2.0 * (chase_outer_radius + 0.6),
+                profile["grille_thickness"]
+                + LID_FAN_COVER_DOME_RISE
+                + 2.0 * BOOLEAN_OVERLAP,
+            ),
+            (
+                (cable_notch_x0 + cable_notch_x1) / 2.0,
+                feedthrough["center"][1],
+                grille_bottom_z
+                + (
+                    profile["grille_thickness"]
+                    + LID_FAN_COVER_DOME_RISE
+                ) / 2.0,
+            ),
+            bevel=1.0,
+        )
         boolean_difference(
-            cover,
-            access_cutters,
-            "Lid_Fan_Cover_Thumbscrew_Access_Cuts",
+            grille,
+            [cable_notch],
+            "Lid_Fan_Grille_Cable_Blister_Relief_Cut",
+        )
+        grille["cable_blister_relief_width_mm"] = (
+            2.0 * (chase_outer_radius + 0.6)
         )
 
-    cover.name = "Hockeymom_Cam_Case_Lid_Fan_Domed_Cover"
-    cover["material_mode"] = LID_FAN_COVER_MATERIAL_MODE
-    cover["blocked_area_ratio"] = blocked_ratio
-    cover["friction_fit_clearance_per_side_mm"] = profile["fit_clearance"]
-    cover["retention_protrusion_mm"] = protrusion
-    cover["thumbscrew_access_diameter_mm"] = (
+    access_radius = LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER / 2.0
+    fairing_cutters = []
+    grille_cutters = []
+    for index, position in enumerate(positions, start=1):
+        fairing_cutters.append(
+            add_cylinder_z(
+                f"Lid_Fan_Fairing_Thumbscrew_Access_{index}",
+                access_radius,
+                fan_base_z - BOOLEAN_OVERLAP,
+                rail_top_z + BOOLEAN_OVERLAP,
+                position[0],
+                position[1],
+            )
+        )
+        grille_cutters.append(
+            add_cylinder_z(
+                f"Lid_Fan_Grille_Thumbscrew_Access_{index}",
+                access_radius,
+                grille_bottom_z - BOOLEAN_OVERLAP,
+                grille_edge_top_z
+                + LID_FAN_COVER_DOME_RISE
+                + BOOLEAN_OVERLAP,
+                position[0],
+                position[1],
+            )
+        )
+    boolean_difference(
+        fairing,
+        fairing_cutters,
+        "Lid_Fan_Fairing_Thumbscrew_Access_Cuts",
+    )
+    boolean_difference(
+        grille,
+        grille_cutters,
+        "Lid_Fan_Grille_Thumbscrew_Access_Cuts",
+    )
+
+    fairing.name = "Hockeymom_Cam_Case_Lid_Fan_Curved_Fairing"
+    fairing["material_mode"] = LID_FAN_COVER_MATERIAL_MODE
+    fairing["friction_fit_clearance_per_side_mm"] = profile["fit_clearance"]
+    fairing["retention_protrusion_mm"] = protrusion
+    fairing["retention_interference_mm"] = (
+        protrusion - profile["fit_clearance"]
+    )
+    fairing["nominal_shell_wall_thickness_mm"] = profile["wall_thickness"]
+    fairing["thumbscrew_access_diameter_mm"] = (
         LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER
     )
-    cover["cable_chase_enabled"] = feedthrough is not None
-    cover["print_orientation"] = "open_sleeve_side_down"
-    cover["dome_support_mode"] = LID_FAN_COVER_DOME_SUPPORT_MODE
-    cover["print_bed_z"] = skirt_bottom_z
-    cover["print_outer_size_mm"] = outer_size
-    print(
-        "LID_FAN_DOMED_COVER "
-        f"material={LID_FAN_COVER_MATERIAL_MODE} "
-        f"cavity={inner_size:.2f}x{inner_size:.2f} "
-        f"wrap_depth={fan_top_z - skirt_bottom_z:.2f} "
-        f"dome_rise={LID_FAN_COVER_DOME_RISE:.2f} "
-        f"blocked_area_ratio={blocked_ratio:.3f} "
-        f"thumb_access_diameter={LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER:.2f} "
-        f"notches={len(access_cutters)} "
-        f"minimum_pre_cut_edge_clearance={min(pre_cut_clearances):.2f} "
-        f"protected_cable_chase={feedthrough is not None} "
-        f"print=open_side_down support={LID_FAN_COVER_DOME_SUPPORT_MODE}"
+    fairing["cable_chase_enabled"] = bool(cable_path)
+    fairing["print_orientation"] = "open_fairing_side_down"
+    fairing["support_mode"] = "support_free_tapered_loft"
+    fairing["print_bed_z"] = fairing_bottom_z
+    fairing["print_outer_width_mm"] = LID_FAN_FAIRING_BOTTOM_WIDTH
+    fairing["print_outer_depth_mm"] = LID_FAN_FAIRING_BOTTOM_DEPTH
+
+    grille.name = "Hockeymom_Cam_Case_Lid_Fan_Slide_In_Domed_Grille"
+    grille["material_mode"] = LID_FAN_COVER_MATERIAL_MODE
+    grille["blocked_area_ratio"] = blocked_ratio
+    grille["detent_protrusion_mm"] = profile["grille_detent_protrusion"]
+    grille["detent_preload_mm"] = (
+        profile["grille_detent_protrusion"]
+        - LID_FAN_GRILLE_SLIDE_CLEARANCE
     )
-    return cover
+    grille["detent_count"] = len(detent_specs)
+    grille["thumbscrew_access_diameter_mm"] = (
+        LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER
+    )
+    grille["print_orientation"] = "flat_underside_down"
+    grille["support_mode"] = LID_FAN_COVER_DOME_SUPPORT_MODE
+    grille["print_bed_z"] = grille_bottom_z
+    grille["print_outer_width_mm"] = LID_FAN_GRILLE_OUTER_SIZE
+    grille["print_outer_depth_mm"] = LID_FAN_GRILLE_OUTER_SIZE
+    print(
+        "LID_FAN_TWO_PIECE_POD "
+        f"material={LID_FAN_COVER_MATERIAL_MODE} "
+        f"fan_cavity={inner_size:.2f}x{inner_size:.2f}mm "
+        f"fairing_base={LID_FAN_FAIRING_BOTTOM_WIDTH:.1f}x"
+        f"{LID_FAN_FAIRING_BOTTOM_DEPTH:.1f}mm "
+        f"fairing_top={LID_FAN_FAIRING_TOP_WIDTH:.1f}x"
+        f"{LID_FAN_FAIRING_TOP_DEPTH:.1f}mm "
+        f"shell_wall={profile['wall_thickness']:.2f}mm "
+        f"fan_retention_interference="
+        f"{protrusion - profile['fit_clearance']:.2f}mm "
+        f"dome_rise={LID_FAN_COVER_DOME_RISE:.2f}mm "
+        f"blocked_area_ratio={blocked_ratio:.3f} "
+        f"grille_detent_preload="
+        f"{profile['grille_detent_protrusion'] - LID_FAN_GRILLE_SLIDE_CLEARANCE:.2f}mm "
+        f"support_free_lip_span={unsupported_lip_span:.2f}mm "
+        f"thumb_access_diameter={LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER:.2f}mm "
+        f"cable_chase={bool(cable_path)} "
+        "print=fairing_open_side_down+grille_flat_side_down support=none"
+    )
+    return {"fairing": fairing, "grille": grille}
 
 
 # ---------------------------------------------------------------------------
@@ -29982,6 +30573,24 @@ def intersection_metrics(
             for axis in range(3)
         ]
         extents = tuple(high - low for low, high in bounds)
+        if (
+            label.startswith("lid_fan_pod_grille_fairing")
+            and volume > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE
+        ):
+            world_points = [
+                first_copy.matrix_world @ vertex.co for vertex in bm.verts
+            ]
+            world_bounds = tuple(
+                (
+                    min(point[axis] for point in world_points),
+                    max(point[axis] for point in world_points),
+                )
+                for axis in range(3)
+            )
+            print(
+                "LID_FAN_POD_INTERSECTION_BOUNDS "
+                f"bounds={world_bounds} volume={volume:.9f}"
+            )
         if label.startswith("front_lid_installation_") and volume > (
             LID_FRONT_ANCHOR_INSTALLATION_INTERSECTION_TOLERANCE
         ):
@@ -32993,140 +33602,427 @@ def validate_adjustable_camera_range(
     print("ADJUSTABLE_CAMERA_RANGE PASS")
 
 
-def validate_lid_fan_cover_printability(cover):
-    """Require a stable open-side-down rim and explicit dome support mode."""
-    if cover is None:
+def validate_lid_fan_pod_printability(pod):
+    """Require stable bed faces for both support-free fan-pod pieces."""
+    if pod is None:
         return
-    bed_z = float(cover["print_bed_z"])
-    outer_size = float(cover["print_outer_size_mm"])
     plane_tolerance = 0.03
-    world_matrix = cover.matrix_world
-    world_vertices = [
-        world_matrix @ vertex.co for vertex in cover.data.vertices
-    ]
-    minimum_z = min(point.z for point in world_vertices)
-    if abs(minimum_z - bed_z) > plane_tolerance:
-        raise RuntimeError(
-            "Fan-cover sleeve rim is not the lowest exported geometry: "
-            f"rim_z={bed_z:.3f}, mesh_min_z={minimum_z:.3f}"
-        )
-    first_layer_points = tuple(
-        point
-        for point in world_vertices
-        if point.z <= minimum_z + plane_tolerance
-    )
-    if len(first_layer_points) < 16:
-        raise RuntimeError(
-            "Fan-cover first layer has too few rim vertices for stable bed contact"
-        )
-    first_layer_span_x = max(point.x for point in first_layer_points) - min(
-        point.x for point in first_layer_points
-    )
-    first_layer_span_y = max(point.y for point in first_layer_points) - min(
-        point.y for point in first_layer_points
-    )
-    required_span = outer_size * LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO
-    if min(first_layer_span_x, first_layer_span_y) < required_span:
-        raise RuntimeError(
-            "Fan-cover first-layer rim does not span enough of the sleeve: "
-            f"span=({first_layer_span_x:.2f},{first_layer_span_y:.2f})mm, "
-            f"required={required_span:.2f}mm"
-        )
 
-    bm = bmesh.new()
-    bm.from_mesh(cover.data)
-    try:
-        first_layer_area = sum(
-            face.calc_area()
-            for face in bm.faces
-            if all(
-                abs((world_matrix @ vertex.co).z - minimum_z)
-                <= plane_tolerance
-                for vertex in face.verts
+    for label, part in (
+        ("fairing", pod["fairing"]),
+        ("grille", pod["grille"]),
+    ):
+        bed_z = float(part["print_bed_z"])
+        outer_width = float(part["print_outer_width_mm"])
+        outer_depth = float(part["print_outer_depth_mm"])
+        world_matrix = part.matrix_world
+        world_vertices = [
+            world_matrix @ vertex.co for vertex in part.data.vertices
+        ]
+        minimum_z = min(point.z for point in world_vertices)
+        if abs(minimum_z - bed_z) > plane_tolerance:
+            raise RuntimeError(
+                f"Fan-pod {label} bed face is not its lowest geometry: "
+                f"bed_z={bed_z:.3f}, mesh_min_z={minimum_z:.3f}"
             )
+        first_layer_points = tuple(
+            point
+            for point in world_vertices
+            if point.z <= minimum_z + plane_tolerance
         )
-    finally:
-        bm.free()
-    if first_layer_area < LID_FAN_COVER_MIN_FIRST_LAYER_CONTACT_AREA:
-        raise RuntimeError(
-            "Fan-cover open-side rim has insufficient first-layer area: "
-            f"{first_layer_area:.2f}mm^2 < "
-            f"{LID_FAN_COVER_MIN_FIRST_LAYER_CONTACT_AREA:.2f}mm^2"
+        if len(first_layer_points) < 16:
+            raise RuntimeError(
+                f"Fan-pod {label} first layer has too few stable vertices"
+            )
+        first_layer_span_x = (
+            max(point.x for point in first_layer_points)
+            - min(point.x for point in first_layer_points)
+        )
+        first_layer_span_y = (
+            max(point.y for point in first_layer_points)
+            - min(point.y for point in first_layer_points)
+        )
+        required_span_x = (
+            outer_width * LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO
+        )
+        required_span_y = (
+            outer_depth * LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO
+        )
+        if (
+            first_layer_span_x < required_span_x
+            or first_layer_span_y < required_span_y
+        ):
+            raise RuntimeError(
+                f"Fan-pod {label} first layer is too narrow: "
+                f"span=({first_layer_span_x:.2f},{first_layer_span_y:.2f})mm, "
+                f"required=({required_span_x:.2f},{required_span_y:.2f})mm"
+            )
+        bm = bmesh.new()
+        bm.from_mesh(part.data)
+        try:
+            first_layer_area = sum(
+                face.calc_area()
+                for face in bm.faces
+                if all(
+                    abs((world_matrix @ vertex.co).z - minimum_z)
+                    <= plane_tolerance
+                    for vertex in face.verts
+                )
+            )
+            solid_volume = abs(bm.calc_volume(signed=True))
+        finally:
+            bm.free()
+        if first_layer_area < LID_FAN_COVER_MIN_FIRST_LAYER_CONTACT_AREA:
+            raise RuntimeError(
+                f"Fan-pod {label} has insufficient first-layer area: "
+                f"{first_layer_area:.2f}mm^2 < "
+                f"{LID_FAN_COVER_MIN_FIRST_LAYER_CONTACT_AREA:.2f}mm^2"
+            )
+        if label == "fairing" and solid_volume > LID_FAN_FAIRING_MAX_SOLID_VOLUME:
+            raise RuntimeError(
+                "Fan fairing is no longer a lightweight shell: "
+                f"{solid_volume:.2f}mm^3 > "
+                f"{LID_FAN_FAIRING_MAX_SOLID_VOLUME:.2f}mm^3"
+            )
+        part["first_layer_contact_area_mm2"] = first_layer_area
+        part["first_layer_span_x_mm"] = first_layer_span_x
+        part["first_layer_span_y_mm"] = first_layer_span_y
+        part["solid_volume_mm3"] = solid_volume
+        print(
+            "LID_FAN_POD_PRINTABILITY PASS "
+            f"part={label} orientation={part['print_orientation']} "
+            f"min_z={minimum_z:.3f} "
+            f"contact_area={first_layer_area:.2f}mm2 "
+            f"span=({first_layer_span_x:.2f},{first_layer_span_y:.2f})mm "
+            f"solid_volume={solid_volume:.2f}mm3 "
+            f"support={part['support_mode']}"
         )
 
-    outer_radius = (
+    grille_radius = (
         lid_fan_reference_dimensions()["frame"]
         - 2.0 * LID_FAN_COVER_BORDER_WIDTH
     ) / 2.0
-    hub_radius = LID_FAN_COVER_CENTER_HUB_DIAMETER / 2.0
-    radial_supports = (
-        hub_radius,
-        *tuple(
-            outer_radius * fraction
-            for fraction in LID_FAN_COVER_RING_RADII_FRACTIONS
-        ),
-        outer_radius,
+    maximum_top_slope_degrees = math.degrees(
+        math.atan(2.0 * LID_FAN_COVER_DOME_RISE / grille_radius)
     )
-    maximum_radial_span = max(
-        following - previous
-        for previous, following in zip(radial_supports[:-1], radial_supports[1:])
+    if LID_FAN_COVER_DOME_SUPPORT_MODE != "support_free_flat_bottom":
+        raise RuntimeError("Separate fan grille must retain its flat bed face")
+    pod["grille"]["maximum_top_slope_degrees"] = (
+        maximum_top_slope_degrees
     )
-    maximum_ring_span = 2.0 * max(radial_supports) * math.sin(
-        math.pi / LID_FAN_COVER_SPOKE_COUNT
-    )
-    if LID_FAN_COVER_DOME_SUPPORT_MODE != "slicer_required":
-        raise RuntimeError(
-            "The shallow fan-cover dome requires slicer support beneath its grille"
-        )
-    cover["first_layer_contact_area_mm2"] = first_layer_area
-    cover["first_layer_span_x_mm"] = first_layer_span_x
-    cover["first_layer_span_y_mm"] = first_layer_span_y
-    cover["maximum_unsupported_radial_span_mm"] = maximum_radial_span
-    cover["maximum_unsupported_ring_span_mm"] = maximum_ring_span
     print(
-        "LID_FAN_COVER_PRINTABILITY PASS "
-        f"orientation=open_side_down min_z={minimum_z:.3f} "
-        f"first_layer_vertices={len(first_layer_points)} "
-        f"contact_area={first_layer_area:.2f}mm2 "
-        f"span=({first_layer_span_x:.2f},{first_layer_span_y:.2f})mm "
-        f"unsupported_spans=({maximum_radial_span:.2f},"
-        f"{maximum_ring_span:.2f})mm support={LID_FAN_COVER_DOME_SUPPORT_MODE}"
+        "LID_FAN_GRILLE_SUPPORT_FREE PASS "
+        f"flat_underside=True maximum_top_slope="
+        f"{maximum_top_slope_degrees:.2f}deg"
     )
 
 
-def validate_lid_fan_cable_route(lid, cover):
-    """Sweep only the captive fan cable through the final slot and cover."""
+def validate_lid_fan_pod_fit_and_service(lid, pod):
+    """Prove assembled clearance and the grille's slide/snap service path."""
+    if pod is None:
+        return
+    fairing = pod["fairing"]
+    grille = pod["grille"]
+    profile = lid_fan_cover_profile()
+    cap_half = LID_FAN_GRILLE_OUTER_SIZE / 2.0
+    rail_gap_half = cap_half + LID_FAN_GRILLE_SLIDE_CLEARANCE
+    detent_x = (
+        float(LID_FAN_CENTER_X)
+        - cap_half
+        + LID_FAN_GRILLE_DETENT_FRONT_EDGE_OFFSET
+    )
+    detent_z0 = float(grille["print_bed_z"]) + LID_FAN_GRILLE_DETENT_Z_INSET
+    detent_z1 = (
+        float(grille["print_bed_z"])
+        + profile["grille_thickness"]
+        - LID_FAN_GRILLE_DETENT_Z_INSET
+    )
+    detent_proxies = tuple(
+        add_cylinder_z(
+            f"Lid_Fan_Grille_Detent_Validation_Proxy_{index}",
+            LID_FAN_GRILLE_DETENT_RADIUS,
+            detent_z0,
+            detent_z1,
+            detent_x,
+            float(LID_FAN_CENTER_Y)
+            + y_sign
+            * (
+                rail_gap_half
+                + LID_FAN_GRILLE_DETENT_RADIUS
+                - profile["grille_detent_protrusion"]
+            ),
+        )
+        for index, y_sign in enumerate((1.0, -1.0), start=1)
+    )
+
+    def remove_detent_proxies():
+        for proxy in detent_proxies:
+            if proxy.name in bpy.data.objects:
+                bpy.data.objects.remove(proxy, do_unlink=True)
+
+    retention_interference = float(fairing["retention_interference_mm"])
+    retention_probe_inset = retention_interference / 2.0
+    fan_frame_half = lid_fan_reference_dimensions()["frame"] / 2.0
+    retention_probe_z = (
+        float(fairing["print_bed_z"])
+        + 1.5 * LID_FAN_COVER_RETENTION_PAD_HEIGHT
+    )
+    retention_probes = (
+        (
+            "rear",
+            (
+                float(LID_FAN_CENTER_X) + fan_frame_half - retention_probe_inset,
+                float(LID_FAN_CENTER_Y) + LID_FAN_COVER_RETENTION_PAD_LENGTH,
+                retention_probe_z,
+            ),
+        ),
+        (
+            "front",
+            (
+                float(LID_FAN_CENTER_X) - fan_frame_half + retention_probe_inset,
+                float(LID_FAN_CENTER_Y),
+                retention_probe_z,
+            ),
+        ),
+        (
+            "left",
+            (
+                float(LID_FAN_CENTER_X),
+                float(LID_FAN_CENTER_Y) + fan_frame_half - retention_probe_inset,
+                retention_probe_z,
+            ),
+        ),
+        (
+            "right",
+            (
+                float(LID_FAN_CENTER_X),
+                float(LID_FAN_CENTER_Y) - fan_frame_half + retention_probe_inset,
+                retention_probe_z,
+            ),
+        ),
+    )
+    fairing_tree, fairing_inverse, _fairing_bm = object_bvh_record(fairing)
+    detent_survival_probes = tuple(
+        (
+            f"side_{y_sign:+.0f}",
+            (
+                detent_x,
+                float(LID_FAN_CENTER_Y)
+                + y_sign
+                * (
+                    rail_gap_half
+                    - profile["grille_detent_protrusion"] / 2.0
+                ),
+                (detent_z0 + detent_z1) / 2.0,
+            ),
+        )
+        for y_sign in (1.0, -1.0)
+    )
+    missed_detent_probes = tuple(
+        label
+        for label, point in detent_survival_probes
+        if not point_inside_closed_bvh(
+            fairing_tree,
+            fairing_inverse @ Vector(point),
+        )
+    )
+    if missed_detent_probes:
+        remove_detent_proxies()
+        raise RuntimeError(
+            "Final fan fairing lost grille detent tips at "
+            f"{missed_detent_probes}"
+        )
+    fairing["final_grille_detent_tips_validated"] = len(
+        detent_survival_probes
+    )
+    missed_retention_probes = tuple(
+        label
+        for label, point in retention_probes
+        if not point_inside_closed_bvh(
+            fairing_tree,
+            fairing_inverse @ Vector(point),
+        )
+    )
+    if missed_retention_probes:
+        remove_detent_proxies()
+        raise RuntimeError(
+            "Fan fairing lacks configured frame interference at ribs "
+            f"{missed_retention_probes}"
+        )
+    fairing["fan_frame_retention_probes_validated"] = len(retention_probes)
+    print(
+        "LID_FAN_FAIRING_FRAME_RETENTION PASS "
+        f"material={LID_FAN_COVER_MATERIAL_MODE} "
+        f"interference={retention_interference:.2f}mm "
+        f"contact_ribs={len(retention_probes)}"
+    )
+
+    pair_overlaps = {
+        "fairing_lid": intersection_metrics(
+            fairing,
+            lid,
+            "lid_fan_pod_fairing_lid",
+        )[2],
+        "grille_fairing": intersection_metrics(
+            grille,
+            fairing,
+            "lid_fan_pod_grille_fairing",
+            contact_surface_fn=(
+                lambda _x, _y: float(grille["print_bed_z"])
+            ),
+        )[2],
+    }
+    if max(pair_overlaps.values()) > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+        remove_detent_proxies()
+        raise RuntimeError(
+            "Fan pod has assembled solid interference: "
+            + ", ".join(
+                f"{label}={volume:.9f}mm3"
+                for label, volume in pair_overlaps.items()
+            )
+        )
+    seated_detent_overlap = sum(
+        intersection_metrics(
+            grille,
+            proxy,
+            f"lid_fan_grille_seated_detent_clearance_{proxy_index}",
+        )[2]
+        for proxy_index, proxy in enumerate(detent_proxies, start=1)
+    )
+    if seated_detent_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+        remove_detent_proxies()
+        raise RuntimeError(
+            "Seated fan-grille detent notches lack assembly clearance: "
+            f"overlap={seated_detent_overlap:.9f}mm3"
+        )
+    pull_out_test_distance = max(
+        0.50,
+        2.0 * LID_FAN_GRILLE_DETENT_NOTCH_CLEARANCE,
+    )
+    pull_out_grille = duplicate_object(
+        grille,
+        "lid_fan_grille_pull_out_retention_pose",
+    )
+    pull_out_grille.location.x -= pull_out_test_distance
+    try:
+        pull_out_detent_overlap = sum(
+            intersection_metrics(
+                pull_out_grille,
+                proxy,
+                f"lid_fan_grille_pull_out_retention_{proxy_index}",
+            )[2]
+            for proxy_index, proxy in enumerate(detent_proxies, start=1)
+        )
+        pull_out_fairing_overlap = intersection_metrics(
+            pull_out_grille,
+            fairing,
+            "lid_fan_grille_pull_out_final_fairing_retention",
+            contact_surface_fn=(
+                lambda _x, _y: float(grille["print_bed_z"])
+            ),
+        )[2]
+    finally:
+        if pull_out_grille.name in bpy.data.objects:
+            bpy.data.objects.remove(pull_out_grille, do_unlink=True)
+    if pull_out_fairing_overlap <= ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+        remove_detent_proxies()
+        raise RuntimeError(
+            "Final fan-fairing mesh provides no pull-out detent retention: "
+            f"test_distance={pull_out_test_distance:.2f}mm "
+            f"final_overlap={pull_out_fairing_overlap:.9f}mm3 "
+            f"proxy_overlap={pull_out_detent_overlap:.9f}mm3"
+        )
+    pull_out_unexpected_overlap = max(
+        0.0,
+        pull_out_fairing_overlap - pull_out_detent_overlap,
+    )
+    if pull_out_unexpected_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+        remove_detent_proxies()
+        raise RuntimeError(
+            "Pull-out fan-grille retention pose has a non-detent obstruction: "
+            f"final_overlap={pull_out_fairing_overlap:.9f}mm3 "
+            f"proxy_overlap={pull_out_detent_overlap:.9f}mm3 "
+            f"unexpected_overlap={pull_out_unexpected_overlap:.9f}mm3"
+        )
+    travel = LID_FAN_GRILLE_OUTER_SIZE + 8.0
+    pose_count = 15
+    maximum_slide_overlap = 0.0
+    maximum_detent_overlap = 0.0
+    maximum_unexpected_overlap = 0.0
+    worst_offset = None
+    for index in range(pose_count):
+        offset = -travel * (pose_count - 1 - index) / (pose_count - 1)
+        moving_grille = duplicate_object(
+            grille,
+            f"lid_fan_grille_slide_pose_{index:02d}",
+        )
+        moving_grille.location.x += offset
+        try:
+            overlap = intersection_metrics(
+                moving_grille,
+                fairing,
+                f"lid_fan_grille_slide_clearance_{index:02d}",
+                contact_surface_fn=(
+                    lambda _x, _y: float(grille["print_bed_z"])
+                ),
+            )[2]
+            detent_overlap = sum(
+                intersection_metrics(
+                    moving_grille,
+                    proxy,
+                    f"lid_fan_grille_detent_snap_{index:02d}_{proxy_index}",
+                )[2]
+                for proxy_index, proxy in enumerate(detent_proxies, start=1)
+            )
+        finally:
+            if moving_grille.name in bpy.data.objects:
+                bpy.data.objects.remove(moving_grille, do_unlink=True)
+        if overlap > maximum_slide_overlap:
+            maximum_slide_overlap = overlap
+            worst_offset = offset
+        maximum_detent_overlap = max(maximum_detent_overlap, detent_overlap)
+        maximum_unexpected_overlap = max(
+            maximum_unexpected_overlap,
+            max(0.0, overlap - detent_overlap),
+        )
+    if maximum_unexpected_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+        remove_detent_proxies()
+        raise RuntimeError(
+            "Slide-in fan grille has non-detent obstruction: "
+            f"maximum_overlap={maximum_slide_overlap:.9f}mm3 "
+            f"detent_overlap={maximum_detent_overlap:.9f}mm3 "
+            f"unexpected_overlap={maximum_unexpected_overlap:.9f}mm3 "
+            f"offset={worst_offset:.2f}mm"
+        )
+    if maximum_detent_overlap <= ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+        remove_detent_proxies()
+        raise RuntimeError("Slide-in fan grille has no snap-detent engagement")
+    grille["slide_installation_path_validated"] = True
+    grille["snap_detent_path_validated"] = True
+    grille["maximum_snap_interference_volume_mm3"] = maximum_detent_overlap
+    print(
+        "LID_FAN_GRILLE_SLIDE_SNAP_PATH PASS "
+        f"poses={pose_count} travel={travel:.2f}mm "
+        f"final_detent_tips={len(detent_survival_probes)} "
+        f"assembled_overlaps={pair_overlaps} "
+        f"seated_detent_overlap={seated_detent_overlap:.9f}mm3 "
+        f"pull_out_test={pull_out_test_distance:.2f}mm "
+        f"pull_out_detent_overlap={pull_out_detent_overlap:.9f}mm3 "
+        f"pull_out_final_overlap={pull_out_fairing_overlap:.9f}mm3 "
+        f"maximum_detent_overlap={maximum_detent_overlap:.9f}mm3 "
+        f"maximum_unexpected_overlap={maximum_unexpected_overlap:.9f}mm3"
+    )
+    remove_detent_proxies()
+
+
+def validate_lid_fan_cable_route(lid, fairing):
+    """Sweep the captive lead from its high fan exit into the case."""
     if not lid_fan_enabled():
         return
     feedthrough = lid_fan_cable_feedthrough_geometry()
     if feedthrough is None:
         return
-    fan_base_z = float(
-        lid.get(
-            "lid_fan_seat_top_z",
-            local_lid_top_z(LID_FAN_CENTER_X, LID_FAN_CENTER_Y),
-        )
-    )
-    seam_z = local_base_seam_z(*feedthrough["center"])
-    sweep_z0 = seam_z - 1.0
-    horizontal_z = fan_base_z + feedthrough["cable_route_radius"]
-    cable_path = [
-        (
-            feedthrough["frame_outer_x"],
-            feedthrough["center"][1],
-            horizontal_z,
-        ),
-        (
-            feedthrough["cable_vertical_x"],
-            feedthrough["center"][1],
-            horizontal_z,
-        ),
-        (
-            feedthrough["cable_vertical_x"],
-            feedthrough["center"][1],
-            sweep_z0,
-        ),
-    ]
+    cable_path, _hood_path = lid_fan_cable_route_points(lid)
     cable_sweep = add_xz_polyline_tube(
         "Lid_Fan_Cable_Only_Exit_Sweep",
         cable_path,
@@ -33138,32 +34034,35 @@ def validate_lid_fan_cable_route(lid, cover):
             lid,
             "lid_fan_cable_only_exit_lid_sweep",
         )[2]
-        cable_cover_overlap = 0.0
-        if cover is not None:
-            cable_cover_overlap = intersection_metrics(
+        cable_fairing_overlap = 0.0
+        if fairing is not None:
+            cable_fairing_overlap = intersection_metrics(
                 cable_sweep,
-                cover,
-                "lid_fan_cable_only_exit_cover_sweep",
+                fairing,
+                "lid_fan_cable_only_exit_fairing_sweep",
             )[2]
         maximum_overlap = max(
             cable_lid_overlap,
-            cable_cover_overlap,
+            cable_fairing_overlap,
         )
         if maximum_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
             raise RuntimeError(
                 "Fan cable-only exit is obstructed: "
                 f"cable_lid={cable_lid_overlap:.9f}mm3, "
-                f"cable_cover={cable_cover_overlap:.9f}mm3"
+                f"cable_fairing={cable_fairing_overlap:.9f}mm3"
             )
         lid["fan_cable_only_exit_sweep_validated"] = True
-        if cover is not None:
-            cover["fan_cable_hood_sweep_validated"] = True
+        if fairing is not None:
+            fairing["fan_cable_hood_sweep_validated"] = True
         print(
             "LID_FAN_CABLE_ONLY_ROUTE PASS "
             f"slot={feedthrough['width']:.1f}x"
             f"{feedthrough['length']:.1f}mm "
             f"outset={LID_FAN_CABLE_SLOT_OUTSET:.1f}mm "
+            f"air_opening_overlap="
+            f"{LID_FAN_CABLE_SLOT_AIR_OPENING_OVERLAP:.1f}mm "
             f"cable={LID_FAN_CABLE_OUTER_DIAMETER:.1f}mm "
+            f"bend_radius={LID_FAN_CABLE_BEND_RADIUS:.1f}mm "
             f"tangential_offset={LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET:.1f}mm "
             f"max_overlap={maximum_overlap:.9f}"
         )
@@ -34006,7 +34905,7 @@ def apply_final_visibility(
     acoustic_cassette=None,
     fan_gaskets=(),
     camera_carrier_front_stop=None,
-    lid_fan_cover=None,
+    lid_fan_pod=None,
 ) -> None:
     base.hide_set(not SHOW_MAIN_BODY_AFTER_BUILD)
     base.hide_render = not SHOW_MAIN_BODY_AFTER_BUILD
@@ -34059,9 +34958,10 @@ def apply_final_visibility(
     for gasket in fan_gaskets:
         gasket.hide_set(not SHOW_FAN_VIBRATION_GASKETS_AFTER_BUILD)
         gasket.hide_render = not SHOW_FAN_VIBRATION_GASKETS_AFTER_BUILD
-    if lid_fan_cover is not None:
-        lid_fan_cover.hide_set(not SHOW_LID_FAN_COVER_AFTER_BUILD)
-        lid_fan_cover.hide_render = not SHOW_LID_FAN_COVER_AFTER_BUILD
+    if lid_fan_pod is not None:
+        for part in lid_fan_pod.values():
+            part.hide_set(not SHOW_LID_FAN_COVER_AFTER_BUILD)
+            part.hide_render = not SHOW_LID_FAN_COVER_AFTER_BUILD
     print(
         "FINAL_VISIBILITY "
         f"main_body={SHOW_MAIN_BODY_AFTER_BUILD} top={SHOW_TOP_AFTER_BUILD}"
@@ -34077,7 +34977,7 @@ def apply_final_visibility(
         f" acoustic_lid={SHOW_FAN_ACOUSTIC_LID_AFTER_BUILD}"
         f" acoustic_boot_seals={SHOW_FAN_ACOUSTIC_BOOT_SEALS_AFTER_BUILD}"
         f" fan_gaskets={SHOW_FAN_VIBRATION_GASKETS_AFTER_BUILD}"
-        f" lid_fan_cover={SHOW_LID_FAN_COVER_AFTER_BUILD}"
+        f" lid_fan_pod={SHOW_LID_FAN_COVER_AFTER_BUILD}"
     )
 
 
@@ -34380,7 +35280,7 @@ def build_hockeymom_cam_case():
         camera_brackets,
     )
     lid = create_lid(positions, footprint, cameras)
-    lid_fan_cover = create_lid_fan_cover(lid, positions)
+    lid_fan_pod = create_lid_fan_pod(lid, positions)
     add_acoustic_microphone_deflectors_to_brackets(
         camera_brackets,
         cameras,
@@ -34634,8 +35534,19 @@ def build_hockeymom_cam_case():
         f"Hockeymom_Cam_Case_Base_{CASE_BODY_MATERIAL_MODE}",
         COVER_COLOR,
     )
-    assign_material(lid, "Hockeymom_Cam_Case_Lid_Material", LID_COLOR)
+    assign_material(
+        lid,
+        f"Hockeymom_Cam_Case_Lid_{LID_MATERIAL_MODE}",
+        LID_COLOR,
+    )
     base["material_mode"] = CASE_BODY_MATERIAL_MODE
+    lid["material_mode"] = LID_MATERIAL_MODE
+    lid["fan_vibration_damping_material"] = lid_uses_tpu()
+    if lid_uses_tpu():
+        print(
+            "LID_TPU_PRINT_GUIDANCE purpose=fan_vibration_damping "
+            "use=high_durometer_TPU walls=5-7"
+        )
     if case_body_uses_tpu():
         base["m3_retention_style"] = "pointed_self_tapping_screws"
         print(
@@ -34647,12 +35558,13 @@ def build_hockeymom_cam_case():
             f"M3_pilot={CASE_BODY_TPU_M3_PILOT_DIAMETER:.2f}mm "
             "hardware=pointed_M3_self_tapping"
         )
-    if lid_fan_cover is not None:
-        assign_material(
-            lid_fan_cover,
-            f"Lid_Fan_Cover_{LID_FAN_COVER_MATERIAL_MODE}",
-            LID_FAN_COVER_COLOR,
-        )
+    if lid_fan_pod is not None:
+        for label, part in lid_fan_pod.items():
+            assign_material(
+                part,
+                f"Lid_Fan_Pod_{label}_{LID_FAN_COVER_MATERIAL_MODE}",
+                LID_FAN_COVER_COLOR,
+            )
     for bracket in camera_brackets:
         assign_material(
             bracket,
@@ -34725,8 +35637,9 @@ def build_hockeymom_cam_case():
     else:
         print("BASE_TRIANGULATION deferred_to_STL_exporter")
     triangulate_mesh(lid)
-    if lid_fan_cover is not None:
-        triangulate_mesh(lid_fan_cover)
+    if lid_fan_pod is not None:
+        for part in lid_fan_pod.values():
+            triangulate_mesh(part)
     for bracket in camera_brackets:
         triangulate_mesh(bracket)
     for moving_part in (
@@ -34783,10 +35696,15 @@ def build_hockeymom_cam_case():
     validate_object(lid)
     validate_front_lid_anchor(base, lid, footprint)
     validate_front_lid_anchor_installation_path(base, lid, footprint)
-    if lid_fan_cover is not None:
-        validate_object(lid_fan_cover)
-        validate_lid_fan_cover_printability(lid_fan_cover)
-    validate_lid_fan_cable_route(lid, lid_fan_cover)
+    if lid_fan_pod is not None:
+        for part in lid_fan_pod.values():
+            validate_object(part)
+        validate_lid_fan_pod_printability(lid_fan_pod)
+        validate_lid_fan_pod_fit_and_service(lid, lid_fan_pod)
+    validate_lid_fan_cable_route(
+        lid,
+        lid_fan_pod["fairing"] if lid_fan_pod is not None else None,
+    )
     for bracket in camera_brackets:
         validate_object(bracket)
     for moving_part in (
@@ -34996,10 +35914,14 @@ def build_hockeymom_cam_case():
                     or _RESOLVED_REAR_ENVELOPE["height_reduction"] <= 0.0
                 ),
             )
-            if lid_fan_cover is not None:
+            if lid_fan_pod is not None:
                 export_single_stl(
-                    directory / LID_FAN_COVER_STL_NAME,
-                    lid_fan_cover,
+                    directory / LID_FAN_FAIRING_STL_NAME,
+                    lid_fan_pod["fairing"],
+                )
+                export_single_stl(
+                    directory / LID_FAN_GRILLE_STL_NAME,
+                    lid_fan_pod["grille"],
                 )
             if EXPORT_CAMERA_BRACKET_STLS and len(camera_brackets) == 2:
                 export_single_stl(
@@ -35112,7 +36034,11 @@ def build_hockeymom_cam_case():
                 [
                     base,
                     lid,
-                    *([lid_fan_cover] if lid_fan_cover is not None else []),
+                    *(
+                        list(lid_fan_pod.values())
+                        if lid_fan_pod is not None
+                        else []
+                    ),
                     *camera_brackets,
                     *camera_carrier_print_parts,
                     *(
@@ -35184,7 +36110,7 @@ def build_hockeymom_cam_case():
         acoustic_cassette,
         fan_gaskets,
         camera_carrier_front_stop=camera_carrier_front_stop,
-        lid_fan_cover=lid_fan_cover,
+        lid_fan_pod=lid_fan_pod,
     )
     return base, lid
 

@@ -2564,8 +2564,9 @@ def page_vertical(pdf):
 
 def page_lid(pdf):
     case_mode=str(val("CASE_BODY_MATERIAL_MODE","TPU"))
+    lid_mode=str(val("LID_MATERIAL_MODE","TPU"))
     fig=new_sheet(5,"LID, HIDDEN FRONT ANCHOR & M3 HARDWARE",
-                  f"CASE_BODY_MATERIAL_MODE={case_mode}: rigid uses heat inserts; strong TPU uses pointed M3 screws in blind guide holes")
+                  f"base={case_mode}, lid={lid_mode}: TPU lid is the normal fan-damping configuration")
     ax=panel(fig,[0.065,0.43,0.46,0.44],"FOUR-POINT RETENTION","TOP")
     body_depth=float(val("BODY_DEPTH",233.661)); body_width=float(val("BODY_WIDTH",180.0))
     rear_scale=float(val("REAR_WIDTH_TAPER_SCALE",0.75)); taper_start=float(val("REAR_WIDTH_TAPER_START_FRACTION",0.55))
@@ -2629,9 +2630,9 @@ def page_lid(pdf):
 
     ax3=panel(fig,[0.065,0.135,0.50,0.235],"HIDDEN NOSE-FIRST FRONT ANCHOR","RADIAL SECTION")
     slot_depth_name=("LID_FRONT_ANCHOR_RIGID_SLOT_DEPTH" if case_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_SLOT_DEPTH")
-    tab_thickness_name=("LID_FRONT_ANCHOR_RIGID_TAB_THICKNESS" if case_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_TAB_THICKNESS")
-    tab_width_name=("LID_FRONT_ANCHOR_RIGID_TAB_WIDTH" if case_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_TAB_WIDTH")
-    root_name=("LID_FRONT_ANCHOR_RIGID_ROOT_LENGTH" if case_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_ROOT_LENGTH")
+    tab_thickness_name=("LID_FRONT_ANCHOR_RIGID_TAB_THICKNESS" if lid_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_TAB_THICKNESS")
+    tab_width_name=("LID_FRONT_ANCHOR_RIGID_TAB_WIDTH" if lid_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_TAB_WIDTH")
+    root_name=("LID_FRONT_ANCHOR_RIGID_ROOT_LENGTH" if lid_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_ROOT_LENGTH")
     # Base receiver surrounds a blind pocket; the green lid tongue enters from the inside.
     ax3.add_patch(Rectangle((4,0),42,5,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
     ax3.add_patch(Rectangle((4,16),42,6,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
@@ -2652,9 +2653,11 @@ def page_lid(pdf):
              ["1. Hold the lid rear edge raised.",
               "2. Slide the broad front tongue into the hidden receiver.",
               "3. Lower the rear onto the four screw posts.",
-              f"Active material: CASE_BODY_MATERIAL_MODE = {case_mode}",
+              f"Base receiver: CASE_BODY_MATERIAL_MODE = {case_mode}",
+              f"Lid / tongue: LID_MATERIAL_MODE = {lid_mode}",
               f"Active root: {root_name}",
-              "TPU uses a deeper, wider, thicker tongue and receiver walls.",
+              "TPU lid uses the wider, thicker, deeply rooted tongue.",
+              "TPU lid damps fan vibration across the broad roof.",
               "Locating lip: LID_LIP_DEPTH / LID_LIP_THICKNESS / LID_LIP_CLEARANCE"],PURPLE)
     pdf.savefig(fig); plt.close(fig)
 
@@ -3087,8 +3090,8 @@ def page_carrier_guard(pdf):
 
 def page_fans(pdf):
     fan_mode=str(val("FAN_MOUNT_MODE","lid_single"))
-    fig=new_sheet(11,"SELECTABLE FAN STATIONS & DOMED LID-FAN COVER",
-                  f"FAN_MOUNT_MODE={fan_mode}; the external lid fan gets a high-open-area friction sleeve and protected cable-only exit")
+    fig=new_sheet(11,"SELECTABLE FAN STATIONS & TWO-PIECE LID-FAN POD",
+                  f"FAN_MOUNT_MODE={fan_mode}; a curved fairing hides the square fan and a flat-bottomed domed grille slides on separately")
     ax=panel(fig,[0.065,0.40,0.52,0.47],"PAD, OPENING & MOUNT PATTERN","REAR ELEVATION")
     pad=float(val("REAR_FAN_PAD_SIZE",45)); offset=float(val("REAR_FAN_CENTERLINE_OFFSET",50)); z=float(val("REAR_FAN_CENTER_Z",35)); spacing=float(val("REAR_FAN_MOUNT_SPACING",32)); opening=float(val("REAR_FAN_AIR_OPENING_DIAMETER",36))
     ax.add_patch(Rectangle((-90,0),180,76,facecolor="#edf4f7",edgecolor=BLUE,lw=1.1))
@@ -3107,30 +3110,31 @@ def page_fans(pdf):
     leader(ax,(offset+spacing/2,z+spacing/2),(90,66),f"mount hole dia {mm('REAR_FAN_MOUNT_HOLE_DIAMETER',3.4)}",PURPLE,"right")
     setup(ax,-110,110,-18,88)
 
-    ax2=panel(fig,[0.61,0.47,0.325,0.40],"LID FAN + SLIDE-ON COVER","SECTION")
-    dome_rise=float(val("LID_FAN_COVER_DOME_RISE",8))
+    ax2=panel(fig,[0.61,0.47,0.325,0.40],"TPU FAN POD + SLIDE-IN GRILLE","SECTION")
+    dome_rise=float(val("LID_FAN_COVER_DOME_RISE",5))
     ax2.add_patch(Rectangle((-52,0),104,4,facecolor="#ccebd7",edgecolor=GREEN,lw=1.1))
     ax2.add_patch(Rectangle((-28,4),56,12,facecolor="#d9dee2",edgecolor=INK,lw=1.0))
     ax2.add_patch(Circle((0,10),8,facecolor="#f3f5f6",edgecolor=GRAY,lw=0.9))
-    ax2.add_patch(Rectangle((-32,4),3,17,facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
-    ax2.add_patch(Rectangle((29,4),3,17,facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
+    ax2.add_patch(Polygon([(-40,4),(-33,22),(-29,22),(-28,4)],closed=True,
+                          facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
+    ax2.add_patch(Polygon([(28,4),(29,22),(33,22),(40,4)],closed=True,
+                          facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
     dome_x=[-30+60*index/48 for index in range(49)]
     dome_z=[21+dome_rise*(1-(x/30)**2) for x in dome_x]
     ax2.plot(dome_x,dome_z,color=PURPLE,lw=2.1)
     ax2.plot([-30,30],[21,21],color=PURPLE,lw=1.3)
-    # A small localized hood shields the cable-only lid slot.
-    ax2.add_patch(FancyBboxPatch((27,2),8,20,boxstyle="round,pad=0,rounding_size=2",
+    # A small localized curved blister shields the high-to-low cable turn.
+    ax2.add_patch(FancyBboxPatch((29,3),9,18,boxstyle="round,pad=0,rounding_size=4",
                                  facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
-    ax2.add_patch(Rectangle((27,-1),4,6,facecolor=WHITE,edgecolor=ORANGE,lw=1.0))
-    ax2.plot([25,29,29],[8,5,1],color=ORANGE,lw=2.0,solid_capstyle="round")
-    ax2.add_patch(Circle((-31,10),6,facecolor=WHITE,edgecolor=PURPLE,lw=1.0,ls="--"))
+    ax2.add_patch(Rectangle((25,-1),8,6,facecolor=WHITE,edgecolor=ORANGE,lw=1.0))
+    ax2.plot([27,34,34,29,20],[14,12,8,3,1],color=ORANGE,lw=2.0,solid_capstyle="round")
     for x in (-15,0,15):
         ax2.add_patch(FancyArrowPatch((x,15),(x,31),arrowstyle="-|>",mutation_scale=9,color=GREEN,lw=1.0))
-    dim_v(ax2,21,21+dome_rise,-44,-31,"LID_FAN_COVER_DOME_RISE",PURPLE)
-    leader(ax2,(-30,10),(-54,34),"LID_FAN_COVER_WRAP_DEPTH",PURPLE)
-    leader(ax2,(31,7),(58,29),"LID_FAN_CABLE_SLOT_FRAME_OVERLAP / OUTSET\nLID_FAN_CABLE_SLOT_CLEARANCE",ORANGE,"right")
-    leader(ax2,(32,19),(59,13),"small covered hood; screw zones preserved",ORANGE,"right")
-    leader(ax2,(-31,5),(-59,-2),"THUMBSCREW ACCESS",PURPLE)
+    leader(ax2,(0,21+dome_rise),(-8,31),"LID_FAN_COVER_DOME_RISE",PURPLE,"center")
+    leader(ax2,(-38,5),(-56,36),"thin shell: FAIRING BOTTOM / TOP WIDTH",PURPLE)
+    leader(ax2,(31,7),(59,30),"4 mm lead / 5.6 mm groove\nAIR_OPENING_OVERLAP / OUTSET",ORANGE,"right")
+    leader(ax2,(34,18),(60,15),"6 mm curved covered drop",ORANGE,"right")
+    leader(ax2,(-10,21),(-57,-2),"separate flat-bottomed grille",PURPLE)
     setup(ax2,-61,65,-5,41)
 
     note_box(fig,[0.065,0.16,0.25,0.17],"SELECTABLE HARDWARE",
@@ -3138,19 +3142,21 @@ def page_fans(pdf):
               "LID_FAN_SIZE_MM chooses the top-fan preset.",
               "REAR_FAN_FRAME_SIZE / REAR_FAN_DEPTH",
               "REAR_FAN_ALIGN_TO_LOCAL_WALL preserves tangent alignment."],GREEN)
-    note_box(fig,[0.335,0.16,0.25,0.17],"COVER / AIRFLOW",
+    note_box(fig,[0.335,0.16,0.25,0.17],"POD / AIRFLOW",
              ["LID_FAN_COVER_MATERIAL_MODE selects TPU or RIGID.",
+              "LID_MATERIAL_MODE defaults to vibration-damping TPU.",
               "LID_FAN_COVER_SPOKE_COUNT / SPOKE_WIDTH",
               "LID_FAN_COVER_RING_WIDTH / CENTER_HUB_DIAMETER",
               "LID_FAN_COVER_MAX_BLOCKED_AREA_RATIO guards open area."],PURPLE)
     note_box(fig,[0.61,0.16,0.325,0.24],"RETENTION / SERVICE / CORD",
-             ["Four inner pads provide friction retention.",
-              "LID_FAN_COVER_TPU_RETENTION_PROTRUSION",
-              "LID_FAN_COVER_RIGID_RETENTION_PROTRUSION",
-              "LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER cuts access notches.",
-              "Print open sleeve side down; enable slicer support beneath the grille dome.",
-              "Only the flexible cable enters the 3 mm-outset slot; the plug stays inside.",
-              "The offset slot clears every lid post and stays beneath a local cover hood."],ORANGE)
+             ["Four localized ribs retain the thin fairing around the fan.",
+              "Material-specific protrusion guarantees fan-frame interference.",
+              "Dual rail detents snap into grille notches against vibration.",
+              "LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER preserves access.",
+              "Print fairing open-side-down and grille flat-side-down; no supports.",
+              "Pass the loose PWM plug through the 110 mm fan opening first.",
+              "Lower the fan while only its captive lead settles into the groove.",
+              "The curved blister hides the high frame exit and preserves screw access."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -3352,7 +3358,7 @@ def page_index(pdf):
         ("LID / RETENTION",[
             ("Lid plate thickness","LID_THICKNESS"),
             ("Locating lip depth / thickness / fit","LID_LIP_DEPTH / LID_LIP_THICKNESS / LID_LIP_CLEARANCE"),
-            ("Case material / TPU pilot","CASE_BODY_MATERIAL_MODE / CASE_BODY_TPU_M3_PILOT_DIAMETER / CASE_BODY_TPU_M3_PILOT_MAX_DEPTH"),
+            ("Base / lid materials and TPU pilot","CASE_BODY_MATERIAL_MODE / LID_MATERIAL_MODE / CASE_BODY_TPU_M3_PILOT_DIAMETER / CASE_BODY_TPU_M3_PILOT_MAX_DEPTH"),
             ("Main-body fastener post diameter","FASTENER_POST_DIAMETER"),
             ("Rigid heat-insert pilot diameter / depth","HEAT_INSERT_HOLE_DIAMETER / HEAT_INSERT_HOLE_DEPTH"),
             ("Hidden front anchor depths","LID_FRONT_ANCHOR_RIGID_SLOT_DEPTH / LID_FRONT_ANCHOR_TPU_SLOT_DEPTH / LID_FRONT_ANCHOR_EXTERIOR_SKIN"),
@@ -3372,9 +3378,10 @@ def page_index(pdf):
         ]),
         ("FANS / ACOUSTICS",[
             ("Fan mounting mode / lid-fan frame","FAN_MOUNT_MODE / LID_FAN_SIZE_MM / LID_FAN_DEPTH_MM / LID_FAN_MOUNT_SPACING_MM"),
-            ("Lid-fan domed cover","LID_FAN_COVER_MATERIAL_MODE / LID_FAN_COVER_WRAP_DEPTH / LID_FAN_COVER_DOME_RISE / LID_FAN_COVER_SPOKE_WIDTH"),
-            ("Cover friction / thumbscrew access","LID_FAN_COVER_TPU_RETENTION_PROTRUSION / LID_FAN_COVER_RIGID_RETENTION_PROTRUSION / LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER"),
-            ("Direct lid-fan cord route","LID_FAN_CABLE_SLOT_FRAME_OVERLAP / LID_FAN_CABLE_SLOT_OUTSET / LID_FAN_CABLE_SLOT_CLEARANCE / LID_FAN_CABLE_CHASE_CLEARANCE"),
+            ("Curved fan fairing / domed grille","LID_FAN_COVER_MATERIAL_MODE / LID_FAN_FAIRING_BOTTOM_WIDTH / LID_FAN_FAIRING_TOP_WIDTH / LID_FAN_FAIRING_MAX_SOLID_VOLUME / LID_FAN_GRILLE_OUTER_SIZE / LID_FAN_COVER_DOME_RISE"),
+            ("Slide rails / snap detents","LID_FAN_GRILLE_RAIL_OVERHANG / LID_FAN_GRILLE_RAIL_LENGTH / LID_FAN_GRILLE_SLIDE_CLEARANCE / LID_FAN_GRILLE_VERTICAL_CLEARANCE / LID_FAN_GRILLE_RIGID_DETENT_PROTRUSION / LID_FAN_GRILLE_TPU_DETENT_PROTRUSION / LID_FAN_GRILLE_DETENT_RADIUS"),
+            ("Fairing friction / thumbscrew access","LID_FAN_COVER_RIGID_RETENTION_PROTRUSION / LID_FAN_COVER_TPU_RETENTION_PROTRUSION / LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER"),
+            ("Direct lid-fan cord route","LID_FAN_CABLE_OUTER_DIAMETER / LID_FAN_CABLE_SLOT_AIR_OPENING_OVERLAP / LID_FAN_CABLE_SLOT_OUTSET / LID_FAN_CABLE_SLOT_CLEARANCE / LID_FAN_CABLE_BEND_RADIUS"),
             ("Fan pad / hardware frame","REAR_FAN_PAD_SIZE / REAR_FAN_FRAME_SIZE"),
             ("Symmetric center offset / center height","REAR_FAN_CENTERLINE_OFFSET / REAR_FAN_CENTER_Z"),
             ("Mount-hole spacing / air opening","REAR_FAN_MOUNT_SPACING / REAR_FAN_AIR_OPENING_DIAMETER"),

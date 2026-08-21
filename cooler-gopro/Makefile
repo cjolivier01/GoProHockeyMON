@@ -101,7 +101,9 @@ HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS := \
 	hockeymom_cam_case_fan_acoustic_lid.stl \
 	hockeymom_cam_case_fan_acoustic_boot_seal_1.stl \
 	hockeymom_cam_case_fan_acoustic_boot_seal_2.stl
-HOCKEYMOM_CAM_CASE_LID_FAN_STLS := hockeymom_cam_case_lid_fan_cover.stl
+HOCKEYMOM_CAM_CASE_LID_FAN_STLS := \
+	hockeymom_cam_case_lid_fan_fairing.stl \
+	hockeymom_cam_case_lid_fan_grille.stl
 HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS :=
 ifeq ($(HOCKEYMOM_FAN_MOUNT_MODE),lid_single)
 ifeq ($(HOCKEYMOM_LID_FAN_COVER_ENABLED),True)
@@ -122,6 +124,7 @@ HOCKEYMOM_CAM_CASE_STLS := $(HOCKEYMOM_CAM_CASE_CORE_STLS) \
 # configuration change.
 HOCKEYMOM_CAM_CASE_OPTIONAL_STLS := \
 	hockeymom_cam_case_ASSEMBLY_REFERENCE_NOT_FOR_PRINT.stl \
+	hockeymom_cam_case_lid_fan_cover.stl \
 	hockeymom_cam_case_cartridge_removable_front_stop.stl \
 	hockeymom_cam_case_purchased_worm_reference.stl \
 	hockeymom_cam_case_purchased_worm_wheel_reference.stl \
