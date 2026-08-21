@@ -57,6 +57,9 @@ FAN_SILENCER_OBSOLETE_STLS := \
 BAFFLE_CARTRIDGE_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_ENABLED' for target in node.targets)))")
 BAFFLE_CARTRIDGE_MATERIAL_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_MATERIAL_MODE' for target in node.targets)))")
 FAN_CASE_REAR_FAN_ADAPTER_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'REAR_FAN_ADAPTER_ENABLED' for target in node.targets)))")
+HOCKEYMOM_FAN_MOUNT_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('hockeymom_cam_case_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'FAN_MOUNT_MODE' for target in node.targets)))")
+HOCKEYMOM_LID_FAN_COVER_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('hockeymom_cam_case_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'LID_FAN_COVER_ENABLED' for target in node.targets)))")
+HOCKEYMOM_FAN_ACOUSTIC_ATTENUATOR_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('hockeymom_cam_case_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'FAN_ACOUSTIC_ATTENUATOR_ENABLED' for target in node.targets)))")
 FAN_CASE_CORE_STLS := \
 	gopro_fan_case_parametric.stl \
 	gopro_fan_case_back.stl \
@@ -83,7 +86,7 @@ FAN_CASE_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_ACTIVE_BAFFLE_STLS) \
 	$(FAN_CASE_ACTIVE_REAR_FAN_ADAPTER_STLS)
 FAN_CASE_ALL_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_BAFFLE_STLS) \
 	$(FAN_CASE_REAR_FAN_ADAPTER_STLS)
-HOCKEYMOM_CAM_CASE_STLS := \
+HOCKEYMOM_CAM_CASE_CORE_STLS := \
 	hockeymom_cam_case_base.stl \
 	hockeymom_cam_case_lid.stl \
 	hockeymom_cam_case_camera_bracket_1.stl \
@@ -91,12 +94,27 @@ HOCKEYMOM_CAM_CASE_STLS := \
 	hockeymom_cam_case_rotating_camera_cartridge.stl \
 	hockeymom_cam_case_idler_shaft_cap.stl \
 	hockeymom_cam_case_worm_inner_bearing_cap.stl \
-	hockeymom_cam_case_worm_outer_bearing_cap.stl \
+	hockeymom_cam_case_worm_outer_bearing_cap.stl
+
+HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS := \
 	hockeymom_cam_case_fan_acoustic_trough.stl \
 	hockeymom_cam_case_fan_acoustic_lid.stl \
 	hockeymom_cam_case_fan_acoustic_boot_seal_1.stl \
-	hockeymom_cam_case_fan_acoustic_boot_seal_2.stl \
-	hockeymom_cam_case_lid_fan_cover.stl
+	hockeymom_cam_case_fan_acoustic_boot_seal_2.stl
+HOCKEYMOM_CAM_CASE_LID_FAN_STLS := hockeymom_cam_case_lid_fan_cover.stl
+HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS :=
+ifeq ($(HOCKEYMOM_FAN_MOUNT_MODE),lid_single)
+ifeq ($(HOCKEYMOM_LID_FAN_COVER_ENABLED),True)
+HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS += $(HOCKEYMOM_CAM_CASE_LID_FAN_STLS)
+endif
+endif
+ifeq ($(HOCKEYMOM_FAN_MOUNT_MODE),rear_wall_pair)
+ifeq ($(HOCKEYMOM_FAN_ACOUSTIC_ATTENUATOR_ENABLED),True)
+HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS += $(HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS)
+endif
+endif
+HOCKEYMOM_CAM_CASE_STLS := $(HOCKEYMOM_CAM_CASE_CORE_STLS) \
+	$(HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS)
 
 # These are emitted only when their corresponding reference/service export
 # switches are enabled.  Keep them out of the grouped build prerequisites,
@@ -111,6 +129,11 @@ HOCKEYMOM_CAM_CASE_OPTIONAL_STLS := \
 	hockeymom_cam_case_idler_spur_pinion.stl \
 	hockeymom_cam_case_fan_gasket_1.stl \
 	hockeymom_cam_case_fan_gasket_2.stl
+HOCKEYMOM_CAM_CASE_ALL_STLS := $(sort \
+	$(HOCKEYMOM_CAM_CASE_CORE_STLS) \
+	$(HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS) \
+	$(HOCKEYMOM_CAM_CASE_LID_FAN_STLS) \
+	$(HOCKEYMOM_CAM_CASE_OPTIONAL_STLS))
 
 STL_FILES := \
 	$(FLAT_FAN_COVER_STLS) \
@@ -286,9 +309,10 @@ $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py fan_size_presets.py
 # rebuilding an unchanged cover every time `make all` is run.  Artifacts behind
 # explicit opt-in export switches remain outside this group.
 $(HOCKEYMOM_CAM_CASE_STLS) &: hockeymom_cam_case_blender.py gopro_mission1_dummy_blender.py
-	$(RM) $(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_OPTIONAL_STLS)
-	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
+	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
 		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_hockeymom_cam_case']()"
+	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(HOCKEYMOM_CAM_CASE_STLS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
 
 hockeymom-cam-case: $(HOCKEYMOM_CAM_CASE_STLS)
 
@@ -319,7 +343,7 @@ clean-fan-case:
 	$(RM) $(FAN_CASE_ALL_STLS)
 
 clean-hockeymom-cam-case:
-	$(RM) $(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_OPTIONAL_STLS)
+	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS)
 
 clean-dual-fan-dim-pdf:
 	$(RM) $(DUAL_FAN_DIMENSION_PDF)
