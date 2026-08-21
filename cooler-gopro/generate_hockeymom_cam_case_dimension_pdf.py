@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Generate CAD-style configuration drawings for the Hockeymom dual-camera cover.
+"""Generate CAD-style configuration drawings for the Hockeymom camera case.
 
-The script reads scalar defaults from ``hockeymom_3_cam_cover_original_style_blender.py``
+The script reads scalar defaults from ``hockeymom_cam_case_blender.py``
 without importing Blender, so the labels track the current generator.  The
 drawings are explanatory, not manufacturing drawings; geometry is schematic
 and explicitly marked NTS (not to scale).
 
 Run with a Python that has matplotlib, for example::
 
-    python generate_hockeymom_config_dimension_pdf.py
+    python generate_hockeymom_cam_case_dimension_pdf.py
 """
 
 from __future__ import annotations
@@ -36,9 +36,9 @@ from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Pol
 # example, in the Blender project directory) while still reading the colocated
 # current generator through that same workspace view.
 HERE = Path(__file__).absolute().parent
-MODEL_SOURCE = HERE / "hockeymom_3_cam_cover_original_style_blender.py"
+MODEL_SOURCE = HERE / "hockeymom_cam_case_blender.py"
 CAMERA_SOURCE = HERE / "gopro_mission1_dummy_blender.py"
-OUTPUT_PDF = HERE / "hockeymom_3_cam_cover_configuration_dimensions.pdf"
+OUTPUT_PDF = HERE / "hockeymom_cam_case_configuration_dimensions.pdf"
 TOTAL_SHEETS = 0
 UNDERSIZED_NOTE_BOXES: list[tuple[str, float]] = []
 
@@ -286,10 +286,11 @@ FEATURE_RULES = (
     ),
     FeatureRule(
         "lid_fasteners",
-        "Lid, locating lip, fasteners and heat inserts",
-        "Main lid stack, locating lip, four-post placement, screw sinks and heat-set inserts.",
+        "Lid, front anchor and material-aware fasteners",
+        "Main lid stack, locating lip, hidden nose-first anchor, screw sinks, rigid heat inserts and TPU self-tapping pilots.",
         (
             r"^LID_(?!FAN_)",
+            r"^CASE_BODY_",
             r"^(?:FASTENER|HEAT_INSERT|M3)_",
             r"^MANUAL_FASTENER_",
         ),
@@ -326,8 +327,8 @@ FEATURE_RULES = (
     ),
     FeatureRule(
         "rear_fans",
-        "Rear-wall and lid fans, pads and vibration gaskets",
-        "Selectable fan stations, mounting seats, openings, screw patterns, lid cable-feed slot and compliant gasket geometry.",
+        "Rear-wall and lid fans, cover, cable route and gaskets",
+        "Selectable fan stations, mounting seats, openings, screw patterns, domed friction cover, direct cable feedthrough/chase and compliant gaskets.",
         (r"^(?:REAR|LID)_FAN_", r"^FAN_GASKET_"),
     ),
     FeatureRule(
@@ -736,7 +737,7 @@ def new_sheet(number: int, title: str, subtitle: str = ""):
                              fill=False, edgecolor=INK, lw=0.9))
     fig.add_artist(Rectangle((0.045, 0.035), 0.91, 0.055, transform=fig.transFigure,
                              facecolor=LIGHT, edgecolor=INK, lw=0.8))
-    fig.text(0.058, 0.058, "HOCKEYMOM DUAL-CAMERA ENCLOSURE", fontsize=7.7, weight="bold")
+    fig.text(0.058, 0.058, "HOCKEYMOM CAM CASE", fontsize=7.7, weight="bold")
     fig.text(0.294, 0.058, "CONFIGURATION DIMENSION GUIDE", fontsize=7.7)
     fig.text(0.557, 0.058, f"SOURCE {SOURCE_HASH}", fontsize=7.3)
     fig.text(0.735, 0.058, f"UTC {GENERATED}", fontsize=7.3)
@@ -1171,16 +1172,20 @@ def _catalog_scene_lid_fasteners(ax, entry):
     ax.add_patch(Rectangle((158, 17), 18, 22, facecolor="#dce8ef", edgecolor=BLUE, lw=1.0))
     ax.add_patch(Rectangle((25, 38), 180, 6, facecolor="#e8f0f5", edgecolor=BLUE, lw=1.1))
     ax.add_patch(Rectangle((33, 34), 137, 4, facecolor="#e8f0f5", edgecolor=BLUE, lw=0.9))
-    ax.add_patch(Rectangle((164, 24), 6, 14, facecolor="#d8b66a", edgecolor=INK, lw=0.8,
-                           hatch="///"))
+    receiver_color = "#d8b66a" if str(val("CASE_BODY_MATERIAL_MODE", "TPU")) == "RIGID" else "#cce0ec"
+    receiver_hatch = "///" if str(val("CASE_BODY_MATERIAL_MODE", "TPU")) == "RIGID" else None
+    ax.add_patch(Rectangle((164, 24), 6, 14, facecolor=receiver_color, edgecolor=INK,
+                           lw=0.8, hatch=receiver_hatch))
     ax.add_patch(Rectangle((165.5, 30), 3, 14, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
     ax.add_patch(Rectangle((161, 40), 12, 4, facecolor=WHITE, edgecolor=PURPLE, lw=0.8))
+    ax.add_patch(Rectangle((25, 27), 35, 4, facecolor="#ccebd7", edgecolor=GREEN, lw=0.9))
+    ax.add_patch(Rectangle((52, 23), 28, 12, facecolor="none", edgecolor=ORANGE, lw=0.9))
     name = entry.name
     preferred = "diameter" if "DIAMETER" in name else (
         "v" if any(token in name for token in ("DEPTH", "HEIGHT", "THICKNESS", "WEB", "CLEARANCE")) else None
     )
     return _catalog_scene(
-        "CASE LID / LOCATING LIP / M3 HEAT-INSERT POST",
+        "CASE LID / HIDDEN FRONT ANCHOR / MATERIAL-AWARE M3 POST",
         h=(33, 170, 8, 12), v=(12, 44, 212, 202),
         gap=((170, 34), (176, 34)), diameter=(167, 31, 3),
         radial=(167, 31, 0, 6), position=((28, 12), (167, 31)),
@@ -2285,7 +2290,7 @@ def page_coverage_report(pdf):
 
 def page_cover(pdf):
     fig = new_sheet(1, "CONFIGURATION DIMENSION GUIDE",
-                    "Parametric Hockeymom-style enclosure for two GoPro MISSION 1 cameras")
+                    "Parametric hockeymom_cam_case for two GoPro MISSION 1 cameras")
     ax = fig.add_axes([0.075, 0.18, 0.55, 0.67])
     ax.axis("off")
     setup(ax, -145, 145, -115, 115)
@@ -2558,8 +2563,9 @@ def page_vertical(pdf):
 
 
 def page_lid(pdf):
-    fig=new_sheet(5,"LID, FOUR POSTS & M3 HARDWARE",
-                  "FASTENER_POST_PLACEMENT selects auto search or manual centers; auto mode avoids cameras, mechanisms, fans and service paths")
+    case_mode=str(val("CASE_BODY_MATERIAL_MODE","TPU"))
+    fig=new_sheet(5,"LID, HIDDEN FRONT ANCHOR & M3 HARDWARE",
+                  f"CASE_BODY_MATERIAL_MODE={case_mode}: rigid uses heat inserts; strong TPU uses pointed M3 screws in blind guide holes")
     ax=panel(fig,[0.065,0.43,0.46,0.44],"FOUR-POINT RETENTION","TOP")
     body_depth=float(val("BODY_DEPTH",233.661)); body_width=float(val("BODY_WIDTH",180.0))
     rear_scale=float(val("REAR_WIDTH_TAPER_SCALE",0.75)); taper_start=float(val("REAR_WIDTH_TAPER_START_FRACTION",0.55))
@@ -2588,48 +2594,68 @@ def page_lid(pdf):
            "FASTENER_POST_PLACEMENT",BLUE,"right")
     setup(ax,-body_depth/2-20,body_depth/2+20,-body_width/2-20,body_width/2+20)
 
-    ax2=panel(fig,[0.55,0.43,0.385,0.44],"SOCKET-HEAD + HEAT INSERT STACK","SECTION")
+    receiver_title=(
+        "RIGID: SOCKET-HEAD + HEAT INSERT"
+        if case_mode == "RIGID"
+        else "TPU: POINTED M3 + BLIND PILOT"
+    )
+    ax2=panel(fig,[0.55,0.43,0.385,0.44],receiver_title,"SECTION")
     lid_t=float(val("LID_THICKNESS",4.653)); post_h=34
     ax2.add_patch(Rectangle((-46,post_h),92,lid_t,facecolor="#ccebd7",edgecolor=GREEN,lw=1.2))
     ax2.add_patch(Rectangle((-post_d/2,0),post_d,post_h,facecolor="#cce0ec",edgecolor=BLUE,lw=1.2))
-    # bore, insert, counterbore
-    hole=float(val("HEAT_INSERT_HOLE_DIAMETER",4)); depth=float(val("HEAT_INSERT_HOLE_DEPTH",15.5))
+    hole_name=("HEAT_INSERT_HOLE_DIAMETER" if case_mode == "RIGID" else "CASE_BODY_TPU_M3_PILOT_DIAMETER")
+    depth_name=("HEAT_INSERT_HOLE_DEPTH" if case_mode == "RIGID" else "CASE_BODY_TPU_M3_PILOT_MAX_DEPTH")
+    hole=float(val(hole_name,4 if case_mode == "RIGID" else 1.8)); depth=float(val(depth_name,15.5 if case_mode == "RIGID" else 12))
     ax2.add_patch(Rectangle((-hole/2,post_h-depth),hole,depth+lid_t,facecolor=WHITE,edgecolor=INK,lw=0.7))
     cb=float(val("LID_SCREW_HEAD_COUNTERBORE_DIAMETER",6.2)); cbd=float(val("LID_SCREW_HEAD_COUNTERBORE_DEPTH",3.3))
     ax2.add_patch(Rectangle((-cb/2,post_h+lid_t-cbd),cb,cbd,facecolor="#fff5ea",edgecolor=ORANGE,lw=0.9))
-    lead=float(val("HEAT_INSERT_LEADIN_DIAMETER",4.8)); leadd=float(val("HEAT_INSERT_LEADIN_DEPTH",1))
-    ax2.add_patch(Polygon([(-lead/2,post_h),(-hole/2,post_h-leadd),(hole/2,post_h-leadd),(lead/2,post_h)],
-                          closed=True,facecolor="#f7d9c5",edgecolor=ORANGE,lw=0.7))
-    ax2.add_patch(Rectangle((-2.3,post_h-depth+1),4.6,depth-3,facecolor="#d8b66a",edgecolor=INK,lw=0.8,hatch="///"))
+    if case_mode == "RIGID":
+        lead=float(val("HEAT_INSERT_LEADIN_DIAMETER",4.8)); leadd=float(val("HEAT_INSERT_LEADIN_DEPTH",1))
+        ax2.add_patch(Polygon([(-lead/2,post_h),(-hole/2,post_h-leadd),(hole/2,post_h-leadd),(lead/2,post_h)],
+                              closed=True,facecolor="#f7d9c5",edgecolor=ORANGE,lw=0.7))
+        ax2.add_patch(Rectangle((-2.3,post_h-depth+1),4.6,depth-3,facecolor="#d8b66a",edgecolor=INK,lw=0.8,hatch="///"))
+    else:
+        ax2.add_patch(Rectangle((-1.5,post_h-depth+2.5),3.0,depth-2.5,facecolor="#b9c0c5",edgecolor=INK,lw=0.8))
+        ax2.add_patch(Polygon([(-1.5,post_h-depth+2.5),(1.5,post_h-depth+2.5),(0,post_h-depth-1.5)],
+                              closed=True,facecolor="#b9c0c5",edgecolor=INK,lw=0.8))
     dim_h(ax2,-post_d/2,post_d/2,-6,0,"FASTENER_POST_DIAMETER")
-    dim_h(ax2,-hole/2,hole/2,14,20,"HEAT_INSERT_HOLE_DIAMETER",ORANGE)
-    dim_v(ax2,post_h-depth,post_h,-42,-post_d/2,"HEAT_INSERT_HOLE_DEPTH",ORANGE)
+    dim_h(ax2,-hole/2,hole/2,14,20,hole_name,ORANGE)
+    dim_v(ax2,post_h-depth,post_h,-42,-post_d/2,depth_name,ORANGE)
     dim_v(ax2,post_h,post_h+lid_t,37,46,"LID_THICKNESS",GREEN)
     leader(ax2,(cb/2,post_h+lid_t-cbd/2),(25,48),
            "LID_SCREW_HEAD_COUNTERBORE_DIAMETER\nLID_SCREW_HEAD_COUNTERBORE_DEPTH",ORANGE,"right")
     leader(ax2,(0,post_h+lid_t),(49,52),f"shank clearance dia {mm('LID_SCREW_CLEARANCE_DIAMETER',3.4)}",BLUE,"right")
     setup(ax2,-53,57,-12,58)
 
-    ax3=panel(fig,[0.065,0.18,0.46,0.18],"LOCATING LIP","LOCAL SECTION")
-    lip_d=float(val("LID_LIP_DEPTH",3)); lip_t=float(val("LID_LIP_THICKNESS",1.8)); lip_c=float(val("LID_LIP_CLEARANCE",0.30))
-    ax3.add_patch(Rectangle((-42,12),84,lid_t,facecolor="#ccebd7",edgecolor=GREEN,lw=1.0))
-    ax3.add_patch(Rectangle((-35,0),7,12,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
-    ax3.add_patch(Rectangle((28,0),7,12,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
-    ax3.add_patch(Rectangle((-28-lip_t,12-lip_d),lip_t,lip_d,facecolor="#ccebd7",edgecolor=GREEN,lw=1.0))
-    ax3.add_patch(Rectangle((28,12-lip_d),lip_t,lip_d,facecolor="#ccebd7",edgecolor=GREEN,lw=1.0))
-    dim_v(ax3,12-lip_d,12,-39,-30,"LID_LIP_DEPTH",GREEN)
-    dim_h(ax3,28,28+lip_t,18,12,"LID_LIP_THICKNESS",GREEN)
-    leader(ax3,(29.8,10.5),(54,5),"LID_LIP_CLEARANCE",BLUE,"right")
-    setup(ax3,-48,60,-4,23)
+    ax3=panel(fig,[0.065,0.135,0.50,0.235],"HIDDEN NOSE-FIRST FRONT ANCHOR","RADIAL SECTION")
+    slot_depth_name=("LID_FRONT_ANCHOR_RIGID_SLOT_DEPTH" if case_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_SLOT_DEPTH")
+    tab_thickness_name=("LID_FRONT_ANCHOR_RIGID_TAB_THICKNESS" if case_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_TAB_THICKNESS")
+    tab_width_name=("LID_FRONT_ANCHOR_RIGID_TAB_WIDTH" if case_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_TAB_WIDTH")
+    root_name=("LID_FRONT_ANCHOR_RIGID_ROOT_LENGTH" if case_mode == "RIGID" else "LID_FRONT_ANCHOR_TPU_ROOT_LENGTH")
+    # Base receiver surrounds a blind pocket; the green lid tongue enters from the inside.
+    ax3.add_patch(Rectangle((4,0),42,5,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+    ax3.add_patch(Rectangle((4,16),42,6,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+    ax3.add_patch(Rectangle((42,5),4,11,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+    ax3.add_patch(Rectangle((-18,22),64,5,facecolor="#ccebd7",edgecolor=GREEN,lw=1.1))
+    ax3.add_patch(Rectangle((-12,8),51,6,facecolor="#ccebd7",edgecolor=GREEN,lw=1.1))
+    ax3.add_patch(Rectangle((-12,8),16,16,facecolor="#ccebd7",edgecolor=GREEN,lw=1.1))
+    ax3.add_patch(FancyArrowPatch((-35,11),(-15,11),arrowstyle="-|>",mutation_scale=10,color=ORANGE,lw=1.4))
+    ax3.text(-36,15,"INSERT FRONT FIRST",fontsize=7,color=ORANGE,weight="bold")
+    dim_h(ax3,4,42,-7,0,slot_depth_name,ORANGE)
+    dim_v(ax3,8,14,52,46,tab_thickness_name,GREEN)
+    leader(ax3,(21,11),(55,24),tab_width_name,GREEN,"right")
+    leader(ax3,(-4,18),(-39,24),root_name,GREEN)
+    leader(ax3,(44,10),(60,3),"LID_FRONT_ANCHOR_EXTERIOR_SKIN",BLUE,"right")
+    setup(ax3,-45,68,-10,34)
 
-    note_box(fig,[0.55,0.18,0.385,0.18],"PLACEMENT / CLEARANCE",
-             ["Mode: FASTENER_POST_PLACEMENT",
-              "Centers: FASTENER_POST_TARGETS_XY / MANUAL_FASTENER_POST_POSITIONS_XY",
-              "Search: FASTENER_AUTO_SEARCH_RADIUS / FASTENER_AUTO_GRID_STEP",
-              "Clearance: FASTENER_POST_EDGE_CLEARANCE / FASTENER_POST_CAMERA_CLEARANCE",
-              "Spacing/top: FASTENER_POST_MIN_CENTER_SPACING / FASTENER_POST_TOP_CLEARANCE",
-              "Lid relief: CAMERA_BRACKET_LID_LIP_RELIEF_CLEARANCE / CAMERA_HOLD_DOWN_LID_RELIEF_MIN_UNDERSIDE_WEB",
-              "Rear taper uses local post heights and flat screw islands."],PURPLE)
+    note_box(fig,[0.585,0.135,0.35,0.235],"ASSEMBLY / STRENGTH",
+             ["1. Hold the lid rear edge raised.",
+              "2. Slide the broad front tongue into the hidden receiver.",
+              "3. Lower the rear onto the four screw posts.",
+              f"Active material: CASE_BODY_MATERIAL_MODE = {case_mode}",
+              f"Active root: {root_name}",
+              "TPU uses a deeper, wider, thicker tongue and receiver walls.",
+              "Locating lip: LID_LIP_DEPTH / LID_LIP_THICKNESS / LID_LIP_CLEARANCE"],PURPLE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -3060,8 +3086,9 @@ def page_carrier_guard(pdf):
 
 
 def page_fans(pdf):
-    fig=new_sheet(11,"REAR FAN STATIONS",
-                  "REAR_FAN_FRAME_SIZE fans seat on REAR_FAN_PAD_SIZE flats; each station may follow its rear-wall tangent")
+    fan_mode=str(val("FAN_MOUNT_MODE","lid_single"))
+    fig=new_sheet(11,"SELECTABLE FAN STATIONS & DOMED LID-FAN COVER",
+                  f"FAN_MOUNT_MODE={fan_mode}; the external lid fan gets a high-open-area friction sleeve and protected direct cord route")
     ax=panel(fig,[0.065,0.40,0.52,0.47],"PAD, OPENING & MOUNT PATTERN","REAR ELEVATION")
     pad=float(val("REAR_FAN_PAD_SIZE",45)); offset=float(val("REAR_FAN_CENTERLINE_OFFSET",50)); z=float(val("REAR_FAN_CENTER_Z",35)); spacing=float(val("REAR_FAN_MOUNT_SPACING",32)); opening=float(val("REAR_FAN_AIR_OPENING_DIAMETER",36))
     ax.add_patch(Rectangle((-90,0),180,76,facecolor="#edf4f7",edgecolor=BLUE,lw=1.1))
@@ -3080,35 +3107,49 @@ def page_fans(pdf):
     leader(ax,(offset+spacing/2,z+spacing/2),(90,66),f"mount hole dia {mm('REAR_FAN_MOUNT_HOLE_DIAMETER',3.4)}",PURPLE,"right")
     setup(ax,-110,110,-18,88)
 
-    ax2=panel(fig,[0.61,0.47,0.325,0.40],"LOCAL WALL ALIGNMENT","TOP / PLAN")
-    wall=[(-42,-58),(-12,-63),(17,-61),(45,-51)]
-    ax2.plot([p[0] for p in wall],[p[1] for p in wall],color=BLUE,lw=4,solid_capstyle="round")
-    for x,y,ang in ((-27,-61,5),(31,-56,19)):
-        ax2.add_patch(Polygon(rotated_rect(x,y+14,10,40,ang),closed=True,facecolor="#dcebdd",edgecolor=GREEN,lw=1.2))
-        ax2.plot([x-26*math.sin(math.radians(ang)),x+26*math.sin(math.radians(ang))],
-                 [y-26*math.cos(math.radians(ang)),y+26*math.cos(math.radians(ang))],color=ORANGE,lw=0.9,ls="--")
-    leader(ax2,(31,-42),(7,2),"pad plane parallel to\nlocal rear-wall tangent",ORANGE)
-    ax2.add_patch(FancyArrowPatch((-27,-42),(-27,22),arrowstyle="-|>",mutation_scale=10,color=GREEN,lw=1.2))
-    ax2.text(-24,13,"intake",color=GREEN,fontsize=8)
-    setup(ax2,-60,62,-75,32)
+    ax2=panel(fig,[0.61,0.47,0.325,0.40],"LID FAN + SLIDE-ON COVER","SECTION")
+    dome_rise=float(val("LID_FAN_COVER_DOME_RISE",8))
+    ax2.add_patch(Rectangle((-52,0),104,4,facecolor="#ccebd7",edgecolor=GREEN,lw=1.1))
+    ax2.add_patch(Rectangle((-28,4),56,12,facecolor="#d9dee2",edgecolor=INK,lw=1.0))
+    ax2.add_patch(Circle((0,10),8,facecolor="#f3f5f6",edgecolor=GRAY,lw=0.9))
+    ax2.add_patch(Rectangle((-32,4),3,17,facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
+    ax2.add_patch(Rectangle((29,4),3,17,facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
+    dome_x=[-30+60*index/48 for index in range(49)]
+    dome_z=[21+dome_rise*(1-(x/30)**2) for x in dome_x]
+    ax2.plot(dome_x,dome_z,color=PURPLE,lw=2.1)
+    ax2.plot([-30,30],[21,21],color=PURPLE,lw=1.3)
+    # The selected-corner blister shields the lead as it turns directly through the lid.
+    ax2.add_patch(FancyBboxPatch((27,2),12,20,boxstyle="round,pad=0,rounding_size=2",
+                                 facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
+    ax2.add_patch(Rectangle((27,-1),7,9,facecolor=WHITE,edgecolor=ORANGE,lw=1.0))
+    ax2.plot([24,31,31],[10,7,1],color=ORANGE,lw=2.0,solid_capstyle="round")
+    ax2.add_patch(Circle((-31,10),6,facecolor=WHITE,edgecolor=PURPLE,lw=1.0,ls="--"))
+    for x in (-15,0,15):
+        ax2.add_patch(FancyArrowPatch((x,15),(x,31),arrowstyle="-|>",mutation_scale=9,color=GREEN,lw=1.0))
+    dim_v(ax2,21,21+dome_rise,-44,-31,"LID_FAN_COVER_DOME_RISE",PURPLE)
+    leader(ax2,(-30,10),(-54,34),"LID_FAN_COVER_WRAP_DEPTH",PURPLE)
+    leader(ax2,(34,7),(58,29),"LID_FAN_CABLE_FEEDTHROUGH_WIDTH / LENGTH\nLID_FAN_CABLE_CHASE_CLEARANCE",ORANGE,"right")
+    leader(ax2,(32,19),(59,13),"local chase; no loose side loop",ORANGE,"right")
+    leader(ax2,(-31,5),(-59,-2),"THUMBSCREW ACCESS",PURPLE)
+    setup(ax2,-61,65,-5,41)
 
-    note_box(fig,[0.065,0.18,0.25,0.15],"FAN ENVELOPE",
-             [f"frame = {mm('REAR_FAN_FRAME_SIZE',40)} square",
-              f"depth = {mm('REAR_FAN_DEPTH',10)}",
-              f"hub dia = {mm('REAR_FAN_HUB_DIAMETER',20)}",
-              f"body clearance = {mm('REAR_FAN_BODY_CLEARANCE',1)}"],GREEN)
-    note_box(fig,[0.335,0.18,0.25,0.15],"PAD PLACEMENT",
-             ["REAR_FAN_PAD_INSIDE selects the pad side",
-              f"face outset = {mm('REAR_FAN_PAD_FACE_OUTSET',1.5)}",
-              f"minimum pad gap = {mm('REAR_FAN_PAD_GAP',4)}",
-              "REAR_FAN_ALIGN_TO_LOCAL_WALL selects tangent alignment"],BLUE)
-    note_box(fig,[0.61,0.18,0.325,0.22],"COOLING VALIDATION",
-             ["REAR_FAN_AIRFLOW_DIRECTION selects intake/exhaust direction",
-              f"plume half-angle = {deg('CAMERA_COOLING_FAN_PLUME_HALF_ANGLE_DEG',14)}",
-              "minimum rear-face wash: CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO",
-              "minimum exhaust/fan area: CAMERA_COOLING_MIN_EXHAUST_TO_FAN_AREA_RATIO",
-              "Offsets may be customized symmetrically or per fan with",
-              "REAR_FAN_CENTER_TANGENTS."],GREEN)
+    note_box(fig,[0.065,0.16,0.25,0.17],"SELECTABLE HARDWARE",
+             ["FAN_MOUNT_MODE selects lid_single or rear_wall_pair.",
+              "LID_FAN_SIZE_MM chooses the top-fan preset.",
+              "REAR_FAN_FRAME_SIZE / REAR_FAN_DEPTH",
+              "REAR_FAN_ALIGN_TO_LOCAL_WALL preserves tangent alignment."],GREEN)
+    note_box(fig,[0.335,0.16,0.25,0.17],"COVER / AIRFLOW",
+             ["LID_FAN_COVER_MATERIAL_MODE selects TPU or RIGID.",
+              "LID_FAN_COVER_SPOKE_COUNT / SPOKE_WIDTH",
+              "LID_FAN_COVER_RING_WIDTH / CENTER_HUB_DIAMETER",
+              "LID_FAN_COVER_MAX_BLOCKED_AREA_RATIO guards open area."],PURPLE)
+    note_box(fig,[0.61,0.16,0.325,0.24],"RETENTION / SERVICE / CORD",
+             ["Four inner pads provide friction retention.",
+              "LID_FAN_COVER_TPU_RETENTION_PROTRUSION",
+              "LID_FAN_COVER_RIGID_RETENTION_PROTRUSION",
+              "LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER cuts access notches.",
+              "The selected LID_FAN_CABLE_FEEDTHROUGH_CORNER overlaps the fan edge,",
+              "enters the case immediately, and stays inside the cover chase."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -3310,10 +3351,13 @@ def page_index(pdf):
         ("LID / RETENTION",[
             ("Lid plate thickness","LID_THICKNESS"),
             ("Locating lip depth / thickness / fit","LID_LIP_DEPTH / LID_LIP_THICKNESS / LID_LIP_CLEARANCE"),
+            ("Case material / TPU pilot","CASE_BODY_MATERIAL_MODE / CASE_BODY_TPU_M3_PILOT_DIAMETER / CASE_BODY_TPU_M3_PILOT_MAX_DEPTH"),
             ("Main-body fastener post diameter","FASTENER_POST_DIAMETER"),
-            ("Heat-insert pilot diameter / depth","HEAT_INSERT_HOLE_DIAMETER / HEAT_INSERT_HOLE_DEPTH"),
+            ("Rigid heat-insert pilot diameter / depth","HEAT_INSERT_HOLE_DIAMETER / HEAT_INSERT_HOLE_DEPTH"),
+            ("Hidden front anchor depths","LID_FRONT_ANCHOR_RIGID_SLOT_DEPTH / LID_FRONT_ANCHOR_TPU_SLOT_DEPTH / LID_FRONT_ANCHOR_EXTERIOR_SKIN"),
+            ("Hidden front tab strength","LID_FRONT_ANCHOR_RIGID_TAB_WIDTH / LID_FRONT_ANCHOR_TPU_TAB_WIDTH / LID_FRONT_ANCHOR_RIGID_TAB_THICKNESS / LID_FRONT_ANCHOR_TPU_TAB_THICKNESS"),
             ("Lid screw shank clearance","LID_SCREW_CLEARANCE_DIAMETER"),
-            ("Hex-screw head sink diameter / depth","LID_SCREW_HEAD_COUNTERBORE_DIAMETER / LID_SCREW_HEAD_COUNTERBORE_DEPTH"),
+            ("Thumbscrew/socket-head sink diameter / depth","LID_SCREW_HEAD_COUNTERBORE_DIAMETER / LID_SCREW_HEAD_COUNTERBORE_DEPTH"),
             ("Post spacing / edge / camera keep-out","FASTENER_POST_MIN_CENTER_SPACING / FASTENER_POST_EDGE_CLEARANCE / FASTENER_POST_CAMERA_CLEARANCE"),
         ]),
         ("DRIVETRAIN / CARRIER",[
@@ -3326,6 +3370,10 @@ def page_index(pdf):
             ("Carrier guide / front-stop margin","CAMERA_CARRIER_GUIDE_HEIGHT / CAMERA_CARRIER_FRONT_STOP_EYE_MOUTH_MARGIN"),
         ]),
         ("FANS / ACOUSTICS",[
+            ("Fan mounting mode / lid-fan frame","FAN_MOUNT_MODE / LID_FAN_SIZE_MM / LID_FAN_DEPTH_MM / LID_FAN_MOUNT_SPACING_MM"),
+            ("Lid-fan domed cover","LID_FAN_COVER_MATERIAL_MODE / LID_FAN_COVER_WRAP_DEPTH / LID_FAN_COVER_DOME_RISE / LID_FAN_COVER_SPOKE_WIDTH"),
+            ("Cover friction / thumbscrew access","LID_FAN_COVER_TPU_RETENTION_PROTRUSION / LID_FAN_COVER_RIGID_RETENTION_PROTRUSION / LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER"),
+            ("Direct lid-fan cord route","LID_FAN_CABLE_FEEDTHROUGH_WIDTH / LID_FAN_CABLE_FEEDTHROUGH_LENGTH / LID_FAN_CABLE_CHASE_CLEARANCE"),
             ("Fan pad / hardware frame","REAR_FAN_PAD_SIZE / REAR_FAN_FRAME_SIZE"),
             ("Symmetric center offset / center height","REAR_FAN_CENTERLINE_OFFSET / REAR_FAN_CENTER_Z"),
             ("Mount-hole spacing / air opening","REAR_FAN_MOUNT_SPACING / REAR_FAN_AIR_OPENING_DIAMETER"),
@@ -3350,7 +3398,7 @@ def page_index(pdf):
             f"{QUICK_REFERENCE_PAGE_COUNT} planned pages"
         )
     subtitle=("Descriptions are paired with exact CONFIG variable names—search for the blue name in "
-              "hockeymom_3_cam_cover_original_style_blender.py")
+              "hockeymom_cam_case_blender.py")
     for page_offset,(title,rows) in enumerate(groups):
         fig=new_sheet(None,f"MAJOR PARAMETER QUICK REFERENCE — {title}",subtitle)
         ax=fig.add_axes([0.065,0.115,0.87,0.755]); ax.axis("off")
@@ -3416,8 +3464,8 @@ def main():
     temporary_handle.close()
     try:
         with PdfPages(temporary_path, metadata={
-            "Title":"Hockeymom Dual-Camera Enclosure Exhaustive Configuration Dimension Guide",
-            "Author":"Generated from hockeymom_3_cam_cover_original_style_blender.py",
+            "Title":"Hockeymom Cam Case Exhaustive Configuration Dimension Guide",
+            "Author":"Generated from hockeymom_cam_case_blender.py",
             "Subject":"Exhaustive parametric configuration engineering diagrams",
             "Keywords":f"Hockeymom GoPro MISSION 1 CAD dimensions configuration source-{SOURCE_HASH}",
         }) as pdf:
