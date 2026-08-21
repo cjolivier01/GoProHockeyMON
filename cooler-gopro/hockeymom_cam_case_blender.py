@@ -32,7 +32,6 @@ triangulated source does not expose an exact optical axis.
 from __future__ import annotations
 
 import math
-import hashlib
 import functools
 import gc
 import heapq
@@ -299,7 +298,7 @@ LID_FRONT_INSERT_ZONE_DEPTH = 32.0
 # Rigid engagement deliberately exceeds the requested 2-3 mm minimum; TPU is
 # deeper, wider, thicker, and more heavily rooted so it cannot peel or tear.
 LID_FRONT_ANCHOR_ENABLED = True
-LID_FRONT_ANCHOR_RIGID_SLOT_DEPTH = 4.0
+LID_FRONT_ANCHOR_RIGID_SLOT_DEPTH = 5.5
 LID_FRONT_ANCHOR_TPU_SLOT_DEPTH = 7.0
 LID_FRONT_ANCHOR_RIGID_TAB_WIDTH = 20.0
 LID_FRONT_ANCHOR_TPU_TAB_WIDTH = 22.0
@@ -1348,7 +1347,8 @@ VALIDATE_LID_FAN_FIT = True
 # standard four-pin plug can be fed into the case before the fan is fastened
 # while the narrower neck supports the cable afterward.  Dimensions below are
 # a deliberately conservative fit envelope for the NF-A12 PWM plug/harness;
-# the 15 x 10 mm body allowance includes its latch and print clearance.
+# the 15 x 10 mm swept envelope includes its latch, and the printed passage
+# adds a separate 1 mm manufacturing clearance on every side.
 # In top view rear is +X and left is +Y.
 LID_FAN_CABLE_FEEDTHROUGH_ENABLED = True
 LID_FAN_CABLE_FEEDTHROUGH_CORNER = "rear_right"  # rear/front + left/right
@@ -1356,15 +1356,19 @@ LID_FAN_CONNECTOR_BODY_WIDTH = 13.0
 LID_FAN_CONNECTOR_BODY_THICKNESS = 8.0
 LID_FAN_CONNECTOR_BODY_LENGTH = 18.0
 LID_FAN_CONNECTOR_LATCH_ALLOWANCE = 1.0
+LID_FAN_CONNECTOR_PRINT_CLEARANCE = 1.0
 LID_FAN_CABLE_OUTER_DIAMETER = 3.2
 LID_FAN_CABLE_MIN_BEND_RADIUS = 8.0
+LID_FAN_CABLE_NECK_PRINT_CLEARANCE = 1.0
 LID_FAN_CABLE_FEEDTHROUGH_WIDTH = (
     LID_FAN_CONNECTOR_BODY_THICKNESS
     + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
+    + 2.0 * LID_FAN_CONNECTOR_PRINT_CLEARANCE
 )
 LID_FAN_CABLE_FEEDTHROUGH_LENGTH = (
     LID_FAN_CONNECTOR_BODY_WIDTH
     + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
+    + 2.0 * LID_FAN_CONNECTOR_PRINT_CLEARANCE
 )
 LID_FAN_CABLE_FEEDTHROUGH_FRAME_OVERLAP = 1.5
 LID_FAN_CABLE_FEEDTHROUGH_CORNER_INSET = 24.0
@@ -1638,27 +1642,14 @@ BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER = "EXACT"
 BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT = 24
 BOTTOM_MOUNT_NUT_FINAL_BOSS_MIN_SOLID_RATIO = 1.0
 
-# Three bottom-facing keystone sockets grouped near one rear corner.  The
-# default imports the supplied proven socket geometry, seats its exterior face
-# exactly at Z=0, and leaves its insertion opening facing the enclosure.  The
-# generic pocket/cutout dimensions remain available as a legacy fallback.
+# Three bottom-facing keystone sockets grouped near one rear corner.  Each is
+# generated directly as a recessed snap-in panel cutout; no external mesh or
+# machine-specific asset path is required.  Modules load from inside and their
+# connector faces finish flush with the case exterior.
 BOTTOM_KEYSTONES_ENABLED = True
 BOTTOM_KEYSTONE_COUNT = 3
 BOTTOM_KEYSTONE_CORNER_Y_SIGN = 1.0
 BOTTOM_KEYSTONE_ROW_AXIS = "y"  # "x" runs rear-to-front; "y" runs toward center.
-BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET = True
-BOTTOM_KEYSTONE_REFERENCE_STL = "/home/colivier/Downloads/Keystone Connector.stl"
-BOTTOM_KEYSTONE_REFERENCE_SHA256 = (
-    "fc71ad6a3c78fa4a76e2909f688800cf900bd4a22e78868db25a4c9470a41c20"
-)
-BOTTOM_KEYSTONE_REFERENCE_DIMENSION_TOLERANCE = 0.10
-BOTTOM_KEYSTONE_SOCKET_OUTER_X = 17.7
-BOTTOM_KEYSTONE_SOCKET_OUTER_Y = 25.0
-BOTTOM_KEYSTONE_SOCKET_HEIGHT = 9.75
-BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X = 14.7
-BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y = 22.0
-BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE = 0.10
-BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG = 0.0
 BOTTOM_KEYSTONE_CUTOUT_X = 16.1
 BOTTOM_KEYSTONE_CUTOUT_Y = 14.7
 BOTTOM_KEYSTONE_FACE_POCKET_X = 19.5
@@ -1884,7 +1875,7 @@ def lid_fan_mount_centers():
 
 def lid_fan_cable_feedthrough_geometry():
     """Return the covered connector bulb and cable-neck geometry."""
-    if not LID_FAN_CABLE_FEEDTHROUGH_ENABLED:
+    if not lid_fan_enabled() or not LID_FAN_CABLE_FEEDTHROUGH_ENABLED:
         return None
     corner_signs = {
         "rear_left": (1.0, 1.0),
@@ -1902,19 +1893,41 @@ def lid_fan_cable_feedthrough_geometry():
 
     frame = lid_fan_reference_dimensions()["frame"]
     half_frame = frame / 2.0
-    connector_radial_inner = half_frame + LID_FAN_CABLE_CHASE_CLEARANCE
-    connector_radial_outer = (
-        connector_radial_inner + LID_FAN_CABLE_FEEDTHROUGH_WIDTH
+    cleared_cable_radius = (
+        LID_FAN_CABLE_OUTER_DIAMETER / 2.0
+        + LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE
     )
-    neck_radial_inner = half_frame - LID_FAN_CABLE_FEEDTHROUGH_FRAME_OVERLAP
-    neck_radial_outer = connector_radial_inner + BOOLEAN_OVERLAP
+    bend_tangent_radial = half_frame + LID_FAN_CABLE_CHASE_CLEARANCE
+    connector_center_radial = (
+        bend_tangent_radial + LID_FAN_CABLE_MIN_BEND_RADIUS
+    )
+    connector_radial_inner = (
+        connector_center_radial - LID_FAN_CABLE_FEEDTHROUGH_WIDTH / 2.0
+    )
+    connector_radial_outer = (
+        connector_center_radial + LID_FAN_CABLE_FEEDTHROUGH_WIDTH / 2.0
+    )
+    # Clear the complete sleeved cable where its centerline intentionally
+    # starts beneath the fan frame, not merely the centerline itself.
+    neck_radial_inner = (
+        half_frame
+        - LID_FAN_CABLE_FEEDTHROUGH_FRAME_OVERLAP
+        - cleared_cable_radius
+        - LID_FAN_CABLE_NECK_PRINT_CLEARANCE
+    )
+    neck_radial_outer = max(
+        connector_radial_inner + BOOLEAN_OVERLAP,
+        bend_tangent_radial
+        + cleared_cable_radius
+        + LID_FAN_CABLE_NECK_PRINT_CLEARANCE,
+    )
     tangent = (
         y_sign
         * (half_frame - LID_FAN_CABLE_FEEDTHROUGH_CORNER_INSET)
     )
     connector_center = (
         float(LID_FAN_CENTER_X)
-        + x_sign * (connector_radial_inner + connector_radial_outer) / 2.0,
+        + x_sign * connector_center_radial,
         float(LID_FAN_CENTER_Y) + tangent,
     )
     neck_center = (
@@ -1924,7 +1937,11 @@ def lid_fan_cable_feedthrough_geometry():
     )
     neck_length = (
         LID_FAN_CABLE_OUTER_DIAMETER
-        + 2.0 * LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE
+        + 2.0
+        * (
+            LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE
+            + LID_FAN_CABLE_NECK_PRINT_CLEARANCE
+        )
     )
     chase_radial_inner = neck_radial_inner
     chase_radial_outer = connector_radial_outer
@@ -1944,10 +1961,28 @@ def lid_fan_cable_feedthrough_geometry():
         "connector_center": connector_center,
         "connector_width": LID_FAN_CABLE_FEEDTHROUGH_WIDTH,
         "connector_length": LID_FAN_CABLE_FEEDTHROUGH_LENGTH,
+        "connector_envelope_width": (
+            LID_FAN_CONNECTOR_BODY_THICKNESS
+            + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
+        ),
+        "connector_envelope_length": (
+            LID_FAN_CONNECTOR_BODY_WIDTH
+            + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
+        ),
         "neck_center": neck_center,
         "neck_width": neck_radial_outer - neck_radial_inner,
         "neck_length": neck_length,
         "frame_outer_x": float(LID_FAN_CENTER_X) + x_sign * half_frame,
+        "cable_route_radius": cleared_cable_radius,
+        "cable_horizontal_start_x": (
+            float(LID_FAN_CENTER_X)
+            + x_sign
+            * (half_frame - LID_FAN_CABLE_FEEDTHROUGH_FRAME_OVERLAP)
+        ),
+        "cable_bend_tangent_x": (
+            float(LID_FAN_CENTER_X) + x_sign * bend_tangent_radial
+        ),
+        "cable_vertical_x": connector_center[0],
     }
 
 
@@ -3198,17 +3233,11 @@ def bottom_mount_feature_radius() -> float:
     return BOTTOM_MOUNT_HOLE_DIAMETER / 2.0
 
 
-def bottom_keystone_socket_plan_dimensions():
-    if not BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET:
-        return 0.0, 0.0
-    angle = math.radians(BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG)
-    cosine = abs(math.cos(angle))
-    sine = abs(math.sin(angle))
+def bottom_keystone_mount_plan_dimensions():
+    """Return the full native recessed-panel footprint."""
     return (
-        BOTTOM_KEYSTONE_SOCKET_OUTER_X * cosine
-        + BOTTOM_KEYSTONE_SOCKET_OUTER_Y * sine,
-        BOTTOM_KEYSTONE_SOCKET_OUTER_X * sine
-        + BOTTOM_KEYSTONE_SOCKET_OUTER_Y * cosine,
+        max(BOTTOM_KEYSTONE_FACE_POCKET_X, BOTTOM_KEYSTONE_CUTOUT_X),
+        max(BOTTOM_KEYSTONE_FACE_POCKET_Y, BOTTOM_KEYSTONE_CUTOUT_Y),
     )
 
 
@@ -3902,18 +3931,6 @@ def validate_config() -> None:
         "BOTTOM_KEYSTONE_CENTER_SPACING": BOTTOM_KEYSTONE_CENTER_SPACING,
         "BOTTOM_KEYSTONE_SEARCH_RANGE": BOTTOM_KEYSTONE_SEARCH_RANGE,
         "BOTTOM_KEYSTONE_SEARCH_STEP": BOTTOM_KEYSTONE_SEARCH_STEP,
-        "BOTTOM_KEYSTONE_REFERENCE_DIMENSION_TOLERANCE": (
-            BOTTOM_KEYSTONE_REFERENCE_DIMENSION_TOLERANCE
-        ),
-        "BOTTOM_KEYSTONE_SOCKET_OUTER_X": BOTTOM_KEYSTONE_SOCKET_OUTER_X,
-        "BOTTOM_KEYSTONE_SOCKET_OUTER_Y": BOTTOM_KEYSTONE_SOCKET_OUTER_Y,
-        "BOTTOM_KEYSTONE_SOCKET_HEIGHT": BOTTOM_KEYSTONE_SOCKET_HEIGHT,
-        "BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X": (
-            BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X
-        ),
-        "BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y": (
-            BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y
-        ),
     }
     for name, value in positive.items():
         if not math.isfinite(value) or value <= 0.0:
@@ -4014,6 +4031,13 @@ def validate_config() -> None:
         "LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO": (
             LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO
         ),
+        "LID_FAN_CONNECTOR_PRINT_CLEARANCE": (
+            LID_FAN_CONNECTOR_PRINT_CLEARANCE
+        ),
+        "LID_FAN_CABLE_NECK_PRINT_CLEARANCE": (
+            LID_FAN_CABLE_NECK_PRINT_CLEARANCE
+        ),
+        "LID_FAN_CABLE_MIN_BEND_RADIUS": LID_FAN_CABLE_MIN_BEND_RADIUS,
     }
     for name, value in material_dimensions.items():
         if not math.isfinite(value) or value <= 0.0:
@@ -4025,13 +4049,31 @@ def validate_config() -> None:
         LID_FRONT_ANCHOR_TPU_SLOT_DEPTH,
     ) < 3.0:
         raise ValueError("Front lid anchor slot depth must be at least 3 mm")
-    if LID_FRONT_ANCHOR_MIN_CONTINUOUS_LOAD_DEPTH > min(
-        LID_FRONT_ANCHOR_RIGID_SLOT_DEPTH,
-        LID_FRONT_ANCHOR_TPU_SLOT_DEPTH,
+    for material, slot_depth, fit_clearance in (
+        (
+            "RIGID",
+            LID_FRONT_ANCHOR_RIGID_SLOT_DEPTH,
+            LID_FRONT_ANCHOR_RIGID_FIT_CLEARANCE,
+        ),
+        (
+            "TPU",
+            LID_FRONT_ANCHOR_TPU_SLOT_DEPTH,
+            LID_FRONT_ANCHOR_TPU_FIT_CLEARANCE,
+        ),
     ):
-        raise ValueError(
-            "Front-anchor continuous load depth exceeds a configured slot depth"
+        conservative_continuous_depth = (
+            slot_depth
+            - fit_clearance
+            - LID_FRONT_ANCHOR_ENTRY_CHAMFER_DEPTH
         )
+        if conservative_continuous_depth < (
+            LID_FRONT_ANCHOR_MIN_CONTINUOUS_LOAD_DEPTH
+        ):
+            raise ValueError(
+                f"{material} front-anchor full-height load depth is only "
+                f"{conservative_continuous_depth:.2f} mm after fit and entry "
+                "chamfer allowances"
+            )
     if not 0.0 <= LID_FRONT_ANCHOR_RIGID_FIT_CLEARANCE < 1.0:
         raise ValueError("Rigid front-anchor fit clearance must be in [0, 1)")
     if not 0.0 <= LID_FRONT_ANCHOR_TPU_FIT_CLEARANCE < 1.0:
@@ -4175,7 +4217,7 @@ def validate_config() -> None:
             "LID_FAN_CABLE_FEEDTHROUGH_CORNER must be rear_left, rear_right, "
             "front_left, or front_right"
         )
-    if LID_FAN_CABLE_FEEDTHROUGH_ENABLED:
+    if lid_fan_enabled() and LID_FAN_CABLE_FEEDTHROUGH_ENABLED:
         half_frame = lid_fan_dimensions["frame"] / 2.0
         if not (
             LID_FAN_CABLE_FEEDTHROUGH_LENGTH / 2.0
@@ -4194,17 +4236,36 @@ def validate_config() -> None:
                 "than the hole width"
             )
         feedthrough = lid_fan_cable_feedthrough_geometry()
+        required_vertical_offset = (
+            LID_FAN_CABLE_CHASE_CLEARANCE
+            + LID_FAN_CABLE_MIN_BEND_RADIUS
+        )
+        actual_vertical_offset = abs(
+            feedthrough["cable_vertical_x"] - feedthrough["frame_outer_x"]
+        )
+        if actual_vertical_offset + 1e-9 < required_vertical_offset:
+            raise ValueError(
+                "Fan cable vertical leg is too close to the fan edge for the "
+                f"configured bend: {actual_vertical_offset:.2f} mm < "
+                f"{required_vertical_offset:.2f} mm"
+            )
         if feedthrough["connector_width"] < (
             LID_FAN_CONNECTOR_BODY_THICKNESS
             + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
+            + 2.0 * LID_FAN_CONNECTOR_PRINT_CLEARANCE
         ) or feedthrough["connector_length"] < (
             LID_FAN_CONNECTOR_BODY_WIDTH
             + 2.0 * LID_FAN_CONNECTOR_LATCH_ALLOWANCE
+            + 2.0 * LID_FAN_CONNECTOR_PRINT_CLEARANCE
         ):
             raise ValueError("Fan connector passage does not clear its body/latch envelope")
         if feedthrough["neck_length"] < (
             LID_FAN_CABLE_OUTER_DIAMETER
-            + 2.0 * LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE
+            + 2.0
+            * (
+                LID_FAN_CABLE_STRAIN_RELIEF_CLEARANCE
+                + LID_FAN_CABLE_NECK_PRINT_CLEARANCE
+            )
         ):
             raise ValueError("Fan cable neck does not clear the sleeved lead")
         chase_height = (
@@ -5251,9 +5312,6 @@ def validate_config() -> None:
         "BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE": (
             BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
         ),
-        "BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE": (
-            BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE
-        ),
     }
     for name, value in nonnegative.items():
         if value < 0.0:
@@ -5364,22 +5422,6 @@ def validate_config() -> None:
         raise ValueError("BOTTOM_KEYSTONE_CORNER_Y_SIGN must be -1 or +1")
     if BOTTOM_KEYSTONE_ROW_AXIS not in {"x", "y"}:
         raise ValueError('BOTTOM_KEYSTONE_ROW_AXIS must be "x" or "y"')
-    if not math.isfinite(float(BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG)):
-        raise ValueError("BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG must be finite")
-    if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET:
-        reference_path = Path(BOTTOM_KEYSTONE_REFERENCE_STL).expanduser()
-        if not reference_path.is_file():
-            raise ValueError(
-                "BOTTOM_KEYSTONE_REFERENCE_STL does not identify a readable file"
-            )
-        if BOTTOM_KEYSTONE_REFERENCE_SHA256:
-            reference_digest = hashlib.sha256(reference_path.read_bytes()).hexdigest()
-            if reference_digest != BOTTOM_KEYSTONE_REFERENCE_SHA256.lower():
-                raise ValueError("Keystone reference STL SHA-256 does not match")
-        if BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X >= BOTTOM_KEYSTONE_SOCKET_OUTER_X:
-            raise ValueError("Keystone socket X walls have no positive thickness")
-        if BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y >= BOTTOM_KEYSTONE_SOCKET_OUTER_Y:
-            raise ValueError("Keystone socket Y walls have no positive thickness")
     if (
         BOTTOM_KEYSTONE_FACE_POCKET_X <= BOTTOM_KEYSTONE_CUTOUT_X
         or BOTTOM_KEYSTONE_FACE_POCKET_Y <= BOTTOM_KEYSTONE_CUTOUT_Y
@@ -5416,7 +5458,7 @@ def validate_config() -> None:
         raise ValueError("Keystone USB plug must overlap its module envelope")
     if BOTTOM_KEYSTONE_COUNT < len(camera_azimuths()):
         raise ValueError("Camera power routing needs one keystone per camera")
-    socket_keepout_x, socket_keepout_y = bottom_keystone_socket_plan_dimensions()
+    socket_keepout_x, socket_keepout_y = bottom_keystone_mount_plan_dimensions()
     keystone_row_size = (
         max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_X,
@@ -8679,6 +8721,58 @@ def add_cylinder_z(
     return obj
 
 
+def add_xz_polyline_tube(name: str, points, radius: float, segments=24):
+    """Create a closed round tube along an X/Z path at a fixed Y."""
+    path = tuple(Vector(point) for point in points)
+    if len(path) < 2 or radius <= 0.0 or segments < 8:
+        raise ValueError(f"{name} requires a valid path, radius, and segments")
+    if any((following - previous).length <= 1e-8 for previous, following in zip(path, path[1:])):
+        raise ValueError(f"{name} path contains duplicate adjacent points")
+    if max(point.y for point in path) - min(point.y for point in path) > 1e-8:
+        raise ValueError(f"{name} path must remain in one X/Z plane")
+
+    fixed_binormal = Vector((0.0, 1.0, 0.0))
+    vertices = []
+    for index, point in enumerate(path):
+        if index == 0:
+            tangent = path[1] - path[0]
+        elif index == len(path) - 1:
+            tangent = path[-1] - path[-2]
+        else:
+            tangent = path[index + 1] - path[index - 1]
+        tangent.normalize()
+        in_plane_normal = tangent.cross(fixed_binormal)
+        if in_plane_normal.length <= 1e-8:
+            raise ValueError(f"{name} has an invalid X/Z tangent")
+        in_plane_normal.normalize()
+        for segment in range(segments):
+            angle = 2.0 * math.pi * segment / segments
+            vertex = (
+                point
+                + fixed_binormal * (radius * math.cos(angle))
+                + in_plane_normal * (radius * math.sin(angle))
+            )
+            vertices.append(tuple(vertex))
+
+    faces = []
+    for ring in range(len(path) - 1):
+        following_ring = ring + 1
+        for segment in range(segments):
+            following_segment = (segment + 1) % segments
+            faces.append(
+                (
+                    ring * segments + segment,
+                    ring * segments + following_segment,
+                    following_ring * segments + following_segment,
+                    following_ring * segments + segment,
+                )
+            )
+    faces.append(tuple(range(segments - 1, -1, -1)))
+    last_ring = (len(path) - 1) * segments
+    faces.append(tuple(last_ring + segment for segment in range(segments)))
+    return create_mesh_object(name, vertices, faces)
+
+
 def add_annular_cylinder_z(
     name: str,
     outer_radius: float,
@@ -8965,9 +9059,18 @@ def front_lid_anchor_geometry(footprint):
     tab_outer_radial = slot_outer_radial - profile["fit_clearance"]
     tab_inner_radial = slot_open_radial - profile["root_length"]
     actual_engagement = tab_outer_radial - slot_open_radial
+    continuous_load_depth = (
+        actual_engagement - LID_FRONT_ANCHOR_ENTRY_CHAMFER_DEPTH
+    )
     if actual_engagement < 3.0:
         raise ValueError(
             "Front lid anchor resolves to less than 3 mm engagement"
+        )
+    if continuous_load_depth < LID_FRONT_ANCHOR_MIN_CONTINUOUS_LOAD_DEPTH:
+        raise ValueError(
+            "Front lid anchor resolves to only "
+            f"{continuous_load_depth:.2f} mm of full-height load depth; "
+            f"require {LID_FRONT_ANCHOR_MIN_CONTINUOUS_LOAD_DEPTH:.2f} mm"
         )
     return {
         **profile,
@@ -8987,6 +9090,7 @@ def front_lid_anchor_geometry(footprint):
         "tab_inner_radial": tab_inner_radial,
         "tab_outer_radial": tab_outer_radial,
         "actual_engagement": actual_engagement,
+        "continuous_load_depth": continuous_load_depth,
         "minimum_hidden_skin": min(outer_radii) - slot_outer_radial,
         "surface_outer_radial_min": min(outer_radii),
         "surface_outer_radial_max": max(outer_radii),
@@ -13145,7 +13249,7 @@ def resolve_bottom_keystone_positions(
     )
     bottom_scale = minimum_body_scale_between(0.0, BOTTOM_THICKNESS)
     bottom_loop = scale_loop(footprint, bottom_scale)
-    socket_keepout_x, socket_keepout_y = bottom_keystone_socket_plan_dimensions()
+    socket_keepout_x, socket_keepout_y = bottom_keystone_mount_plan_dimensions()
     keystone_keepout_x = max(
         BOTTOM_KEYSTONE_INTERNAL_BODY_X,
         BOTTOM_KEYSTONE_FACE_POCKET_X,
@@ -13281,16 +13385,8 @@ def resolve_bottom_keystone_positions(
         )
         if not all(point_in_polygon(corner, inner_loop) for corner in body_corners):
             return False
-        bottom_face_x = (
-            keystone_keepout_x
-            if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET
-            else BOTTOM_KEYSTONE_FACE_POCKET_X
-        )
-        bottom_face_y = (
-            keystone_keepout_y
-            if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET
-            else BOTTOM_KEYSTONE_FACE_POCKET_Y
-        )
+        bottom_face_x = BOTTOM_KEYSTONE_FACE_POCKET_X
+        bottom_face_y = BOTTOM_KEYSTONE_FACE_POCKET_Y
         pocket_corners = axis_aligned_rectangle_corners(
             position,
             bottom_face_x,
@@ -19347,7 +19443,7 @@ def resolve_airflow_guide_layout(
     solid_service_keepouts = []
     route_miter_reach = AIR_GUIDE_VANE_THICKNESS
     if bottom_keystone_positions:
-        socket_x, socket_y = bottom_keystone_socket_plan_dimensions()
+        socket_x, socket_y = bottom_keystone_mount_plan_dimensions()
         keystone_x = max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_X,
             BOTTOM_KEYSTONE_FACE_POCKET_X,
@@ -20626,11 +20722,7 @@ def restore_final_airflow_guide_keystone_reliefs(base, layout):
         return base
     guide_z1 = min(record["z1"] for record in layout["records"])
     module_top_z = BOTTOM_THICKNESS + BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT
-    module_bottom_z = (
-        BOTTOM_KEYSTONE_SOCKET_HEIGHT
-        if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET
-        else BOTTOM_THICKNESS
-    )
+    module_bottom_z = BOTTOM_THICKNESS
     relief_count = 0
     proxy_records = []
     for label, service_loop in keystone_keepouts:
@@ -20649,11 +20741,7 @@ def restore_final_airflow_guide_keystone_reliefs(base, layout):
         vane_relief_masks = []
         roof_top_z = None
         mount_interface_overlap = 0.0
-        mount_interface_kind = (
-            "reference_snap_socket"
-            if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET
-            else "generic_snap_panel"
-        )
+        mount_interface_kind = "native_snap_panel"
         if intersecting_records:
             local_loop = tuple(
                 (x - center_x, y - center_y) for x, y in service_loop
@@ -20728,48 +20816,40 @@ def restore_final_airflow_guide_keystone_reliefs(base, layout):
                     vane_relief_masks.append(wall_mask)
                 else:
                     bpy.data.objects.remove(wall_mask, do_unlink=True)
-            socket_index = int(label.split("_")[2])
-            if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET:
-                mount_interface = import_bottom_keystone_reference_socket(
-                    socket_index,
-                    (center_x, center_y),
-                )
-            else:
-                mount_interface = add_beveled_box(
-                    f"{label}_Generic_Snap_Panel_Interface",
+            mount_interface = add_beveled_box(
+                f"{label}_Native_Snap_Panel_Interface",
+                (
+                    BOTTOM_KEYSTONE_FACE_POCKET_X,
+                    BOTTOM_KEYSTONE_FACE_POCKET_Y,
+                    BOTTOM_THICKNESS - BOTTOM_KEYSTONE_FACE_RECESS_DEPTH,
+                ),
+                (
+                    center_x,
+                    center_y,
                     (
-                        BOTTOM_KEYSTONE_FACE_POCKET_X,
-                        BOTTOM_KEYSTONE_FACE_POCKET_Y,
                         BOTTOM_THICKNESS
-                        - BOTTOM_KEYSTONE_FACE_RECESS_DEPTH,
-                    ),
-                    (
-                        center_x,
-                        center_y,
-                        (
-                            BOTTOM_THICKNESS
-                            + BOTTOM_KEYSTONE_FACE_RECESS_DEPTH
-                        )
-                        / 2.0,
-                    ),
-                    bevel=0.0,
-                )
-                generic_cutout = add_beveled_box(
-                    f"{label}_Generic_Snap_Through_Cutout",
-                    (
-                        BOTTOM_KEYSTONE_CUTOUT_X,
-                        BOTTOM_KEYSTONE_CUTOUT_Y,
-                        BOTTOM_THICKNESS + 2.0 * BOOLEAN_OVERLAP,
-                    ),
-                    (center_x, center_y, BOTTOM_THICKNESS / 2.0),
-                    bevel=0.0,
-                )
-                boolean_difference(
-                    mount_interface,
-                    [generic_cutout],
-                    f"{label}_Generic_Snap_Panel_Interface_Ring",
-                    solver="EXACT",
-                )
+                        + BOTTOM_KEYSTONE_FACE_RECESS_DEPTH
+                    )
+                    / 2.0,
+                ),
+                bevel=0.0,
+            )
+            native_cutout = add_beveled_box(
+                f"{label}_Native_Snap_Through_Cutout",
+                (
+                    BOTTOM_KEYSTONE_CUTOUT_X,
+                    BOTTOM_KEYSTONE_CUTOUT_Y,
+                    BOTTOM_THICKNESS + 2.0 * BOOLEAN_OVERLAP,
+                ),
+                (center_x, center_y, BOTTOM_THICKNESS / 2.0),
+                bevel=0.0,
+            )
+            boolean_difference(
+                mount_interface,
+                [native_cutout],
+                f"{label}_Native_Snap_Panel_Interface_Ring",
+                solver="EXACT",
+            )
             mount_interface_overlap = sum(
                 intersection_metrics(
                     mask,
@@ -25678,117 +25758,9 @@ def add_bottom_mount_hole(base, position):
     return base
 
 
-def import_bottom_keystone_reference_socket(index, position):
-    path = Path(BOTTOM_KEYSTONE_REFERENCE_STL).expanduser().resolve()
-    before = set(bpy.data.objects)
-    if hasattr(bpy.ops.wm, "stl_import"):
-        bpy.ops.wm.stl_import(filepath=str(path))
-    else:
-        bpy.ops.import_mesh.stl(filepath=str(path))
-    imported = [
-        obj for obj in bpy.data.objects if obj not in before and obj.type == "MESH"
-    ]
-    if len(imported) != 1:
-        raise RuntimeError(
-            f"Expected one mesh in keystone reference STL, found {len(imported)}"
-        )
-    socket = imported[0]
-    coordinates = [vertex.co.copy() for vertex in socket.data.vertices]
-    minimum = Vector(
-        (
-            min(point.x for point in coordinates),
-            min(point.y for point in coordinates),
-            min(point.z for point in coordinates),
-        )
-    )
-    maximum = Vector(
-        (
-            max(point.x for point in coordinates),
-            max(point.y for point in coordinates),
-            max(point.z for point in coordinates),
-        )
-    )
-    measured = maximum - minimum
-    expected = Vector(
-        (
-            BOTTOM_KEYSTONE_SOCKET_OUTER_X,
-            BOTTOM_KEYSTONE_SOCKET_OUTER_Y,
-            BOTTOM_KEYSTONE_SOCKET_HEIGHT,
-        )
-    )
-    tolerance = BOTTOM_KEYSTONE_REFERENCE_DIMENSION_TOLERANCE
-    if any(
-        abs(measured[axis] - expected[axis]) > tolerance
-        for axis in range(3)
-    ):
-        raise ValueError(
-            "Keystone reference STL dimensions changed: measured="
-            f"{tuple(round(value, 3) for value in measured)} expected="
-            f"{tuple(round(value, 3) for value in expected)}"
-        )
-    center_x = (minimum.x + maximum.x) / 2.0
-    center_y = (minimum.y + maximum.y) / 2.0
-    for vertex in socket.data.vertices:
-        vertex.co.x -= center_x
-        vertex.co.y -= center_y
-        vertex.co.z -= minimum.z
-    socket.data.update()
-    socket.location = (position[0], position[1], 0.0)
-    socket.rotation_euler.z = math.radians(BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG)
-    socket.name = f"Bottom_Keystone_{index}_Reference_Snap_Socket"
-    cleanup_mesh(socket)
-    recalc_normals(socket)
-    bpy.context.view_layer.update()
-    return socket
-
-
 def add_bottom_keystone_mounts(base, positions):
     if not BOTTOM_KEYSTONES_ENABLED or not positions:
         return base
-    if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET:
-        rotation = math.radians(BOTTOM_KEYSTONE_SOCKET_ROTATION_DEG)
-        cavity_cutters = [
-            add_beveled_box(
-                f"Bottom_Keystone_{index}_Reference_Inner_Clearance",
-                (
-                    BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_X
-                    + 2.0 * BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE,
-                    BOTTOM_KEYSTONE_SOCKET_INNER_CLEAR_Y
-                    + 2.0 * BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE,
-                    BOTTOM_KEYSTONE_SOCKET_HEIGHT + 2.0 * BOOLEAN_OVERLAP,
-                ),
-                (
-                    x,
-                    y,
-                    BOTTOM_KEYSTONE_SOCKET_HEIGHT / 2.0,
-                ),
-                rotation_z=rotation,
-                bevel=0.0,
-            )
-            for index, (x, y) in enumerate(positions, start=1)
-        ]
-        boolean_difference(
-            base,
-            cavity_cutters,
-            "Bottom_Keystone_Reference_Socket_Inner_Clearances",
-        )
-        for index, position in enumerate(positions, start=1):
-            socket = import_bottom_keystone_reference_socket(index, position)
-            boolean_union(
-                base,
-                socket,
-                f"Bottom_Keystone_{index}_Reference_Snap_Socket_Union",
-            )
-        print(
-            "BOTTOM_KEYSTONE_REFERENCE_SNAP_SOCKETS "
-            f"count={len(positions)} outer="
-            f"({BOTTOM_KEYSTONE_SOCKET_OUTER_X:.2f}, "
-            f"{BOTTOM_KEYSTONE_SOCKET_OUTER_Y:.2f}, "
-            f"{BOTTOM_KEYSTONE_SOCKET_HEIGHT:.2f}) outside_face_z=0.00 "
-            "loading_side=inside"
-        )
-        return base
-
     pocket_cutters = []
     through_cutters = []
     for index, (x, y) in enumerate(positions, start=1):
@@ -28737,10 +28709,15 @@ def create_lid_fan_cover(lid, positions):
             ) < access_radius
         )
         if edge_clearance < access_radius or chase_overlap:
+            cutter_radius = access_radius + (
+                profile["wall_thickness"] + LID_FAN_CABLE_CHASE_CLEARANCE
+                if chase_overlap
+                else 0.0
+            )
             access_cutters.append(
                 add_cylinder_z(
                     f"Lid_Fan_Cover_Thumbscrew_Access_{index}",
-                    access_radius,
+                    cutter_radius,
                     fan_base_z - BOOLEAN_OVERLAP,
                     ring_top_z + LID_FAN_COVER_DOME_RISE + BOOLEAN_OVERLAP,
                     position[0],
@@ -30621,11 +30598,7 @@ def validate_keystone_camera_power_paths(
     ):
         return
     module_top_z = BOTTOM_THICKNESS + BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT
-    module_bottom_z = (
-        BOTTOM_KEYSTONE_SOCKET_HEIGHT
-        if BOTTOM_KEYSTONE_USE_REFERENCE_SNAP_SOCKET
-        else BOTTOM_THICKNESS
-    )
+    module_bottom_z = BOTTOM_THICKNESS
     plug_z1 = module_top_z + BOTTOM_KEYSTONE_USB_PLUG_ABOVE_MODULE
     plug_z0 = plug_z1 - BOTTOM_KEYSTONE_USB_PLUG_BODY_HEIGHT
     cable_core_radius = (
@@ -33238,6 +33211,8 @@ def validate_lid_fan_cover_printability(cover):
 
 def validate_lid_fan_connector_route(lid, cover):
     """Sweep the captive four-pin plug and cable through their final voids."""
+    if not lid_fan_enabled():
+        return
     feedthrough = lid_fan_cable_feedthrough_geometry()
     if feedthrough is None:
         return
@@ -33253,8 +33228,8 @@ def validate_lid_fan_connector_route(lid, cover):
     connector_sweep = add_beveled_box(
         "Lid_Fan_Captive_Connector_Vertical_Sweep",
         (
-            LID_FAN_CONNECTOR_BODY_THICKNESS,
-            LID_FAN_CONNECTOR_BODY_WIDTH,
+            feedthrough["connector_envelope_width"],
+            feedthrough["connector_envelope_length"],
             sweep_z1 - sweep_z0,
         ),
         (
@@ -33262,21 +33237,60 @@ def validate_lid_fan_connector_route(lid, cover):
             feedthrough["connector_center"][1],
             (sweep_z0 + sweep_z1) / 2.0,
         ),
-        bevel=min(1.0, LID_FAN_CONNECTOR_BODY_THICKNESS / 4.0),
+        bevel=min(1.0, feedthrough["connector_envelope_width"] / 4.0),
     )
-    cable_sweep = None
+    bend_radius = LID_FAN_CABLE_MIN_BEND_RADIUS
+    horizontal_z = fan_base_z + bend_radius
+    cable_path = [
+        (
+            feedthrough["cable_horizontal_start_x"],
+            feedthrough["connector_center"][1],
+            horizontal_z,
+        ),
+        (
+            feedthrough["cable_bend_tangent_x"],
+            feedthrough["connector_center"][1],
+            horizontal_z,
+        ),
+    ]
+    arc_steps = max(12, int(math.ceil(math.pi * bend_radius / 2.0)))
+    for index in range(1, arc_steps + 1):
+        theta = math.pi * index / (2.0 * arc_steps)
+        cable_path.append(
+            (
+                feedthrough["cable_vertical_x"]
+                - feedthrough["x_sign"] * bend_radius * math.cos(theta),
+                feedthrough["connector_center"][1],
+                horizontal_z - bend_radius * math.sin(theta),
+            )
+        )
+    cable_path.append(
+        (
+            feedthrough["cable_vertical_x"],
+            feedthrough["connector_center"][1],
+            sweep_z0,
+        )
+    )
+    cable_sweep = add_xz_polyline_tube(
+        "Lid_Fan_Cable_Straight_Bend_And_Vertical_Sweep",
+        cable_path,
+        feedthrough["cable_route_radius"],
+    )
     chase_keepout = None
     try:
-        connector_overlap = intersection_metrics(
+        connector_lid_overlap = intersection_metrics(
             connector_sweep,
             lid,
             "lid_fan_connector_vertical_sweep",
         )[2]
-        # The plug moves vertically through the connector bulb.  The cable
-        # itself runs horizontally through the neck from the fan edge, then
-        # bends inside the full-height cover chase checked below.
-        cable_overlap = 0.0
-        cover_overlap = 0.0
+        cable_lid_overlap = intersection_metrics(
+            cable_sweep,
+            lid,
+            "lid_fan_cable_straight_bend_vertical_sweep",
+        )[2]
+        connector_cover_overlap = 0.0
+        cable_cover_overlap = 0.0
+        chase_cover_overlap = 0.0
         if cover is not None:
             dimensions = lid_fan_reference_dimensions()
             half_frame = dimensions["frame"] / 2.0
@@ -33307,22 +33321,36 @@ def validate_lid_fan_connector_route(lid, cover):
                 ),
                 bevel=min(1.0, LID_FAN_CONNECTOR_BODY_THICKNESS / 4.0),
             )
-            cover_overlap = intersection_metrics(
+            connector_cover_overlap = intersection_metrics(
+                connector_sweep,
+                cover,
+                "lid_fan_connector_cover_sweep",
+            )[2]
+            cable_cover_overlap = intersection_metrics(
+                cable_sweep,
+                cover,
+                "lid_fan_cable_cover_sweep",
+            )[2]
+            chase_cover_overlap = intersection_metrics(
                 chase_keepout,
                 cover,
                 "lid_fan_connector_cover_chase_sweep",
             )[2]
         maximum_overlap = max(
-            connector_overlap,
-            cable_overlap,
-            cover_overlap,
+            connector_lid_overlap,
+            cable_lid_overlap,
+            connector_cover_overlap,
+            cable_cover_overlap,
+            chase_cover_overlap,
         )
         if maximum_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
             raise RuntimeError(
                 "Fan connector/cable route is obstructed: "
-                f"connector={connector_overlap:.9f}mm3, "
-                f"neck={cable_overlap:.9f}mm3, "
-                f"cover={cover_overlap:.9f}mm3"
+                f"connector_lid={connector_lid_overlap:.9f}mm3, "
+                f"cable_lid={cable_lid_overlap:.9f}mm3, "
+                f"connector_cover={connector_cover_overlap:.9f}mm3, "
+                f"cable_cover={cable_cover_overlap:.9f}mm3, "
+                f"chase_cover={chase_cover_overlap:.9f}mm3"
             )
         lid["fan_connector_vertical_sweep_validated"] = True
         if cover is not None:
@@ -33335,6 +33363,8 @@ def validate_lid_fan_connector_route(lid, cover):
             f"latch_allowance={LID_FAN_CONNECTOR_LATCH_ALLOWANCE:.1f}mm "
             f"cable={LID_FAN_CABLE_OUTER_DIAMETER:.1f}mm "
             f"bend_radius={LID_FAN_CABLE_MIN_BEND_RADIUS:.1f}mm "
+            f"cleared_radius={feedthrough['cable_route_radius']:.1f}mm "
+            f"bend_offset={abs(feedthrough['cable_vertical_x'] - feedthrough['frame_outer_x']):.1f}mm "
             f"max_overlap={maximum_overlap:.9f}"
         )
     finally:
@@ -33460,15 +33490,10 @@ def validate_front_lid_anchor(base, lid, footprint):
     thickness_inset = min(0.25, geometry["receiver_wall"] / 5.0)
     radial_inset = min(0.35, geometry["actual_engagement"] / 6.0)
     structural_radial_values = sample_values(
-        max(
-            geometry["slot_open_radial"]
-            + LID_FRONT_ANCHOR_ENTRY_CHAMFER_DEPTH
-            + radial_inset,
-            geometry["slot_outer_radial"]
-            - LID_FRONT_ANCHOR_MIN_CONTINUOUS_LOAD_DEPTH
-            + radial_inset,
-        ),
-        geometry["slot_outer_radial"] - radial_inset,
+        geometry["slot_open_radial"]
+        + LID_FRONT_ANCHOR_ENTRY_CHAMFER_DEPTH
+        + radial_inset,
+        geometry["tab_outer_radial"] - radial_inset,
         1.5,
     )
     slot_tangent_values = sample_values(
@@ -33661,7 +33686,7 @@ def validate_front_lid_anchor(base, lid, footprint):
         f"intact_root_sides={intact_root_sides} "
         f"root_strip_width={root_strip_width:.2f}mm "
         "continuous_roof_floor_sidewalls_skin=True "
-        f"continuous_load_depth={LID_FRONT_ANCHOR_MIN_CONTINUOUS_LOAD_DEPTH:.2f}mm"
+        f"continuous_load_depth={geometry['continuous_load_depth']:.2f}mm"
     )
 
 
@@ -34502,7 +34527,7 @@ def build_hockeymom_cam_case():
             )
         )
     if bottom_keystone_positions:
-        socket_x, socket_y = bottom_keystone_socket_plan_dimensions()
+        socket_x, socket_y = bottom_keystone_mount_plan_dimensions()
         keystone_x = max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_X,
             BOTTOM_KEYSTONE_FACE_POCKET_X,
@@ -34680,7 +34705,7 @@ def build_hockeymom_cam_case():
                 )
             )
         if bottom_keystone_positions:
-            socket_x, socket_y = bottom_keystone_socket_plan_dimensions()
+            socket_x, socket_y = bottom_keystone_mount_plan_dimensions()
             keystone_x = max(
                 BOTTOM_KEYSTONE_INTERNAL_BODY_X,
                 BOTTOM_KEYSTONE_FACE_POCKET_X,
