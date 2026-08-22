@@ -289,6 +289,25 @@ BODY_SECTIONS = (
     (BASE_HEIGHT, 1.00),
 )
 
+# When the rear (+X) wall is not occupied by the legacy fan pair, cut a broad
+# configurable word into it.  The lettering is fitted to both the available
+# wall height and the curved rear chord, then every cutter vertex is wrapped
+# onto the actual shell surface.  A 45-degree edge bevel and shallow recess
+# keep the upright base print support-free; no flat text is left floating at
+# the curved wall's corners.  Set TEXT to another single-line word, or disable
+# the feature explicitly when a blank rear wall is preferred.
+REAR_WALL_LABEL_ENABLED = True
+REAR_WALL_LABEL_TEXT = "HOCKEY"
+REAR_WALL_LABEL_DEPTH = 1.0
+REAR_WALL_LABEL_BEVEL_DEPTH = 0.30
+REAR_WALL_LABEL_CUTTER_OUTSET = 1.0
+REAR_WALL_LABEL_SIDE_MARGIN = 10.0
+REAR_WALL_LABEL_BOTTOM_MARGIN = 14.0
+REAR_WALL_LABEL_TOP_MARGIN = 10.0
+REAR_WALL_LABEL_MAX_WRAP_ANGLE_DEG = 32.0
+REAR_WALL_LABEL_MAX_SURFACE_SEGMENT = 2.0
+REAR_WALL_LABEL_MIN_REMAINING_WALL = 1.8
+
 # Lid locating lip.  The screw system provides clamping; this lip aligns the
 # flat top and prevents lateral movement.
 LID_LIP_ENABLED = True
@@ -1414,7 +1433,7 @@ LID_FAN_COVER_TPU_RETENTION_PROTRUSION = 0.35
 LID_FAN_COVER_RETENTION_PAD_LENGTH = 22.0
 LID_FAN_COVER_RETENTION_PAD_HEIGHT = 2.0
 # Two hidden M3 screws positively clamp the floor-rooted +/-Y friction ribs
-# to blind receivers in the lid.  The grille is removed for driver access;
+# to blind receivers in the lid.  The grille is removed for Allen-key access;
 # once installed, inversion and vibration no longer rely on TPU friction.
 LID_FAN_FAIRING_POSITIVE_RETENTION_ENABLED = True
 LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER = 3.4
@@ -1457,6 +1476,28 @@ LID_FAN_GRILLE_DETENT_FRONT_EDGE_OFFSET = 24.0
 LID_FAN_GRILLE_DETENT_Z_INSET = 0.25
 LID_FAN_GRILLE_DETENT_NOTCH_CLEARANCE = 0.15
 LID_FAN_GRILLE_MAX_SUPPORT_FREE_LIP_SPAN = 2.0
+# The rail detents remain useful for alignment and anti-rattle preload, but a
+# real M3 screw now locks the seated grille to a floor-rooted rear fairing
+# boss.  Remove this one top-access screw before sliding the grille forward.
+# Its axis sits outside every fan's airflow opening (and between the fans in a
+# dual array), so the lock does not appreciably obstruct flow.
+LID_FAN_GRILLE_POSITIVE_RETENTION_ENABLED = True
+LID_FAN_GRILLE_RETENTION_SCREW_CLEARANCE_DIAMETER = 3.4
+LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH = 6.0
+LID_FAN_GRILLE_RETENTION_TPU_PILOT_DIAMETER = 1.8
+LID_FAN_GRILLE_RETENTION_RIGID_PILOT_DIAMETER = 2.5
+LID_FAN_GRILLE_RETENTION_PILOT_DEPTH = 6.0
+LID_FAN_GRILLE_RETENTION_MIN_BOTTOM_ALLOWANCE = 0.35
+LID_FAN_GRILLE_RETENTION_SCREW_LENGTH_TOLERANCE = 0.25
+LID_FAN_GRILLE_RETENTION_PILOT_DEPTH_TOLERANCE = 0.25
+LID_FAN_GRILLE_RETENTION_GRILLE_THICKNESS_TOLERANCE = 0.20
+LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER = 6.5
+LID_FAN_GRILLE_RETENTION_BUTTRESS_WIDTH = 7.0
+LID_FAN_GRILLE_RETENTION_MIN_SHELL_CONNECTION_WIDTH = 6.5
+LID_FAN_GRILLE_RETENTION_PAD_DIAMETER = 8.0
+LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE = 0.25
+LID_FAN_GRILLE_RETENTION_MIN_RADIAL_WALL = 1.5
+LID_FAN_GRILLE_RETENTION_MIN_HEAD_EDGE_WEB = 1.0
 LID_FAN_CABLE_BEND_RADIUS = 6.0
 LID_FAN_COVER_DOME_SUPPORT_MODE = "support_free_flat_bottom"
 # Treat the two lens/mouth gaps as the primary front flow openings: exhausts
@@ -2035,6 +2076,35 @@ def lid_fan_pod_plan_dimensions():
             LID_FAN_GRILLE_DETENT_FRONT_EDGE_OFFSET,
             grille_width / 2.0,
         ),
+    }
+
+
+def lid_fan_grille_retention_profile():
+    """Resolve the grille lock boss, pilot, and material-specific hardware."""
+    plan = lid_fan_pod_plan_dimensions()
+    screw_length = f"{LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH:g}"
+    if LID_FAN_COVER_MATERIAL_MODE == "TPU":
+        pilot_diameter = LID_FAN_GRILLE_RETENTION_TPU_PILOT_DIAMETER
+        receiver_style = "pointed_M3_self_tapping"
+        hardware = f"M3x{screw_length}_pointed_self_tapping"
+    else:
+        pilot_diameter = LID_FAN_GRILLE_RETENTION_RIGID_PILOT_DIAMETER
+        receiver_style = "M3_thread_forming_rigid_pilot"
+        hardware = f"M3x{screw_length}_thread_forming"
+    boss_radius = LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER / 2.0
+    return {
+        "enabled": bool(LID_FAN_GRILLE_POSITIVE_RETENTION_ENABLED),
+        "center": (
+            plan["center_x"]
+            + plan["width_x"] / 2.0
+            + lid_fan_cover_profile()["fit_clearance"]
+            + LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE
+            + boss_radius,
+            float(LID_FAN_CENTER_Y),
+        ),
+        "pilot_diameter": pilot_diameter,
+        "receiver_style": receiver_style,
+        "hardware": hardware,
     }
 
 
@@ -3511,6 +3581,21 @@ def validate_config() -> None:
         "LID_THICKNESS": LID_THICKNESS,
         "BOTTOM_THICKNESS": BOTTOM_THICKNESS,
         "BODY_WALL_THICKNESS": BODY_WALL_THICKNESS,
+        "REAR_WALL_LABEL_DEPTH": REAR_WALL_LABEL_DEPTH,
+        "REAR_WALL_LABEL_BEVEL_DEPTH": REAR_WALL_LABEL_BEVEL_DEPTH,
+        "REAR_WALL_LABEL_CUTTER_OUTSET": REAR_WALL_LABEL_CUTTER_OUTSET,
+        "REAR_WALL_LABEL_SIDE_MARGIN": REAR_WALL_LABEL_SIDE_MARGIN,
+        "REAR_WALL_LABEL_BOTTOM_MARGIN": REAR_WALL_LABEL_BOTTOM_MARGIN,
+        "REAR_WALL_LABEL_TOP_MARGIN": REAR_WALL_LABEL_TOP_MARGIN,
+        "REAR_WALL_LABEL_MAX_WRAP_ANGLE_DEG": (
+            REAR_WALL_LABEL_MAX_WRAP_ANGLE_DEG
+        ),
+        "REAR_WALL_LABEL_MAX_SURFACE_SEGMENT": (
+            REAR_WALL_LABEL_MAX_SURFACE_SEGMENT
+        ),
+        "REAR_WALL_LABEL_MIN_REMAINING_WALL": (
+            REAR_WALL_LABEL_MIN_REMAINING_WALL
+        ),
         "LID_LIP_DEPTH": LID_LIP_DEPTH,
         "LID_LIP_THICKNESS": LID_LIP_THICKNESS,
         "LID_FRONT_INSERT_LIP_DEPTH": LID_FRONT_INSERT_LIP_DEPTH,
@@ -4182,6 +4267,29 @@ def validate_config() -> None:
     for name, value in positive.items():
         if not math.isfinite(value) or value <= 0.0:
             raise ValueError(f"{name} must be finite and positive")
+    if not isinstance(REAR_WALL_LABEL_ENABLED, bool):
+        raise ValueError("REAR_WALL_LABEL_ENABLED must be a Boolean")
+    if not isinstance(REAR_WALL_LABEL_TEXT, str):
+        raise ValueError("REAR_WALL_LABEL_TEXT must be a string")
+    if REAR_WALL_LABEL_ENABLED and not REAR_WALL_LABEL_TEXT.strip():
+        raise ValueError("Enabled rear-wall lettering requires nonblank text")
+    if "\n" in REAR_WALL_LABEL_TEXT or "\r" in REAR_WALL_LABEL_TEXT:
+        raise ValueError("Rear-wall lettering must remain on one line")
+    if not 0.0 < REAR_WALL_LABEL_MAX_WRAP_ANGLE_DEG < 75.0:
+        raise ValueError("Rear-wall label wrap angle must be between 0 and 75 degrees")
+    if 2.0 * REAR_WALL_LABEL_BEVEL_DEPTH >= (
+        REAR_WALL_LABEL_DEPTH + REAR_WALL_LABEL_CUTTER_OUTSET
+    ):
+        raise ValueError(
+            "Rear-wall label bevels must leave a finite full-depth band"
+        )
+    if (
+        REAR_WALL_LABEL_DEPTH + REAR_WALL_LABEL_MIN_REMAINING_WALL
+        > BODY_WALL_THICKNESS
+    ):
+        raise ValueError(
+            "Rear-wall label recess leaves less than the configured wall web"
+        )
     if (
         LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET is not None
         and not math.isfinite(LID_FAN_CABLE_SLOT_TANGENTIAL_OFFSET)
@@ -4363,6 +4471,54 @@ def validate_config() -> None:
         "LID_FAN_GRILLE_MAX_SUPPORT_FREE_LIP_SPAN": (
             LID_FAN_GRILLE_MAX_SUPPORT_FREE_LIP_SPAN
         ),
+        "LID_FAN_GRILLE_RETENTION_SCREW_CLEARANCE_DIAMETER": (
+            LID_FAN_GRILLE_RETENTION_SCREW_CLEARANCE_DIAMETER
+        ),
+        "LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH": (
+            LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH
+        ),
+        "LID_FAN_GRILLE_RETENTION_TPU_PILOT_DIAMETER": (
+            LID_FAN_GRILLE_RETENTION_TPU_PILOT_DIAMETER
+        ),
+        "LID_FAN_GRILLE_RETENTION_RIGID_PILOT_DIAMETER": (
+            LID_FAN_GRILLE_RETENTION_RIGID_PILOT_DIAMETER
+        ),
+        "LID_FAN_GRILLE_RETENTION_PILOT_DEPTH": (
+            LID_FAN_GRILLE_RETENTION_PILOT_DEPTH
+        ),
+        "LID_FAN_GRILLE_RETENTION_MIN_BOTTOM_ALLOWANCE": (
+            LID_FAN_GRILLE_RETENTION_MIN_BOTTOM_ALLOWANCE
+        ),
+        "LID_FAN_GRILLE_RETENTION_SCREW_LENGTH_TOLERANCE": (
+            LID_FAN_GRILLE_RETENTION_SCREW_LENGTH_TOLERANCE
+        ),
+        "LID_FAN_GRILLE_RETENTION_PILOT_DEPTH_TOLERANCE": (
+            LID_FAN_GRILLE_RETENTION_PILOT_DEPTH_TOLERANCE
+        ),
+        "LID_FAN_GRILLE_RETENTION_GRILLE_THICKNESS_TOLERANCE": (
+            LID_FAN_GRILLE_RETENTION_GRILLE_THICKNESS_TOLERANCE
+        ),
+        "LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER": (
+            LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER
+        ),
+        "LID_FAN_GRILLE_RETENTION_BUTTRESS_WIDTH": (
+            LID_FAN_GRILLE_RETENTION_BUTTRESS_WIDTH
+        ),
+        "LID_FAN_GRILLE_RETENTION_MIN_SHELL_CONNECTION_WIDTH": (
+            LID_FAN_GRILLE_RETENTION_MIN_SHELL_CONNECTION_WIDTH
+        ),
+        "LID_FAN_GRILLE_RETENTION_PAD_DIAMETER": (
+            LID_FAN_GRILLE_RETENTION_PAD_DIAMETER
+        ),
+        "LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE": (
+            LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE
+        ),
+        "LID_FAN_GRILLE_RETENTION_MIN_RADIAL_WALL": (
+            LID_FAN_GRILLE_RETENTION_MIN_RADIAL_WALL
+        ),
+        "LID_FAN_GRILLE_RETENTION_MIN_HEAD_EDGE_WEB": (
+            LID_FAN_GRILLE_RETENTION_MIN_HEAD_EDGE_WEB
+        ),
         "LID_FAN_CABLE_BEND_RADIUS": LID_FAN_CABLE_BEND_RADIUS,
     }
     for name, value in material_dimensions.items():
@@ -4430,6 +4586,77 @@ def validate_config() -> None:
     ):
         raise ValueError(
             "Fan-fairing side ribs are too short for hidden M3 screw heads"
+        )
+    if not isinstance(LID_FAN_GRILLE_POSITIVE_RETENTION_ENABLED, bool):
+        raise ValueError(
+            "LID_FAN_GRILLE_POSITIVE_RETENTION_ENABLED must be a Boolean"
+        )
+    if max(
+        LID_FAN_GRILLE_RETENTION_TPU_PILOT_DIAMETER,
+        LID_FAN_GRILLE_RETENTION_RIGID_PILOT_DIAMETER,
+    ) >= LID_FAN_GRILLE_RETENTION_SCREW_CLEARANCE_DIAMETER:
+        raise ValueError(
+            "Fan-grille fairing pilots must remain smaller than the grille "
+            "screw clearance hole"
+        )
+    if (
+        LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER
+        - max(
+            LID_FAN_GRILLE_RETENTION_TPU_PILOT_DIAMETER,
+            LID_FAN_GRILLE_RETENTION_RIGID_PILOT_DIAMETER,
+        )
+    ) / 2.0 < LID_FAN_GRILLE_RETENTION_MIN_RADIAL_WALL:
+        raise ValueError(
+            "Fan-grille lock boss lacks the configured pilot wall"
+        )
+    if LID_FAN_GRILLE_RETENTION_BUTTRESS_WIDTH < (
+        LID_FAN_GRILLE_RETENTION_MIN_SHELL_CONNECTION_WIDTH
+    ):
+        raise ValueError(
+            "Fan-grille lock buttress lacks its configured shell-connection "
+            "width"
+        )
+    if (
+        LID_FAN_GRILLE_RETENTION_PAD_DIAMETER
+        - M3_SOCKET_HEAD_NOMINAL_DIAMETER
+    ) / 2.0 < LID_FAN_GRILLE_RETENTION_MIN_HEAD_EDGE_WEB:
+        raise ValueError(
+            "Fan-grille lock pad lacks the configured M3 head-bearing web"
+        )
+    minimum_grille_lock_initial_engagement = min(
+        LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH
+        - LID_FAN_GRILLE_RETENTION_SCREW_LENGTH_TOLERANCE
+        - grille_thickness
+        - LID_FAN_GRILLE_RETENTION_GRILLE_THICKNESS_TOLERANCE
+        - LID_FAN_GRILLE_VERTICAL_CLEARANCE
+        for grille_thickness in (
+            LID_FAN_COVER_RIGID_GRILLE_THICKNESS,
+            LID_FAN_COVER_TPU_GRILLE_THICKNESS,
+        )
+    )
+    maximum_grille_lock_tightened_insertion = max(
+        LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH
+        + LID_FAN_GRILLE_RETENTION_SCREW_LENGTH_TOLERANCE
+        - grille_thickness
+        + LID_FAN_GRILLE_RETENTION_GRILLE_THICKNESS_TOLERANCE
+        for grille_thickness in (
+            LID_FAN_COVER_RIGID_GRILLE_THICKNESS,
+            LID_FAN_COVER_TPU_GRILLE_THICKNESS,
+        )
+    )
+    if minimum_grille_lock_initial_engagement < 3.5:
+        raise ValueError(
+            "Recommended fan-grille lock screw must initially engage at "
+            "least 3.5 mm across the seating gap"
+        )
+    if maximum_grille_lock_tightened_insertion > (
+        LID_FAN_GRILLE_RETENTION_PILOT_DEPTH
+        - LID_FAN_GRILLE_RETENTION_PILOT_DEPTH_TOLERANCE
+        - LID_FAN_GRILLE_RETENTION_MIN_BOTTOM_ALLOWANCE
+    ):
+        raise ValueError(
+            "Recommended fan-grille lock screw lacks blind-pilot bottoming "
+            "allowance"
         )
     if CASE_BODY_TPU_M3_PILOT_DIAMETER >= 3.0:
         raise ValueError("TPU pointed-M3 pilot must remain below nominal M3")
@@ -4521,6 +4748,81 @@ def validate_config() -> None:
     ):
         raise ValueError("Fan-grille detents need positive vertical engagement")
     pod_plan = lid_fan_pod_plan_dimensions()
+    if (
+        lid_fan_enabled()
+        and LID_FAN_COVER_ENABLED
+        and LID_FAN_GRILLE_POSITIVE_RETENTION_ENABLED
+    ):
+        grille_lock_center = lid_fan_grille_retention_profile()["center"]
+        grille_lock_boss_radius = (
+            LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER / 2.0
+        )
+        grille_lock_frame_clearances = tuple(
+            math.hypot(
+                max(
+                    abs(grille_lock_center[0] - fan_center[0])
+                    - lid_fan_reference_dimensions()["frame"] / 2.0,
+                    0.0,
+                ),
+                max(
+                    abs(grille_lock_center[1] - fan_center[1])
+                    - lid_fan_reference_dimensions()["frame"] / 2.0,
+                    0.0,
+                ),
+            )
+            - grille_lock_boss_radius
+            for fan_center in lid_fan_unit_centers()
+        )
+        if min(grille_lock_frame_clearances) + 1e-9 < (
+            LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE
+        ):
+            raise ValueError(
+                "Fan-grille lock boss lacks purchased fan-frame clearance: "
+                f"resolved={min(grille_lock_frame_clearances):.2f} mm, "
+                f"required="
+                f"{LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE:.2f} mm"
+            )
+        grille_lock_buttress_frame_clearance = min(
+            grille_lock_center[0]
+            - fan_center[0]
+            - lid_fan_reference_dimensions()["frame"] / 2.0
+            for fan_center in lid_fan_unit_centers()
+        )
+        if grille_lock_buttress_frame_clearance + 1e-9 < (
+            LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE
+        ):
+            raise ValueError(
+                "Fan-grille lock buttress lacks purchased fan-frame "
+                f"clearance: resolved="
+                f"{grille_lock_buttress_frame_clearance:.2f} mm"
+            )
+        grille_lock_pad_outer_x = (
+            grille_lock_center[0]
+            + LID_FAN_GRILLE_RETENTION_PAD_DIAMETER / 2.0
+        )
+        fairing_top_outer_x = (
+            pod_plan["fairing_top_center_x"]
+            + pod_plan["fairing_top_width"] / 2.0
+        )
+        if grille_lock_pad_outer_x > fairing_top_outer_x + 1e-9:
+            raise ValueError(
+                "Fan-grille lock pad extends beyond the fairing top outline"
+            )
+        grille_airflow_radius = (
+            lid_fan_reference_dimensions()["frame"]
+            - 2.0 * LID_FAN_COVER_BORDER_WIDTH
+        ) / 2.0
+        minimum_grille_lock_airflow_clearance = min(
+            math.dist(grille_lock_center, fan_center)
+            - grille_lock_boss_radius
+            - grille_airflow_radius
+            for fan_center in lid_fan_unit_centers()
+        )
+        if minimum_grille_lock_airflow_clearance < -1e-9:
+            raise ValueError(
+                "Fan-grille lock boss overlaps a configured airflow opening: "
+                f"clearance={minimum_grille_lock_airflow_clearance:.2f} mm"
+            )
     detent_straight_edge_margin = (
         min(
             pod_plan["detent_front_offset"],
@@ -9531,6 +9833,312 @@ def axis_point(angle_deg: float, radial: float, tangent: float, z: float):
     return normal * radial + side * tangent + Vector((0.0, 0.0, z))
 
 
+def rear_wall_surface_frame(footprint, tangent: float, z: float):
+    """Return the curved +X shell point and its outward plan normal."""
+    loop = scale_loop(footprint, body_scale_at_z(z))
+    tangent_extent = max(abs(y) for _x, y in loop)
+    sample = min(0.40, tangent_extent / 100.0)
+    low_tangent = max(tangent - sample, -tangent_extent + 1e-5)
+    high_tangent = min(tangent + sample, tangent_extent - 1e-5)
+    if high_tangent - low_tangent <= 1e-6:
+        raise RuntimeError("Rear-wall label reached the footprint tangent limit")
+    surface_x = radial_surface_distance(0.0, tangent, loop)
+    low_x = radial_surface_distance(0.0, low_tangent, loop)
+    high_x = radial_surface_distance(0.0, high_tangent, loop)
+    slope = (high_x - low_x) / (high_tangent - low_tangent)
+    normal = Vector((1.0, -slope, 0.0)).normalized()
+    return Vector((surface_x, tangent, z)), normal
+
+
+def rear_wall_label_wrap_limit(footprint, sign: float, z: float) -> float:
+    """Find the rear chord limit before its surface turns too far sideways."""
+    loop = scale_loop(footprint, body_scale_at_z(z))
+    tangent_extent = max(abs(y) for _x, y in loop)
+    last_valid = 0.0
+    for index in range(1, 401):
+        magnitude = tangent_extent * index / 400.0
+        tangent = math.copysign(magnitude, sign)
+        try:
+            _surface, normal = rear_wall_surface_frame(
+                footprint,
+                tangent,
+                z,
+            )
+        except RuntimeError:
+            break
+        wrap_angle = math.degrees(math.acos(max(min(normal.x, 1.0), -1.0)))
+        if wrap_angle > REAR_WALL_LABEL_MAX_WRAP_ANGLE_DEG:
+            break
+        last_valid = magnitude
+    return last_valid
+
+
+def rear_wall_label_layout(footprint):
+    """Resolve the safe curved-wall rectangle used to scale any label text."""
+    resolved_drop = (
+        float(_RESOLVED_REAR_ENVELOPE["height_reduction"])
+        if _RESOLVED_REAR_ENVELOPE is not None
+        else 0.0
+    )
+    z_min = REAR_WALL_LABEL_BOTTOM_MARGIN
+    z_max = BASE_HEIGHT - resolved_drop - REAR_WALL_LABEL_TOP_MARGIN
+    if z_max <= z_min:
+        raise RuntimeError("Rear-wall label margins consume the available height")
+    vertical_samples = tuple(
+        z_min + (z_max - z_min) * index / 4.0 for index in range(5)
+    )
+    wrap_half_width = min(
+        rear_wall_label_wrap_limit(footprint, sign, z)
+        for sign in (-1.0, 1.0)
+        for z in vertical_samples
+    )
+    half_width = wrap_half_width - REAR_WALL_LABEL_SIDE_MARGIN
+    if half_width <= 0.0:
+        raise RuntimeError("Rear-wall label side margins consume the curved chord")
+    return {
+        "center_z": (z_min + z_max) / 2.0,
+        "width": 2.0 * half_width,
+        "height": z_max - z_min,
+        "wrap_half_width": wrap_half_width,
+        "z_min": z_min,
+        "z_max": z_max,
+    }
+
+
+def subdivide_rear_wall_label_cutter(cutter) -> None:
+    """Limit horizontal cutter facets before wrapping them onto the shell."""
+    bm = bmesh.new()
+    bm.from_mesh(cutter.data)
+    # Converted Blender font caps and side walls initially own coincident
+    # boundary vertices.  Weld those exact seams before triangulation so the
+    # cutter is a collection of closed letter solids, not open face sheets.
+    bmesh.ops.remove_doubles(
+        bm,
+        verts=list(bm.verts),
+        dist=BOOLEAN_CLEANUP_DISTANCE,
+    )
+    bmesh.ops.triangulate(bm, faces=list(bm.faces))
+    for _iteration in range(12):
+        long_edges = [
+            edge
+            for edge in bm.edges
+            if abs(edge.verts[0].co.x - edge.verts[1].co.x)
+            > REAR_WALL_LABEL_MAX_SURFACE_SEGMENT
+        ]
+        if not long_edges:
+            break
+        bmesh.ops.subdivide_edges(
+            bm,
+            edges=long_edges,
+            cuts=1,
+            use_grid_fill=True,
+        )
+    else:
+        bm.free()
+        raise RuntimeError("Rear-wall label surface subdivision did not converge")
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(cutter.data)
+    bm.free()
+    cutter.data.update()
+
+
+def create_rear_wall_label_cutter(footprint):
+    """Create a fitted, beveled text solid conformed to the rear shell."""
+    layout = rear_wall_label_layout(footprint)
+    text = REAR_WALL_LABEL_TEXT.strip()
+    bpy.ops.object.text_add()
+    cutter = bpy.context.object
+    cutter.name = "Rear_Wall_Support_Free_Label_Cutter"
+    curve = cutter.data
+    curve.name = cutter.name + "_Curve"
+    curve.body = text
+    curve.align_x = "CENTER"
+    curve.align_y = "CENTER"
+    curve.size = 1.0
+    curve.extrude = 0.0
+    curve.bevel_depth = 0.0
+    curve.bevel_resolution = 0
+    curve.resolution_u = 8
+    curve.fill_mode = "BOTH"
+    bpy.context.view_layer.update()
+    raw_width = max(point[0] for point in cutter.bound_box) - min(
+        point[0] for point in cutter.bound_box
+    )
+    raw_height = max(point[1] for point in cutter.bound_box) - min(
+        point[1] for point in cutter.bound_box
+    )
+    usable_width = layout["width"] - 2.0 * REAR_WALL_LABEL_BEVEL_DEPTH
+    usable_height = layout["height"] - 2.0 * REAR_WALL_LABEL_BEVEL_DEPTH
+    if min(raw_width, raw_height, usable_width, usable_height) <= 0.0:
+        bpy.data.objects.remove(cutter, do_unlink=True)
+        raise RuntimeError("Rear-wall label has no printable fitted area")
+    font_size = min(usable_width / raw_width, usable_height / raw_height)
+    if font_size < 2.0:
+        bpy.data.objects.remove(cutter, do_unlink=True)
+        raise RuntimeError("Rear-wall label text is too long for readable lettering")
+    curve.size = font_size
+    curve.bevel_depth = REAR_WALL_LABEL_BEVEL_DEPTH
+    curve.extrude = (
+        REAR_WALL_LABEL_DEPTH + REAR_WALL_LABEL_CUTTER_OUTSET
+    ) / 2.0 - REAR_WALL_LABEL_BEVEL_DEPTH
+    bpy.context.view_layer.update()
+    select_only(cutter)
+    bpy.ops.object.convert(target="MESH")
+    cutter.data.name = cutter.name + "_Mesh"
+    if not cutter.data.vertices or not cutter.data.polygons:
+        bpy.data.objects.remove(cutter, do_unlink=True)
+        raise RuntimeError("Rear-wall label font produced no mesh geometry")
+    horizontal_bounds = (
+        min(vertex.co.x for vertex in cutter.data.vertices),
+        max(vertex.co.x for vertex in cutter.data.vertices),
+    )
+    vertical_bounds = (
+        min(vertex.co.y for vertex in cutter.data.vertices),
+        max(vertex.co.y for vertex in cutter.data.vertices),
+    )
+    depth_bounds = (
+        min(vertex.co.z for vertex in cutter.data.vertices),
+        max(vertex.co.z for vertex in cutter.data.vertices),
+    )
+    label_width = horizontal_bounds[1] - horizontal_bounds[0]
+    label_height = vertical_bounds[1] - vertical_bounds[0]
+    # Blender's font bevel expands some acute glyph corners slightly farther
+    # than its nominal depth.  Apply one final uniform in-plane correction
+    # from the evaluated mesh bounds so every font and word still fits.
+    fit_correction = min(
+        1.0,
+        layout["width"] / label_width,
+        layout["height"] / label_height,
+    )
+    if fit_correction < 1.0:
+        horizontal_center = sum(horizontal_bounds) / 2.0
+        vertical_center = sum(vertical_bounds) / 2.0
+        for vertex in cutter.data.vertices:
+            vertex.co.x = horizontal_center + (
+                vertex.co.x - horizontal_center
+            ) * fit_correction
+            vertex.co.y = vertical_center + (
+                vertex.co.y - vertical_center
+            ) * fit_correction
+        font_size *= fit_correction
+        label_width *= fit_correction
+        label_height *= fit_correction
+        horizontal_bounds = (
+            horizontal_center - label_width / 2.0,
+            horizontal_center + label_width / 2.0,
+        )
+        vertical_bounds = (
+            vertical_center - label_height / 2.0,
+            vertical_center + label_height / 2.0,
+        )
+    subdivide_rear_wall_label_cutter(cutter)
+    horizontal_center = sum(horizontal_bounds) / 2.0
+    vertical_center = sum(vertical_bounds) / 2.0
+    outer_depth = depth_bounds[0]
+    cutter_span = depth_bounds[1] - depth_bounds[0]
+    expected_span = REAR_WALL_LABEL_DEPTH + REAR_WALL_LABEL_CUTTER_OUTSET
+    if abs(cutter_span - expected_span) > 1e-5:
+        bpy.data.objects.remove(cutter, do_unlink=True)
+        raise RuntimeError(
+            "Rear-wall label cutter depth does not match its configured span"
+        )
+    for vertex in cutter.data.vertices:
+        tangent = vertex.co.x - horizontal_center
+        z = layout["center_z"] + vertex.co.y - vertical_center
+        surface, normal = rear_wall_surface_frame(footprint, tangent, z)
+        depth_into_cutter = vertex.co.z - outer_depth
+        normal_offset = REAR_WALL_LABEL_CUTTER_OUTSET - depth_into_cutter
+        vertex.co = surface + normal * normal_offset
+    cutter.data.update()
+    recalc_normals(cutter)
+    non_manifold = non_manifold_edge_count(cutter)
+    if non_manifold:
+        bpy.data.objects.remove(cutter, do_unlink=True)
+        raise RuntimeError(
+            f"Rear-wall label cutter has {non_manifold} non-manifold edges"
+        )
+    return cutter, {
+        **layout,
+        "text": text,
+        "font_size": font_size,
+        "label_width": label_width,
+        "label_height": label_height,
+        "cutter_faces": len(cutter.data.polygons),
+    }
+
+
+def add_rear_wall_label(base, footprint):
+    """Deboss the configured word only when the rear wall has no fans."""
+    if rear_wall_fans_enabled():
+        print("REAR_WALL_LABEL inactive=True reason=rear_wall_fans_enabled")
+        return base
+    if not REAR_WALL_LABEL_ENABLED:
+        print("REAR_WALL_LABEL inactive=True reason=disabled_by_configuration")
+        return base
+    # The main base deliberately carries a few transient Boolean n-gons until
+    # the final pivot-stack restore.  Resolve those seams before asking the
+    # stricter manifold solver to cut arbitrary font outlines; otherwise a
+    # valid glyph can expose an unrelated open diagonal much later in the
+    # build.  Recheck the result here so every configured word fails locally,
+    # rather than contaminating downstream hardware operations.
+    triangulate_mesh(base)
+    repair_tiny_closed_boundary_holes(base)
+    pre_label_non_manifold = non_manifold_edge_count(base)
+    if pre_label_non_manifold:
+        raise RuntimeError(
+            "Base must be manifold before rear-wall lettering; "
+            f"non_manifold_edges={pre_label_non_manifold}"
+        )
+    cutter, layout = create_rear_wall_label_cutter(footprint)
+    cutter_parts = separate_loose_mesh_parts(
+        cutter,
+        "Rear_Wall_Label_Glyph_Component",
+    )
+    for component_index, cutter_part in enumerate(cutter_parts, start=1):
+        boolean_difference(
+            base,
+            [cutter_part],
+            f"Rear_Wall_Support_Free_Label_Recess_{component_index}",
+            solver="EXACT",
+            use_self=True,
+        )
+        # Arbitrary glyphs are disconnected cutter solids.  Applying them in
+        # one modifier makes Blender rebuild distant internal structures as
+        # part of a single multi-body classification.  Cut and certify each
+        # component independently so a cosmetic rear-wall feature cannot
+        # disturb vanes, posts, or hardware elsewhere in the case.
+        triangulate_mesh(base)
+        repair_tiny_closed_boundary_holes(base)
+        component_non_manifold = non_manifold_edge_count(base)
+        component_shells = connected_shell_count(base)
+        if component_non_manifold or component_shells != 1:
+            raise RuntimeError(
+                f"Rear-wall label {layout['text']!r} component "
+                f"{component_index}/{len(cutter_parts)} left "
+                f"non_manifold_edges={component_non_manifold} "
+                f"connected_shells={component_shells}: "
+                f"{non_manifold_edge_diagnostics(base, max_items=12)}"
+            )
+    base["rear_wall_label_text"] = layout["text"]
+    base["rear_wall_label_style"] = "curved_chamfered_recess"
+    base["rear_wall_label_depth_mm"] = REAR_WALL_LABEL_DEPTH
+    base["rear_wall_label_width_mm"] = layout["label_width"]
+    base["rear_wall_label_height_mm"] = layout["label_height"]
+    base["rear_wall_label_support_required"] = False
+    print(
+        "REAR_WALL_LABEL PASS "
+        f"text={layout['text']!r} size=({layout['label_width']:.2f},"
+        f"{layout['label_height']:.2f})mm depth={REAR_WALL_LABEL_DEPTH:.2f}mm "
+        f"bevel={REAR_WALL_LABEL_BEVEL_DEPTH:.2f}mm "
+        f"available=({layout['width']:.2f},{layout['height']:.2f})mm "
+        f"wrap={REAR_WALL_LABEL_MAX_WRAP_ANGLE_DEG:.1f}deg "
+        f"surface_facets<={REAR_WALL_LABEL_MAX_SURFACE_SEGMENT:.2f}mm "
+        f"cutter_faces={layout['cutter_faces']} "
+        f"components={len(cutter_parts)} support=none"
+    )
+    return base
+
+
 def front_lid_anchor_geometry(footprint):
     """Resolve the hidden -X nose pocket and its lid-owned horizontal tab."""
     profile = front_lid_anchor_profile()
@@ -14179,7 +14787,14 @@ def separate_loose_mesh_parts(obj, name_prefix):
     return tuple(parts)
 
 
-def apply_boolean(base, tool, operation: str, label: str, solver=None):
+def apply_boolean(
+    base,
+    tool,
+    operation: str,
+    label: str,
+    solver=None,
+    use_self: bool = False,
+):
     select_only(base)
     modifier = base.modifiers.new(label, "BOOLEAN")
     modifier.operation = operation
@@ -14187,7 +14802,7 @@ def apply_boolean(base, tool, operation: str, label: str, solver=None):
     if hasattr(modifier, "solver"):
         modifier.solver = solver or BOOLEAN_SOLVER
     if hasattr(modifier, "use_self"):
-        modifier.use_self = False
+        modifier.use_self = use_self
     modifier_name = modifier.name
     result = bpy.ops.object.modifier_apply(modifier=modifier_name)
     if (
@@ -14204,17 +14819,24 @@ def apply_boolean(base, tool, operation: str, label: str, solver=None):
     return base
 
 
-def boolean_union(base, part, label="Union", solver=None):
+def boolean_union(base, part, label="Union", solver=None, use_self=False):
     return apply_boolean(
         base,
         part,
         "UNION",
         label + "_" + part.name,
         solver=solver,
+        use_self=use_self,
     )
 
 
-def boolean_difference(base, tools, label="Cut", solver=None):
+def boolean_difference(
+    base,
+    tools,
+    label="Cut",
+    solver=None,
+    use_self=False,
+):
     tools = list(tools)
     if not tools:
         return base
@@ -14224,6 +14846,7 @@ def boolean_difference(base, tools, label="Cut", solver=None):
         "DIFFERENCE",
         label,
         solver=solver,
+        use_self=use_self,
     )
 
 
@@ -28011,6 +28634,10 @@ def create_base(
     add_front_lid_anchor_receiver(base, footprint)
     cut_front_lid_anchor_camera_sweep_relief(base, cameras, footprint)
     cut_front_lid_anchor_slot(base, footprint)
+    # Lettering is the final exterior-wall operation.  It is omitted whenever
+    # the same rear surface is consumed by the legacy fan pair, and its shallow
+    # cutter cannot be refilled by any later post or hardware union.
+    add_rear_wall_label(base, footprint)
     if (
         CAMERA_CARTRIDGE_WORM_ENABLED
         and CAMERA_CARRIER_CHIMNEY_REMOVE_SMALL_FRAGMENTS
@@ -29352,6 +29979,8 @@ def create_lid_fan_pod(lid, positions):
         outer_sections,
         inner_sections,
     )
+    grille_retention = lid_fan_grille_retention_profile()
+    grille_lock_x, grille_lock_y = grille_retention["center"]
 
     # Keep the established fan-frame contact height, but carry every friction
     # rib down to the fairing's print-bed plane.  Floating pads would otherwise
@@ -29878,6 +30507,33 @@ def create_lid_fan_pod(lid, positions):
             bridge,
             "Lid_Fan_Grille_Twin_Frame_Center_Bridge_Union",
         )
+    if grille_retention["enabled"]:
+        grille_lock_pad = add_cylinder_z(
+            "Lid_Fan_Grille_Positive_Retention_Head_Bearing_Pad",
+            LID_FAN_GRILLE_RETENTION_PAD_DIAMETER / 2.0,
+            grille_bottom_z,
+            grille_edge_top_z,
+            grille_lock_x,
+            grille_lock_y,
+        )
+        boolean_union(
+            grille,
+            grille_lock_pad,
+            "Lid_Fan_Grille_Positive_Retention_Pad_Union",
+        )
+        grille_lock_clearance = add_cylinder_z(
+            "Lid_Fan_Grille_Positive_Retention_Through_Clearance",
+            LID_FAN_GRILLE_RETENTION_SCREW_CLEARANCE_DIAMETER / 2.0,
+            grille_bottom_z - BOOLEAN_OVERLAP,
+            grille_edge_top_z + BOOLEAN_OVERLAP,
+            grille_lock_x,
+            grille_lock_y,
+        )
+        boolean_difference(
+            grille,
+            [grille_lock_clearance],
+            "Lid_Fan_Grille_Positive_Retention_Clearance_Cut",
+        )
     blocked_ratio = max(blocked_ratios)
     detent_notch_cutters = [
         add_cylinder_z(
@@ -29934,6 +30590,80 @@ def create_lid_fan_pod(lid, positions):
         grille_cutters,
         "Lid_Fan_Grille_Thumbscrew_Access_Cuts",
     )
+    # Add the grille screw's complete load path only after the rail, cable,
+    # and thumbscrew-access Booleans are final.  Those keepouts are disjoint
+    # from this rear-center rib, and cutting the blind pilot last prevents a
+    # later union from partially refilling its material-specific cavity.
+    if grille_retention["enabled"]:
+        buttress_half_width = (
+            LID_FAN_GRILLE_RETENTION_BUTTRESS_WIDTH / 2.0
+        )
+        grille_lock_buttress_sections = []
+        for fraction in section_fractions:
+            section = fairing_section_profile(fraction)
+            shell_outer_x = section["center_x"] + section["width"] / 2.0
+            grille_lock_buttress_sections.append(
+                (
+                    section["z"],
+                    [
+                        (grille_lock_x, grille_lock_y - buttress_half_width),
+                        (shell_outer_x, grille_lock_y - buttress_half_width),
+                        (shell_outer_x, grille_lock_y + buttress_half_width),
+                        (grille_lock_x, grille_lock_y + buttress_half_width),
+                    ],
+                )
+            )
+        grille_lock_buttress = loft_solid(
+            "Lid_Fan_Grille_Positive_Retention_Full_Height_Buttress",
+            grille_lock_buttress_sections,
+            cap_center_x=grille_lock_x + 0.5,
+        )
+        boolean_union(
+            fairing,
+            grille_lock_buttress,
+            "Lid_Fan_Grille_Positive_Retention_Buttress_Union",
+        )
+        grille_lock_boss = add_cylinder_z(
+            "Lid_Fan_Grille_Positive_Retention_Floor_Rooted_Boss",
+            LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER / 2.0,
+            fairing_bottom_z,
+            fairing_top_z,
+            grille_lock_x,
+            grille_lock_y,
+        )
+        boolean_union(
+            fairing,
+            grille_lock_boss,
+            "Lid_Fan_Grille_Positive_Retention_Boss_Union",
+        )
+        grille_lock_pilot = add_cylinder_z(
+            "Lid_Fan_Grille_Positive_Retention_Blind_Pilot",
+            grille_retention["pilot_diameter"] / 2.0,
+            fairing_top_z - LID_FAN_GRILLE_RETENTION_PILOT_DEPTH,
+            fairing_top_z + BOOLEAN_OVERLAP,
+            grille_lock_x,
+            grille_lock_y,
+        )
+        boolean_difference(
+            fairing,
+            [grille_lock_pilot],
+            "Lid_Fan_Grille_Positive_Retention_Blind_Pilot_Cut",
+        )
+        fairing["grille_positive_retention_receiver"] = (
+            grille_retention["receiver_style"]
+        )
+        fairing["grille_positive_retention_pilot_diameter_mm"] = (
+            grille_retention["pilot_diameter"]
+        )
+        fairing["grille_positive_retention_pilot_depth_mm"] = (
+            LID_FAN_GRILLE_RETENTION_PILOT_DEPTH
+        )
+        fairing["grille_positive_retention_boss_diameter_mm"] = (
+            LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER
+        )
+        fairing["grille_positive_retention_buttress_width_mm"] = (
+            LID_FAN_GRILLE_RETENTION_BUTTRESS_WIDTH
+        )
 
     fairing.name = "Hockeymom_Cam_Case_Lid_Fan_Curved_Fairing"
     fairing["material_mode"] = LID_FAN_COVER_MATERIAL_MODE
@@ -29968,13 +30698,39 @@ def create_lid_fan_pod(lid, positions):
         - LID_FAN_GRILLE_SLIDE_CLEARANCE
     )
     grille["detent_count"] = len(detent_specs)
+    grille["positive_retention"] = bool(grille_retention["enabled"])
+    if grille_retention["enabled"]:
+        grille["positive_retention_style"] = (
+            "one_top_access_M3_into_floor_rooted_fairing_boss"
+        )
+        grille["positive_retention_recommended_screw"] = grille_retention[
+            "hardware"
+        ]
+        grille["positive_retention_clearance_diameter_mm"] = (
+            LID_FAN_GRILLE_RETENTION_SCREW_CLEARANCE_DIAMETER
+        )
+        grille["positive_retention_center_x_mm"] = grille_lock_x
+        grille["positive_retention_center_y_mm"] = grille_lock_y
     grille["thumbscrew_access_diameter_mm"] = (
         LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER
     )
     grille["print_orientation"] = "flat_underside_down"
     grille["support_mode"] = LID_FAN_COVER_DOME_SUPPORT_MODE
     grille["print_bed_z"] = grille_bottom_z
-    grille["print_outer_width_mm"] = plan["grille_width"]
+    grille_nominal_min_x = grille_center_x - cap_half_x
+    grille_nominal_max_x = grille_center_x + cap_half_x
+    grille_lock_pad_radius = LID_FAN_GRILLE_RETENTION_PAD_DIAMETER / 2.0
+    grille_print_x_bounds = [grille_nominal_min_x, grille_nominal_max_x]
+    if grille_retention["enabled"]:
+        grille_print_x_bounds.extend(
+            (
+                grille_lock_x - grille_lock_pad_radius,
+                grille_lock_x + grille_lock_pad_radius,
+            )
+        )
+    grille["print_outer_width_mm"] = max(grille_print_x_bounds) - min(
+        grille_print_x_bounds
+    )
     grille["print_outer_depth_mm"] = plan["grille_depth"]
     grille["seated_center_x_mm"] = plan["grille_center_x"]
     grille["fairing_top_perimeter_inset_mm"] = plan[
@@ -30000,6 +30756,8 @@ def create_lid_fan_pod(lid, positions):
         f"blocked_area_ratio={blocked_ratio:.3f} "
         f"grille_detent_preload="
         f"{profile['grille_detent_protrusion'] - LID_FAN_GRILLE_SLIDE_CLEARANCE:.2f}mm "
+        f"grille_positive_retention="
+        f"{grille_retention['hardware'] if grille_retention['enabled'] else 'disabled'} "
         f"support_free_lip_span={unsupported_lip_span:.2f}mm "
         f"thumb_access_diameter={LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER:.2f}mm "
         f"cable_chases={len(cable_routes)} "
@@ -30163,6 +30921,48 @@ def triangulate_mesh(obj) -> None:
         bmesh.ops.delete(bm, geom=duplicate_faces, context="FACES_ONLY")
     bmesh.ops.triangulate(bm, faces=list(bm.faces))
     bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    # A Boolean may encode an internal coincident n-gon with a different
+    # vertex schedule on each side.  Those faces do not compare equal until
+    # triangulation gives both sides the same three corners.  Remove the
+    # newly exposed opposite-facing triangle pairs before inspecting edge
+    # manifoldness; leaving them in place gives their shared edge four linked
+    # faces even though the intended exterior sectors are otherwise sound.
+    triangulated_face_groups = {}
+    for face in bm.faces:
+        signature = tuple(
+            sorted(
+                tuple(round(value, 7) for value in vertex.co)
+                for vertex in face.verts
+            )
+        )
+        triangulated_face_groups.setdefault(signature, []).append(face)
+    triangulated_duplicate_faces = []
+    for faces in triangulated_face_groups.values():
+        while len(faces) >= 2:
+            first = faces.pop()
+            second = faces.pop()
+            if first.normal.dot(second.normal) < -0.99:
+                triangulated_duplicate_faces.extend((first, second))
+            else:
+                triangulated_duplicate_faces.append(second)
+                faces.append(first)
+    if triangulated_duplicate_faces:
+        bmesh.ops.delete(
+            bm,
+            geom=triangulated_duplicate_faces,
+            context="FACES_ONLY",
+        )
+        loose_edges = [edge for edge in bm.edges if not edge.link_faces]
+        if loose_edges:
+            bmesh.ops.delete(bm, geom=loose_edges, context="EDGES")
+        loose_vertices = [vertex for vertex in bm.verts if not vertex.link_faces]
+        if loose_vertices:
+            bmesh.ops.delete(bm, geom=loose_vertices, context="VERTS")
+        bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+        print(
+            f"TRIANGULATION_DUPLICATE_FACE_REPAIR {obj.name}: "
+            f"removed={len(triangulated_duplicate_faces)}"
+        )
     redundant_coplanar_faces = set()
     for edge in bm.edges:
         linked = [
@@ -30415,6 +31215,17 @@ def non_manifold_edge_diagnostics(obj, max_items: int = 32):
                     for value in (obj.matrix_world @ edge.verts[1].co)
                 ),
                 len(edge.link_faces),
+                tuple(
+                    (
+                        tuple(round(value, 5) for value in face.normal),
+                        tuple(
+                            round(value, 5)
+                            for value in (obj.matrix_world @ face.calc_center_median())
+                        ),
+                        round(face.calc_area(), 7),
+                    )
+                    for face in edge.link_faces
+                ),
             )
         )
         if len(diagnostics) >= max_items:
@@ -34430,11 +35241,11 @@ def validate_lid_fan_pod_printability(pod):
                 f"required=({required_span_x:.2f},{required_span_y:.2f})mm"
             )
         if label == "grille" and (
-            first_layer_span_x < outer_width - plane_tolerance
-            or first_layer_span_y < outer_depth - plane_tolerance
+            abs(first_layer_span_x - outer_width) > plane_tolerance
+            or abs(first_layer_span_y - outer_depth) > plane_tolerance
         ):
             raise RuntimeError(
-                "Fan grille does not cover its configured seated footprint: "
+                "Fan grille does not match its configured print footprint: "
                 f"span=({first_layer_span_x:.2f},{first_layer_span_y:.2f})mm, "
                 f"configured=({outer_width:.2f},{outer_depth:.2f})mm"
             )
@@ -34990,6 +35801,251 @@ def validate_lid_fan_fairing_positive_retention(lid, fairing):
         f"lid_receiver={receiver['style']} "
         f"pilot={receiver['pilot_diameter']:.2f}x"
         f"{LID_FAN_FAIRING_RETENTION_PILOT_DEPTH:.2f}mm "
+        "inversion_retention=positive_screw_clamp support=none"
+    )
+
+
+def validate_lid_fan_grille_positive_retention(fairing, grille):
+    """Prove the seated grille has a screw-clamped inversion load path."""
+    retention = lid_fan_grille_retention_profile()
+    if not retention["enabled"]:
+        return
+    fairing_record = object_bvh_record(fairing)
+    grille_record = object_bvh_record(grille)
+
+    def occupied(record, point):
+        local_point = record[1] @ Vector(point)
+        return point_inside_closed_bvh(
+            record[0],
+            local_point,
+        ) or point_inside_bvh_parity(record[0], local_point)
+
+    lock_x, lock_y = retention["center"]
+    grille_bottom_z = float(grille["print_bed_z"])
+    grille_top_z = grille_bottom_z + lid_fan_cover_profile()[
+        "grille_thickness"
+    ]
+    fairing_top_z = grille_bottom_z - LID_FAN_GRILLE_VERTICAL_CLEARANCE
+    pilot_bottom_z = fairing_top_z - LID_FAN_GRILLE_RETENTION_PILOT_DEPTH
+    grille_axis_probes = tuple(
+        (lock_x, lock_y, z)
+        for z in (
+            grille_bottom_z + 0.25,
+            (grille_bottom_z + grille_top_z) / 2.0,
+            grille_top_z - 0.25,
+        )
+    )
+    pilot_axis_probes = tuple(
+        (lock_x, lock_y, z)
+        for z in (
+            pilot_bottom_z + 0.30,
+            (pilot_bottom_z + fairing_top_z) / 2.0,
+            fairing_top_z - 0.30,
+        )
+    )
+    if any(occupied(grille_record, point) for point in grille_axis_probes):
+        raise RuntimeError(
+            "Fan-grille positive-retention screw clearance is obstructed"
+        )
+    if any(occupied(fairing_record, point) for point in pilot_axis_probes):
+        raise RuntimeError(
+            "Fan-grille positive-retention fairing pilot is obstructed"
+        )
+    margin_probe_epsilon = max(100.0 * BOOLEAN_CLEANUP_DISTANCE, 0.01)
+    required_head_bearing_radius = (
+        M3_SOCKET_HEAD_NOMINAL_DIAMETER / 2.0
+        + LID_FAN_GRILLE_RETENTION_MIN_HEAD_EDGE_WEB
+    )
+    head_bearing_probes = tuple(
+        (
+            lock_x + radius * math.cos(2.0 * math.pi * step / 12.0),
+            lock_y + radius * math.sin(2.0 * math.pi * step / 12.0),
+            (grille_bottom_z + grille_top_z) / 2.0,
+        )
+        for radius in (
+            M3_SOCKET_HEAD_NOMINAL_DIAMETER / 2.0
+            + LID_FAN_GRILLE_RETENTION_MIN_HEAD_EDGE_WEB * 0.10,
+            M3_SOCKET_HEAD_NOMINAL_DIAMETER / 2.0
+            + LID_FAN_GRILLE_RETENTION_MIN_HEAD_EDGE_WEB * 0.50,
+            required_head_bearing_radius - margin_probe_epsilon,
+        )
+        for step in range(12)
+    )
+    if not all(
+        occupied(grille_record, point) for point in head_bearing_probes
+    ):
+        raise RuntimeError(
+            "Fan-grille lock screw lacks a complete printed head-bearing pad"
+        )
+    required_boss_wall_radius = (
+        retention["pilot_diameter"] / 2.0
+        + LID_FAN_GRILLE_RETENTION_MIN_RADIAL_WALL
+    )
+    boss_wall_probes = tuple(
+        (
+            lock_x + radius * math.cos(2.0 * math.pi * step / 12.0),
+            lock_y + radius * math.sin(2.0 * math.pi * step / 12.0),
+            z,
+        )
+        for radius in (
+            retention["pilot_diameter"] / 2.0
+            + LID_FAN_GRILLE_RETENTION_MIN_RADIAL_WALL * 0.10,
+            retention["pilot_diameter"] / 2.0
+            + LID_FAN_GRILLE_RETENTION_MIN_RADIAL_WALL * 0.50,
+            required_boss_wall_radius - margin_probe_epsilon,
+        )
+        for z in (
+            pilot_bottom_z + 0.5,
+            fairing_top_z - 0.5,
+        )
+        for step in range(12)
+    )
+    if not all(occupied(fairing_record, point) for point in boss_wall_probes):
+        raise RuntimeError(
+            "Fan-grille lock screw lacks a complete fairing receiver wall"
+        )
+    fairing_bottom_z = float(fairing["print_bed_z"])
+    fairing_height = fairing_top_z - fairing_bottom_z
+    shell_connection_probe_half_width = (
+        LID_FAN_GRILLE_RETENTION_MIN_SHELL_CONNECTION_WIDTH / 2.0
+        - margin_probe_epsilon
+    )
+    shell_connection_probes = []
+    for fraction in (0.05, 0.50, 0.95):
+        section = lid_fan_fairing_plan_section(fraction)
+        shell_inner_x = (
+            section["center_x"]
+            + section["width"] / 2.0
+            - lid_fan_cover_profile()["wall_thickness"]
+        )
+        connector_x = (lock_x + shell_inner_x) / 2.0
+        z = fairing_bottom_z + fraction * fairing_height
+        shell_connection_probes.extend(
+            (
+                (
+                    connector_x,
+                    lock_y + y_sign * shell_connection_probe_half_width,
+                    z,
+                )
+                for y_sign in (-1.0, 1.0)
+            )
+        )
+    if not all(
+        occupied(fairing_record, point) for point in shell_connection_probes
+    ):
+        raise RuntimeError(
+            "Fan-grille lock boss lacks its full-height buttressed shell root"
+        )
+    blind_bottom_probe = (
+        lock_x,
+        lock_y,
+        pilot_bottom_z - LID_FAN_GRILLE_RETENTION_MIN_BOTTOM_ALLOWANCE,
+    )
+    if not occupied(fairing_record, blind_bottom_probe):
+        raise RuntimeError(
+            "Fan-grille lock fairing receiver lacks a blind pilot floor"
+        )
+    airflow_radius = (
+        lid_fan_reference_dimensions()["frame"]
+        - 2.0 * LID_FAN_COVER_BORDER_WIDTH
+    ) / 2.0
+    minimum_airflow_clearance = min(
+        math.dist(retention["center"], fan_center)
+        - LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER / 2.0
+        - airflow_radius
+        for fan_center in lid_fan_unit_centers()
+    )
+    frame = lid_fan_reference_dimensions()["frame"]
+    minimum_fan_frame_clearance = min(
+        math.hypot(
+            max(abs(lock_x - fan_center[0]) - frame / 2.0, 0.0),
+            max(abs(lock_y - fan_center[1]) - frame / 2.0, 0.0),
+        )
+        - LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER / 2.0
+        for fan_center in lid_fan_unit_centers()
+    )
+    if minimum_fan_frame_clearance + 1e-9 < (
+        LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE
+    ):
+        raise RuntimeError(
+            "Final fan-grille lock boss obstructs a purchased fan frame: "
+            f"clearance={minimum_fan_frame_clearance:.2f} mm"
+        )
+    minimum_buttress_frame_clearance = min(
+        lock_x - fan_center[0] - frame / 2.0
+        for fan_center in lid_fan_unit_centers()
+    )
+    if minimum_buttress_frame_clearance + 1e-9 < (
+        LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE
+    ):
+        raise RuntimeError(
+            "Final fan-grille lock buttress obstructs a purchased fan frame: "
+            f"clearance={minimum_buttress_frame_clearance:.2f} mm"
+        )
+    grille_thickness = grille_top_z - grille_bottom_z
+    tightened_engagement = (
+        LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH
+        - grille_thickness
+    )
+    initial_engagement = (
+        tightened_engagement - LID_FAN_GRILLE_VERTICAL_CLEARANCE
+    )
+    bottoming_allowance = (
+        LID_FAN_GRILLE_RETENTION_PILOT_DEPTH - tightened_engagement
+    )
+    minimum_tolerance_initial_engagement = (
+        LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH
+        - LID_FAN_GRILLE_RETENTION_SCREW_LENGTH_TOLERANCE
+        - grille_thickness
+        - LID_FAN_GRILLE_RETENTION_GRILLE_THICKNESS_TOLERANCE
+        - LID_FAN_GRILLE_VERTICAL_CLEARANCE
+    )
+    maximum_tolerance_tightened_insertion = (
+        LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH
+        + LID_FAN_GRILLE_RETENTION_SCREW_LENGTH_TOLERANCE
+        - grille_thickness
+        + LID_FAN_GRILLE_RETENTION_GRILLE_THICKNESS_TOLERANCE
+    )
+    worst_case_bottoming_allowance = (
+        LID_FAN_GRILLE_RETENTION_PILOT_DEPTH
+        - LID_FAN_GRILLE_RETENTION_PILOT_DEPTH_TOLERANCE
+        - maximum_tolerance_tightened_insertion
+    )
+    if minimum_tolerance_initial_engagement < 3.5:
+        raise RuntimeError(
+            "Final fan-grille lock lacks tolerance-adjusted initial "
+            "engagement across the seating gap"
+        )
+    if worst_case_bottoming_allowance + 1e-9 < (
+        LID_FAN_GRILLE_RETENTION_MIN_BOTTOM_ALLOWANCE
+    ):
+        raise RuntimeError(
+            "Final fan-grille lock lacks tolerance-adjusted bottoming "
+            "allowance"
+        )
+    grille["positive_retention_load_paths_validated"] = 1
+    fairing["grille_positive_retention_load_paths_validated"] = 1
+    print(
+        "LID_FAN_GRILLE_POSITIVE_RETENTION PASS "
+        f"hardware={retention['hardware']} access=top_Allen_key "
+        f"grille_clearance="
+        f"{LID_FAN_GRILLE_RETENTION_SCREW_CLEARANCE_DIAMETER:.2f}mm "
+        f"fairing_receiver={retention['receiver_style']} "
+        f"pilot={retention['pilot_diameter']:.2f}x"
+        f"{LID_FAN_GRILLE_RETENTION_PILOT_DEPTH:.2f}mm "
+        f"initial_engagement={initial_engagement:.2f}mm "
+        f"tightened_engagement={tightened_engagement:.2f}mm "
+        f"bottoming_allowance={bottoming_allowance:.2f}mm "
+        f"worst_initial_engagement="
+        f"{minimum_tolerance_initial_engagement:.2f}mm "
+        f"worst_bottoming_allowance={worst_case_bottoming_allowance:.2f}mm "
+        f"fan_frame_clearance={minimum_fan_frame_clearance:.2f}mm "
+        f"buttress_frame_clearance="
+        f"{minimum_buttress_frame_clearance:.2f}mm "
+        f"shell_connection_width="
+        f"{LID_FAN_GRILLE_RETENTION_MIN_SHELL_CONNECTION_WIDTH:.2f}mm "
+        f"margin_probe_epsilon={margin_probe_epsilon:.3f}mm "
+        f"airflow_clearance={minimum_airflow_clearance:.2f}mm "
         "inversion_retention=positive_screw_clamp support=none"
     )
 
@@ -36701,6 +37757,10 @@ def build_hockeymom_cam_case():
             validate_object(part)
         validate_lid_fan_pod_printability(lid_fan_pod)
         validate_lid_fan_pod_fit_and_service(lid, lid_fan_pod)
+        validate_lid_fan_grille_positive_retention(
+            lid_fan_pod["fairing"],
+            lid_fan_pod["grille"],
+        )
         validate_lid_fan_fairing_positive_retention(
             lid,
             lid_fan_pod["fairing"],

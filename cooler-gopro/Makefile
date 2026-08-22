@@ -3,6 +3,10 @@ BLENDER_FLAGS ?= --background --factory-startup
 PDF_PYTHON ?= $(shell command -v python 2>/dev/null || command -v python3 2>/dev/null || printf '%s' python3)
 
 DIMENSION_PDF := hockeymom_cam_case_configuration_dimensions.pdf
+HOCKEYMOM_CAM_CASE_OBSOLETE_DIMENSION_PDFS := \
+	hockeymom_3_cam_cover_configuration_dimensions.pdf
+HOCKEYMOM_CAM_CASE_OBSOLETE_IMAGES := \
+	hockeymom_3_cam_cover_original_style.png
 FAN_CASE_DIMENSION_PDF := gopro_fan_case_configuration_dimensions.pdf
 DUAL_FAN_DIMENSION_PDF := gopro_dual_fan_configuration_dimensions.pdf
 
@@ -137,6 +141,30 @@ HOCKEYMOM_CAM_CASE_ALL_STLS := $(sort \
 	$(HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS) \
 	$(HOCKEYMOM_CAM_CASE_LID_FAN_STLS) \
 	$(HOCKEYMOM_CAM_CASE_OPTIONAL_STLS))
+
+# Purge generated artifacts from before the hockeymom_cam_case rename so an
+# update cannot leave obsolete and current parts side by side.
+HOCKEYMOM_CAM_CASE_OBSOLETE_STLS := \
+	hockeymom_3_cam_cover_original_style_base.stl \
+	hockeymom_3_cam_cover_original_style_lid.stl \
+	hockeymom_3_cam_cover_camera_bracket_1.stl \
+	hockeymom_3_cam_cover_camera_bracket_2.stl \
+	hockeymom_3_cam_cover_rotating_camera_cartridge.stl \
+	hockeymom_3_cam_cover_idler_shaft_cap.stl \
+	hockeymom_3_cam_cover_worm_inner_bearing_cap.stl \
+	hockeymom_3_cam_cover_worm_outer_bearing_cap.stl \
+	hockeymom_3_cam_cover_fan_acoustic_trough.stl \
+	hockeymom_3_cam_cover_fan_acoustic_lid.stl \
+	hockeymom_3_cam_cover_fan_acoustic_boot_seal_1.stl \
+	hockeymom_3_cam_cover_fan_acoustic_boot_seal_2.stl \
+	hockeymom_3_cam_cover_ASSEMBLY_REFERENCE_NOT_FOR_PRINT.stl \
+	hockeymom_3_cam_cover_cartridge_removable_front_stop.stl \
+	hockeymom_3_cam_cover_purchased_worm_reference.stl \
+	hockeymom_3_cam_cover_purchased_worm_wheel_reference.stl \
+	hockeymom_3_cam_cover_purchased_4mm_idler_shaft_reference.stl \
+	hockeymom_3_cam_cover_idler_spur_pinion.stl \
+	hockeymom_3_cam_cover_fan_gasket_1.stl \
+	hockeymom_3_cam_cover_fan_gasket_2.stl
 
 STL_FILES := \
 	$(FLAT_FAN_COVER_STLS) \
@@ -314,7 +342,9 @@ $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py fan_size_presets.py
 # explicit opt-in export switches remain outside this group.
 $(HOCKEYMOM_CAM_CASE_STLS) &: hockeymom_cam_case_blender.py \
 	gopro_mission1_dummy_blender.py fan_size_presets.py
-	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS)
+	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS) \
+		$(HOCKEYMOM_CAM_CASE_OBSOLETE_STLS) \
+		$(HOCKEYMOM_CAM_CASE_OBSOLETE_IMAGES)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
 		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_hockeymom_cam_case']()"
 	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(HOCKEYMOM_CAM_CASE_STLS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
@@ -348,13 +378,15 @@ clean-fan-case:
 	$(RM) $(FAN_CASE_ALL_STLS)
 
 clean-hockeymom-cam-case:
-	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS)
+	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS) \
+		$(HOCKEYMOM_CAM_CASE_OBSOLETE_STLS) \
+		$(HOCKEYMOM_CAM_CASE_OBSOLETE_IMAGES)
 
 clean-dual-fan-dim-pdf:
 	$(RM) $(DUAL_FAN_DIMENSION_PDF)
 
 clean-dim-pdf:
-	$(RM) $(DIMENSION_PDF)
+	$(RM) $(DIMENSION_PDF) $(HOCKEYMOM_CAM_CASE_OBSOLETE_DIMENSION_PDFS)
 
 clean-fan-case-dim-pdf:
 	$(RM) $(FAN_CASE_DIMENSION_PDF)
