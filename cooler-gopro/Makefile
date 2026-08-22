@@ -2,7 +2,11 @@ BLENDER ?= $(shell command -v blender 2>/dev/null || command -v /home/colivier/A
 BLENDER_FLAGS ?= --background --factory-startup
 PDF_PYTHON ?= $(shell command -v python 2>/dev/null || command -v python3 2>/dev/null || printf '%s' python3)
 
-DIMENSION_PDF := hockeymom_3_cam_cover_configuration_dimensions.pdf
+DIMENSION_PDF := hockeymom_cam_case_configuration_dimensions.pdf
+HOCKEYMOM_CAM_CASE_OBSOLETE_DIMENSION_PDFS := \
+	hockeymom_3_cam_cover_configuration_dimensions.pdf
+HOCKEYMOM_CAM_CASE_OBSOLETE_IMAGES := \
+	hockeymom_3_cam_cover_original_style.png
 FAN_CASE_DIMENSION_PDF := gopro_fan_case_configuration_dimensions.pdf
 DUAL_FAN_DIMENSION_PDF := gopro_dual_fan_configuration_dimensions.pdf
 
@@ -57,6 +61,9 @@ FAN_SILENCER_OBSOLETE_STLS := \
 BAFFLE_CARTRIDGE_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_ENABLED' for target in node.targets)))")
 BAFFLE_CARTRIDGE_MATERIAL_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'BAFFLE_CARTRIDGE_MATERIAL_MODE' for target in node.targets)))")
 FAN_CASE_REAR_FAN_ADAPTER_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('gopro_fan_case_parametric_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'REAR_FAN_ADAPTER_ENABLED' for target in node.targets)))")
+HOCKEYMOM_FAN_MOUNT_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('hockeymom_cam_case_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'FAN_MOUNT_MODE' for target in node.targets)))")
+HOCKEYMOM_LID_FAN_COVER_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('hockeymom_cam_case_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'LID_FAN_COVER_ENABLED' for target in node.targets)))")
+HOCKEYMOM_FAN_ACOUSTIC_ATTENUATOR_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('hockeymom_cam_case_blender.py', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'FAN_ACOUSTIC_ATTENUATOR_ENABLED' for target in node.targets)))")
 FAN_CASE_CORE_STLS := \
 	gopro_fan_case_parametric.stl \
 	gopro_fan_case_back.stl \
@@ -83,7 +90,61 @@ FAN_CASE_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_ACTIVE_BAFFLE_STLS) \
 	$(FAN_CASE_ACTIVE_REAR_FAN_ADAPTER_STLS)
 FAN_CASE_ALL_STLS := $(FAN_CASE_CORE_STLS) $(FAN_CASE_BAFFLE_STLS) \
 	$(FAN_CASE_REAR_FAN_ADAPTER_STLS)
-HOCKEYMOM_COVER_STLS := \
+HOCKEYMOM_CAM_CASE_CORE_STLS := \
+	hockeymom_cam_case_base.stl \
+	hockeymom_cam_case_lid.stl \
+	hockeymom_cam_case_camera_bracket_1.stl \
+	hockeymom_cam_case_camera_bracket_2.stl \
+	hockeymom_cam_case_rotating_camera_cartridge.stl \
+	hockeymom_cam_case_idler_shaft_cap.stl \
+	hockeymom_cam_case_worm_inner_bearing_cap.stl \
+	hockeymom_cam_case_worm_outer_bearing_cap.stl
+
+HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS := \
+	hockeymom_cam_case_fan_acoustic_trough.stl \
+	hockeymom_cam_case_fan_acoustic_lid.stl \
+	hockeymom_cam_case_fan_acoustic_boot_seal_1.stl \
+	hockeymom_cam_case_fan_acoustic_boot_seal_2.stl
+HOCKEYMOM_CAM_CASE_LID_FAN_STLS := \
+	hockeymom_cam_case_lid_fan_fairing.stl \
+	hockeymom_cam_case_lid_fan_grille.stl
+HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS :=
+ifneq (,$(filter lid_single lid_pair,$(HOCKEYMOM_FAN_MOUNT_MODE)))
+ifeq ($(HOCKEYMOM_LID_FAN_COVER_ENABLED),True)
+HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS += $(HOCKEYMOM_CAM_CASE_LID_FAN_STLS)
+endif
+endif
+ifeq ($(HOCKEYMOM_FAN_MOUNT_MODE),rear_wall_pair)
+ifeq ($(HOCKEYMOM_FAN_ACOUSTIC_ATTENUATOR_ENABLED),True)
+HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS += $(HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS)
+endif
+endif
+HOCKEYMOM_CAM_CASE_STLS := $(HOCKEYMOM_CAM_CASE_CORE_STLS) \
+	$(HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS)
+
+# These are emitted only when their corresponding reference/service export
+# switches are enabled.  Keep them out of the grouped build prerequisites,
+# but include them in cleanup so stale optional artifacts cannot survive a
+# configuration change.
+HOCKEYMOM_CAM_CASE_OPTIONAL_STLS := \
+	hockeymom_cam_case_ASSEMBLY_REFERENCE_NOT_FOR_PRINT.stl \
+	hockeymom_cam_case_lid_fan_cover.stl \
+	hockeymom_cam_case_cartridge_removable_front_stop.stl \
+	hockeymom_cam_case_purchased_worm_reference.stl \
+	hockeymom_cam_case_purchased_worm_wheel_reference.stl \
+	hockeymom_cam_case_purchased_4mm_idler_shaft_reference.stl \
+	hockeymom_cam_case_idler_spur_pinion.stl \
+	hockeymom_cam_case_fan_gasket_1.stl \
+	hockeymom_cam_case_fan_gasket_2.stl
+HOCKEYMOM_CAM_CASE_ALL_STLS := $(sort \
+	$(HOCKEYMOM_CAM_CASE_CORE_STLS) \
+	$(HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS) \
+	$(HOCKEYMOM_CAM_CASE_LID_FAN_STLS) \
+	$(HOCKEYMOM_CAM_CASE_OPTIONAL_STLS))
+
+# Purge generated artifacts from before the hockeymom_cam_case rename so an
+# update cannot leave obsolete and current parts side by side.
+HOCKEYMOM_CAM_CASE_OBSOLETE_STLS := \
 	hockeymom_3_cam_cover_original_style_base.stl \
 	hockeymom_3_cam_cover_original_style_lid.stl \
 	hockeymom_3_cam_cover_camera_bracket_1.stl \
@@ -95,13 +156,7 @@ HOCKEYMOM_COVER_STLS := \
 	hockeymom_3_cam_cover_fan_acoustic_trough.stl \
 	hockeymom_3_cam_cover_fan_acoustic_lid.stl \
 	hockeymom_3_cam_cover_fan_acoustic_boot_seal_1.stl \
-	hockeymom_3_cam_cover_fan_acoustic_boot_seal_2.stl
-
-# These are emitted only when their corresponding reference/service export
-# switches are enabled.  Keep them out of the grouped build prerequisites,
-# but include them in cleanup so stale optional artifacts cannot survive a
-# configuration change.
-HOCKEYMOM_OPTIONAL_STLS := \
+	hockeymom_3_cam_cover_fan_acoustic_boot_seal_2.stl \
 	hockeymom_3_cam_cover_ASSEMBLY_REFERENCE_NOT_FOR_PRINT.stl \
 	hockeymom_3_cam_cover_cartridge_removable_front_stop.stl \
 	hockeymom_3_cam_cover_purchased_worm_reference.stl \
@@ -128,15 +183,15 @@ STL_FILES := \
 	dual-fan-dim-pdf check-dual-fan-dim-pdf-sync \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-silencer \
-	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymom-cover \
+	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymom-cam-case \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cover \
+	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
 	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf
 
 # Keep every generated dimension guide synchronized with its model sources.
 # Each PDF target also depends on its generator, so any configuration or
 # documentation-layout change is reflected by the next normal `make all`.
-all: $(STL_FILES) $(HOCKEYMOM_COVER_STLS) \
+all: $(STL_FILES) $(HOCKEYMOM_CAM_CASE_STLS) \
 	$(DUAL_FAN_DIMENSION_PDF) $(FAN_CASE_DIMENSION_PDF) $(DIMENSION_PDF) \
 	check-dual-fan-dim-pdf-sync check-fan-case-dim-pdf-sync check-dim-pdf-sync
 
@@ -154,7 +209,7 @@ print_targets:
 		'dual-fan                  Build the fan holder and both GoPro adapter variants; optional splitter follows CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \
-		'hockeymom-cover           Build all HOCKEYMOM 3 camera-cover component STLs.' \
+		'hockeymom-cam-case        Build all Hockeymom camera-case component STLs.' \
 		'' \
 		'Renders' \
 		'-------' \
@@ -167,7 +222,7 @@ print_targets:
 		'check-dual-fan-dim-pdf-sync  Verify dual-fan PDF synchronization and drawing coverage.' \
 		'fan-case-dim-pdf          Build the fan-case configuration dimension PDF.' \
 		'check-fan-case-dim-pdf-sync  Verify PDF synchronization and engineering-drawing coverage.' \
-		'dim-pdf                   Build the HOCKEYMOM 3 configuration dimension PDF.' \
+		'dim-pdf                   Build the Hockeymom camera-case configuration dimension PDF.' \
 		'check-dim-pdf-sync        Verify the PDF matches its model and generator sources.' \
 		'' \
 		'Cleanup' \
@@ -180,10 +235,10 @@ print_targets:
 		'clean-dual-fan            Remove the dual-fan holder and adapter STLs.' \
 		'clean-fan-silencer        Remove fan-silencer STLs and generated render images.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
-		'clean-hockeymom-cover     Remove all HOCKEYMOM 3 camera-cover STLs.' \
+		'clean-hockeymom-cam-case  Remove all Hockeymom camera-case STLs.' \
 		'clean-dual-fan-dim-pdf    Remove the dual-fan configuration dimension PDF.' \
 		'clean-fan-case-dim-pdf    Remove the fan-case configuration dimension PDF.' \
-		'clean-dim-pdf             Remove the HOCKEYMOM 3 configuration dimension PDF.' \
+		'clean-dim-pdf             Remove the Hockeymom camera-case configuration dimension PDF.' \
 		'' \
 		'Meta' \
 		'----' \
@@ -206,13 +261,14 @@ check-dual-fan-dim-pdf-sync: $(DUAL_FAN_DIMENSION_PDF)
 	$(PDF_PYTHON) generate_dual_fan_config_dimension_pdf.py --check-sync
 
 check-dim-pdf-sync: $(DIMENSION_PDF)
-	$(PDF_PYTHON) generate_hockeymom_config_dimension_pdf.py --check-sync
+	$(PDF_PYTHON) generate_hockeymom_cam_case_dimension_pdf.py --check-sync
 
 check-fan-case-dim-pdf-sync: $(FAN_CASE_DIMENSION_PDF)
 	$(PDF_PYTHON) generate_fan_case_config_dimension_pdf.py --check-sync
 
-$(DIMENSION_PDF): generate_hockeymom_config_dimension_pdf.py \
-	hockeymom_3_cam_cover_original_style_blender.py gopro_mission1_dummy_blender.py
+$(DIMENSION_PDF): generate_hockeymom_cam_case_dimension_pdf.py \
+	hockeymom_cam_case_blender.py gopro_mission1_dummy_blender.py \
+	fan_size_presets.py
 	$(PDF_PYTHON) $<
 
 $(FAN_CASE_DIMENSION_PDF): generate_fan_case_config_dimension_pdf.py \
@@ -284,15 +340,19 @@ $(FAN_CASE_STLS) &: gopro_fan_case_parametric_blender.py fan_size_presets.py
 # Hockeymom component.  This keeps direct component targets useful and avoids
 # rebuilding an unchanged cover every time `make all` is run.  Artifacts behind
 # explicit opt-in export switches remain outside this group.
-$(HOCKEYMOM_COVER_STLS) &: hockeymom_3_cam_cover_original_style_blender.py gopro_mission1_dummy_blender.py
-	$(RM) $(HOCKEYMOM_COVER_STLS) $(HOCKEYMOM_OPTIONAL_STLS)
-	$(BLENDER) $(BLENDER_FLAGS) --python-expr \
-		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_original_style_cover']()"
+$(HOCKEYMOM_CAM_CASE_STLS) &: hockeymom_cam_case_blender.py \
+	gopro_mission1_dummy_blender.py fan_size_presets.py
+	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS) \
+		$(HOCKEYMOM_CAM_CASE_OBSOLETE_STLS) \
+		$(HOCKEYMOM_CAM_CASE_OBSOLETE_IMAGES)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
+		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['build_hockeymom_cam_case']()"
+	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(HOCKEYMOM_CAM_CASE_STLS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
 
-hockeymom-cover: $(HOCKEYMOM_COVER_STLS)
+hockeymom-cam-case: $(HOCKEYMOM_CAM_CASE_STLS)
 
 clean: clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cover \
+	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
 	clean-dual-fan-dim-pdf clean-fan-case-dim-pdf clean-dim-pdf
 
 clean-flat-fan-cover:
@@ -317,14 +377,16 @@ clean-fan-silencer:
 clean-fan-case:
 	$(RM) $(FAN_CASE_ALL_STLS)
 
-clean-hockeymom-cover:
-	$(RM) $(HOCKEYMOM_COVER_STLS) $(HOCKEYMOM_OPTIONAL_STLS)
+clean-hockeymom-cam-case:
+	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS) \
+		$(HOCKEYMOM_CAM_CASE_OBSOLETE_STLS) \
+		$(HOCKEYMOM_CAM_CASE_OBSOLETE_IMAGES)
 
 clean-dual-fan-dim-pdf:
 	$(RM) $(DUAL_FAN_DIMENSION_PDF)
 
 clean-dim-pdf:
-	$(RM) $(DIMENSION_PDF)
+	$(RM) $(DIMENSION_PDF) $(HOCKEYMOM_CAM_CASE_OBSOLETE_DIMENSION_PDFS)
 
 clean-fan-case-dim-pdf:
 	$(RM) $(FAN_CASE_DIMENSION_PDF)
