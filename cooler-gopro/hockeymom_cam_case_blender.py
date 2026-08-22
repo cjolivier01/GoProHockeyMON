@@ -1413,6 +1413,19 @@ LID_FAN_COVER_RIGID_RETENTION_PROTRUSION = 0.40
 LID_FAN_COVER_TPU_RETENTION_PROTRUSION = 0.35
 LID_FAN_COVER_RETENTION_PAD_LENGTH = 22.0
 LID_FAN_COVER_RETENTION_PAD_HEIGHT = 2.0
+# Two hidden M3 screws positively clamp the floor-rooted +/-Y friction ribs
+# to blind receivers in the lid.  The grille is removed for driver access;
+# once installed, inversion and vibration no longer rely on TPU friction.
+LID_FAN_FAIRING_POSITIVE_RETENTION_ENABLED = True
+LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER = 3.4
+LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER = 6.2
+LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH = 1.0
+LID_FAN_FAIRING_RETENTION_RECOMMENDED_SCREW_LENGTH = 6.0
+LID_FAN_FAIRING_RETENTION_TPU_PILOT_DIAMETER = 1.8
+LID_FAN_FAIRING_RETENTION_RIGID_PILOT_DIAMETER = 2.5
+LID_FAN_FAIRING_RETENTION_PILOT_DEPTH = 3.2
+LID_FAN_FAIRING_RETENTION_MIN_LID_BOTTOM_WEB = 1.2
+LID_FAN_FAIRING_RETENTION_MIN_HEAD_EDGE_CLEARANCE = 1.5
 LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER = 22.5
 LID_FAN_COVER_MAX_BLOCKED_AREA_RATIO = 0.32
 LID_FAN_COVER_MIN_FIRST_LAYER_CONTACT_AREA = 350.0
@@ -2023,6 +2036,77 @@ def lid_fan_pod_plan_dimensions():
             grille_width / 2.0,
         ),
     }
+
+
+def lid_fan_fairing_plan_section(fraction):
+    """Return one eased XY section of the tapered fan fairing."""
+    plan = lid_fan_pod_plan_dimensions()
+    eased = fraction * fraction * (3.0 - 2.0 * fraction)
+    return {
+        "width": plan["fairing_bottom_width"] + eased * (
+            plan["fairing_top_width"] - plan["fairing_bottom_width"]
+        ),
+        "depth": plan["fairing_bottom_depth"] + eased * (
+            plan["fairing_top_depth"] - plan["fairing_bottom_depth"]
+        ),
+        "center_x": plan["fairing_bottom_center_x"] + eased * (
+            plan["fairing_top_center_x"]
+            - plan["fairing_bottom_center_x"]
+        ),
+        "radius": LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS + eased * (
+            LID_FAN_FAIRING_TOP_CORNER_RADIUS
+            - LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS
+        ),
+    }
+
+
+def lid_fan_fairing_retention_receiver_profile():
+    """Resolve the lid's blind thread-forming receiver for the fairing."""
+    if lid_uses_tpu():
+        return {
+            "style": "pointed_M3_self_tapping",
+            "pilot_diameter": LID_FAN_FAIRING_RETENTION_TPU_PILOT_DIAMETER,
+        }
+    return {
+        "style": "M3_thread_forming_rigid_pilot",
+        "pilot_diameter": LID_FAN_FAIRING_RETENTION_RIGID_PILOT_DIAMETER,
+    }
+
+
+def lid_fan_fairing_retention_screw_centers():
+    """Return hidden screw axes through the two floor-rooted side ribs."""
+    if not (
+        lid_fan_enabled()
+        and LID_FAN_COVER_ENABLED
+        and LID_FAN_FAIRING_POSITIVE_RETENTION_ENABLED
+    ):
+        return ()
+    dimensions = lid_fan_reference_dimensions()
+    profile = lid_fan_cover_profile()
+    plan = lid_fan_pod_plan_dimensions()
+    fairing_height = (
+        dimensions["depth"]
+        + LID_FAN_COVER_TOP_CLEARANCE
+        - profile["fit_clearance"]
+    )
+    contact_fraction = (
+        1.5 * LID_FAN_COVER_RETENTION_PAD_HEIGHT / fairing_height
+    )
+    section = lid_fan_fairing_plan_section(contact_fraction)
+    shell_offset_y = section["depth"] / 2.0
+    fan_contact_offset_y = (
+        plan["depth_y"] / 2.0
+        + profile["fit_clearance"]
+        - profile["retention_protrusion"]
+    )
+    screw_offset_y = (shell_offset_y + fan_contact_offset_y) / 2.0
+    return tuple(
+        (
+            float(LID_FAN_CENTER_X),
+            float(LID_FAN_CENTER_Y) + y_sign * screw_offset_y,
+        )
+        for y_sign in (1.0, -1.0)
+    )
 
 
 def lid_fan_mount_centers():
@@ -4193,6 +4277,33 @@ def validate_config() -> None:
         "LID_FAN_COVER_RETENTION_PAD_HEIGHT": (
             LID_FAN_COVER_RETENTION_PAD_HEIGHT
         ),
+        "LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER": (
+            LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER
+        ),
+        "LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER": (
+            LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER
+        ),
+        "LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH": (
+            LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH
+        ),
+        "LID_FAN_FAIRING_RETENTION_RECOMMENDED_SCREW_LENGTH": (
+            LID_FAN_FAIRING_RETENTION_RECOMMENDED_SCREW_LENGTH
+        ),
+        "LID_FAN_FAIRING_RETENTION_TPU_PILOT_DIAMETER": (
+            LID_FAN_FAIRING_RETENTION_TPU_PILOT_DIAMETER
+        ),
+        "LID_FAN_FAIRING_RETENTION_RIGID_PILOT_DIAMETER": (
+            LID_FAN_FAIRING_RETENTION_RIGID_PILOT_DIAMETER
+        ),
+        "LID_FAN_FAIRING_RETENTION_PILOT_DEPTH": (
+            LID_FAN_FAIRING_RETENTION_PILOT_DEPTH
+        ),
+        "LID_FAN_FAIRING_RETENTION_MIN_LID_BOTTOM_WEB": (
+            LID_FAN_FAIRING_RETENTION_MIN_LID_BOTTOM_WEB
+        ),
+        "LID_FAN_FAIRING_RETENTION_MIN_HEAD_EDGE_CLEARANCE": (
+            LID_FAN_FAIRING_RETENTION_MIN_HEAD_EDGE_CLEARANCE
+        ),
         "LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER": (
             LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER
         ),
@@ -4257,6 +4368,69 @@ def validate_config() -> None:
     for name, value in material_dimensions.items():
         if not math.isfinite(value) or value <= 0.0:
             raise ValueError(f"{name} must be finite and positive")
+    if not isinstance(LID_FAN_FAIRING_POSITIVE_RETENTION_ENABLED, bool):
+        raise ValueError(
+            "LID_FAN_FAIRING_POSITIVE_RETENTION_ENABLED must be a Boolean"
+        )
+    if max(
+        LID_FAN_FAIRING_RETENTION_TPU_PILOT_DIAMETER,
+        LID_FAN_FAIRING_RETENTION_RIGID_PILOT_DIAMETER,
+    ) >= LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER:
+        raise ValueError(
+            "Fan-fairing lid pilots must remain smaller than the screw "
+            "clearance holes"
+        )
+    if (
+        LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER
+        < M3_SOCKET_HEAD_NOMINAL_DIAMETER
+        or LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER
+        <= LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER
+    ):
+        raise ValueError(
+            "Fan-fairing counterbore must clear an M3 socket head and shank"
+        )
+    retention_rib_thickness = 2.0 * LID_FAN_COVER_RETENTION_PAD_HEIGHT
+    if (
+        LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH
+        >= retention_rib_thickness
+    ):
+        raise ValueError(
+            "Fan-fairing counterbore must leave a positive screw-lug floor"
+        )
+    minimum_thread_engagement = (
+        LID_FAN_FAIRING_RETENTION_RECOMMENDED_SCREW_LENGTH
+        - (
+            retention_rib_thickness
+            - LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH
+        )
+        - max(
+            LID_FAN_COVER_RIGID_FIT_CLEARANCE,
+            LID_FAN_COVER_TPU_FIT_CLEARANCE,
+        )
+    )
+    if not 2.5 <= minimum_thread_engagement <= (
+        LID_FAN_FAIRING_RETENTION_PILOT_DEPTH
+    ):
+        raise ValueError(
+            "Recommended fan-fairing screw must engage 2.5 mm or more without "
+            "passing the blind pilot"
+        )
+    if (
+        LID_FAN_FAIRING_RETENTION_PILOT_DEPTH
+        + LID_FAN_FAIRING_RETENTION_MIN_LID_BOTTOM_WEB
+        > LID_THICKNESS + 1e-9
+    ):
+        raise ValueError(
+            "Fan-fairing blind pilots and bottom web exceed lid thickness"
+        )
+    if (
+        LID_FAN_COVER_RETENTION_PAD_LENGTH
+        < LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER
+        + 2.0 * LID_FAN_FAIRING_RETENTION_MIN_HEAD_EDGE_CLEARANCE
+    ):
+        raise ValueError(
+            "Fan-fairing side ribs are too short for hidden M3 screw heads"
+        )
     if CASE_BODY_TPU_M3_PILOT_DIAMETER >= 3.0:
         raise ValueError("TPU pointed-M3 pilot must remain below nominal M3")
     if min(
@@ -28782,6 +28956,69 @@ def add_lid_fan_mount(lid, footprint, positions):
         mount_holes,
         "Lid_Fan_Array_Mount_Holes_Cut",
     )
+    fairing_retention_centers = lid_fan_fairing_retention_screw_centers()
+    if fairing_retention_centers:
+        receiver = lid_fan_fairing_retention_receiver_profile()
+        receiver_bottom_z = (
+            seat_z1 - LID_FAN_FAIRING_RETENTION_PILOT_DEPTH
+        )
+        minimum_bottom_web = min(
+            receiver_bottom_z - local_base_seam_z(x, y)
+            for x, y in fairing_retention_centers
+        )
+        if (
+            minimum_bottom_web + 1e-9
+            < LID_FAN_FAIRING_RETENTION_MIN_LID_BOTTOM_WEB
+        ):
+            raise RuntimeError(
+                "Fan-fairing retention receivers leave insufficient lid web: "
+                f"resolved={minimum_bottom_web:.2f}mm, required="
+                f"{LID_FAN_FAIRING_RETENTION_MIN_LID_BOTTOM_WEB:.2f}mm"
+            )
+        receiver_cutters = tuple(
+            add_cylinder_z(
+                f"Lid_Fan_Fairing_Retention_Pilot_{index}",
+                receiver["pilot_diameter"] / 2.0,
+                receiver_bottom_z,
+                seat_z1 + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+            for index, (x, y) in enumerate(
+                fairing_retention_centers,
+                start=1,
+            )
+        )
+        boolean_difference(
+            lid,
+            receiver_cutters,
+            "Lid_Fan_Fairing_Blind_Retention_Pilots_Cut",
+        )
+        lid["fan_fairing_positive_retention"] = True
+        lid["fan_fairing_retention_style"] = receiver["style"]
+        lid["fan_fairing_retention_screw_count"] = len(
+            fairing_retention_centers
+        )
+        lid["fan_fairing_retention_pilot_diameter_mm"] = receiver[
+            "pilot_diameter"
+        ]
+        lid["fan_fairing_retention_pilot_depth_mm"] = (
+            LID_FAN_FAIRING_RETENTION_PILOT_DEPTH
+        )
+        lid["fan_fairing_retention_recommended_screw"] = "M3x6"
+        lid["fan_fairing_retention_minimum_bottom_web_mm"] = (
+            minimum_bottom_web
+        )
+        print(
+            "LID_FAN_FAIRING_POSITIVE_RETENTION_RECEIVERS "
+            f"count={len(fairing_retention_centers)} "
+            f"lid_material={LID_MATERIAL_MODE} style={receiver['style']} "
+            f"pilot={receiver['pilot_diameter']:.2f}x"
+            f"{LID_FAN_FAIRING_RETENTION_PILOT_DEPTH:.2f}mm "
+            f"hardware=M3x"
+            f"{LID_FAN_FAIRING_RETENTION_RECOMMENDED_SCREW_LENGTH:.0f} "
+            f"minimum_bottom_web={minimum_bottom_web:.2f}mm"
+        )
     lid["fan_mount_mode"] = FAN_MOUNT_MODE
     lid["lid_fan_count"] = lid_fan_count()
     lid["lid_fan_frame_size_mm"] = dimensions["frame"]
@@ -29070,25 +29307,12 @@ def create_lid_fan_pod(lid, positions):
         ]
 
     def fairing_section_profile(fraction):
-        eased = fraction * fraction * (3.0 - 2.0 * fraction)
+        section = lid_fan_fairing_plan_section(fraction)
         return {
             "z": fairing_bottom_z + fraction * (
                 fairing_top_z - fairing_bottom_z
             ),
-            "width": plan["fairing_bottom_width"] + eased * (
-                plan["fairing_top_width"] - plan["fairing_bottom_width"]
-            ),
-            "depth": plan["fairing_bottom_depth"] + eased * (
-                plan["fairing_top_depth"] - plan["fairing_bottom_depth"]
-            ),
-            "center_x": plan["fairing_bottom_center_x"] + eased * (
-                plan["fairing_top_center_x"]
-                - plan["fairing_bottom_center_x"]
-            ),
-            "radius": LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS + eased * (
-                LID_FAN_FAIRING_TOP_CORNER_RADIUS
-                - LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS
-            ),
+            **section,
         }
 
     section_fractions = (0.0, 0.12, 0.28, 0.48, 0.70, 0.86, 1.0)
@@ -29268,6 +29492,104 @@ def create_lid_fan_pod(lid, positions):
         fairing["retention_rib_bottom_z_mm"] = pad_bottom_z
         fairing["retention_rib_top_z_mm"] = pad_top_z
         fairing["retention_rib_contact_z_mm"] = pad_contact_z
+        fairing_retention_centers = lid_fan_fairing_retention_screw_centers()
+        if fairing_retention_centers:
+            side_pad_centers = (
+                (center_x, (positive_y_shell + positive_y_contact) / 2.0),
+                (center_x, (negative_y_shell + negative_y_contact) / 2.0),
+            )
+            maximum_axis_error = max(
+                math.dist(screw_center, pad_center)
+                for screw_center, pad_center in zip(
+                    fairing_retention_centers,
+                    side_pad_centers,
+                )
+            )
+            if maximum_axis_error > 1e-6:
+                raise RuntimeError(
+                    "Fan-fairing retention screws miss their side ribs: "
+                    f"maximum_axis_error={maximum_axis_error:.6f}mm"
+                )
+            head_radius = (
+                LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER / 2.0
+            )
+            minimum_head_edge_clearance = min(
+                LID_FAN_COVER_RETENTION_PAD_LENGTH / 2.0 - head_radius,
+                *(
+                    abs(y - center_y)
+                    - plan["depth_y"] / 2.0
+                    - head_radius
+                    for _x, y in fairing_retention_centers
+                ),
+            )
+            if (
+                minimum_head_edge_clearance + 1e-9
+                < LID_FAN_FAIRING_RETENTION_MIN_HEAD_EDGE_CLEARANCE
+            ):
+                raise RuntimeError(
+                    "Fan-fairing retention screw head lacks side-rib access: "
+                    f"resolved={minimum_head_edge_clearance:.2f}mm, required="
+                    f"{LID_FAN_FAIRING_RETENTION_MIN_HEAD_EDGE_CLEARANCE:.2f}mm"
+                )
+            fairing_retention_cutters = tuple(
+                add_cylinder_z(
+                    f"Lid_Fan_Fairing_Retention_Clearance_{index}",
+                    LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER / 2.0,
+                    pad_bottom_z - BOOLEAN_OVERLAP,
+                    pad_top_z + BOOLEAN_OVERLAP,
+                    x,
+                    y,
+                )
+                for index, (x, y) in enumerate(
+                    fairing_retention_centers,
+                    start=1,
+                )
+            )
+            boolean_difference(
+                fairing,
+                fairing_retention_cutters,
+                "Lid_Fan_Fairing_Positive_Retention_Clearance_Cuts",
+            )
+            fairing_retention_counterbores = tuple(
+                add_cylinder_z(
+                    f"Lid_Fan_Fairing_Retention_Head_Counterbore_{index}",
+                    LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER / 2.0,
+                    pad_top_z
+                    - LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH,
+                    pad_top_z + BOOLEAN_OVERLAP,
+                    x,
+                    y,
+                )
+                for index, (x, y) in enumerate(
+                    fairing_retention_centers,
+                    start=1,
+                )
+            )
+            boolean_difference(
+                fairing,
+                fairing_retention_counterbores,
+                "Lid_Fan_Fairing_Retention_Head_Counterbores_Cut",
+            )
+            fairing["positive_retention"] = True
+            fairing["positive_retention_style"] = (
+                "two_hidden_M3_screws_into_blind_lid_receivers"
+            )
+            fairing["positive_retention_screw_count"] = len(
+                fairing_retention_centers
+            )
+            fairing["positive_retention_clearance_diameter_mm"] = (
+                LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER
+            )
+            fairing["positive_retention_counterbore_diameter_mm"] = (
+                LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER
+            )
+            fairing["positive_retention_counterbore_depth_mm"] = (
+                LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH
+            )
+            fairing["positive_retention_recommended_screw"] = "M3x6"
+            fairing["positive_retention_minimum_head_edge_clearance_mm"] = (
+                minimum_head_edge_clearance
+            )
 
     cap_half_x = plan["grille_width"] / 2.0
     cap_half_y = plan["grille_depth"] / 2.0
@@ -34557,6 +34879,121 @@ def validate_lid_fan_pod_fit_and_service(lid, pod):
     remove_detent_proxies()
 
 
+def validate_lid_fan_fairing_positive_retention(lid, fairing):
+    """Prove two screw-clamped rib-to-lid load paths for inversion."""
+    centers = lid_fan_fairing_retention_screw_centers()
+    if not centers:
+        return
+    fairing_record = object_bvh_record(fairing)
+    lid_record = object_bvh_record(lid)
+
+    def occupied(record, point):
+        local_point = record[1] @ Vector(point)
+        return point_inside_closed_bvh(
+            record[0],
+            local_point,
+        ) or point_inside_bvh_parity(record[0], local_point)
+
+    fairing_bottom_z = float(fairing["retention_rib_bottom_z_mm"])
+    fairing_top_z = float(fairing["retention_rib_top_z_mm"])
+    lid_top_z = float(lid["lid_fan_seat_top_z"])
+    receiver_bottom_z = (
+        lid_top_z - LID_FAN_FAIRING_RETENTION_PILOT_DEPTH
+    )
+    clearance_radius = (
+        LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER / 2.0
+    )
+    counterbore_radius = (
+        LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER / 2.0
+    )
+    seat_probe_radius = counterbore_radius + 0.7
+    missing_clearance_axes = []
+    missing_counterbores = []
+    missing_head_seats = []
+    missing_lid_pilots = []
+    missing_bottom_webs = []
+    for index, (x, y) in enumerate(centers, start=1):
+        fairing_axis_probes = (
+            (x, y, fairing_bottom_z + 0.5),
+            (x, y, (fairing_bottom_z + fairing_top_z) / 2.0),
+            (x, y, fairing_top_z - 0.5),
+        )
+        if any(occupied(fairing_record, point) for point in fairing_axis_probes):
+            missing_clearance_axes.append(index)
+        counterbore_probes = tuple(
+            (
+                x
+                + (clearance_radius + 0.5)
+                * math.cos(2.0 * math.pi * step / 8.0),
+                y
+                + (clearance_radius + 0.5)
+                * math.sin(2.0 * math.pi * step / 8.0),
+                fairing_top_z
+                - LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH / 2.0,
+            )
+            for step in range(8)
+        )
+        if any(occupied(fairing_record, point) for point in counterbore_probes):
+            missing_counterbores.append(index)
+        head_seat_probes = tuple(
+            (
+                x + seat_probe_radius * math.cos(2.0 * math.pi * step / 12.0),
+                y + seat_probe_radius * math.sin(2.0 * math.pi * step / 12.0),
+                fairing_top_z
+                - LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH
+                - 0.3,
+            )
+            for step in range(12)
+        )
+        if not all(occupied(fairing_record, point) for point in head_seat_probes):
+            missing_head_seats.append(index)
+        lid_pilot_probes = (
+            (x, y, receiver_bottom_z + 0.4),
+            (x, y, lid_top_z - 0.4),
+        )
+        if any(occupied(lid_record, point) for point in lid_pilot_probes):
+            missing_lid_pilots.append(index)
+        seam_z = local_base_seam_z(x, y)
+        bottom_web_probe = (
+            x,
+            y,
+            (seam_z + receiver_bottom_z) / 2.0,
+        )
+        if not occupied(lid_record, bottom_web_probe):
+            missing_bottom_webs.append(index)
+    failures = {
+        "fairing_clearance": missing_clearance_axes,
+        "head_counterbore": missing_counterbores,
+        "head_seat": missing_head_seats,
+        "lid_pilot": missing_lid_pilots,
+        "lid_bottom_web": missing_bottom_webs,
+    }
+    failures = {label: values for label, values in failures.items() if values}
+    if failures:
+        raise RuntimeError(
+            "Fan-fairing positive retention lacks complete screw load paths: "
+            f"{failures}"
+        )
+    receiver = lid_fan_fairing_retention_receiver_profile()
+    fairing["positive_retention_load_paths_validated"] = len(centers)
+    lid["fan_fairing_retention_load_paths_validated"] = len(centers)
+    print(
+        "LID_FAN_FAIRING_POSITIVE_RETENTION PASS "
+        f"load_paths={len(centers)} hardware=hidden_M3 "
+        f"recommended_screw=M3x"
+        f"{LID_FAN_FAIRING_RETENTION_RECOMMENDED_SCREW_LENGTH:.0f} "
+        f"fairing_clearance="
+        f"{LID_FAN_FAIRING_RETENTION_SCREW_CLEARANCE_DIAMETER:.2f}mm "
+        f"counterbore="
+        f"{LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DIAMETER:.2f}x"
+        f"{LID_FAN_FAIRING_RETENTION_HEAD_COUNTERBORE_DEPTH:.2f}mm "
+        f"lid_receiver={receiver['style']} "
+        f"pilot={receiver['pilot_diameter']:.2f}x"
+        f"{LID_FAN_FAIRING_RETENTION_PILOT_DEPTH:.2f}mm "
+        "inversion_retention=positive_screw_clamp support=none"
+    )
+
+
 def validate_lid_fan_cable_route(lid, fairing, grille=None):
     """Sweep every captive lead from its high fan exit into the case."""
     if not lid_fan_enabled():
@@ -36264,6 +36701,10 @@ def build_hockeymom_cam_case():
             validate_object(part)
         validate_lid_fan_pod_printability(lid_fan_pod)
         validate_lid_fan_pod_fit_and_service(lid, lid_fan_pod)
+        validate_lid_fan_fairing_positive_retention(
+            lid,
+            lid_fan_pod["fairing"],
+        )
     validate_lid_fan_cable_route(
         lid,
         lid_fan_pod["fairing"] if lid_fan_pod is not None else None,
