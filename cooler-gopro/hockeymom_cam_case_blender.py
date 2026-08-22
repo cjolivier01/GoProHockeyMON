@@ -234,7 +234,7 @@ BODY_WALL_THICKNESS = 3.2
 # pocket with a small blind guide hole for a pointed M3 screw that forms its
 # own thread in the flexible post.  Removable parts retain their independently
 # configured hardware because they are not necessarily printed in case TPU.
-CASE_BODY_MATERIAL_MODE = "TPU"  # "RIGID" or "TPU"
+CASE_BODY_MATERIAL_MODE = "RIGID"  # "RIGID" or "TPU"
 # TPU is also the normal lid material: its damping helps keep either the
 # 120 mm fan or a 40/60 mm pair from turning the broad roof into a sounding
 # board.  It remains independent so a rigid base/TPU lid combination can be
