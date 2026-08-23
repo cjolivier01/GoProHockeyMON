@@ -297,7 +297,7 @@ BODY_SECTIONS = (
 # the curved wall's corners.  Set TEXT to another single-line word, or disable
 # the feature explicitly when a blank rear wall is preferred.
 REAR_WALL_LABEL_ENABLED = True
-REAR_WALL_LABEL_TEXT = "HOCKEY"
+REAR_WALL_LABEL_TEXT = "HOCKEY-MON"
 REAR_WALL_LABEL_DEPTH = 1.0
 REAR_WALL_LABEL_BEVEL_DEPTH = 0.30
 REAR_WALL_LABEL_CUTTER_OUTSET = 1.0
