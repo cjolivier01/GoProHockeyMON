@@ -305,7 +305,7 @@ REAR_WALL_LABEL_CUTTER_OUTSET = 1.0
 REAR_WALL_LABEL_SIDE_MARGIN = 10.0
 REAR_WALL_LABEL_BOTTOM_MARGIN = 14.0
 REAR_WALL_LABEL_TOP_MARGIN = 10.0
-REAR_WALL_LABEL_MAX_WRAP_ANGLE_DEG = 32.0
+REAR_WALL_LABEL_MAX_WRAP_ANGLE_DEG = 45.0
 REAR_WALL_LABEL_MAX_SURFACE_SEGMENT = 2.0
 REAR_WALL_LABEL_MIN_REMAINING_WALL = 1.8
 
@@ -1302,6 +1302,12 @@ LID_SCREW_CLEARANCE_DIAMETER = 3.4
 LID_SCREW_HEAD_COUNTERBORE_DIAMETER = 6.2
 LID_SCREW_HEAD_COUNTERBORE_DEPTH = 3.3
 CAMERA_BRACKET_MIN_COUNTERBORE_FLOOR = 1.5
+CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER = 10.0
+CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT = 6.0
+CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE = 0.4
+CAMERA_BRACKET_THUMBSCREW_LID_CLEARANCE = 0.5
+CAMERA_BRACKET_THUMBSCREW_SEAT_THICKNESS = 2.4
+CAMERA_BRACKET_THUMBSCREW_SEAT_MIN_DROP_Z = 3.0
 
 # Select exactly one purchased-fan arrangement.  "rear_wall_pair" preserves
 # the two 40 mm rear-wall stations and their optional acoustic cartridge.
@@ -3989,6 +3995,24 @@ def validate_config() -> None:
         "LID_SCREW_HEAD_COUNTERBORE_DEPTH": LID_SCREW_HEAD_COUNTERBORE_DEPTH,
         "CAMERA_BRACKET_MIN_COUNTERBORE_FLOOR": (
             CAMERA_BRACKET_MIN_COUNTERBORE_FLOOR
+        ),
+        "CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER": (
+            CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
+        ),
+        "CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT": (
+            CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT
+        ),
+        "CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE": (
+            CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE
+        ),
+        "CAMERA_BRACKET_THUMBSCREW_LID_CLEARANCE": (
+            CAMERA_BRACKET_THUMBSCREW_LID_CLEARANCE
+        ),
+        "CAMERA_BRACKET_THUMBSCREW_SEAT_THICKNESS": (
+            CAMERA_BRACKET_THUMBSCREW_SEAT_THICKNESS
+        ),
+        "CAMERA_BRACKET_THUMBSCREW_SEAT_MIN_DROP_Z": (
+            CAMERA_BRACKET_THUMBSCREW_SEAT_MIN_DROP_Z
         ),
         "CAMERA_BRACKET_MIN_PRELOAD_CONTACT_VOLUME": (
             CAMERA_BRACKET_MIN_PRELOAD_CONTACT_VOLUME
@@ -7667,12 +7691,38 @@ def validate_config() -> None:
         )
         if bracket_top >= BASE_HEIGHT:
             raise ValueError("Camera brackets do not fit below the removable lid")
-        counterbore_floor = (
-            CAMERA_BRACKET_THICKNESS - LID_SCREW_HEAD_COUNTERBORE_DEPTH
-        )
-        if counterbore_floor < CAMERA_BRACKET_MIN_COUNTERBORE_FLOOR:
+        if (
+            CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
+            <= LID_SCREW_CLEARANCE_DIAMETER
+        ):
             raise ValueError(
-                "Bracket counterbores leave less than the configured solid floor"
+                "Bracket thumb-screw head diameter must exceed shank clearance"
+            )
+        if (
+            CAMERA_BRACKET_THUMBSCREW_SEAT_THICKNESS
+            < CAMERA_BRACKET_MIN_COUNTERBORE_FLOOR
+        ):
+            raise ValueError(
+                "Bracket thumb-screw seats are too thin around the shank hole"
+            )
+        if min(
+            CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE,
+            CAMERA_BRACKET_THUMBSCREW_LID_CLEARANCE,
+            CAMERA_BRACKET_THUMBSCREW_SEAT_MIN_DROP_Z,
+        ) < 0.0:
+            raise ValueError("Bracket thumb-screw clearances must be nonnegative")
+        available_drop = (
+            bracket_top
+            - (
+                BASE_HEIGHT
+                - CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT
+                - CAMERA_BRACKET_THUMBSCREW_LID_CLEARANCE
+            )
+        )
+        if available_drop < CAMERA_BRACKET_THUMBSCREW_SEAT_MIN_DROP_Z:
+            raise ValueError(
+                "Bracket thumb-screw heads need more vertical clearance below "
+                "the removable lid"
             )
         primary_plate_radial_depth = (
             CAMERA_BRACKET_PRIMARY_REAR_OVERLAP
@@ -7804,13 +7854,13 @@ def validate_config() -> None:
                 "Side-locator plate embed leaves too little bracket-top material"
             )
         minimum_arm_width = (
-            LID_SCREW_HEAD_COUNTERBORE_DIAMETER
+            LID_SCREW_CLEARANCE_DIAMETER
             + 2.0 * CAMERA_BRACKET_ARM_COUNTERBORE_MIN_WEB
         )
         if CAMERA_BRACKET_ARM_WIDTH < minimum_arm_width:
             raise ValueError(
                 "CAMERA_BRACKET_ARM_WIDTH leaves less than the configured web "
-                "around the socket-head counterbore"
+                "around the screw shank clearance"
             )
         maximum_clamp_travel = (
             CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z
@@ -10003,6 +10053,57 @@ def add_beveled_box(name: str, dimensions, location, rotation_z=0.0, bevel=2.0):
         modifier.affect = "EDGES"
         select_only(obj)
         bpy.ops.object.modifier_apply(modifier=modifier.name)
+    recalc_normals(obj)
+    return obj
+
+
+def add_sloped_beam(
+    name: str,
+    start_xy,
+    end_xy,
+    width: float,
+    start_z0: float,
+    start_z1: float,
+    end_z0: float,
+    end_z1: float,
+    end_overlap: float = 0.0,
+):
+    dx = end_xy[0] - start_xy[0]
+    dy = end_xy[1] - start_xy[1]
+    length = math.hypot(dx, dy)
+    if length <= 1e-6:
+        raise ValueError("Sloped beam endpoints must be distinct")
+    ux = dx / length
+    uy = dy / length
+    px = -uy * width / 2.0
+    py = ux * width / 2.0
+    sx = start_xy[0] - ux * end_overlap
+    sy = start_xy[1] - uy * end_overlap
+    ex = end_xy[0] + ux * end_overlap
+    ey = end_xy[1] + uy * end_overlap
+    vertices = [
+        (sx + px, sy + py, start_z0),
+        (sx - px, sy - py, start_z0),
+        (sx - px, sy - py, start_z1),
+        (sx + px, sy + py, start_z1),
+        (ex + px, ey + py, end_z0),
+        (ex - px, ey - py, end_z0),
+        (ex - px, ey - py, end_z1),
+        (ex + px, ey + py, end_z1),
+    ]
+    faces = [
+        [0, 1, 2, 3],
+        [4, 7, 6, 5],
+        [0, 4, 5, 1],
+        [3, 2, 6, 7],
+        [0, 3, 7, 4],
+        [1, 5, 6, 2],
+    ]
+    mesh = bpy.data.meshes.new(name + "_Mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
     recalc_normals(obj)
     return obj
 
@@ -26847,6 +26948,41 @@ def camera_bracket_z_bounds():
     return underside, underside + CAMERA_BRACKET_THICKNESS
 
 
+def camera_bracket_thumb_seat_z_bounds(x: float, y: float):
+    underside, bracket_top = camera_bracket_z_bounds()
+    head_radius = (
+        CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
+        + CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE
+    ) / 2.0
+    sample_angles = (2.0 * math.pi * index / 72.0 for index in range(72))
+    lid_underside_z = min(
+        [local_base_seam_z(x, y)]
+        + [
+            local_base_seam_z(
+                x + head_radius * math.cos(angle),
+                y + head_radius * math.sin(angle),
+            )
+            for angle in sample_angles
+        ]
+    )
+    seat_top = min(
+        bracket_top - CAMERA_BRACKET_THUMBSCREW_SEAT_MIN_DROP_Z,
+        lid_underside_z
+        - CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT
+        - CAMERA_BRACKET_THUMBSCREW_LID_CLEARANCE,
+    )
+    seat_bottom = seat_top - CAMERA_BRACKET_THUMBSCREW_SEAT_THICKNESS
+    if seat_bottom <= underside - CAMERA_BRACKET_THICKNESS - 1e-6:
+        raise ValueError(
+            "Bracket thumb-screw seat dropped too low for a compact ramp"
+        )
+    if seat_top + CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT > (
+        lid_underside_z - CAMERA_BRACKET_THUMBSCREW_LID_CLEARANCE + 1e-6
+    ):
+        raise ValueError("Bracket thumb-screw head does not clear the lid")
+    return seat_bottom, seat_top
+
+
 def camera_bracket_clamp_travel(camera=None):
     travel = (
         CAMERA_BRACKET_BODY_CONTACT_CLEARANCE_Z
@@ -26871,11 +27007,15 @@ def add_camera_bracket_posts(base, cameras, bracket_position_pairs):
         if case_body_uses_tpu()
         else "Heat_Insert"
     )
-    bracket_underside, _ = camera_bracket_z_bounds()
     post_records = []
     for camera, pair in zip(cameras, bracket_position_pairs):
-        post_top = bracket_underside - camera_bracket_clamp_travel(camera)
-        post_records.extend((position, post_top, camera["index"]) for position in pair)
+        for position in pair:
+            seat_bottom, _ = camera_bracket_thumb_seat_z_bounds(
+                position[0],
+                position[1],
+            )
+            post_top = seat_bottom - camera_bracket_clamp_travel(camera)
+            post_records.append((position, post_top, camera["index"]))
     for index, ((x, y), post_top, camera_index) in enumerate(
         post_records,
         start=1,
@@ -27466,7 +27606,6 @@ def create_adjustable_camera_hold_down(camera, post_positions):
         raise ValueError("Adjustable camera hold-down requires two posts")
     pivot = adjustable_camera_pivot(camera)
     underside, top = camera_bracket_z_bounds()
-    plate_center_z = (underside + top) / 2.0
     center_radius = CAMERA_HOLD_DOWN_CENTER_PLATE_DIAMETER / 2.0
     bridge = add_cylinder_z(
         "Adjustable_Camera_Hold_Down_Center",
@@ -27477,21 +27616,30 @@ def create_adjustable_camera_hold_down(camera, post_positions):
         pivot.y,
     )
     boss_radius = max(
-        LID_SCREW_HEAD_COUNTERBORE_DIAMETER / 2.0
+        (
+            CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
+            + CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE
+        )
+        / 2.0
         + CAMERA_BRACKET_BOSS_EDGE_MARGIN,
         FASTENER_POST_DIAMETER / 2.0
         + CAMERA_BRACKET_BOSS_POST_EDGE_MARGIN,
     )
     for index, (x, y) in enumerate(post_positions, start=1):
+        seat_bottom, seat_top = camera_bracket_thumb_seat_z_bounds(x, y)
         boss = add_cylinder_z(
-            f"Adjustable_Hold_Down_Screw_Boss_{index}",
+            f"Adjustable_Hold_Down_Thumbscrew_Seat_{index}",
             boss_radius,
-            underside,
-            top,
+            seat_bottom,
+            seat_top,
             x,
             y,
         )
-        boolean_union(bridge, boss, f"Adjustable_Hold_Down_Boss_{index}")
+        boolean_union(
+            bridge,
+            boss,
+            f"Adjustable_Hold_Down_Thumbscrew_Seat_{index}",
+        )
         dx = pivot.x - x
         dy = pivot.y - y
         length = max(math.hypot(dx, dy) - center_radius, 0.0)
@@ -27500,23 +27648,22 @@ def create_adjustable_camera_hold_down(camera, post_positions):
             unit_y = dy / math.hypot(dx, dy)
             end_x = pivot.x - unit_x * center_radius * 0.65
             end_y = pivot.y - unit_y * center_radius * 0.65
-            arm = add_beveled_box(
-                f"Adjustable_Hold_Down_Arm_{index}",
-                (
-                    math.hypot(end_x - x, end_y - y)
-                    + CAMERA_BRACKET_ARM_PLATE_OVERLAP,
-                    CAMERA_BRACKET_ARM_WIDTH,
-                    CAMERA_BRACKET_THICKNESS,
-                ),
-                (
-                    (x + end_x) / 2.0,
-                    (y + end_y) / 2.0,
-                    plate_center_z,
-                ),
-                rotation_z=math.atan2(end_y - y, end_x - x),
-                bevel=1.0,
+            arm = add_sloped_beam(
+                f"Adjustable_Hold_Down_Downramp_{index}",
+                (x, y),
+                (end_x, end_y),
+                CAMERA_BRACKET_ARM_WIDTH,
+                seat_bottom,
+                seat_top,
+                underside,
+                top,
+                CAMERA_BRACKET_ARM_PLATE_OVERLAP,
             )
-            boolean_union(bridge, arm, f"Adjustable_Hold_Down_Arm_{index}")
+            boolean_union(
+                bridge,
+                arm,
+                f"Adjustable_Hold_Down_Downramp_{index}",
+            )
 
     body_top = camera_eye_center_z() + mission1.canonical_body_bounds(
         CAMERA_UPSIDE_DOWN
@@ -27557,23 +27704,13 @@ def create_adjustable_camera_hold_down(camera, post_positions):
         "Adjustable_Hold_Down_Eye_Mouth_Clearance",
     )
     clearance_cutters = []
-    counterbore_cutters = []
     for index, (x, y) in enumerate(post_positions, start=1):
+        seat_bottom, _ = camera_bracket_thumb_seat_z_bounds(x, y)
         clearance_cutters.append(
             add_cylinder_z(
                 f"Adjustable_Hold_Down_M3_Clearance_{index}",
                 LID_SCREW_CLEARANCE_DIAMETER / 2.0,
-                underside - BOOLEAN_OVERLAP,
-                top + BOOLEAN_OVERLAP,
-                x,
-                y,
-            )
-        )
-        counterbore_cutters.append(
-            add_cylinder_z(
-                f"Adjustable_Hold_Down_Counterbore_{index}",
-                LID_SCREW_HEAD_COUNTERBORE_DIAMETER / 2.0,
-                top - LID_SCREW_HEAD_COUNTERBORE_DEPTH,
+                seat_bottom - BOOLEAN_OVERLAP,
                 top + BOOLEAN_OVERLAP,
                 x,
                 y,
@@ -27583,11 +27720,6 @@ def create_adjustable_camera_hold_down(camera, post_positions):
         bridge,
         clearance_cutters,
         "Adjustable_Hold_Down_M3_Clearance_Holes",
-    )
-    boolean_difference(
-        bridge,
-        counterbore_cutters,
-        "Adjustable_Hold_Down_Counterbores",
     )
     pad_record = object_bvh_record(bridge)
     pad_samples = 1
@@ -27654,6 +27786,17 @@ def create_adjustable_camera_hold_down(camera, post_positions):
     bridge["low_friction_disk_thickness_mm"] = (
         CAMERA_HOLD_DOWN_PAD_MATERIAL_THICKNESS
     )
+    bridge["recommended_hardware"] = "M3_thumb_screw_10mm_OD_6mm_head"
+    bridge["thumbscrew_head_diameter_mm"] = CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
+    bridge["thumbscrew_head_height_mm"] = CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT
+    bridge["thumbscrew_seat_diameter_mm"] = (
+        CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
+        + CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE
+    )
+    bridge["thumbscrew_seat_thickness_mm"] = (
+        CAMERA_BRACKET_THUMBSCREW_SEAT_THICKNESS
+    )
+    bridge["thumbscrew_head_exposed_mm"] = CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT
     bridge["clamp_travel_z"] = camera_bracket_clamp_travel(camera)
     print(
         "ADJUSTABLE_HOLD_DOWN_INTERFACE "
@@ -27926,7 +28069,11 @@ def create_camera_bracket(camera, post_positions):
     # point well inside the primary plate; aiming at the nearest plate corner
     # can otherwise leave only a fragile corner-sized Boolean connection.
     boss_radius = max(
-        LID_SCREW_HEAD_COUNTERBORE_DIAMETER / 2.0
+        (
+            CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
+            + CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE
+        )
+        / 2.0
         + CAMERA_BRACKET_BOSS_EDGE_MARGIN,
         FASTENER_POST_DIAMETER / 2.0
         + CAMERA_BRACKET_BOSS_POST_EDGE_MARGIN,
@@ -27936,18 +28083,19 @@ def create_camera_bracket(camera, post_positions):
         zip(post_positions, local_posts),
         start=1,
     ):
+        seat_bottom, seat_top = camera_bracket_thumb_seat_z_bounds(x, y)
         boss = add_cylinder_z(
-            f"Camera_Bracket_{camera['index']}_Screw_Boss_{post_index}",
+            f"Camera_Bracket_{camera['index']}_Thumbscrew_Seat_{post_index}",
             boss_radius,
-            underside,
-            top,
+            seat_bottom,
+            seat_top,
             x,
             y,
         )
         boolean_union(
             bracket,
             boss,
-            f"Camera_Bracket_{camera['index']}_Screw_Boss_{post_index}_Union",
+            f"Camera_Bracket_{camera['index']}_Thumbscrew_Seat_{post_index}_Union",
         )
         def embedded_anchor_coordinate(value, lower, upper):
             inset_lower = lower + CAMERA_BRACKET_ARM_PLATE_EMBED
@@ -27980,28 +28128,25 @@ def create_camera_bracket(camera, post_positions):
                     (y + target.y) / 2.0,
                     arm_length + 2.0 * CAMERA_BRACKET_ARM_PLATE_OVERLAP,
                     math.atan2(dy, dx),
+                    min(seat_bottom, underside),
+                    max(seat_top, top),
                 )
             )
-            arm = add_beveled_box(
-                f"Camera_Bracket_{camera['index']}_Arm_{post_index}",
-                (
-                    arm_length
-                    + 2.0 * CAMERA_BRACKET_ARM_PLATE_OVERLAP,
-                    CAMERA_BRACKET_ARM_WIDTH,
-                    CAMERA_BRACKET_THICKNESS,
-                ),
-                (
-                    (x + target.x) / 2.0,
-                    (y + target.y) / 2.0,
-                    (underside + top) / 2.0,
-                ),
-                rotation_z=math.atan2(dy, dx),
-                bevel=1.0,
+            arm = add_sloped_beam(
+                f"Camera_Bracket_{camera['index']}_Downramp_{post_index}",
+                (x, y),
+                (target.x, target.y),
+                CAMERA_BRACKET_ARM_WIDTH,
+                seat_bottom,
+                seat_top,
+                underside,
+                top,
+                CAMERA_BRACKET_ARM_PLATE_OVERLAP,
             )
             boolean_union(
                 bracket,
                 arm,
-                f"Camera_Bracket_{camera['index']}_Arm_{post_index}_Union",
+                f"Camera_Bracket_{camera['index']}_Downramp_{post_index}_Union",
             )
 
     lip_segments = [
@@ -28436,37 +28581,23 @@ def create_camera_bracket(camera, post_positions):
             f"Camera_Bracket_{camera['index']}_Top_Button_Relief_Cut",
         )
 
-    clearance_cutters = [
-        add_cylinder_z(
-            f"Camera_Bracket_{camera['index']}_M3_Clearance_{hole_index}",
-            LID_SCREW_CLEARANCE_DIAMETER / 2.0,
-            underside - BOOLEAN_OVERLAP,
-            top + BOOLEAN_OVERLAP,
-            x,
-            y,
+    clearance_cutters = []
+    for hole_index, (x, y) in enumerate(post_positions, start=1):
+        seat_bottom, _ = camera_bracket_thumb_seat_z_bounds(x, y)
+        clearance_cutters.append(
+            add_cylinder_z(
+                f"Camera_Bracket_{camera['index']}_M3_Clearance_{hole_index}",
+                LID_SCREW_CLEARANCE_DIAMETER / 2.0,
+                seat_bottom - BOOLEAN_OVERLAP,
+                top + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
         )
-        for hole_index, (x, y) in enumerate(post_positions, start=1)
-    ]
     boolean_difference(
         bracket,
         clearance_cutters,
         f"Camera_Bracket_{camera['index']}_M3_Clearance_Holes",
-    )
-    counterbore_cutters = [
-        add_cylinder_z(
-            f"Camera_Bracket_{camera['index']}_Counterbore_{hole_index}",
-            LID_SCREW_HEAD_COUNTERBORE_DIAMETER / 2.0,
-            top - LID_SCREW_HEAD_COUNTERBORE_DEPTH,
-            top + 2.0 * BOOLEAN_OVERLAP,
-            x,
-            y,
-        )
-        for hole_index, (x, y) in enumerate(post_positions, start=1)
-    ]
-    boolean_difference(
-        bracket,
-        counterbore_cutters,
-        f"Camera_Bracket_{camera['index']}_Socket_Head_Counterbores",
     )
     bracket.name = f"MISSION1_Camera_Retaining_Bracket_{camera['index']}"
     bracket["plate_radial_min"] = radial_min
@@ -28499,11 +28630,25 @@ def create_camera_bracket(camera, post_positions):
             bracket[f"rear_lip_{segment_index}_z_max"],
         ) = bounds
     bracket["boss_radius"] = boss_radius
+    bracket["recommended_hardware"] = "M3_thumb_screw_10mm_OD_6mm_head"
+    bracket["thumbscrew_head_diameter_mm"] = CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
+    bracket["thumbscrew_head_height_mm"] = CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT
+    bracket["thumbscrew_seat_diameter_mm"] = (
+        CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
+        + CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE
+    )
+    bracket["thumbscrew_seat_thickness_mm"] = (
+        CAMERA_BRACKET_THUMBSCREW_SEAT_THICKNESS
+    )
+    bracket["thumbscrew_head_exposed_mm"] = CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT
     for post_index, (x, y) in enumerate(post_positions, start=1):
+        seat_bottom, seat_top = camera_bracket_thumb_seat_z_bounds(x, y)
         bracket[f"boss_{post_index}_x"] = x
         bracket[f"boss_{post_index}_y"] = y
+        bracket[f"boss_{post_index}_z_min"] = seat_bottom
+        bracket[f"boss_{post_index}_z_max"] = seat_top
     bracket["arm_count"] = len(arm_specs)
-    for arm_index, (center_x, center_y, length, arm_angle) in enumerate(
+    for arm_index, (center_x, center_y, length, arm_angle, z_min, z_max) in enumerate(
         arm_specs,
         start=1,
     ):
@@ -28511,6 +28656,8 @@ def create_camera_bracket(camera, post_positions):
         bracket[f"arm_{arm_index}_center_y"] = center_y
         bracket[f"arm_{arm_index}_length"] = length
         bracket[f"arm_{arm_index}_angle"] = arm_angle
+        bracket[f"arm_{arm_index}_z_min"] = z_min
+        bracket[f"arm_{arm_index}_z_max"] = z_max
     bracket["contact_rail_bottom_z"] = rail_bottom
     bracket["clamp_travel_z"] = camera_bracket_clamp_travel(camera)
     bracket["front_locator_enabled"] = front_locator_bounds is not None
@@ -28725,8 +28872,8 @@ def camera_bracket_mutual_clearance_tools(bracket):
             add_cylinder_z(
                 f"Camera_Bracket_Screw_Boss_{boss_index}_Clearance",
                 boss_radius,
-                underside - clearance,
-                top + clearance,
+                bracket.get(f"boss_{boss_index}_z_min", underside) - clearance,
+                bracket.get(f"boss_{boss_index}_z_max", top) + clearance,
                 bracket[f"boss_{boss_index}_x"],
                 bracket[f"boss_{boss_index}_y"],
             )
@@ -28738,12 +28885,20 @@ def camera_bracket_mutual_clearance_tools(bracket):
                 (
                     bracket[f"arm_{arm_index}_length"] + 2.0 * clearance,
                     CAMERA_BRACKET_ARM_WIDTH + 2.0 * clearance,
-                    CAMERA_BRACKET_THICKNESS + 2.0 * clearance,
+                    (
+                        bracket.get(f"arm_{arm_index}_z_max", top)
+                        - bracket.get(f"arm_{arm_index}_z_min", underside)
+                        + 2.0 * clearance
+                    ),
                 ),
                 (
                     bracket[f"arm_{arm_index}_center_x"],
                     bracket[f"arm_{arm_index}_center_y"],
-                    (underside + top) / 2.0,
+                    (
+                        bracket.get(f"arm_{arm_index}_z_min", underside)
+                        + bracket.get(f"arm_{arm_index}_z_max", top)
+                    )
+                    / 2.0,
                 ),
                 rotation_z=bracket[f"arm_{arm_index}_angle"],
                 bevel=0.2,
