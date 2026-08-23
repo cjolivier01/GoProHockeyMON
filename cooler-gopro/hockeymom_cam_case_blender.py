@@ -166,6 +166,7 @@ FAN_GASKET_1_STL_NAME = "hockeymom_cam_case_fan_gasket_1.stl"
 FAN_GASKET_2_STL_NAME = "hockeymom_cam_case_fan_gasket_2.stl"
 LID_FAN_FAIRING_STL_NAME = "hockeymom_cam_case_lid_fan_fairing.stl"
 LID_FAN_GRILLE_STL_NAME = "hockeymom_cam_case_lid_fan_grille.stl"
+KEYSTONE_TEST_COUPON_STL_NAME = "hockeymom_cam_case_keystone_test_coupon.stl"
 EXPORT_PURCHASED_WORM_REFERENCE_STL = False
 EXPORT_PURCHASED_IDLER_WHEEL_REFERENCE_STL = False
 EXPORT_PURCHASED_IDLER_SHAFT_REFERENCE_STL = False
@@ -1736,31 +1737,37 @@ BOTTOM_MOUNT_NUT_FINAL_BOSS_MIN_SOLID_RATIO = 1.0
 # a complete Python-generated snap housing rather than a bare panel hole; no
 # external mesh or machine-specific asset path is required.  Modules load from
 # inside and their connector faces finish flush with the case exterior.  The
-# dimensions and asymmetric ramps reproduce the proven printable housing that
-# originally served only as a local design reference.
+# named fit/ramp dimensions make the snap feel adjustable without editing the
+# generated mesh topology.
 BOTTOM_KEYSTONES_ENABLED = True
 BOTTOM_KEYSTONE_COUNT = 3
 BOTTOM_KEYSTONE_CORNER_Y_SIGN = 1.0
 BOTTOM_KEYSTONE_ROW_AXIS = "y"  # "x" runs rear-to-front; "y" runs toward center.
-BOTTOM_KEYSTONE_SOCKET_OUTER_X = 17.7
-BOTTOM_KEYSTONE_SOCKET_OUTER_Y = 25.0
+BOTTOM_KEYSTONE_SOCKET_OUTER_X = 18.1
+BOTTOM_KEYSTONE_SOCKET_OUTER_Y = 25.4
 BOTTOM_KEYSTONE_SOCKET_HEIGHT = 9.75
 BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS = 1.5
-BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE = 0.10
+BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE = 0.25
 # The low rails support and locate the module without horizontal bridge spans.
-# The deeper rear rail includes a 45-degree lead-in from its 0.5 mm tip.
+# The deeper rear rail includes an eased support-free lead-in from its 0.5 mm
+# tip.  Increase the projection values for a tighter clip; increase the ramp
+# run for a shallower entry angle.
 BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT = 1.5
-BOTTOM_KEYSTONE_SOCKET_FRONT_LOWER_RAIL_PROJECTION = 1.35
-BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAIL_PROJECTION = 3.25
-BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_RUN = 1.0
-BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT = 0.5
-# Opposed upper lips retain the keystone.  Their 1:1 ramp rise/run is
-# support-free when the case base is printed on its exterior bottom face.
+BOTTOM_KEYSTONE_SOCKET_FRONT_LOWER_RAIL_PROJECTION = 1.15
+BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAIL_PROJECTION = 3.00
+BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_RUN = 1.2
+BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT = 0.3
+# Opposed upper lips retain the keystone.  The default uses a little less nose
+# engagement and a longer ramp than the original tight socket so common jacks
+# clip in with less insertion force.
 BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_DEPTH = 1.5
-BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_NOSE_HEIGHT = 0.5
-BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION = 1.35
-BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN = 1.0
-BOTTOM_KEYSTONE_SOCKET_UPPER_TOP_LAND = 0.35
+BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_NOSE_HEIGHT = 0.4
+BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION = 1.25
+BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN = 1.05
+BOTTOM_KEYSTONE_SOCKET_UPPER_TOP_LAND = 0.20
+BOTTOM_KEYSTONE_TEST_COUPON_SIZE_X = 44.0
+BOTTOM_KEYSTONE_TEST_COUPON_SIZE_Y = 44.0
+BOTTOM_KEYSTONE_TEST_COUPON_PLATE_THICKNESS = BOTTOM_THICKNESS
 BOTTOM_KEYSTONE_SOCKET_FINAL_MISSING_VOLUME_TOLERANCE = 0.10
 BOTTOM_KEYSTONE_SOCKET_FINAL_VOID_VOLUME_TOLERANCE = 0.01
 BOTTOM_KEYSTONE_INTERNAL_BODY_X = 22.0
@@ -4412,6 +4419,11 @@ def validate_config() -> None:
         "BOTTOM_KEYSTONE_CENTER_SPACING": BOTTOM_KEYSTONE_CENTER_SPACING,
         "BOTTOM_KEYSTONE_SEARCH_RANGE": BOTTOM_KEYSTONE_SEARCH_RANGE,
         "BOTTOM_KEYSTONE_SEARCH_STEP": BOTTOM_KEYSTONE_SEARCH_STEP,
+        "BOTTOM_KEYSTONE_TEST_COUPON_SIZE_X": BOTTOM_KEYSTONE_TEST_COUPON_SIZE_X,
+        "BOTTOM_KEYSTONE_TEST_COUPON_SIZE_Y": BOTTOM_KEYSTONE_TEST_COUPON_SIZE_Y,
+        "BOTTOM_KEYSTONE_TEST_COUPON_PLATE_THICKNESS": (
+            BOTTOM_KEYSTONE_TEST_COUPON_PLATE_THICKNESS
+        ),
     }
     for name, value in positive.items():
         if not math.isfinite(value) or value <= 0.0:
@@ -6376,6 +6388,14 @@ def validate_config() -> None:
         BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS
     ):
         raise ValueError("Keystone base clearance consumes the socket side walls")
+    if BOTTOM_KEYSTONE_TEST_COUPON_SIZE_X <= (
+        BOTTOM_KEYSTONE_SOCKET_OUTER_X + 2.0 * BOTTOM_KEYSTONE_EDGE_CLEARANCE
+    ):
+        raise ValueError("Keystone test coupon X is too small for the socket")
+    if BOTTOM_KEYSTONE_TEST_COUPON_SIZE_Y <= (
+        BOTTOM_KEYSTONE_SOCKET_OUTER_Y + 2.0 * BOTTOM_KEYSTONE_EDGE_CLEARANCE
+    ):
+        raise ValueError("Keystone test coupon Y is too small for the socket")
     if BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT >= BASE_HEIGHT - BOTTOM_THICKNESS:
         raise ValueError("Keystone internal body keepout exceeds the base height")
     if bottom_keystone_socket_module_bottom_z() >= (
@@ -27385,6 +27405,79 @@ def add_bottom_keystone_mounts(base, positions):
     return base
 
 
+def create_bottom_keystone_test_coupon():
+    """Build one socket on a small plate for fit testing keystone modules."""
+    plate = add_beveled_box(
+        "Bottom_Keystone_Test_Coupon_Plate",
+        (
+            BOTTOM_KEYSTONE_TEST_COUPON_SIZE_X,
+            BOTTOM_KEYSTONE_TEST_COUPON_SIZE_Y,
+            BOTTOM_KEYSTONE_TEST_COUPON_PLATE_THICKNESS,
+        ),
+        (
+            0.0,
+            0.0,
+            BOTTOM_KEYSTONE_TEST_COUPON_PLATE_THICKNESS / 2.0,
+        ),
+        bevel=0.0,
+    )
+    inner_clearance_x = (
+        bottom_keystone_socket_inner_clear_x()
+        + 2.0 * BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE
+    )
+    inner_clearance_y = (
+        BOTTOM_KEYSTONE_SOCKET_OUTER_Y
+        - 2.0 * BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS
+        + 2.0 * BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE
+    )
+    cutter = add_beveled_box(
+        "Bottom_Keystone_Test_Coupon_Opening_Clearance",
+        (
+            inner_clearance_x,
+            inner_clearance_y,
+            BOTTOM_KEYSTONE_TEST_COUPON_PLATE_THICKNESS + 2.0 * BOOLEAN_OVERLAP,
+        ),
+        (
+            0.0,
+            0.0,
+            BOTTOM_KEYSTONE_TEST_COUPON_PLATE_THICKNESS / 2.0,
+        ),
+        bevel=0.0,
+    )
+    boolean_difference(
+        plate,
+        [cutter],
+        "Bottom_Keystone_Test_Coupon_Opening_Clearance",
+    )
+    socket = create_bottom_keystone_snap_socket(1, (0.0, 0.0))
+    boolean_union(
+        plate,
+        socket,
+        "Bottom_Keystone_Test_Coupon_Socket_Union",
+        solver="EXACT",
+    )
+    cleanup_mesh(plate)
+    triangulate_mesh(plate)
+    recalc_normals(plate)
+    assign_material(
+        plate,
+        f"Hockeymom_Keystone_Test_Coupon_{CASE_BODY_MATERIAL_MODE}",
+        COVER_COLOR,
+    )
+    print(
+        "BOTTOM_KEYSTONE_TEST_COUPON "
+        f"plate=({BOTTOM_KEYSTONE_TEST_COUPON_SIZE_X:.2f}, "
+        f"{BOTTOM_KEYSTONE_TEST_COUPON_SIZE_Y:.2f}, "
+        f"{BOTTOM_KEYSTONE_TEST_COUPON_PLATE_THICKNESS:.2f}) "
+        f"socket_outer=({BOTTOM_KEYSTONE_SOCKET_OUTER_X:.2f}, "
+        f"{BOTTOM_KEYSTONE_SOCKET_OUTER_Y:.2f}, "
+        f"{BOTTOM_KEYSTONE_SOCKET_HEIGHT:.2f}) "
+        f"inner_clearance=({inner_clearance_x:.2f}, "
+        f"{inner_clearance_y:.2f})"
+    )
+    return plate
+
+
 def create_adjustable_camera_hold_down(camera, post_positions):
     """Stationary bridge with a body-safe, low-friction camera contact pad."""
     if len(post_positions) != 2:
@@ -37602,6 +37695,18 @@ def apply_adjustable_preview_pose(
         f"camera_yaw={yaw_delta:+.2f} worm_rotation={worm_rotation_deg:+.2f} "
         f"idler_rotation={idler_rotation_deg:+.2f}"
     )
+
+
+def build_bottom_keystone_test_coupon():
+    validate_config()
+    if CLEAR_SCENE:
+        clear_scene()
+    set_units()
+    coupon = create_bottom_keystone_test_coupon()
+    validate_object(coupon)
+    if EXPORT_STL:
+        export_single_stl(output_directory() / KEYSTONE_TEST_COUPON_STL_NAME, coupon)
+    return coupon
 
 
 @validation_bvh_cache_lifecycle

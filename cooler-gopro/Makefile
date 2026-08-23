@@ -108,6 +108,8 @@ HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS := \
 HOCKEYMOM_CAM_CASE_LID_FAN_STLS := \
 	hockeymom_cam_case_lid_fan_fairing.stl \
 	hockeymom_cam_case_lid_fan_grille.stl
+HOCKEYMOM_CAM_CASE_KEYSTONE_TEST_COUPON_STL := \
+	hockeymom_cam_case_keystone_test_coupon.stl
 HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS :=
 ifneq (,$(filter lid_single lid_pair,$(HOCKEYMOM_FAN_MOUNT_MODE)))
 ifeq ($(HOCKEYMOM_LID_FAN_COVER_ENABLED),True)
@@ -135,7 +137,8 @@ HOCKEYMOM_CAM_CASE_OPTIONAL_STLS := \
 	hockeymom_cam_case_purchased_4mm_idler_shaft_reference.stl \
 	hockeymom_cam_case_idler_spur_pinion.stl \
 	hockeymom_cam_case_fan_gasket_1.stl \
-	hockeymom_cam_case_fan_gasket_2.stl
+	hockeymom_cam_case_fan_gasket_2.stl \
+	$(HOCKEYMOM_CAM_CASE_KEYSTONE_TEST_COUPON_STL)
 HOCKEYMOM_CAM_CASE_ALL_STLS := $(sort \
 	$(HOCKEYMOM_CAM_CASE_CORE_STLS) \
 	$(HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS) \
@@ -184,6 +187,7 @@ STL_FILES := \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymom-cam-case \
+	hockeymom-keystone-test-coupon \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
 	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf
@@ -210,6 +214,7 @@ print_targets:
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \
 		'hockeymom-cam-case        Build all Hockeymom camera-case component STLs.' \
+		'hockeymom-keystone-test-coupon  Build a small standalone keystone socket fit-test STL.' \
 		'' \
 		'Renders' \
 		'-------' \
@@ -350,6 +355,15 @@ $(HOCKEYMOM_CAM_CASE_STLS) &: hockeymom_cam_case_blender.py \
 	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(HOCKEYMOM_CAM_CASE_STLS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
 
 hockeymom-cam-case: $(HOCKEYMOM_CAM_CASE_STLS)
+
+$(HOCKEYMOM_CAM_CASE_KEYSTONE_TEST_COUPON_STL): hockeymom_cam_case_blender.py \
+	gopro_mission1_dummy_blender.py fan_size_presets.py
+	$(RM) $@
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
+		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['KEYSTONE_TEST_COUPON_STL_NAME']='$@'; ns['build_bottom_keystone_test_coupon']()"
+	$(PDF_PYTHON) -c "from pathlib import Path; path=Path('$@'); assert path.is_file() and path.stat().st_size > 0, f'Missing Blender output: {path}'"
+
+hockeymom-keystone-test-coupon: $(HOCKEYMOM_CAM_CASE_KEYSTONE_TEST_COUPON_STL)
 
 clean: clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
