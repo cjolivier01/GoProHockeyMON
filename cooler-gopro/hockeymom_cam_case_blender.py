@@ -16501,24 +16501,6 @@ def resolve_fan_acoustic_layout(
         vane_angle_deg = math.degrees(
             math.atan2(target.y - vane_center.y, target.x - vane_center.x)
         )
-        internal_member_records.append(
-            {
-                "center": Vector(
-                    (
-                        vane_center.x,
-                        vane_center.y,
-                        (inner_bottom_z + inner_top_z) / 2.0,
-                    )
-                ),
-                "dimensions": (
-                    12.0,
-                    FAN_ACOUSTIC_BAFFLE_THICKNESS,
-                    inner_height,
-                ),
-                "angle_deg": vane_angle_deg,
-                "kind": f"turning_vane_{outlet_index}",
-            }
-        )
         outlet_records.append(
             {
                 "path_index": outlet_index,
