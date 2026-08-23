@@ -3329,7 +3329,7 @@ def page_nut(pdf):
 
 def page_keystone(pdf):
     fig=new_sheet(14,"BOTTOM KEYSTONE SNAP HOUSINGS",
-                  "Complete Python-generated sleeves, rails and support-free snap ramps; no external STL dependency")
+                  "Complete Python-generated sleeves, adjustable fit-clearance ramps, and a standalone test-coupon STL")
     ax=panel(fig,[0.065,0.43,0.47,0.44],"CONFIGURABLE HOUSING CORNER CLUSTER","BOTTOM / PLAN")
     depth=190; width=145; outline=soft_triangle(depth,width,0.75,0.55)
     ax.add_patch(Polygon(outline,closed=True,facecolor="#edf4f7",edgecolor=BLUE,lw=1.3))
@@ -3361,8 +3361,8 @@ def page_keystone(pdf):
     ax2.text(22,0,"Z = 0 exterior / flush",va="center",fontsize=7.7,color=ORANGE,weight="bold")
     dim_v(ax2,0,socket_h,-18,-oy/2,"BOTTOM_KEYSTONE_SOCKET_HEIGHT",PURPLE)
     dim_h(ax2,-oy/2,oy/2,module_top+3,module_top,"BOTTOM_KEYSTONE_SOCKET_OUTER_Y")
-    leader(ax2,(front_upper_tip,nose_top),(34,18),"upper retaining lip +\n45-degree snap ramp",PURPLE,"right")
-    leader(ax2,(rear_platform,lower_h),(35,8),"rear locating rail +\nsupport-free lead-in",GREEN,"right")
+    leader(ax2,(front_upper_tip,nose_top),(34,18),"upper retaining lip +\nconfigurable snap ramp",PURPLE,"right")
+    leader(ax2,(rear_platform,lower_h),(35,8),"rear locating rail +\neased support-free lead-in",GREEN,"right")
     setup(ax2,-22,43,-4,39)
 
     ax3=panel(fig,[0.065,0.18,0.47,0.18],"HOUSING FACE GEOMETRY","BOTTOM")
@@ -3378,8 +3378,8 @@ def page_keystone(pdf):
              ["No imported STL or machine-specific asset path is used.",
               f"outer housing = {mm('BOTTOM_KEYSTONE_SOCKET_OUTER_X',17.7)} x {mm('BOTTOM_KEYSTONE_SOCKET_OUTER_Y',25)} x {mm('BOTTOM_KEYSTONE_SOCKET_HEIGHT',9.75)}",
               f"side wall = {mm('BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS',1.5)}; base clearance = {mm('BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE',0.1,2)}",
-              "Opposed top lips and asymmetric lower rails snap/locate the module.",
-              "All ramp undersides are 45 degrees or steeper; support_required=False."],PURPLE)
+              f"Test coupon STL plate = {mm('BOTTOM_KEYSTONE_TEST_COUPON_SIZE_X',44)} x {mm('BOTTOM_KEYSTONE_TEST_COUPON_SIZE_Y',44)}.",
+              "Tune snap projection/run values after coupon prints; ramps stay support-free."],PURPLE)
     pdf.savefig(fig); plt.close(fig)
 
 
