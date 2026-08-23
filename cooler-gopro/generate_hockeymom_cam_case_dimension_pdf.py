@@ -341,7 +341,7 @@ FEATURE_RULES = (
     FeatureRule(
         "keystone",
         "Bottom keystone snap sockets",
-        "Socket cluster placement, cartridge envelope, face recess and snap-fit clearances.",
+        "Complete native housing, cartridge envelope, locating rails, snap ramps and fit clearances.",
         (r"^BOTTOM_KEYSTONE_",),
     ),
     FeatureRule(
@@ -3328,52 +3328,58 @@ def page_nut(pdf):
 
 
 def page_keystone(pdf):
-    fig=new_sheet(14,"BOTTOM KEYSTONE SNAP PANELS",
-                  "Native parametric cutouts accept inside-loaded cartridges with no external STL dependency")
-    ax=panel(fig,[0.065,0.43,0.47,0.44],"CONFIGURABLE PANEL CORNER CLUSTER","BOTTOM / PLAN")
+    fig=new_sheet(14,"BOTTOM KEYSTONE SNAP HOUSINGS",
+                  "Complete Python-generated sleeves, rails and support-free snap ramps; no external STL dependency")
+    ax=panel(fig,[0.065,0.43,0.47,0.44],"CONFIGURABLE HOUSING CORNER CLUSTER","BOTTOM / PLAN")
     depth=190; width=145; outline=soft_triangle(depth,width,0.75,0.55)
     ax.add_patch(Polygon(outline,closed=True,facecolor="#edf4f7",edgecolor=BLUE,lw=1.3))
-    count=int(val("BOTTOM_KEYSTONE_COUNT",3)); spacing=float(val("BOTTOM_KEYSTONE_CENTER_SPACING",30)); ox=float(val("BOTTOM_KEYSTONE_FACE_POCKET_X",19.5)); oy=float(val("BOTTOM_KEYSTONE_FACE_POCKET_Y",16.6)); cx=float(val("BOTTOM_KEYSTONE_CUTOUT_X",16.1)); cy=float(val("BOTTOM_KEYSTONE_CUTOUT_Y",14.7))
+    count=int(val("BOTTOM_KEYSTONE_COUNT",3)); spacing=float(val("BOTTOM_KEYSTONE_CENTER_SPACING",30))
+    ox=float(val("BOTTOM_KEYSTONE_SOCKET_OUTER_X",17.7)); oy=float(val("BOTTOM_KEYSTONE_SOCKET_OUTER_Y",25.0)); wall=float(val("BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS",1.5))
+    front_lower=float(val("BOTTOM_KEYSTONE_SOCKET_FRONT_LOWER_RAIL_PROJECTION",1.35)); rear_lower=float(val("BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAIL_PROJECTION",3.25)); rear_run=float(val("BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_RUN",1.0))
+    ix=ox-2*wall; opening_y=oy-2*wall-front_lower-rear_lower-rear_run
+    opening_center_y=(wall+front_lower+(oy-wall-rear_lower-rear_run))/2-oy/2
     x=62; y0=50
     for i in range(count):
         y=y0-i*spacing
         ax.add_patch(Rectangle((x-ox/2,y-oy/2),ox,oy,facecolor="#e8dff3",edgecolor=PURPLE,lw=1.1))
-        ax.add_patch(Rectangle((x-cx/2,y-cy/2),cx,cy,facecolor=WHITE,edgecolor=INK,lw=0.8))
+        ax.add_patch(Rectangle((x-ix/2,y+opening_center_y-opening_y/2),ix,opening_y,facecolor=WHITE,edgecolor=INK,lw=0.8))
         ax.text(x,y,str(i+1),ha="center",va="center",fontsize=7,color=PURPLE,weight="bold")
     dim_v(ax,y0-(count-1)*spacing,y0,90,x+ox/2,"BOTTOM_KEYSTONE_CENTER_SPACING",PURPLE)
-    dim_h(ax,x-ox/2,x+ox/2,-61,-55,"BOTTOM_KEYSTONE_FACE_POCKET_X")
-    leader(ax,(x+ox/2,y0+oy/2),(98,60),"BOTTOM_KEYSTONE_REAR_EDGE_INSET /\nBOTTOM_KEYSTONE_SIDE_EDGE_INSET",BLUE,"right")
+    dim_h(ax,x-ox/2,x+ox/2,-68,-61,"BOTTOM_KEYSTONE_SOCKET_OUTER_X")
+    leader(ax,(x+ox/2,y0+oy/2),(98,66),"BOTTOM_KEYSTONE_REAR_EDGE_INSET /\nBOTTOM_KEYSTONE_SIDE_EDGE_INSET",BLUE,"right")
     setup(ax,-105,108,-85,85)
 
-    ax2=panel(fig,[0.56,0.43,0.375,0.44],"NATIVE SNAP PANEL + FLUSH FACE","SECTION")
-    floor_t=float(val("BOTTOM_THICKNESS",3.2)); recess=float(val("BOTTOM_KEYSTONE_FACE_RECESS_DEPTH",1.5)); body_h=float(val("BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT",30)); body_x=float(val("BOTTOM_KEYSTONE_INTERNAL_BODY_X",22))
-    ax2.add_patch(Rectangle((-45,0),90,floor_t,facecolor="#cce0ec",edgecolor=BLUE,lw=1.1))
-    ax2.add_patch(Rectangle((-ox/2,0),ox,recess,facecolor=WHITE,edgecolor=PURPLE,lw=0.8))
-    ax2.add_patch(Rectangle((-cx/2,0),cx,floor_t,facecolor=WHITE,edgecolor=INK,lw=0.9))
-    ax2.add_patch(Rectangle((-body_x/2,floor_t),body_x,body_h,facecolor="#d9dde1",edgecolor=INK,lw=1.0))
+    ax2=panel(fig,[0.56,0.43,0.375,0.44],"ASYMMETRIC SNAP HOUSING","CENTER Y/Z SECTION")
+    socket_h=float(val("BOTTOM_KEYSTONE_SOCKET_HEIGHT",9.75)); lower_h=float(val("BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT",1.5)); lower_tip=float(val("BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT",0.5)); upper_depth=float(val("BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_DEPTH",1.5)); nose_h=float(val("BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_NOSE_HEIGHT",0.5)); upper_proj=float(val("BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION",1.35)); upper_run=float(val("BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN",1.0))
+    front_inner=-oy/2+wall; rear_inner=oy/2-wall; front_tip=front_inner+front_lower; rear_platform=rear_inner-rear_lower; rear_tip=rear_platform-rear_run; front_upper_tip=front_inner+upper_proj; rear_upper_tip=rear_inner-upper_proj; front_upper_top=front_upper_tip-upper_run; rear_upper_top=rear_upper_tip+upper_run; upper_under=socket_h-upper_depth; nose_top=upper_under+nose_h
+    cavity=[(front_inner,upper_under),(front_upper_tip,upper_under),(front_upper_tip,nose_top),(front_upper_top,socket_h),(front_upper_tip,socket_h),(rear_upper_tip,socket_h),(rear_upper_top,socket_h),(rear_upper_tip,nose_top),(rear_upper_tip,upper_under),(rear_inner,upper_under),(rear_inner,lower_h),(rear_platform,lower_h),(rear_tip,lower_tip),(rear_tip,0),(front_tip,0),(front_tip,lower_h),(front_inner,lower_h)]
+    ax2.add_patch(Rectangle((-oy/2,0),oy,socket_h,facecolor="#e8dff3",edgecolor=PURPLE,lw=1.1))
+    ax2.add_patch(Polygon(cavity,closed=True,facecolor=WHITE,edgecolor=INK,lw=1.0))
+    body_h=float(val("BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT",30)); module_top=float(val("BOTTOM_THICKNESS",3.2))+body_h; body_y=float(val("BOTTOM_KEYSTONE_INTERNAL_BODY_Y",25))
+    ax2.add_patch(Rectangle((-body_y/2,socket_h),body_y,module_top-socket_h,facecolor="#d9dde1",edgecolor=INK,lw=0.8,alpha=0.55))
     ax2.plot([-20,20],[0,0],color=ORANGE,lw=1.5)
     ax2.text(22,0,"Z = 0 exterior / flush",va="center",fontsize=7.7,color=ORANGE,weight="bold")
-    dim_v(ax2,0,floor_t,-18,-ox/2,"BOTTOM_THICKNESS",PURPLE)
-    dim_v(ax2,0,recess,17,10,"BOTTOM_KEYSTONE_FACE_RECESS_DEPTH",PURPLE)
-    dim_h(ax2,-body_x/2,body_x/2,floor_t+body_h+6,floor_t+body_h,"BOTTOM_KEYSTONE_INTERNAL_BODY_X")
-    leader(ax2,(0,floor_t+body_h*0.5),(50,35),"cartridge inserted\nfrom enclosure interior",GREEN,"right")
-    setup(ax2,-52,58,-10,50)
+    dim_v(ax2,0,socket_h,-18,-oy/2,"BOTTOM_KEYSTONE_SOCKET_HEIGHT",PURPLE)
+    dim_h(ax2,-oy/2,oy/2,module_top+3,module_top,"BOTTOM_KEYSTONE_SOCKET_OUTER_Y")
+    leader(ax2,(front_upper_tip,nose_top),(34,18),"upper retaining lip +\n45-degree snap ramp",PURPLE,"right")
+    leader(ax2,(rear_platform,lower_h),(35,8),"rear locating rail +\nsupport-free lead-in",GREEN,"right")
+    setup(ax2,-22,43,-4,39)
 
-    ax3=panel(fig,[0.065,0.18,0.47,0.18],"SOCKET FACE GEOMETRY","BOTTOM")
-    px=float(val("BOTTOM_KEYSTONE_FACE_POCKET_X",19.5)); py=float(val("BOTTOM_KEYSTONE_FACE_POCKET_Y",16.6))
-    ax3.add_patch(Rectangle((-px/2,-py/2),px,py,facecolor="#e8dff3",edgecolor=PURPLE,lw=1.1))
-    ax3.add_patch(Rectangle((-cx/2,-cy/2),cx,cy,facecolor=WHITE,edgecolor=INK,lw=1.0))
-    dim_h(ax3,-px/2,px/2,-14,-py/2,"BOTTOM_KEYSTONE_FACE_POCKET_X")
-    dim_v(ax3,-py/2,py/2,34,px/2,"BOTTOM_KEYSTONE_FACE_POCKET_Y")
-    dim_h(ax3,-cx/2,cx/2,12,cy/2,"BOTTOM_KEYSTONE_CUTOUT_X",PURPLE)
-    setup(ax3,-24,48,-28,28)
+    ax3=panel(fig,[0.065,0.18,0.47,0.18],"HOUSING FACE GEOMETRY","BOTTOM")
+    ax3.add_patch(Rectangle((-ox/2,-oy/2),ox,oy,facecolor="#e8dff3",edgecolor=PURPLE,lw=1.1))
+    ax3.add_patch(Rectangle((-ix/2,opening_center_y-opening_y/2),ix,opening_y,facecolor=WHITE,edgecolor=INK,lw=1.0))
+    dim_h(ax3,-ox/2,ox/2,-18,-oy/2,"BOTTOM_KEYSTONE_SOCKET_OUTER_X")
+    dim_v(ax3,-oy/2,oy/2,29,ox/2,"BOTTOM_KEYSTONE_SOCKET_OUTER_Y")
+    dim_h(ax3,-ix/2,ix/2,14,opening_center_y+opening_y/2,"derived inner clear X",PURPLE)
+    leader(ax3,(-ox/2+wall/2,0),(-21,10),"BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS",BLUE,"right")
+    setup(ax3,-25,44,-31,31)
 
-    note_box(fig,[0.56,0.18,0.375,0.18],"PYTHON-GENERATED SNAP PANEL",
+    note_box(fig,[0.56,0.18,0.375,0.18],"PYTHON-GENERATED COMPLETE HOUSING",
              ["No imported STL or machine-specific asset path is used.",
-              f"face pocket = {mm('BOTTOM_KEYSTONE_FACE_POCKET_X',19.5)} x {mm('BOTTOM_KEYSTONE_FACE_POCKET_Y',16.6)}",
-              f"snap cutout = {mm('BOTTOM_KEYSTONE_CUTOUT_X',16.1)} x {mm('BOTTOM_KEYSTONE_CUTOUT_Y',14.7)}",
-              "BOTTOM_KEYSTONE_ROW_AXIS / BOTTOM_KEYSTONE_CORNER_Y_SIGN",
-              "Auto placement moves the cluster around protected keep-outs."],PURPLE)
+              f"outer housing = {mm('BOTTOM_KEYSTONE_SOCKET_OUTER_X',17.7)} x {mm('BOTTOM_KEYSTONE_SOCKET_OUTER_Y',25)} x {mm('BOTTOM_KEYSTONE_SOCKET_HEIGHT',9.75)}",
+              f"side wall = {mm('BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS',1.5)}; base clearance = {mm('BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE',0.1,2)}",
+              "Opposed top lips and asymmetric lower rails snap/locate the module.",
+              "All ramp undersides are 45 degrees or steeper; support_required=False."],PURPLE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -3446,8 +3452,9 @@ def page_index(pdf):
             ("Nut thread / across-flats / thickness","BOTTOM_MOUNT_NUT_THREAD_DIAMETER / BOTTOM_MOUNT_NUT_ACROSS_FLATS / BOTTOM_MOUNT_NUT_THICKNESS"),
             ("Nut-holder outer diameter / wall","BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL"),
             ("Keystone count / spacing","BOTTOM_KEYSTONE_COUNT / BOTTOM_KEYSTONE_CENTER_SPACING"),
-            ("Keystone snap cutout X / Y","BOTTOM_KEYSTONE_CUTOUT_X / BOTTOM_KEYSTONE_CUTOUT_Y"),
-            ("Keystone face recess / pocket","BOTTOM_KEYSTONE_FACE_RECESS_DEPTH / BOTTOM_KEYSTONE_FACE_POCKET_X / BOTTOM_KEYSTONE_FACE_POCKET_Y"),
+            ("Keystone housing outer X / Y / Z","BOTTOM_KEYSTONE_SOCKET_OUTER_X / BOTTOM_KEYSTONE_SOCKET_OUTER_Y / BOTTOM_KEYSTONE_SOCKET_HEIGHT"),
+            ("Keystone housing wall / clearance","BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS / BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE"),
+            ("Keystone locating rails / snap lips","BOTTOM_KEYSTONE_SOCKET_*_RAIL_* / BOTTOM_KEYSTONE_SOCKET_UPPER_*"),
         ]),
     ]
     if len(groups) != QUICK_REFERENCE_PAGE_COUNT:

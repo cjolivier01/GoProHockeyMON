@@ -13,7 +13,7 @@ This builds a printable two-part Hockeymom camera case with:
 * two camera openings on the same side with the lens faces projecting through,
 * camera axes angled apart in plan,
 * either two locally wall-aligned 40 mm fan stations or one large lid fan,
-* three flush-recessed bottom keystone-module mounts, and
+* three complete bottom keystone-module snap housings, and
 * an optional projecting eyelid/visor directly above each camera opening.
 
 Run inside Blender::
@@ -1733,18 +1733,36 @@ BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT = 24
 BOTTOM_MOUNT_NUT_FINAL_BOSS_MIN_SOLID_RATIO = 1.0
 
 # Three bottom-facing keystone sockets grouped near one rear corner.  Each is
-# generated directly as a recessed snap-in panel cutout; no external mesh or
-# machine-specific asset path is required.  Modules load from inside and their
-# connector faces finish flush with the case exterior.
+# a complete Python-generated snap housing rather than a bare panel hole; no
+# external mesh or machine-specific asset path is required.  Modules load from
+# inside and their connector faces finish flush with the case exterior.  The
+# dimensions and asymmetric ramps reproduce the proven printable housing that
+# originally served only as a local design reference.
 BOTTOM_KEYSTONES_ENABLED = True
 BOTTOM_KEYSTONE_COUNT = 3
 BOTTOM_KEYSTONE_CORNER_Y_SIGN = 1.0
 BOTTOM_KEYSTONE_ROW_AXIS = "y"  # "x" runs rear-to-front; "y" runs toward center.
-BOTTOM_KEYSTONE_CUTOUT_X = 16.1
-BOTTOM_KEYSTONE_CUTOUT_Y = 14.7
-BOTTOM_KEYSTONE_FACE_POCKET_X = 19.5
-BOTTOM_KEYSTONE_FACE_POCKET_Y = 16.6
-BOTTOM_KEYSTONE_FACE_RECESS_DEPTH = 1.5
+BOTTOM_KEYSTONE_SOCKET_OUTER_X = 17.7
+BOTTOM_KEYSTONE_SOCKET_OUTER_Y = 25.0
+BOTTOM_KEYSTONE_SOCKET_HEIGHT = 9.75
+BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS = 1.5
+BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE = 0.10
+# The low rails support and locate the module without horizontal bridge spans.
+# The deeper rear rail includes a 45-degree lead-in from its 0.5 mm tip.
+BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT = 1.5
+BOTTOM_KEYSTONE_SOCKET_FRONT_LOWER_RAIL_PROJECTION = 1.35
+BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAIL_PROJECTION = 3.25
+BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_RUN = 1.0
+BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT = 0.5
+# Opposed upper lips retain the keystone.  Their 1:1 ramp rise/run is
+# support-free when the case base is printed on its exterior bottom face.
+BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_DEPTH = 1.5
+BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_NOSE_HEIGHT = 0.5
+BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION = 1.35
+BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN = 1.0
+BOTTOM_KEYSTONE_SOCKET_UPPER_TOP_LAND = 0.35
+BOTTOM_KEYSTONE_SOCKET_FINAL_MISSING_VOLUME_TOLERANCE = 0.10
+BOTTOM_KEYSTONE_SOCKET_FINAL_VOID_VOLUME_TOLERANCE = 0.01
 BOTTOM_KEYSTONE_INTERNAL_BODY_X = 22.0
 BOTTOM_KEYSTONE_INTERNAL_BODY_Y = 25.0
 BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT = 30.0
@@ -3565,11 +3583,113 @@ def bottom_mount_feature_radius() -> float:
 
 
 def bottom_keystone_mount_plan_dimensions():
-    """Return the full native recessed-panel footprint."""
+    """Return the full Python-generated socket-housing footprint."""
     return (
-        max(BOTTOM_KEYSTONE_FACE_POCKET_X, BOTTOM_KEYSTONE_CUTOUT_X),
-        max(BOTTOM_KEYSTONE_FACE_POCKET_Y, BOTTOM_KEYSTONE_CUTOUT_Y),
+        BOTTOM_KEYSTONE_SOCKET_OUTER_X,
+        BOTTOM_KEYSTONE_SOCKET_OUTER_Y,
     )
+
+
+def bottom_keystone_socket_inner_clear_x() -> float:
+    return (
+        BOTTOM_KEYSTONE_SOCKET_OUTER_X
+        - 2.0 * BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS
+    )
+
+
+def bottom_keystone_socket_profile_yz():
+    """Return the clockwise Y/Z outline of the socket's open cavity.
+
+    Extruding this profile across the clear X span describes the void inside
+    the housing.  Keeping the asymmetric rail and lip stations explicit makes
+    the snap behavior configurable without embedding an STL vertex table.
+    """
+    outside_y0 = -BOTTOM_KEYSTONE_SOCKET_OUTER_Y / 2.0
+    front_inner_y = outside_y0 + BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS
+    rear_inner_y = -front_inner_y
+    front_lower_tip_y = (
+        front_inner_y
+        + BOTTOM_KEYSTONE_SOCKET_FRONT_LOWER_RAIL_PROJECTION
+    )
+    rear_lower_platform_y = (
+        rear_inner_y
+        - BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAIL_PROJECTION
+    )
+    rear_lower_ramp_tip_y = (
+        rear_lower_platform_y
+        - BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_RUN
+    )
+    front_upper_tip_y = (
+        front_inner_y + BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION
+    )
+    rear_upper_tip_y = (
+        rear_inner_y - BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION
+    )
+    front_upper_ramp_top_y = (
+        front_upper_tip_y - BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN
+    )
+    rear_upper_ramp_top_y = (
+        rear_upper_tip_y + BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN
+    )
+    upper_underside_z = (
+        BOTTOM_KEYSTONE_SOCKET_HEIGHT
+        - BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_DEPTH
+    )
+    upper_nose_top_z = (
+        upper_underside_z
+        + BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_NOSE_HEIGHT
+    )
+    lower_rail_z = BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT
+    return (
+        (front_inner_y, upper_underside_z),
+        (front_upper_tip_y, upper_underside_z),
+        (front_upper_tip_y, upper_nose_top_z),
+        (front_upper_ramp_top_y, BOTTOM_KEYSTONE_SOCKET_HEIGHT),
+        (front_upper_tip_y, BOTTOM_KEYSTONE_SOCKET_HEIGHT),
+        (rear_upper_tip_y, BOTTOM_KEYSTONE_SOCKET_HEIGHT),
+        (rear_upper_ramp_top_y, BOTTOM_KEYSTONE_SOCKET_HEIGHT),
+        (rear_upper_tip_y, upper_nose_top_z),
+        (rear_upper_tip_y, upper_underside_z),
+        (rear_inner_y, upper_underside_z),
+        (rear_inner_y, lower_rail_z),
+        (rear_lower_platform_y, lower_rail_z),
+        (
+            rear_lower_ramp_tip_y,
+            BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT,
+        ),
+        (rear_lower_ramp_tip_y, 0.0),
+        (front_lower_tip_y, 0.0),
+        (front_lower_tip_y, lower_rail_z),
+        (front_inner_y, lower_rail_z),
+    )
+
+
+def bottom_keystone_socket_profile_area() -> float:
+    profile = bottom_keystone_socket_profile_yz()
+    return abs(
+        sum(
+            y0 * z1 - z0 * y1
+            for (y0, z0), (y1, z1) in zip(
+                profile,
+                (*profile[1:], profile[0]),
+            )
+        )
+    ) / 2.0
+
+
+def bottom_keystone_socket_expected_volume() -> float:
+    return (
+        BOTTOM_KEYSTONE_SOCKET_OUTER_X
+        * BOTTOM_KEYSTONE_SOCKET_OUTER_Y
+        * BOTTOM_KEYSTONE_SOCKET_HEIGHT
+        - bottom_keystone_socket_inner_clear_x()
+        * bottom_keystone_socket_profile_area()
+    )
+
+
+def bottom_keystone_socket_module_bottom_z() -> float:
+    """The installed cartridge begins above the native snap housing."""
+    return BOTTOM_KEYSTONE_SOCKET_HEIGHT
 
 
 def validate_config() -> None:
@@ -4248,12 +4368,41 @@ def validate_config() -> None:
         "BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT": (
             BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT
         ),
-        "BOTTOM_KEYSTONE_CUTOUT_X": BOTTOM_KEYSTONE_CUTOUT_X,
-        "BOTTOM_KEYSTONE_CUTOUT_Y": BOTTOM_KEYSTONE_CUTOUT_Y,
-        "BOTTOM_KEYSTONE_FACE_POCKET_X": BOTTOM_KEYSTONE_FACE_POCKET_X,
-        "BOTTOM_KEYSTONE_FACE_POCKET_Y": BOTTOM_KEYSTONE_FACE_POCKET_Y,
-        "BOTTOM_KEYSTONE_FACE_RECESS_DEPTH": (
-            BOTTOM_KEYSTONE_FACE_RECESS_DEPTH
+        "BOTTOM_KEYSTONE_SOCKET_OUTER_X": BOTTOM_KEYSTONE_SOCKET_OUTER_X,
+        "BOTTOM_KEYSTONE_SOCKET_OUTER_Y": BOTTOM_KEYSTONE_SOCKET_OUTER_Y,
+        "BOTTOM_KEYSTONE_SOCKET_HEIGHT": BOTTOM_KEYSTONE_SOCKET_HEIGHT,
+        "BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS": (
+            BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT": (
+            BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_FRONT_LOWER_RAIL_PROJECTION": (
+            BOTTOM_KEYSTONE_SOCKET_FRONT_LOWER_RAIL_PROJECTION
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAIL_PROJECTION": (
+            BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAIL_PROJECTION
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_RUN": (
+            BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_RUN
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT": (
+            BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_DEPTH": (
+            BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_DEPTH
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_NOSE_HEIGHT": (
+            BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_NOSE_HEIGHT
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION": (
+            BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN": (
+            BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_UPPER_TOP_LAND": (
+            BOTTOM_KEYSTONE_SOCKET_UPPER_TOP_LAND
         ),
         "BOTTOM_KEYSTONE_INTERNAL_BODY_X": BOTTOM_KEYSTONE_INTERNAL_BODY_X,
         "BOTTOM_KEYSTONE_INTERNAL_BODY_Y": BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
@@ -6049,10 +6198,19 @@ def validate_config() -> None:
         "BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE": (
             BOTTOM_KEYSTONE_KEEP_OUT_CLEARANCE
         ),
+        "BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE": (
+            BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_FINAL_MISSING_VOLUME_TOLERANCE": (
+            BOTTOM_KEYSTONE_SOCKET_FINAL_MISSING_VOLUME_TOLERANCE
+        ),
+        "BOTTOM_KEYSTONE_SOCKET_FINAL_VOID_VOLUME_TOLERANCE": (
+            BOTTOM_KEYSTONE_SOCKET_FINAL_VOID_VOLUME_TOLERANCE
+        ),
     }
     for name, value in nonnegative.items():
-        if value < 0.0:
-            raise ValueError(f"{name} cannot be negative")
+        if not math.isfinite(float(value)) or value < 0.0:
+            raise ValueError(f"{name} must be finite and nonnegative")
     if CAMERA_FORWARD_PLACEMENT_MODE not in {"maximize", "manual"}:
         raise ValueError(
             'CAMERA_FORWARD_PLACEMENT_MODE must be "maximize" or "manual"'
@@ -6159,15 +6317,71 @@ def validate_config() -> None:
         raise ValueError("BOTTOM_KEYSTONE_CORNER_Y_SIGN must be -1 or +1")
     if BOTTOM_KEYSTONE_ROW_AXIS not in {"x", "y"}:
         raise ValueError('BOTTOM_KEYSTONE_ROW_AXIS must be "x" or "y"')
-    if (
-        BOTTOM_KEYSTONE_FACE_POCKET_X <= BOTTOM_KEYSTONE_CUTOUT_X
-        or BOTTOM_KEYSTONE_FACE_POCKET_Y <= BOTTOM_KEYSTONE_CUTOUT_Y
+    if 2.0 * BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS >= min(
+        BOTTOM_KEYSTONE_SOCKET_OUTER_X,
+        BOTTOM_KEYSTONE_SOCKET_OUTER_Y,
     ):
-        raise ValueError("Keystone face pockets must exceed their through cutouts")
-    if BOTTOM_KEYSTONE_FACE_RECESS_DEPTH >= BOTTOM_THICKNESS:
-        raise ValueError("Keystone face recess must leave a snap-in panel floor")
+        raise ValueError("Keystone socket walls consume the interior opening")
+    if BOTTOM_KEYSTONE_SOCKET_HEIGHT >= BASE_HEIGHT:
+        raise ValueError("Keystone socket housing does not fit below the lid")
+    if BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT >= (
+        BOTTOM_KEYSTONE_SOCKET_HEIGHT
+        - BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_DEPTH
+    ):
+        raise ValueError("Keystone lower rails collide with the upper snap lips")
+    if BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT >= (
+        BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT
+    ):
+        raise ValueError("Keystone rear lower-ramp tip must stay below its rail")
+    if (
+        BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT
+        - BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT
+        + 1e-9
+        < BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_RUN
+    ):
+        raise ValueError("Keystone lower lead-in must remain support-free")
+    if BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_NOSE_HEIGHT >= (
+        BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_DEPTH
+    ):
+        raise ValueError("Keystone upper snap-lip nose consumes its ramp rise")
+    if (
+        BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_DEPTH
+        - BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_NOSE_HEIGHT
+        + 1e-9
+        < BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN
+    ):
+        raise ValueError("Keystone upper snap ramps must remain support-free")
+    if abs(
+        BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION
+        - BOTTOM_KEYSTONE_SOCKET_UPPER_RAMP_RUN
+        - BOTTOM_KEYSTONE_SOCKET_UPPER_TOP_LAND
+    ) > 1e-9:
+        raise ValueError(
+            "Keystone upper lip projection must equal ramp run plus top land"
+        )
+    clear_y = (
+        BOTTOM_KEYSTONE_SOCKET_OUTER_Y
+        - 2.0 * BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS
+    )
+    if (
+        BOTTOM_KEYSTONE_SOCKET_FRONT_LOWER_RAIL_PROJECTION
+        + BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAIL_PROJECTION
+        + BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_RUN
+        >= clear_y
+    ):
+        raise ValueError("Keystone lower rails close or cross the bottom opening")
+    if 2.0 * BOTTOM_KEYSTONE_SOCKET_UPPER_LIP_PROJECTION >= clear_y:
+        raise ValueError("Keystone upper snap lips close the module cavity")
+    if BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE >= (
+        BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS
+    ):
+        raise ValueError("Keystone base clearance consumes the socket side walls")
     if BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT >= BASE_HEIGHT - BOTTOM_THICKNESS:
         raise ValueError("Keystone internal body keepout exceeds the base height")
+    if bottom_keystone_socket_module_bottom_z() >= (
+        BOTTOM_THICKNESS + BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT
+    ):
+        raise ValueError("Keystone housing consumes the installed module height")
     for name, value in (
         ("BOTTOM_KEYSTONE_USB_PLUG_BODY_X", BOTTOM_KEYSTONE_USB_PLUG_BODY_X),
         ("BOTTOM_KEYSTONE_USB_PLUG_BODY_Y", BOTTOM_KEYSTONE_USB_PLUG_BODY_Y),
@@ -6199,15 +6413,11 @@ def validate_config() -> None:
     keystone_row_size = (
         max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_X,
-            BOTTOM_KEYSTONE_FACE_POCKET_X,
-            BOTTOM_KEYSTONE_CUTOUT_X,
             socket_keepout_x,
         )
         if BOTTOM_KEYSTONE_ROW_AXIS == "x"
         else max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
-            BOTTOM_KEYSTONE_FACE_POCKET_Y,
-            BOTTOM_KEYSTONE_CUTOUT_Y,
             socket_keepout_y,
         )
     )
@@ -14388,14 +14598,10 @@ def resolve_bottom_keystone_positions(
     socket_keepout_x, socket_keepout_y = bottom_keystone_mount_plan_dimensions()
     keystone_keepout_x = max(
         BOTTOM_KEYSTONE_INTERNAL_BODY_X,
-        BOTTOM_KEYSTONE_FACE_POCKET_X,
-        BOTTOM_KEYSTONE_CUTOUT_X,
         socket_keepout_x,
     )
     keystone_keepout_y = max(
         BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
-        BOTTOM_KEYSTONE_FACE_POCKET_Y,
-        BOTTOM_KEYSTONE_CUTOUT_Y,
         socket_keepout_y,
     )
     side_sign = float(BOTTOM_KEYSTONE_CORNER_Y_SIGN)
@@ -14521,8 +14727,8 @@ def resolve_bottom_keystone_positions(
         )
         if not all(point_in_polygon(corner, inner_loop) for corner in body_corners):
             return False
-        bottom_face_x = BOTTOM_KEYSTONE_FACE_POCKET_X
-        bottom_face_y = BOTTOM_KEYSTONE_FACE_POCKET_Y
+        bottom_face_x = socket_keepout_x
+        bottom_face_y = socket_keepout_y
         pocket_corners = axis_aligned_rectangle_corners(
             position,
             bottom_face_x,
@@ -20635,14 +20841,10 @@ def resolve_airflow_guide_layout(
         socket_x, socket_y = bottom_keystone_mount_plan_dimensions()
         keystone_x = max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_X,
-            BOTTOM_KEYSTONE_FACE_POCKET_X,
-            BOTTOM_KEYSTONE_CUTOUT_X,
             socket_x,
         )
         keystone_y = max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
-            BOTTOM_KEYSTONE_FACE_POCKET_Y,
-            BOTTOM_KEYSTONE_CUTOUT_Y,
             socket_y,
         )
         for index, position in enumerate(bottom_keystone_positions, start=1):
@@ -21917,7 +22119,7 @@ def restore_final_airflow_guide_keystone_reliefs(base, layout):
         return base
     guide_z1 = min(record["z1"] for record in layout["records"])
     module_top_z = BOTTOM_THICKNESS + BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT
-    module_bottom_z = BOTTOM_THICKNESS
+    module_bottom_z = bottom_keystone_socket_module_bottom_z()
     relief_count = 0
     proxy_records = []
     for label, service_loop in keystone_keepouts:
@@ -21936,7 +22138,7 @@ def restore_final_airflow_guide_keystone_reliefs(base, layout):
         vane_relief_masks = []
         roof_top_z = None
         mount_interface_overlap = 0.0
-        mount_interface_kind = "native_snap_panel"
+        mount_interface_kind = "python_snap_housing"
         if intersecting_records:
             local_loop = tuple(
                 (x - center_x, y - center_y) for x, y in service_loop
@@ -22011,39 +22213,10 @@ def restore_final_airflow_guide_keystone_reliefs(base, layout):
                     vane_relief_masks.append(wall_mask)
                 else:
                     bpy.data.objects.remove(wall_mask, do_unlink=True)
-            mount_interface = add_beveled_box(
-                f"{label}_Native_Snap_Panel_Interface",
-                (
-                    BOTTOM_KEYSTONE_FACE_POCKET_X,
-                    BOTTOM_KEYSTONE_FACE_POCKET_Y,
-                    BOTTOM_THICKNESS - BOTTOM_KEYSTONE_FACE_RECESS_DEPTH,
-                ),
-                (
-                    center_x,
-                    center_y,
-                    (
-                        BOTTOM_THICKNESS
-                        + BOTTOM_KEYSTONE_FACE_RECESS_DEPTH
-                    )
-                    / 2.0,
-                ),
-                bevel=0.0,
-            )
-            native_cutout = add_beveled_box(
-                f"{label}_Native_Snap_Through_Cutout",
-                (
-                    BOTTOM_KEYSTONE_CUTOUT_X,
-                    BOTTOM_KEYSTONE_CUTOUT_Y,
-                    BOTTOM_THICKNESS + 2.0 * BOOLEAN_OVERLAP,
-                ),
-                (center_x, center_y, BOTTOM_THICKNESS / 2.0),
-                bevel=0.0,
-            )
-            boolean_difference(
-                mount_interface,
-                [native_cutout],
-                f"{label}_Native_Snap_Panel_Interface_Ring",
-                solver="EXACT",
+            socket_index = int(label.split("_")[2])
+            mount_interface = create_bottom_keystone_snap_socket(
+                socket_index,
+                (center_x, center_y),
             )
             mount_interface_overlap = sum(
                 intersection_metrics(
@@ -26953,60 +27126,261 @@ def add_bottom_mount_hole(base, position):
     return base
 
 
+def create_bottom_keystone_snap_socket(index, position):
+    """Build one complete manifold keystone housing from named dimensions.
+
+    The mesh is the boundary of an outer rectangular sleeve minus a cavity
+    extruded across its clear X span.  Creating that boundary directly avoids
+    both an external-STL dependency and a fragile Boolean between coplanar
+    housing/cavity faces.
+    """
+    outer_x = BOTTOM_KEYSTONE_SOCKET_OUTER_X
+    outer_y = BOTTOM_KEYSTONE_SOCKET_OUTER_Y
+    height = BOTTOM_KEYSTONE_SOCKET_HEIGHT
+    wall = BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS
+    x0 = -outer_x / 2.0
+    x1 = x0 + wall
+    x2 = outer_x / 2.0 - wall
+    x3 = outer_x / 2.0
+    y0 = -outer_y / 2.0
+    y3 = outer_y / 2.0
+    profile = bottom_keystone_socket_profile_yz()
+    top_events = tuple(
+        sorted(
+            {
+                y0,
+                y3,
+                *(
+                    y
+                    for y, z in profile
+                    if abs(z - height) <= 1e-9
+                ),
+            }
+        )
+    )
+    bottom_events = tuple(
+        sorted(
+            {
+                y0,
+                y3,
+                *(y for y, z in profile if abs(z) <= 1e-9),
+            }
+        )
+    )
+    top_open_y0 = top_events[1]
+    top_open_y1 = top_events[-2]
+    bottom_open_y0 = bottom_events[1]
+    bottom_open_y1 = bottom_events[-2]
+
+    vertices = []
+    vertex_indices = {}
+    faces = []
+
+    def vertex(x, y, z):
+        key = (float(x), float(y), float(z))
+        if key not in vertex_indices:
+            vertex_indices[key] = len(vertices)
+            vertices.append(key)
+        return vertex_indices[key]
+
+    def face(coordinates):
+        faces.append([vertex(*coordinate) for coordinate in coordinates])
+
+    # The two cavity-side walls use opposite winding around the same clockwise
+    # Y/Z profile.  Every non-opening profile edge is then bridged across X.
+    face(tuple((x1, y, z) for y, z in reversed(profile)))
+    face(tuple((x2, y, z) for y, z in profile))
+    for index_in_profile, (start_y, start_z) in enumerate(profile):
+        end_y, end_z = profile[(index_in_profile + 1) % len(profile)]
+        on_open_face = (
+            abs(start_z - end_z) <= 1e-9
+            and (
+                abs(start_z) <= 1e-9
+                or abs(start_z - height) <= 1e-9
+            )
+        )
+        if on_open_face:
+            continue
+        face(
+            (
+                (x1, start_y, start_z),
+                (x1, end_y, end_z),
+                (x2, end_y, end_z),
+                (x2, start_y, start_z),
+            )
+        )
+
+    # Tile the exterior top and bottom rings at every cavity event so the
+    # resulting mesh has no T-junctions before triangulation.
+    for first_y, second_y in zip(top_events, top_events[1:]):
+        for first_x, second_x in ((x0, x1), (x2, x3)):
+            face(
+                (
+                    (first_x, first_y, height),
+                    (second_x, first_y, height),
+                    (second_x, second_y, height),
+                    (first_x, second_y, height),
+                )
+            )
+    for first_y, second_y in (
+        (y0, top_open_y0),
+        (top_open_y1, y3),
+    ):
+        face(
+            (
+                (x1, first_y, height),
+                (x2, first_y, height),
+                (x2, second_y, height),
+                (x1, second_y, height),
+            )
+        )
+    for first_y, second_y in zip(bottom_events, bottom_events[1:]):
+        for first_x, second_x in ((x0, x1), (x2, x3)):
+            face(
+                (
+                    (first_x, second_y, 0.0),
+                    (second_x, second_y, 0.0),
+                    (second_x, first_y, 0.0),
+                    (first_x, first_y, 0.0),
+                )
+            )
+    for first_y, second_y in (
+        (y0, bottom_open_y0),
+        (bottom_open_y1, y3),
+    ):
+        face(
+            (
+                (x1, second_y, 0.0),
+                (x2, second_y, 0.0),
+                (x2, first_y, 0.0),
+                (x1, first_y, 0.0),
+            )
+        )
+
+    # Full exterior faces.  Collinear event vertices on each X side match the
+    # subdivided top and bottom rings exactly.
+    minimum_x_face = [(x0, y0, 0.0), (x0, y0, height)]
+    minimum_x_face.extend((x0, y, height) for y in top_events[1:])
+    minimum_x_face.append((x0, y3, 0.0))
+    minimum_x_face.extend(
+        (x0, y, 0.0) for y in reversed(bottom_events[1:-1])
+    )
+    face(tuple(minimum_x_face))
+    maximum_x_face = [(x3, y0, 0.0)]
+    maximum_x_face.extend(
+        (x3, y, 0.0) for y in bottom_events[1:]
+    )
+    maximum_x_face.append((x3, y3, height))
+    maximum_x_face.extend(
+        (x3, y, height) for y in reversed(top_events[:-1])
+    )
+    face(tuple(maximum_x_face))
+    for first_x, second_x in ((x0, x1), (x1, x2), (x2, x3)):
+        face(
+            (
+                (first_x, y0, 0.0),
+                (second_x, y0, 0.0),
+                (second_x, y0, height),
+                (first_x, y0, height),
+            )
+        )
+        face(
+            (
+                (first_x, y3, height),
+                (second_x, y3, height),
+                (second_x, y3, 0.0),
+                (first_x, y3, 0.0),
+            )
+        )
+
+    socket = create_mesh_object(
+        f"Bottom_Keystone_{index}_Python_Snap_Housing",
+        vertices,
+        faces,
+    )
+    cleanup_mesh(socket)
+    triangulate_mesh(socket)
+    recalc_normals(socket)
+    socket.location = (position[0], position[1], 0.0)
+    bpy.context.view_layer.update()
+    non_manifold = non_manifold_edge_count(socket)
+    shells = connected_shell_count(socket)
+    bm = bmesh.new()
+    bm.from_mesh(socket.data)
+    measured_volume = abs(bm.calc_volume(signed=True))
+    bm.free()
+    expected_volume = bottom_keystone_socket_expected_volume()
+    measured_dimensions = tuple(float(value) for value in socket.dimensions)
+    expected_dimensions = (outer_x, outer_y, height)
+    if non_manifold or shells != 1:
+        raise RuntimeError(
+            "Generated keystone housing is not one manifold shell: "
+            f"non_manifold_edges={non_manifold} shells={shells}"
+        )
+    if any(
+        abs(measured - expected) > 1e-6
+        for measured, expected in zip(measured_dimensions, expected_dimensions)
+    ):
+        raise RuntimeError(
+            "Generated keystone housing dimensions changed: "
+            f"measured={measured_dimensions} expected={expected_dimensions}"
+        )
+    if abs(measured_volume - expected_volume) > 1e-3:
+        raise RuntimeError(
+            "Generated keystone housing volume changed: "
+            f"measured={measured_volume:.6f} expected={expected_volume:.6f}"
+        )
+    return socket
+
+
 def add_bottom_keystone_mounts(base, positions):
     if not BOTTOM_KEYSTONES_ENABLED or not positions:
         return base
-    pocket_cutters = []
-    through_cutters = []
-    for index, (x, y) in enumerate(positions, start=1):
-        pocket_cutters.append(
-            add_beveled_box(
-                f"Bottom_Keystone_{index}_Flush_Face_Pocket",
-                (
-                    BOTTOM_KEYSTONE_FACE_POCKET_X,
-                    BOTTOM_KEYSTONE_FACE_POCKET_Y,
-                    BOTTOM_KEYSTONE_FACE_RECESS_DEPTH + BOOLEAN_OVERLAP,
-                ),
-                (
-                    x,
-                    y,
-                    (
-                        BOTTOM_KEYSTONE_FACE_RECESS_DEPTH
-                        - BOOLEAN_OVERLAP
-                    )
-                    / 2.0,
-                ),
-                bevel=0.0,
-            )
+    inner_clearance_x = (
+        bottom_keystone_socket_inner_clear_x()
+        + 2.0 * BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE
+    )
+    inner_clearance_y = (
+        BOTTOM_KEYSTONE_SOCKET_OUTER_Y
+        - 2.0 * BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS
+        + 2.0 * BOTTOM_KEYSTONE_SOCKET_BASE_CLEARANCE
+    )
+    cavity_cutters = [
+        add_beveled_box(
+            f"Bottom_Keystone_{index}_Housing_Inner_Clearance",
+            (
+                inner_clearance_x,
+                inner_clearance_y,
+                BOTTOM_KEYSTONE_SOCKET_HEIGHT + 2.0 * BOOLEAN_OVERLAP,
+            ),
+            (x, y, BOTTOM_KEYSTONE_SOCKET_HEIGHT / 2.0),
+            bevel=0.0,
         )
-        through_cutters.append(
-            add_beveled_box(
-                f"Bottom_Keystone_{index}_Snap_In_Through_Cutout",
-                (
-                    BOTTOM_KEYSTONE_CUTOUT_X,
-                    BOTTOM_KEYSTONE_CUTOUT_Y,
-                    BOTTOM_THICKNESS + 2.0 * BOOLEAN_OVERLAP,
-                ),
-                (x, y, BOTTOM_THICKNESS / 2.0),
-                bevel=0.0,
-            )
-        )
+        for index, (x, y) in enumerate(positions, start=1)
+    ]
     boolean_difference(
         base,
-        pocket_cutters,
-        "Bottom_Keystone_Flush_Face_Pockets",
+        cavity_cutters,
+        "Bottom_Keystone_Housing_Inner_Clearances",
     )
-    boolean_difference(
-        base,
-        through_cutters,
-        "Bottom_Keystone_Snap_In_Through_Cutouts",
-    )
+    for index, position in enumerate(positions, start=1):
+        socket = create_bottom_keystone_snap_socket(index, position)
+        boolean_union(
+            base,
+            socket,
+            f"Bottom_Keystone_{index}_Python_Snap_Housing_Union",
+            solver="EXACT",
+        )
     print(
-        "BOTTOM_KEYSTONE_FLUSH_MOUNTS "
-        f"count={len(positions)} face_recess="
-        f"{BOTTOM_KEYSTONE_FACE_RECESS_DEPTH:.2f} "
-        f"remaining_snap_panel="
-        f"{BOTTOM_THICKNESS - BOTTOM_KEYSTONE_FACE_RECESS_DEPTH:.2f}"
+        "BOTTOM_KEYSTONE_PYTHON_SNAP_HOUSINGS "
+        f"count={len(positions)} outer="
+        f"({BOTTOM_KEYSTONE_SOCKET_OUTER_X:.2f}, "
+        f"{BOTTOM_KEYSTONE_SOCKET_OUTER_Y:.2f}, "
+        f"{BOTTOM_KEYSTONE_SOCKET_HEIGHT:.2f}) "
+        f"wall={BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS:.2f} "
+        f"inner_clearance=({inner_clearance_x:.2f}, "
+        f"{inner_clearance_y:.2f}) outside_face_z=0.00 "
+        "loading_side=inside support_required=False external_stl=False"
     )
     return base
 
@@ -31508,6 +31882,116 @@ def validate_final_bottom_mount_nut_holder(base, position):
     )
 
 
+def validate_final_bottom_keystone_snap_sockets(base, positions):
+    """Prove each complete housing and its bottom loading opening survived."""
+    if not BOTTOM_KEYSTONES_ENABLED or not positions:
+        return
+    expected_volume = bottom_keystone_socket_expected_volume()
+    profile = bottom_keystone_socket_profile_yz()
+    bottom_open_events = sorted(y for y, z in profile if abs(z) <= 1e-9)
+    bottom_open_y0, bottom_open_y1 = (
+        bottom_open_events[0],
+        bottom_open_events[-1],
+    )
+    probe_inset = max(
+        2.0 * BOOLEAN_CLEANUP_DISTANCE,
+        min(0.25, BOTTOM_KEYSTONE_SOCKET_WALL_THICKNESS / 6.0),
+    )
+    opening_x = bottom_keystone_socket_inner_clear_x() - 2.0 * probe_inset
+    opening_y = bottom_open_y1 - bottom_open_y0 - 2.0 * probe_inset
+    opening_z0 = -BOOLEAN_OVERLAP
+    opening_z1 = min(
+        BOTTOM_KEYSTONE_SOCKET_REAR_LOWER_RAMP_TIP_HEIGHT,
+        BOTTOM_KEYSTONE_SOCKET_LOWER_RAIL_HEIGHT / 3.0,
+    )
+    central_passage_y = (bottom_open_y0 + bottom_open_y1) / 2.0
+    maximum_missing_volume = 0.0
+    maximum_opening_overlap = 0.0
+    maximum_passage_overlap = 0.0
+    for index, position in enumerate(positions, start=1):
+        socket = create_bottom_keystone_snap_socket(index, position)
+        opening = add_beveled_box(
+            f"Bottom_Keystone_{index}_Exterior_Opening_Probe",
+            (opening_x, opening_y, opening_z1 - opening_z0),
+            (
+                position[0],
+                position[1] + (bottom_open_y0 + bottom_open_y1) / 2.0,
+                (opening_z0 + opening_z1) / 2.0,
+            ),
+            bevel=0.0,
+        )
+        passage = add_beveled_box(
+            f"Bottom_Keystone_{index}_Central_Cavity_Probe",
+            (
+                opening_x,
+                2.0 * probe_inset,
+                BOTTOM_KEYSTONE_SOCKET_HEIGHT - 2.0 * probe_inset,
+            ),
+            (
+                position[0],
+                position[1] + central_passage_y,
+                BOTTOM_KEYSTONE_SOCKET_HEIGHT / 2.0,
+            ),
+            bevel=0.0,
+        )
+        try:
+            preserved_volume = intersection_metrics(
+                socket,
+                base,
+                f"Bottom_Keystone_{index}_Final_Housing_Preservation",
+            )[2]
+            opening_overlap = intersection_metrics(
+                opening,
+                base,
+                f"Bottom_Keystone_{index}_Final_Exterior_Opening",
+            )[2]
+            passage_overlap = intersection_metrics(
+                passage,
+                base,
+                f"Bottom_Keystone_{index}_Final_Central_Cavity",
+            )[2]
+        finally:
+            for temporary in (socket, opening, passage):
+                if temporary.name in bpy.data.objects:
+                    bpy.data.objects.remove(temporary, do_unlink=True)
+        missing_volume = max(expected_volume - preserved_volume, 0.0)
+        maximum_missing_volume = max(maximum_missing_volume, missing_volume)
+        maximum_opening_overlap = max(
+            maximum_opening_overlap,
+            opening_overlap,
+        )
+        maximum_passage_overlap = max(
+            maximum_passage_overlap,
+            passage_overlap,
+        )
+        if missing_volume > (
+            BOTTOM_KEYSTONE_SOCKET_FINAL_MISSING_VOLUME_TOLERANCE
+        ):
+            raise RuntimeError(
+                f"Final base lost keystone housing {index} walls or snap "
+                f"ramps: missing={missing_volume:.6f} mm3"
+            )
+        if max(opening_overlap, passage_overlap) > (
+            BOTTOM_KEYSTONE_SOCKET_FINAL_VOID_VOLUME_TOLERANCE
+        ):
+            raise RuntimeError(
+                f"Final base obstructs keystone housing {index}: "
+                f"exterior_opening={opening_overlap:.6f} mm3 "
+                f"central_passage={passage_overlap:.6f} mm3"
+            )
+    base["bottom_keystone_complete_housings_validated"] = len(positions)
+    print(
+        "FINAL_BOTTOM_KEYSTONE_SNAP_HOUSINGS PASS "
+        f"count={len(positions)} expected_each={expected_volume:.3f}mm3 "
+        f"maximum_missing={maximum_missing_volume:.6f}mm3 "
+        f"maximum_exterior_opening_overlap="
+        f"{maximum_opening_overlap:.6f}mm3 "
+        f"maximum_central_passage_overlap="
+        f"{maximum_passage_overlap:.6f}mm3 "
+        "walls_and_snap_ramps_preserved=True support_required=False"
+    )
+
+
 def validate_split_worm_caps(
     caps,
     mechanism,
@@ -32675,7 +33159,7 @@ def validate_keystone_camera_power_paths(
     ):
         return
     module_top_z = BOTTOM_THICKNESS + BOTTOM_KEYSTONE_INTERNAL_BODY_HEIGHT
-    module_bottom_z = BOTTOM_THICKNESS
+    module_bottom_z = bottom_keystone_socket_module_bottom_z()
     plug_z1 = module_top_z + BOTTOM_KEYSTONE_USB_PLUG_ABOVE_MODULE
     plug_z0 = plug_z1 - BOTTOM_KEYSTONE_USB_PLUG_BODY_HEIGHT
     cable_core_radius = (
@@ -37285,14 +37769,10 @@ def build_hockeymom_cam_case():
         socket_x, socket_y = bottom_keystone_mount_plan_dimensions()
         keystone_x = max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_X,
-            BOTTOM_KEYSTONE_FACE_POCKET_X,
-            BOTTOM_KEYSTONE_CUTOUT_X,
             socket_x,
         )
         keystone_y = max(
             BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
-            BOTTOM_KEYSTONE_FACE_POCKET_Y,
-            BOTTOM_KEYSTONE_CUTOUT_Y,
             socket_y,
         )
         acoustic_base_hardware_keepouts.extend(
@@ -37463,14 +37943,10 @@ def build_hockeymom_cam_case():
             socket_x, socket_y = bottom_keystone_mount_plan_dimensions()
             keystone_x = max(
                 BOTTOM_KEYSTONE_INTERNAL_BODY_X,
-                BOTTOM_KEYSTONE_FACE_POCKET_X,
-                BOTTOM_KEYSTONE_CUTOUT_X,
                 socket_x,
             )
             keystone_y = max(
                 BOTTOM_KEYSTONE_INTERNAL_BODY_Y,
-                BOTTOM_KEYSTONE_FACE_POCKET_Y,
-                BOTTOM_KEYSTONE_CUTOUT_Y,
                 socket_y,
             )
             protected_relief_keepouts.extend(
@@ -37749,6 +38225,10 @@ def build_hockeymom_cam_case():
     validate_object(base)
     validate_final_worm_hardware_cavities(base, mechanism)
     validate_final_bottom_mount_nut_holder(base, bottom_mount_hole_position)
+    validate_final_bottom_keystone_snap_sockets(
+        base,
+        bottom_keystone_positions,
+    )
     validate_object(lid)
     validate_front_lid_anchor(base, lid, footprint)
     validate_front_lid_anchor_installation_path(base, lid, footprint)
