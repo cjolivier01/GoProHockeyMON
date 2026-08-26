@@ -10066,6 +10066,7 @@ def add_sloped_beam(
     start_z1: float,
     end_z0: float,
     end_z1: float,
+    start_overlap: float = 0.0,
     end_overlap: float = 0.0,
 ):
     dx = end_xy[0] - start_xy[0]
@@ -10077,8 +10078,8 @@ def add_sloped_beam(
     uy = dy / length
     px = -uy * width / 2.0
     py = ux * width / 2.0
-    sx = start_xy[0] - ux * end_overlap
-    sy = start_xy[1] - uy * end_overlap
+    sx = start_xy[0] - ux * start_overlap
+    sy = start_xy[1] - uy * start_overlap
     ex = end_xy[0] + ux * end_overlap
     ey = end_xy[1] + uy * end_overlap
     vertices = [
@@ -26948,12 +26949,16 @@ def camera_bracket_z_bounds():
     return underside, underside + CAMERA_BRACKET_THICKNESS
 
 
-def camera_bracket_thumb_seat_z_bounds(x: float, y: float):
-    underside, bracket_top = camera_bracket_z_bounds()
-    head_radius = (
+def camera_bracket_thumb_head_clearance_radius():
+    return (
         CAMERA_BRACKET_THUMBSCREW_HEAD_DIAMETER
         + CAMERA_BRACKET_THUMBSCREW_HEAD_CLEARANCE
     ) / 2.0
+
+
+def camera_bracket_thumb_seat_z_bounds(x: float, y: float):
+    underside, bracket_top = camera_bracket_z_bounds()
+    head_radius = camera_bracket_thumb_head_clearance_radius()
     sample_angles = (2.0 * math.pi * index / 72.0 for index in range(72))
     lid_underside_z = min(
         [local_base_seam_z(x, y)]
@@ -27658,6 +27663,7 @@ def create_adjustable_camera_hold_down(camera, post_positions):
                 underside,
                 top,
                 CAMERA_BRACKET_ARM_PLATE_OVERLAP,
+                CAMERA_BRACKET_ARM_PLATE_OVERLAP,
             )
             boolean_union(
                 bridge,
@@ -27704,8 +27710,9 @@ def create_adjustable_camera_hold_down(camera, post_positions):
         "Adjustable_Hold_Down_Eye_Mouth_Clearance",
     )
     clearance_cutters = []
+    thumbscrew_head_clearance_cutters = []
     for index, (x, y) in enumerate(post_positions, start=1):
-        seat_bottom, _ = camera_bracket_thumb_seat_z_bounds(x, y)
+        seat_bottom, seat_top = camera_bracket_thumb_seat_z_bounds(x, y)
         clearance_cutters.append(
             add_cylinder_z(
                 f"Adjustable_Hold_Down_M3_Clearance_{index}",
@@ -27716,10 +27723,25 @@ def create_adjustable_camera_hold_down(camera, post_positions):
                 y,
             )
         )
+        thumbscrew_head_clearance_cutters.append(
+            add_cylinder_z(
+                f"Adjustable_Hold_Down_Thumbscrew_Head_Clearance_{index}",
+                camera_bracket_thumb_head_clearance_radius(),
+                seat_top,
+                top + BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+        )
     boolean_difference(
         bridge,
         clearance_cutters,
         "Adjustable_Hold_Down_M3_Clearance_Holes",
+    )
+    boolean_difference(
+        bridge,
+        thumbscrew_head_clearance_cutters,
+        "Adjustable_Hold_Down_Thumbscrew_Head_Clearances",
     )
     pad_record = object_bvh_record(bridge)
     pad_samples = 1
@@ -28141,6 +28163,7 @@ def create_camera_bracket(camera, post_positions):
                 seat_top,
                 underside,
                 top,
+                CAMERA_BRACKET_ARM_PLATE_OVERLAP,
                 CAMERA_BRACKET_ARM_PLATE_OVERLAP,
             )
             boolean_union(
@@ -28582,8 +28605,9 @@ def create_camera_bracket(camera, post_positions):
         )
 
     clearance_cutters = []
+    thumbscrew_head_clearance_cutters = []
     for hole_index, (x, y) in enumerate(post_positions, start=1):
-        seat_bottom, _ = camera_bracket_thumb_seat_z_bounds(x, y)
+        seat_bottom, seat_top = camera_bracket_thumb_seat_z_bounds(x, y)
         clearance_cutters.append(
             add_cylinder_z(
                 f"Camera_Bracket_{camera['index']}_M3_Clearance_{hole_index}",
@@ -28594,10 +28618,25 @@ def create_camera_bracket(camera, post_positions):
                 y,
             )
         )
+        thumbscrew_head_clearance_cutters.append(
+            add_cylinder_z(
+                f"Camera_Bracket_{camera['index']}_Thumbscrew_Head_Clearance_{hole_index}",
+                camera_bracket_thumb_head_clearance_radius(),
+                seat_top,
+                top + 2.0 * BOOLEAN_OVERLAP,
+                x,
+                y,
+            )
+        )
     boolean_difference(
         bracket,
         clearance_cutters,
         f"Camera_Bracket_{camera['index']}_M3_Clearance_Holes",
+    )
+    boolean_difference(
+        bracket,
+        thumbscrew_head_clearance_cutters,
+        f"Camera_Bracket_{camera['index']}_Thumbscrew_Head_Clearances",
     )
     bracket.name = f"MISSION1_Camera_Retaining_Bracket_{camera['index']}"
     bracket["plate_radial_min"] = radial_min
