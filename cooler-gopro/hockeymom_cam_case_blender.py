@@ -157,6 +157,9 @@ CAMERA_IDLER_SHAFT_STL_NAME = (
 )
 CAMERA_WORM_INNER_CAP_STL_NAME = "hockeymom_cam_case_worm_inner_bearing_cap.stl"
 CAMERA_WORM_OUTER_CAP_STL_NAME = "hockeymom_cam_case_worm_outer_bearing_cap.stl"
+CAMERA_WORM_INPUT_KNOB_STL_NAME = (
+    "hockeymom_cam_case_worm_knurled_thumb_knob.stl"
+)
 CAMERA_IDLER_CAP_STL_NAME = "hockeymom_cam_case_idler_shaft_cap.stl"
 FAN_ACOUSTIC_CASSETTE_STL_NAME = "hockeymom_cam_case_fan_acoustic_trough.stl"
 FAN_ACOUSTIC_LID_STL_NAME = "hockeymom_cam_case_fan_acoustic_lid.stl"
@@ -198,6 +201,8 @@ SHOW_MAIN_BODY_AFTER_BUILD = True
 SHOW_TOP_AFTER_BUILD = True
 SHOW_CAMERA_CARTRIDGE_AFTER_BUILD = True
 SHOW_PURCHASED_WORM_REFERENCE_AFTER_BUILD = True
+SHOW_PURCHASED_WORM_SHAFT_REFERENCE_AFTER_BUILD = True
+SHOW_CAMERA_WORM_INPUT_KNOB_AFTER_BUILD = True
 SHOW_PURCHASED_IDLER_WHEEL_REFERENCE_AFTER_BUILD = True
 SHOW_PURCHASED_IDLER_SHAFT_REFERENCE_AFTER_BUILD = True
 SHOW_CAMERA_IDLER_PINION_AFTER_BUILD = True
@@ -723,10 +728,10 @@ CAMERA_WORM_SHAFT_DIAMETER = 4.0
 CAMERA_WORM_SHAFT_CLEARANCE = 0.30
 # Purchased bearings are optional.  The default uses open, printed split
 # journals because nominal 4 mm stainless rod commonly does not pass through
-# inexpensive 4 mm-ID bearings without polishing.  The 4.24 mm CAD bore is
+# inexpensive 4 mm-ID bearings without polishing.  The 4.20 mm CAD bore is
 # calibrated from the current printer: a 3.75 mm gauge has the desired drag in
-# the former 4.18 mm printed journal, while the real shaft measures 3.81 mm.
-# Adding that 0.06 mm measured difference preserves the same frictional fit.
+# the former 4.18 mm printed journal, while the real shaft measures 3.80 mm.
+# The current value deliberately favors the close end of that calibration.
 # Tune this per printer/material; horizontal and vertical bores remain separate
 # because their print orientation can make them shrink differently.
 # Manufacturing calibration: measure the actual rod and print a
@@ -768,6 +773,30 @@ CAMERA_WORM_BLOCK_OFFSET = 0.85
 CAMERA_WORM_PORT_BOSS_RADIUS = 6.5
 CAMERA_WORM_PORT_OUTSET = 3.0
 CAMERA_WORM_PORT_INWARD_EXTENSION = 4.0
+# The purchased nominal 4 mm stainless rod measures 3.80 mm with the current
+# calipers.  Keep the conservative nominal diameter above for case journals,
+# bearing checks, and the purchased worm bore; use the measured diameter for
+# the physical shaft reference and the printed input-knob press fit.
+CAMERA_WORM_SHAFT_MEASURED_DIAMETER = 3.80
+# A compact printed knob sits immediately beyond the external shaft-port boss.
+# Its blind socket is deliberately 0.10 mm smaller than the measured rod so
+# the rod can be tapped in and retained mechanically without depending on
+# adhesive.  Print with the socket opening on the bed, test the first part,
+# and tune CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER for the printer/material if
+# necessary; never force a fit that visibly splits the hub.
+CAMERA_WORM_INPUT_KNOB_ENABLED = True
+CAMERA_WORM_INPUT_KNOB_DIAMETER = 15.0
+CAMERA_WORM_INPUT_KNOB_PROTRUSION = 5.0
+CAMERA_WORM_INPUT_KNOB_CASE_CLEARANCE = 0.60
+CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER = 3.70
+CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT = 4.20
+CAMERA_WORM_INPUT_KNOB_LEADIN_DIAMETER = 4.10
+CAMERA_WORM_INPUT_KNOB_LEADIN_DEPTH = 0.60
+CAMERA_WORM_INPUT_KNOB_KNURL_COUNT = 24
+CAMERA_WORM_INPUT_KNOB_KNURL_DEPTH = 0.65
+CAMERA_WORM_INPUT_KNOB_EDGE_CHAMFER = 0.30
+CAMERA_WORM_INPUT_KNOB_MIN_FACE_THICKNESS = 0.70
+CAMERA_WORM_INPUT_KNOB_MIN_RADIAL_WALL = 4.50
 # A third 8 mm bearing at the external port supports the otherwise long shaft
 # run used by the mirrored camera-1 layout.  It presses in from outside and
 # seats against the smaller shaft passage at the bottom of the counterbore.
@@ -911,7 +940,7 @@ CAMERA_DRIVETRAIN_CENTER_DISTANCE_TOLERANCE = 0.01
 CAMERA_IDLER_AXIAL_RUNNING_CLEARANCE = 0.30
 CAMERA_IDLER_SHAFT_DIAMETER = 4.0
 # Same calibrated close/friction fit as the horizontal worm journal: 4.24 mm
-# CAD bore for the measured 3.81 mm rod on the current printer.  Tune this one
+# CAD bore for the measured 3.80 mm rod on the current printer.  Tune this one
 # independently if vertical holes shrink differently from horizontal ones.
 CAMERA_IDLER_SHAFT_RUNNING_BORE_DIAMETER = 4.24
 CAMERA_IDLER_SHAFT_FLOOR_CLEARANCE = 0.40
@@ -999,6 +1028,8 @@ CAMERA_HOLD_DOWN_LENS_CLEARANCE = 0.50
 CAMERA_HOLD_DOWN_LID_RELIEF_MIN_UNDERSIDE_WEB = 0.15
 CAMERA_CARRIER_COLOR = (0.92, 0.55, 0.08, 1.0)
 CAMERA_WORM_COLOR = (0.72, 0.43, 0.12, 1.0)
+CAMERA_WORM_SHAFT_COLOR = (0.55, 0.58, 0.62, 1.0)
+CAMERA_WORM_INPUT_KNOB_COLOR = (0.45, 0.08, 0.72, 1.0)
 CAMERA_CARTRIDGE_DEBUG_MESH_STAGES = False
 
 # Base-integrated camera cradles.  Two pads support each camera at the exact
@@ -4137,6 +4168,37 @@ def validate_config() -> None:
         "CAMERA_WORM_PLAIN_HUB_LENGTH": CAMERA_WORM_PLAIN_HUB_LENGTH,
         "CAMERA_WORM_PLAIN_HUB_DIAMETER": CAMERA_WORM_PLAIN_HUB_DIAMETER,
         "CAMERA_WORM_SHAFT_DIAMETER": CAMERA_WORM_SHAFT_DIAMETER,
+        "CAMERA_WORM_SHAFT_MEASURED_DIAMETER": (
+            CAMERA_WORM_SHAFT_MEASURED_DIAMETER
+        ),
+        "CAMERA_WORM_INPUT_KNOB_DIAMETER": CAMERA_WORM_INPUT_KNOB_DIAMETER,
+        "CAMERA_WORM_INPUT_KNOB_PROTRUSION": (
+            CAMERA_WORM_INPUT_KNOB_PROTRUSION
+        ),
+        "CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER": (
+            CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER
+        ),
+        "CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT": (
+            CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT
+        ),
+        "CAMERA_WORM_INPUT_KNOB_LEADIN_DIAMETER": (
+            CAMERA_WORM_INPUT_KNOB_LEADIN_DIAMETER
+        ),
+        "CAMERA_WORM_INPUT_KNOB_LEADIN_DEPTH": (
+            CAMERA_WORM_INPUT_KNOB_LEADIN_DEPTH
+        ),
+        "CAMERA_WORM_INPUT_KNOB_KNURL_DEPTH": (
+            CAMERA_WORM_INPUT_KNOB_KNURL_DEPTH
+        ),
+        "CAMERA_WORM_INPUT_KNOB_EDGE_CHAMFER": (
+            CAMERA_WORM_INPUT_KNOB_EDGE_CHAMFER
+        ),
+        "CAMERA_WORM_INPUT_KNOB_MIN_FACE_THICKNESS": (
+            CAMERA_WORM_INPUT_KNOB_MIN_FACE_THICKNESS
+        ),
+        "CAMERA_WORM_INPUT_KNOB_MIN_RADIAL_WALL": (
+            CAMERA_WORM_INPUT_KNOB_MIN_RADIAL_WALL
+        ),
         "CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER": (
             CAMERA_WORM_PLAIN_BUSHING_BORE_DIAMETER
         ),
@@ -6150,6 +6212,9 @@ def validate_config() -> None:
         "CAMERA_WORM_PORT_INWARD_EXTENSION": (
             CAMERA_WORM_PORT_INWARD_EXTENSION
         ),
+        "CAMERA_WORM_INPUT_KNOB_CASE_CLEARANCE": (
+            CAMERA_WORM_INPUT_KNOB_CASE_CLEARANCE
+        ),
         "CAMERA_HOLD_DOWN_PAD_MATERIAL_CLEARANCE": (
             CAMERA_HOLD_DOWN_PAD_MATERIAL_CLEARANCE
         ),
@@ -7500,6 +7565,65 @@ def validate_config() -> None:
             raise ValueError("Sector gear needs at least 24 equivalent teeth")
         if CAMERA_WORM_STARTS != 1:
             raise ValueError("This self-locking design requires a one-start worm")
+        if not isinstance(CAMERA_WORM_INPUT_KNOB_ENABLED, bool):
+            raise ValueError("CAMERA_WORM_INPUT_KNOB_ENABLED must be True or False")
+        if (
+            CAMERA_WORM_SHAFT_MEASURED_DIAMETER
+            > CAMERA_WORM_SHAFT_DIAMETER + 1e-9
+        ):
+            raise ValueError(
+                "Measured worm shaft cannot exceed its conservative nominal diameter"
+            )
+        if CAMERA_WORM_INPUT_KNOB_ENABLED:
+            if (
+                not isinstance(CAMERA_WORM_INPUT_KNOB_KNURL_COUNT, int)
+                or isinstance(CAMERA_WORM_INPUT_KNOB_KNURL_COUNT, bool)
+                or CAMERA_WORM_INPUT_KNOB_KNURL_COUNT < 12
+            ):
+                raise ValueError("Worm input knob needs at least 12 knurl teeth")
+            press_interference = (
+                CAMERA_WORM_SHAFT_MEASURED_DIAMETER
+                - CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER
+            )
+            if not 0.04 <= press_interference <= 0.25:
+                raise ValueError(
+                    "Worm input knob requires 0.04--0.25 mm diametral press "
+                    "interference against the measured shaft"
+                )
+            if CAMERA_WORM_INPUT_KNOB_LEADIN_DIAMETER < (
+                CAMERA_WORM_SHAFT_MEASURED_DIAMETER
+            ):
+                raise ValueError("Worm input knob lead-in must accept the shaft")
+            if not (
+                0.0
+                < CAMERA_WORM_INPUT_KNOB_LEADIN_DEPTH
+                < CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT
+                < CAMERA_WORM_INPUT_KNOB_PROTRUSION
+            ):
+                raise ValueError(
+                    "Worm input knob lead-in, engagement, and protrusion are inconsistent"
+                )
+            face_thickness = (
+                CAMERA_WORM_INPUT_KNOB_PROTRUSION
+                - CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT
+            )
+            if face_thickness < CAMERA_WORM_INPUT_KNOB_MIN_FACE_THICKNESS:
+                raise ValueError("Worm input knob blind socket leaves too little face")
+            root_radius = (
+                CAMERA_WORM_INPUT_KNOB_DIAMETER / 2.0
+                - CAMERA_WORM_INPUT_KNOB_KNURL_DEPTH
+            )
+            if root_radius < CAMERA_WORM_PORT_BOSS_RADIUS:
+                raise ValueError("Worm input knob knurl root must cover the port boss")
+            radial_wall = (
+                root_radius - CAMERA_WORM_INPUT_KNOB_LEADIN_DIAMETER / 2.0
+            )
+            if radial_wall < CAMERA_WORM_INPUT_KNOB_MIN_RADIAL_WALL:
+                raise ValueError("Worm input knob leaves too little radial shaft wall")
+            if 2.0 * CAMERA_WORM_INPUT_KNOB_EDGE_CHAMFER >= (
+                CAMERA_WORM_INPUT_KNOB_PROTRUSION
+            ):
+                raise ValueError("Worm input knob edge chamfers consume its body")
         if not (
             CAMERA_GEAR_SECTOR_START_DEG
             < CAMERA_GEAR_CONTACT_DEG
@@ -11663,6 +11787,85 @@ def cylinder_prism_axis(
         faces.append([low_center, next_index, index])
         faces.append(
             [high_center, segments + index, segments + next_index]
+        )
+    return create_mesh_object(name, vertices, faces)
+
+
+def knurled_cylinder_prism_axis(
+    name: str,
+    angle_deg: float,
+    radial0: float,
+    radial1: float,
+    outer_radius: float,
+    knurl_depth: float,
+    knurl_count: int,
+    edge_chamfer: float,
+    center_tangent: float,
+    center_z: float,
+):
+    """Create a closed straight-knurled cylinder along a horizontal axis."""
+    if not (
+        radial1 > radial0
+        and outer_radius > knurl_depth > 0.0
+        and edge_chamfer > 0.0
+        and 2.0 * edge_chamfer < radial1 - radial0
+        and knurl_count >= 3
+    ):
+        raise ValueError(f"{name} has invalid knurled-cylinder dimensions")
+    segments = 2 * knurl_count
+    layers = (
+        (radial0, edge_chamfer),
+        (radial0 + edge_chamfer, 0.0),
+        (radial1 - edge_chamfer, 0.0),
+        (radial1, edge_chamfer),
+    )
+    vertices = []
+    for radial, radial_inset in layers:
+        for index in range(segments):
+            angle = 2.0 * math.pi * index / segments
+            radius = (
+                outer_radius
+                - (knurl_depth if index % 2 else 0.0)
+                - radial_inset
+            )
+            vertices.append(
+                tuple(
+                    axis_point(
+                        angle_deg,
+                        radial,
+                        center_tangent + radius * math.cos(angle),
+                        center_z + radius * math.sin(angle),
+                    )
+                )
+            )
+    low_center = len(vertices)
+    vertices.append(
+        tuple(axis_point(angle_deg, radial0, center_tangent, center_z))
+    )
+    high_center = len(vertices)
+    vertices.append(
+        tuple(axis_point(angle_deg, radial1, center_tangent, center_z))
+    )
+    faces = []
+    for layer_index in range(len(layers) - 1):
+        current = layer_index * segments
+        following = (layer_index + 1) * segments
+        for index in range(segments):
+            next_index = (index + 1) % segments
+            faces.append(
+                [
+                    current + index,
+                    following + index,
+                    following + next_index,
+                    current + next_index,
+                ]
+            )
+    last_ring = (len(layers) - 1) * segments
+    for index in range(segments):
+        next_index = (index + 1) % segments
+        faces.append([low_center, next_index, index])
+        faces.append(
+            [high_center, last_ring + index, last_ring + next_index]
         )
     return create_mesh_object(name, vertices, faces)
 
@@ -25110,8 +25313,22 @@ def worm_thread_ridge(
     return create_mesh_object(name, vertices, faces)
 
 
+def camera_worm_input_knob_axial_bounds(mechanism):
+    direction = mechanism["shaft_direction"]
+    wall_radial = (
+        mechanism["wall_point"].x * direction.x
+        + mechanism["wall_point"].y * direction.y
+    )
+    inner_face = (
+        wall_radial
+        + CAMERA_WORM_PORT_OUTSET
+        + CAMERA_WORM_INPUT_KNOB_CASE_CLEARANCE
+    )
+    return inner_face, inner_face + CAMERA_WORM_INPUT_KNOB_PROTRUSION
+
+
 def create_actual_worm_shaft_envelope(mechanism, name):
-    """Create the complete installed 4 mm rod, not merely the bored worm."""
+    """Create the complete installed measured rod, not merely the bored worm."""
     shaft_angle = mechanism["shaft_angle_deg"]
     shaft_radians = math.radians(shaft_angle)
     shaft_direction = mechanism["shaft_direction"]
@@ -25130,16 +25347,125 @@ def create_actual_worm_shaft_envelope(mechanism, name):
         + mechanism["wall_point"].y * shaft_direction.y
         + CAMERA_WORM_PORT_OUTSET
     )
+    if CAMERA_WORM_INPUT_KNOB_ENABLED:
+        knob_inner, _ = camera_worm_input_knob_axial_bounds(mechanism)
+        shaft_wall_radius = (
+            knob_inner + CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT
+        )
     return cylinder_prism_axis(
         name,
         shaft_angle,
         shaft_inner_radius,
         shaft_wall_radius,
-        CAMERA_WORM_SHAFT_DIAMETER / 2.0,
+        CAMERA_WORM_SHAFT_MEASURED_DIAMETER / 2.0,
         shaft_line_tangent,
         camera_worm_center_z(),
         segments=72,
     )
+
+
+def create_worm_shaft_reference(mechanism):
+    """Show the purchased stainless rod at its installed measured diameter."""
+    if mechanism is None:
+        return None
+    shaft = create_actual_worm_shaft_envelope(
+        mechanism,
+        "Purchased_4mm_Worm_Shaft_3_80mm_Measured_Reference",
+    )
+    shaft["nominal_diameter_mm"] = CAMERA_WORM_SHAFT_DIAMETER
+    shaft["measured_diameter_mm"] = CAMERA_WORM_SHAFT_MEASURED_DIAMETER
+    shaft["hardware_reference_only"] = True
+    shaft["purchased_elsewhere"] = True
+    return shaft
+
+
+def create_worm_input_knob(mechanism):
+    """Create the blind press-fit knurled knob outside the worm-shaft port."""
+    if mechanism is None or not CAMERA_WORM_INPUT_KNOB_ENABLED:
+        return None
+    angle_deg = mechanism["shaft_angle_deg"]
+    angle = math.radians(angle_deg)
+    shaft_tangent = (-math.sin(angle), math.cos(angle))
+    center_tangent = (
+        mechanism["wall_point"].x * shaft_tangent[0]
+        + mechanism["wall_point"].y * shaft_tangent[1]
+    )
+    radial0, radial1 = camera_worm_input_knob_axial_bounds(mechanism)
+    knob = knurled_cylinder_prism_axis(
+        "Printed_Worm_Shaft_Knurled_Thumb_Knob",
+        angle_deg,
+        radial0,
+        radial1,
+        CAMERA_WORM_INPUT_KNOB_DIAMETER / 2.0,
+        CAMERA_WORM_INPUT_KNOB_KNURL_DEPTH,
+        CAMERA_WORM_INPUT_KNOB_KNURL_COUNT,
+        CAMERA_WORM_INPUT_KNOB_EDGE_CHAMFER,
+        center_tangent,
+        camera_worm_center_z(),
+    )
+    bore = cylinder_prism_axis(
+        "Printed_Worm_Knob_Press_Fit_Socket",
+        angle_deg,
+        radial0 - BOOLEAN_OVERLAP,
+        radial0 + CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT,
+        CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER / 2.0,
+        center_tangent,
+        camera_worm_center_z(),
+        segments=72,
+    )
+    boolean_difference(
+        knob,
+        [bore],
+        "Printed_Worm_Knob_Blind_Press_Fit_Socket",
+        solver="EXACT",
+    )
+    leadin = cylinder_prism_axis(
+        "Printed_Worm_Knob_Shaft_Leadin",
+        angle_deg,
+        radial0 - 2.0 * BOOLEAN_OVERLAP,
+        radial0 + CAMERA_WORM_INPUT_KNOB_LEADIN_DEPTH,
+        CAMERA_WORM_INPUT_KNOB_LEADIN_DIAMETER / 2.0,
+        center_tangent,
+        camera_worm_center_z(),
+        segments=72,
+    )
+    boolean_difference(
+        knob,
+        [leadin],
+        "Printed_Worm_Knob_Shaft_Leadin",
+        solver="EXACT",
+    )
+    knob["recommended_material"] = "rigid purple filament"
+    knob["measured_shaft_diameter_mm"] = CAMERA_WORM_SHAFT_MEASURED_DIAMETER
+    knob["press_fit_bore_diameter_mm"] = CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER
+    knob["nominal_diametral_interference_mm"] = (
+        CAMERA_WORM_SHAFT_MEASURED_DIAMETER
+        - CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER
+    )
+    knob["shaft_engagement_mm"] = CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT
+    knob["blind_face_thickness_mm"] = (
+        CAMERA_WORM_INPUT_KNOB_PROTRUSION
+        - CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT
+    )
+    knob["case_clearance_mm"] = CAMERA_WORM_INPUT_KNOB_CASE_CLEARANCE
+    knob["knurl_count"] = CAMERA_WORM_INPUT_KNOB_KNURL_COUNT
+    knob["print_axis_angle_deg"] = angle_deg
+    knob["print_orientation"] = "socket_opening_on_build_plate"
+    print(
+        "WORM_INPUT_KNOB "
+        f"size={CAMERA_WORM_INPUT_KNOB_DIAMETER:.2f}Dx"
+        f"{CAMERA_WORM_INPUT_KNOB_PROTRUSION:.2f}mm "
+        f"shaft_measured={CAMERA_WORM_SHAFT_MEASURED_DIAMETER:.2f}mm "
+        f"bore={CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER:.2f}mm "
+        f"diametral_interference="
+        f"{CAMERA_WORM_SHAFT_MEASURED_DIAMETER - CAMERA_WORM_INPUT_KNOB_BORE_DIAMETER:.2f}mm "
+        f"engagement={CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT:.2f}mm "
+        f"case_clearance={CAMERA_WORM_INPUT_KNOB_CASE_CLEARANCE:.2f}mm "
+        f"knurls={CAMERA_WORM_INPUT_KNOB_KNURL_COUNT} "
+        "assembly=tap_onto_shaft glue=optional_not_structural "
+        "print=socket_opening_on_build_plate"
+    )
+    return knob
 
 
 def create_camera_worm(mechanism):
@@ -31411,6 +31737,41 @@ def create_lid_fan_pod(lid, positions):
 
 # ---------------------------------------------------------------------------
 # Validation, export, and preview
+
+
+def validate_worm_input_knob(knob, shaft, base):
+    if not (
+        CAMERA_CARTRIDGE_WORM_ENABLED
+        and CAMERA_WORM_INPUT_KNOB_ENABLED
+    ):
+        if knob is not None:
+            raise RuntimeError("Disabled worm input knob was still generated")
+        return
+    if knob is None or shaft is None:
+        raise RuntimeError("Enabled worm input knob requires its measured shaft")
+    _, _, case_overlap = intersection_metrics(
+        knob,
+        base,
+        "worm_input_knob_case_clearance",
+    )
+    _, _, press_overlap = intersection_metrics(
+        knob,
+        shaft,
+        "worm_input_knob_press_interference",
+    )
+    if case_overlap > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+        raise RuntimeError("Worm input knob overlaps the external case boss")
+    if press_overlap <= ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+        raise RuntimeError("Worm input knob does not retain the measured shaft")
+    print(
+        "WORM_INPUT_KNOB_VALIDATION PASS "
+        f"case_overlap={case_overlap:.9f}mm3 "
+        f"press_interference_volume={press_overlap:.6f}mm3 "
+        f"radial_wall="
+        f"{CAMERA_WORM_INPUT_KNOB_DIAMETER / 2.0 - CAMERA_WORM_INPUT_KNOB_KNURL_DEPTH - CAMERA_WORM_INPUT_KNOB_LEADIN_DIAMETER / 2.0:.2f}mm "
+        f"blind_face="
+        f"{CAMERA_WORM_INPUT_KNOB_PROTRUSION - CAMERA_WORM_INPUT_KNOB_SHAFT_ENGAGEMENT:.2f}mm"
+    )
 
 
 def assign_material(obj, name: str, color) -> None:
@@ -37706,6 +38067,8 @@ def apply_final_visibility(
     camera_brackets,
     camera_carrier=None,
     camera_worm=None,
+    camera_worm_shaft=None,
+    camera_worm_input_knob=None,
     worm_bearing_caps=(),
     camera_idler_wheel=None,
     camera_idler_pinion=None,
@@ -37736,6 +38099,20 @@ def apply_final_visibility(
     if camera_worm is not None:
         camera_worm.hide_set(not SHOW_PURCHASED_WORM_REFERENCE_AFTER_BUILD)
         camera_worm.hide_render = not SHOW_PURCHASED_WORM_REFERENCE_AFTER_BUILD
+    if camera_worm_shaft is not None:
+        camera_worm_shaft.hide_set(
+            not SHOW_PURCHASED_WORM_SHAFT_REFERENCE_AFTER_BUILD
+        )
+        camera_worm_shaft.hide_render = (
+            not SHOW_PURCHASED_WORM_SHAFT_REFERENCE_AFTER_BUILD
+        )
+    if camera_worm_input_knob is not None:
+        camera_worm_input_knob.hide_set(
+            not SHOW_CAMERA_WORM_INPUT_KNOB_AFTER_BUILD
+        )
+        camera_worm_input_knob.hide_render = (
+            not SHOW_CAMERA_WORM_INPUT_KNOB_AFTER_BUILD
+        )
     for cap in worm_bearing_caps:
         cap.hide_set(not SHOW_CAMERA_WORM_BEARING_CAPS_AFTER_BUILD)
         cap.hide_render = not SHOW_CAMERA_WORM_BEARING_CAPS_AFTER_BUILD
@@ -37777,6 +38154,9 @@ def apply_final_visibility(
         f" camera_brackets={SHOW_CAMERA_BRACKETS_AFTER_BUILD}"
         f" camera_cartridge={SHOW_CAMERA_CARTRIDGE_AFTER_BUILD}"
         f" worm_reference={SHOW_PURCHASED_WORM_REFERENCE_AFTER_BUILD}"
+        f" worm_shaft_reference="
+        f"{SHOW_PURCHASED_WORM_SHAFT_REFERENCE_AFTER_BUILD}"
+        f" worm_input_knob={SHOW_CAMERA_WORM_INPUT_KNOB_AFTER_BUILD}"
         f" worm_caps={SHOW_CAMERA_WORM_BEARING_CAPS_AFTER_BUILD}"
         f" idler_wheel={SHOW_PURCHASED_IDLER_WHEEL_REFERENCE_AFTER_BUILD}"
         f" idler_pinion={SHOW_CAMERA_IDLER_PINION_AFTER_BUILD}"
@@ -37799,6 +38179,7 @@ def apply_adjustable_preview_pose(
     cameras=(),
     camera_mockups=(),
     camera_carrier_companion_parts=(),
+    camera_worm_companion_parts=(),
 ):
     """Pose generated moving parts after validation/export for Blender view."""
     if (
@@ -37840,6 +38221,15 @@ def apply_adjustable_preview_pose(
         mechanism["shaft_direction"],
         worm_rotation_deg,
     )
+    for companion in camera_worm_companion_parts:
+        if companion is None:
+            continue
+        rotate_mesh_about_world_axis(
+            companion,
+            worm_axis_origin,
+            mechanism["shaft_direction"],
+            worm_rotation_deg,
+        )
     idler_rotation_deg = 0.0
     if camera_idler_wheel is not None:
         idler_rotation_deg = adjustable_idler_rotation_degrees(yaw_delta)
@@ -38107,6 +38497,8 @@ def build_hockeymom_cam_case():
     camera_carrier_print_body = None
     camera_carrier_front_stop = None
     camera_worm = None
+    camera_worm_shaft = None
+    camera_worm_input_knob = None
     camera_idler_wheel = None
     camera_idler_pinion = None
     camera_idler_shaft = None
@@ -38132,6 +38524,8 @@ def build_hockeymom_cam_case():
             camera_carrier.hide_set(True)
             camera_carrier.hide_render = True
         camera_worm = create_camera_worm(mechanism)
+        camera_worm_shaft = create_worm_shaft_reference(mechanism)
+        camera_worm_input_knob = create_worm_input_knob(mechanism)
         camera_idler_wheel = create_purchased_idler_wheel(mechanism)
         camera_idler_pinion = create_idler_spur_pinion(mechanism)
         camera_idler_shaft = create_idler_shaft_reference(mechanism)
@@ -38396,6 +38790,18 @@ def build_hockeymom_cam_case():
             "Camera_Worm_Material",
             CAMERA_WORM_COLOR,
         )
+    if camera_worm_shaft is not None:
+        assign_material(
+            camera_worm_shaft,
+            "Camera_Worm_Shaft_Stainless_Steel_Reference_Material",
+            CAMERA_WORM_SHAFT_COLOR,
+        )
+    if camera_worm_input_knob is not None:
+        assign_material(
+            camera_worm_input_knob,
+            "Camera_Worm_Input_Knob_Purple_Material",
+            CAMERA_WORM_INPUT_KNOB_COLOR,
+        )
     if camera_idler_wheel is not None:
         assign_material(
             camera_idler_wheel,
@@ -38459,6 +38865,8 @@ def build_hockeymom_cam_case():
         camera_carrier,
         *camera_carrier_print_parts,
         camera_worm,
+        camera_worm_shaft,
+        camera_worm_input_knob,
         camera_idler_wheel,
         camera_idler_pinion,
         camera_idler_shaft,
@@ -38505,6 +38913,11 @@ def build_hockeymom_cam_case():
     )
     validate_object(base)
     validate_final_worm_hardware_cavities(base, mechanism)
+    validate_worm_input_knob(
+        camera_worm_input_knob,
+        camera_worm_shaft,
+        base,
+    )
     validate_final_bottom_mount_nut_holder(base, bottom_mount_hole_position)
     validate_final_bottom_keystone_snap_sockets(
         base,
@@ -38537,6 +38950,8 @@ def build_hockeymom_cam_case():
         camera_carrier,
         *camera_carrier_print_parts,
         camera_worm,
+        camera_worm_shaft,
+        camera_worm_input_knob,
         camera_idler_wheel,
         camera_idler_pinion,
         camera_idler_shaft,
@@ -38808,6 +39223,12 @@ def build_hockeymom_cam_case():
                     worm_bearing_caps[1],
                     print_face_down=True,
                 )
+            if camera_worm_input_knob is not None:
+                export_single_stl(
+                    directory / CAMERA_WORM_INPUT_KNOB_STL_NAME,
+                    camera_worm_input_knob,
+                    print_axis_to_z=True,
+                )
             if acoustic_cassette is not None:
                 export_single_stl(
                     directory / FAN_ACOUSTIC_CASSETTE_STL_NAME,
@@ -38868,6 +39289,11 @@ def build_hockeymom_cam_case():
                     *camera_brackets,
                     *camera_carrier_print_parts,
                     *(
+                        [camera_worm_input_knob]
+                        if camera_worm_input_knob is not None
+                        else []
+                    ),
+                    *(
                         [camera_worm]
                         if (
                             camera_worm is not None
@@ -38916,6 +39342,10 @@ def build_hockeymom_cam_case():
         cameras,
         camera_mockups,
         camera_carrier_companion_parts=(camera_carrier_front_stop,),
+        camera_worm_companion_parts=(
+            camera_worm_shaft,
+            camera_worm_input_knob,
+        ),
     )
     if not PREVIEW_SHOW_CAMERA_MOCKUPS:
         for mockup in camera_mockups:
@@ -38928,6 +39358,8 @@ def build_hockeymom_cam_case():
         camera_brackets,
         camera_carrier_print_body,
         camera_worm,
+        camera_worm_shaft,
+        camera_worm_input_knob,
         worm_bearing_caps,
         camera_idler_wheel,
         camera_idler_pinion,

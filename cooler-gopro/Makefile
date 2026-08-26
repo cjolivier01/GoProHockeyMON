@@ -98,7 +98,8 @@ HOCKEYMOM_CAM_CASE_CORE_STLS := \
 	hockeymom_cam_case_rotating_camera_cartridge.stl \
 	hockeymom_cam_case_idler_shaft_cap.stl \
 	hockeymom_cam_case_worm_inner_bearing_cap.stl \
-	hockeymom_cam_case_worm_outer_bearing_cap.stl
+	hockeymom_cam_case_worm_outer_bearing_cap.stl \
+	hockeymom_cam_case_worm_knurled_thumb_knob.stl
 
 HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS := \
 	hockeymom_cam_case_fan_acoustic_trough.stl \
