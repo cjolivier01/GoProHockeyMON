@@ -65,9 +65,37 @@ def import_mission1_module():
     candidates = []
 
     def add_candidate(path) -> None:
-        directory = Path(path).expanduser().resolve()
+        directory = Path(path).expanduser()
+        try:
+            directory = directory.resolve()
+        except OSError:
+            directory = directory.absolute()
         if directory not in candidates:
             candidates.append(directory)
+
+    def add_text_file_parent(raw_path) -> None:
+        if not raw_path:
+            return
+        try:
+            expanded = bpy.path.abspath(str(raw_path))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            expanded = str(raw_path)
+        add_candidate(Path(expanded).parent)
+
+    # A Text Editor run can replace ``__file__`` with a synthetic root path
+    # such as ``/script.py``. Prefer the active Text datablock's real filepath,
+    # then inspect every loaded Text datablock for context-free runs.
+    space_data = getattr(bpy.context, "space_data", None)
+    active_text = getattr(space_data, "text", None)
+    add_text_file_parent(getattr(active_text, "filepath", ""))
+
+    text_name = script_path.name
+    loaded_texts = tuple(getattr(bpy.data, "texts", ()))
+    for text_block in loaded_texts:
+        if Path(text_block.name).name == text_name:
+            add_text_file_parent(getattr(text_block, "filepath", ""))
+    for text_block in loaded_texts:
+        add_text_file_parent(getattr(text_block, "filepath", ""))
 
     # Blender's Text Editor may report a synthetic path such as
     # ``project.blend/mission1_field_case_blender.py``. In that case the
@@ -79,11 +107,6 @@ def import_mission1_module():
 
     if bpy.data.filepath:
         add_candidate(Path(bpy.data.filepath).parent)
-
-    text_name = script_path.name
-    for text_block in bpy.data.texts:
-        if text_block.name == text_name and text_block.filepath:
-            add_candidate(Path(bpy.path.abspath(text_block.filepath)).parent)
 
     add_candidate(Path.cwd())
 
