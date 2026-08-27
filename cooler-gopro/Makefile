@@ -17,13 +17,17 @@ MISSION1_DUMMY_STLS := gopro_mission1_dummy_recreated.stl
 MISSION1_FIELD_CASE_STLS := \
 	mission1_field_case_base.stl \
 	mission1_field_case_lid.stl \
-	mission1_field_case_lower_insert.stl \
+	mission1_field_case_lower_tray_tpu.stl \
 	mission1_field_case_lid_retainer_tpu.stl \
 	mission1_field_case_gasket_tpu.stl \
-	mission1_field_case_latch_print_two.stl \
+	mission1_field_case_pelican_latch_print_two.stl \
+	mission1_field_case_latch_pin_print_two.stl \
 	mission1_field_case_hinge_pin.stl \
 	mission1_field_case_lid_title_inlay.stl \
 	mission1_field_case_lid_subtitle_inlay.stl
+MISSION1_FIELD_CASE_OBSOLETE_STLS := \
+	mission1_field_case_lower_insert.stl \
+	mission1_field_case_latch_print_two.stl
 DUAL_FAN_HOLDER_STL := gopro_dual_fan_parametric.stl
 DUAL_FAN_ADAPTER_STLS := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('dual_fan_parametric_blender.py', encoding='utf-8').read()); names={'GOPRO_ADAPTER_PRONG_COUNTS','GOPRO_ADAPTER_PRONG_COUNT','EXPORT_ADAPTER_STL_PATHS','EXPORT_ADAPTER_STL_PATH'}; values={target.id:ast.literal_eval(node.value) for node in tree.body if isinstance(node,(ast.Assign,ast.AnnAssign)) for target in ([node.target] if isinstance(node,ast.AnnAssign) else node.targets) if isinstance(target,ast.Name) and target.id in names}; legacy_count=values['GOPRO_ADAPTER_PRONG_COUNT']; counts=(legacy_count,) if legacy_count is not None else values['GOPRO_ADAPTER_PRONG_COUNTS']; paths=dict(values['EXPORT_ADAPTER_STL_PATHS']); legacy_path=values['EXPORT_ADAPTER_STL_PATH']; paths[counts[0]]=(legacy_path or 'gopro_dual_fan_adapter.stl') if legacy_count is not None else (legacy_path or paths[counts[0]]); print(' '.join(paths[count] for count in counts))")
 DUAL_FAN_KNOWN_ADAPTER_STLS := \
@@ -330,7 +334,7 @@ $(MISSION1_DUMMY_STLS): gopro_mission1_dummy_blender.py
 # separate color inlays.  Reference mockups remain disabled for STL builds.
 $(MISSION1_FIELD_CASE_STLS) &: mission1_field_case_blender.py \
 	gopro_mission1_dummy_blender.py
-	$(RM) $(MISSION1_FIELD_CASE_STLS)
+	$(RM) $(MISSION1_FIELD_CASE_STLS) $(MISSION1_FIELD_CASE_OBSOLETE_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
 		"import os; p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)'; ns['BUILD_REFERENCE_MOCKUPS']=False; ns['build_mission1_field_case']()"
 	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(MISSION1_FIELD_CASE_STLS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
