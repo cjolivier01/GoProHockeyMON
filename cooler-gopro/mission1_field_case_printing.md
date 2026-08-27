@@ -8,7 +8,7 @@ included. Every printable part fits within a 250 x 250 mm build area.
 Build the complete STL set with:
 
 ```sh
-make mission1-field-case
+make -C cooler-gopro mission1-field-case
 ```
 
 The command generates the base, lid, removable lower insert, TPU lid retainer,
