@@ -820,7 +820,10 @@ def validate_configuration() -> None:
             raise ValueError(f"Battery cavity exceeds tray depth: {center}")
         for other in BATTERY_CENTERS[index + 1 :]:
             if rectangles_overlap(center, battery_size, other, battery_size, gap=2.0):
-                raise ValueError(f"Battery cavities overlap: {center} and {other}")
+                raise ValueError(
+                    "Battery cavities overlap or have less than 2 mm clearance: "
+                    f"{center} and {other}"
+                )
         battery_top = center[1] + battery_size[1] / 2.0
         nearest_camera = min(bounds[2] for bounds in camera_bounds)
         if battery_top + 4.0 > nearest_camera:
