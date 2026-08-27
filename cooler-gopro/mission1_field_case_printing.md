@@ -23,10 +23,10 @@ the tray's top plane.
 - Base, lid, Pelican-style latches, latch pins, and hinge pin: PETG, ASA, nylon,
   or another impact-tolerant rigid filament; 0.20 mm layers, four walls, and
   25% or greater infill.
-- Lower tray, lid retainer, and gasket: TPU 95A, two or three walls, and 15-20%
+- Lower tray, lid pad, and gasket: TPU 95A, two or three walls, and 15-20%
   infill. The gasket is for dust and splash resistance, not certified
   waterproofing.
-- Print the base, tray, retainer, gasket, and lid in their exported
+- Print the base, tray, lid pad, gasket, and lid in their exported
   orientations. Print both pin types on their D-shaped flats. Print the latch
   with its broad face on the bed.
 - Print two copies of
