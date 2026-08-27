@@ -760,7 +760,7 @@ def validate_configuration() -> None:
     if BATTERY_POCKET_WIDTH < BATTERY_THICKNESS or BATTERY_POCKET_DEPTH < BATTERY_WIDTH:
         raise ValueError("Battery pockets do not clear the Enduro envelope")
     if min(WALL_THICKNESS, BASE_FLOOR_THICKNESS, TRAY_FLOOR_THICKNESS) < 2.0:
-        raise ValueError("Default rigid walls must remain at least 2 mm")
+        raise ValueError("Default shell walls and all floors must remain at least 2 mm")
 
     camera_bounds = []
     reference_corners = (
