@@ -56,13 +56,45 @@ from mathutils import Vector
 
 
 def import_mission1_module():
-    """Import the companion camera reference without relying on Blender cwd."""
-    script_dir = Path(__file__).expanduser().resolve().parent
-    if str(script_dir) not in sys.path:
-        sys.path.insert(0, str(script_dir))
-    import gopro_mission1_dummy_blender
+    """Import the companion camera reference from CLI or Blender Text Editor."""
+    script_path = Path(__file__).expanduser().resolve()
+    script_parent = script_path.parent
+    candidates = []
 
-    return gopro_mission1_dummy_blender
+    def add_candidate(path) -> None:
+        directory = Path(path).expanduser().resolve()
+        if directory not in candidates:
+            candidates.append(directory)
+
+    # Blender's Text Editor may report a synthetic path such as
+    # ``project.blend/mission1_field_case_blender.py``. In that case the
+    # apparent parent is the .blend file itself, and the scripts live beside
+    # that file.
+    if script_parent.suffix.lower() == ".blend" or script_parent.is_file():
+        add_candidate(script_parent.parent)
+    add_candidate(script_parent)
+
+    if bpy.data.filepath:
+        add_candidate(Path(bpy.data.filepath).parent)
+
+    text_name = script_path.name
+    for text_block in bpy.data.texts:
+        if text_block.name == text_name and text_block.filepath:
+            add_candidate(Path(bpy.path.abspath(text_block.filepath)).parent)
+
+    add_candidate(Path.cwd())
+
+    module_name = "gopro_mission1_dummy_blender"
+    for directory in candidates:
+        if (directory / f"{module_name}.py").is_file():
+            if str(directory) not in sys.path:
+                sys.path.insert(0, str(directory))
+            return __import__(module_name)
+
+    searched = ", ".join(str(directory) for directory in candidates)
+    raise ModuleNotFoundError(
+        f"Could not locate {module_name}.py; searched: {searched}"
+    )
 
 
 mission1 = import_mission1_module()
