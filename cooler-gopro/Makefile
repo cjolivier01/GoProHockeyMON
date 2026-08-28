@@ -278,7 +278,7 @@ flat-fan-cover: $(FLAT_FAN_COVER_STLS)
 wrapping-fan-cover: $(WRAPPING_FAN_COVER_STLS)
 horn: $(HORN_STLS)
 mission1-dummy: $(MISSION1_DUMMY_STLS)
-mission1-field-case:
+mission1-field-case: $(MISSION1_FIELD_CASE_OUTPUTS)
 dual-fan: $(DUAL_FAN_STLS)
 fan-silencer: $(FAN_SILENCER_STLS)
 fan-silencer-cross-section: $(FAN_SILENCER_CROSS_SECTION)
@@ -338,17 +338,15 @@ $(MISSION1_DUMMY_STLS): gopro_mission1_dummy_blender.py
 	$(call run_single_output_generator,$<,main,EXPORT_PATH)
 
 # One generator emits every printable field-case component, including both
-# separate color inlays, plus the AMS project.  Reference mockups stay disabled
-# for print-output builds.
-mission1-field-case: mission1_field_case_blender.py \
+# separate color inlays, plus the AMS project. Reference mockups stay disabled
+# for print-output builds. The grouped rule records that one invocation updates
+# the complete kit while retaining normal timestamp-based incremental builds.
+$(MISSION1_FIELD_CASE_OUTPUTS) &: mission1_field_case_blender.py \
 	gopro_mission1_dummy_blender.py
 	$(RM) $(MISSION1_FIELD_CASE_OUTPUTS) $(MISSION1_FIELD_CASE_OBSOLETE_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
 		"import os; p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']=os.getcwd(); ns['BUILD_REFERENCE_MOCKUPS']=False; ns['build_mission1_field_case']()"
 	$(PDF_PYTHON) -c "from pathlib import Path; import zipfile; paths=[Path(name) for name in '$(MISSION1_FIELD_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; invalid_stls=[str(path) for path in paths[:-1] if len(data:=path.read_bytes()) < 84 or len(data) != 84 + 50 * int.from_bytes(data[80:84], 'little')]; assert not invalid_stls, f'Invalid binary STL outputs: {invalid_stls}'; archive=zipfile.ZipFile(paths[-1]); bad_member=archive.testzip(); archive.close(); assert bad_member is None, f'Corrupt 3MF member: {bad_member}'"
-
-$(MISSION1_FIELD_CASE_OUTPUTS): mission1-field-case
-	@test -s "$@"
 
 $(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py fan_size_presets.py
 	$(RM) $(DUAL_FAN_ALL_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
