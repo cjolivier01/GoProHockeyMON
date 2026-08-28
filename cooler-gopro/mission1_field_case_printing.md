@@ -145,8 +145,9 @@ and can be regenerated without editing an STL.
    notch over the matching rigid boss.
 3. Alternate the base and lid hinge knuckles, then insert the printed hinge pin
    or a 3 mm metal rod.
-4. Install each latch with one 36 mm 4 mm rod, then install the
-   separate handle bar with either rod or regenerated M4 hardware.
+4. Install each latch with one 36 mm length of 4 mm rod, then install the
+   separate handle bar with two 22 mm lengths of 4 mm rod by default or with
+   regenerated M4 hardware.
 5. Load the two opposed cameras with their soft lens hoods in the flared ends,
    then load four batteries terminal-down.
 

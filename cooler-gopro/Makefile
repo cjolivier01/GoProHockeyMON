@@ -360,7 +360,7 @@ $(HORN_STLS): horn_parametric_blender.py
 $(MISSION1_DUMMY_STLS): gopro_mission1_dummy_blender.py
 	$(call run_single_output_generator,$<,main,EXPORT_PATH)
 
-# One generator emits every printable field-case component, including both
+# One generator emits every printable field-case component, including the four
 # separate logo-color inlays, plus the multicolor project. Reference mockups stay disabled
 # for print-output builds. The grouped rule records that one invocation updates
 # the complete kit while retaining normal timestamp-based incremental builds.
