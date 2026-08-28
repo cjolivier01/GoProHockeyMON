@@ -123,7 +123,7 @@ def import_mission1_module():
         if (directory / f"{module_name}.py").is_file():
             if str(directory) not in sys.path:
                 sys.path.insert(0, str(directory))
-            return __import__(module_name)
+            return __import__(module_name), directory
 
     searched = ", ".join(str(directory) for directory in candidates)
     raise ModuleNotFoundError(
@@ -131,7 +131,7 @@ def import_mission1_module():
     )
 
 
-mission1 = import_mission1_module()
+mission1, MISSION1_SOURCE_DIRECTORY = import_mission1_module()
 
 
 # ---------------------------------------------------------------------------
@@ -2217,7 +2217,10 @@ def export_path(name: str) -> Path:
     if EXPORT_DIRECTORY:
         directory = Path(EXPORT_DIRECTORY).expanduser().resolve()
     else:
-        directory = Path(__file__).expanduser().resolve().parent
+        # Blender's Text Editor can synthesize ``__file__=/script.py``.  The
+        # companion module was resolved from the actual source directory, so
+        # it is a safe default and cannot silently redirect exports to ``/``.
+        directory = MISSION1_SOURCE_DIRECTORY
     directory.mkdir(parents=True, exist_ok=True)
     return directory / name
 
