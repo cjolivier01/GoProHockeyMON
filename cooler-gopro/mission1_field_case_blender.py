@@ -34,8 +34,7 @@ Reference sources (checked 2026-08-27):
 
 Run inside Blender::
 
-    /home/colivier/Apps/Blender/blender \
-      --background --factory-startup \
+    blender --background --factory-startup \
       --python mission1_field_case_blender.py
 
 Set ``EXPORT_STL = True`` below, or use
