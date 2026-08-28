@@ -1566,7 +1566,7 @@ CAMERA_COOLING_WASH_SAMPLE_GRID = 17
 # separate regions of the overhead opening.  The layout is resolved only after
 # camera, shell, fan, and acoustic geometry; it never participates in camera
 # placement or shell expansion and therefore cannot trade away lens protrusion.
-AIR_GUIDE_VANES_ENABLED = True
+AIR_GUIDE_VANES_ENABLED = False
 AIR_GUIDE_VANE_THICKNESS = 2.4
 AIR_GUIDE_VANE_HEIGHT = 52.0
 AIR_GUIDE_VANE_ROOT_EMBED = 0.4
