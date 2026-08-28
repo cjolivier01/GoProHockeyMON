@@ -34,7 +34,8 @@ relative to the lower tray every time the case closes.
 
 ## Suggested printing
 
-- Base, lid, two-piece over-center latches, latch pins, and hinge pin: PETG,
+- Base, lid, two-piece over-center latches, optional fallback latch pins, and
+  hinge pin: PETG,
   ASA, nylon, or another impact-tolerant rigid filament; 0.20 mm layers, four
   walls, and 25% or greater infill.
 - Lower tray, lid pad, and gasket: TPU 95A, two or three walls, and 15-20%
@@ -43,9 +44,13 @@ relative to the lower tray every time the case closes.
 - Print the base, tray, lid pad, gasket, and lid in their exported
   orientations. Print all three pin types on their D-shaped flats. Print the
   latch handle and bail with their broad faces on the bed. The latch bores have
-  self-supporting teardrop roofs; lightly drill or ream them only if required
-  by the printer's horizontal-hole tolerance.
-- Print two copies of each of these four files; print every other STL once:
+  self-supporting teardrop roofs. If printer tolerance makes the pivots tight,
+  ream only the handle's 4.4 mm running bores; preserve a firm press fit in the
+  3.9 mm base and bail retaining-ear bores.
+- For the intended stainless hardware, print two copies of the handle and bail
+  files. The base-pin and link-pin STLs are optional 3.8 mm D-profile fallback
+  pins for fit checks or temporary assembly; print two of each only when they
+  are needed. Print every other STL once:
 
   - `mission1_field_case_over_center_latch_handle_print_two.stl`
   - `mission1_field_case_over_center_latch_bail_print_two.stl`
@@ -53,9 +58,11 @@ relative to the lower tray every time the case closes.
   - `mission1_field_case_latch_link_pin_print_two.stl`
 
 Printer and filament tolerances vary. Test a camera pocket, battery pocket,
-hinge, and latch engagement before relying on the case in the field. Pocket
-and pin clearances are constants near the top of the Python generator and can
-be tuned without importing or editing an STL.
+hinge, and latch engagement before relying on the case in the field. In
+particular, test the 3.9 mm retaining-ear press fit and 4.4 mm handle running
+fit against the actual 4 mm rod and printer calibration. Pocket and pin
+clearances are constants near the top of the Python generator and can be tuned
+without importing or editing an STL.
 
 The default soft-hood relief opens to 55.6 mm and extends 10 mm beyond the
 procedural lens face. Those dimensions are based on the supplied case visuals;
@@ -68,9 +75,10 @@ Open `mission1_field_case_ams_project.3mf` for the complete six-plate kit. The
 lid is a single compound object with aligned shell, title, and subtitle color
 bodies, so an AMS filament can be assigned to each body without repositioning
 text. Every lettering island shares a bonding face with the lid. The project
-also contains two handles, two bails, two base pins, two link pins, and the
-hinge pin on its printed-hardware plate. It uses stock P1S, PETG, and TPU preset
-IDs; review the selected presets for the loaded filament before slicing.
+also contains two handles, two bails, two optional base pins, two optional link
+pins, and the hinge pin on its printed-hardware plate. It uses stock P1S, PETG,
+and TPU preset IDs; review the selected presets for the loaded filament before
+slicing.
 
 Use the AMS for the three-color PETG lid plate. A standard AMS does not feed
 TPU reliably, so map the TPU-only plates to the external spool and print those
@@ -98,12 +106,16 @@ print the inlays separately and bond them into the recesses.
    reverse orientation.
 3. Alternate the base and lid hinge knuckles, then slide in the printed hinge
    pin. A 3 mm metal rod may be substituted for a more durable hinge.
-4. Put one handle between each pair of supported base ears and insert a base
-   pin. The broad lower pull tab faces the case. Place the bail rails outside
-   the base ears, align both bail-ear holes with the handle's moving-link hole,
-   and insert the link pin. The shallow far-end detents resist pin walkout. M3
-   shoulder bolts or smooth 3 mm rod with retainers are the more durable field
-   option.
+4. Cut two 4 mm stainless base rods to 32 mm and two 4 mm stainless link rods
+   to 44 mm; deburr and lightly chamfer both ends. Put one handle between each
+   pair of supported base ears, with the broad lower pull tab facing the case,
+   and press a base rod through the 3.9 mm ear bores and 4.4 mm handle bore.
+   Place the bail rails outside the base ears, align both 3.9 mm bail-ear bores
+   with the handle's 4.4 mm moving-link bore, and press in the 44 mm link rod.
+   The retaining ears grip each rod while the clearance bore lets the handle
+   pivot. Support the opposite ear during pressing and do not hammer the rod
+   into an unsupported printed ear. The optional printed pins use integral
+   heads and shallow far-end detents instead of an interference fit.
 5. With a handle pulled outward, hook its U-shaped bail over the rounded lid
    catch. Swing the lower handle inward against its positive stop. The moving
    link pin briefly aligns with the base pin and catch, adds about 0.18 mm of

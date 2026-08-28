@@ -8,8 +8,8 @@ does not import, bundle, or modify third-party meshes.  The default kit holds:
 * four MISSION 1 Enduro 2 / HERO13-format batteries, terminal end downward,
 * two edge-on slots for the removable camera battery-cage doors,
 * a flush-top recessed TPU equipment tray and a one-way-keyed TPU lid pad,
-* a TPU dust/splash gasket, two Pelican-style over-center draw latches, and
-  printable hinge/latch pins,
+* a TPU dust/splash gasket, two Pelican-style over-center draw latches sized
+  for press-fit 4 mm stainless latch rods, and printable fallback pins,
 * two flush lid-lettering inlays for a three-color top surface.
 
 The case is Pelican/rugged-box inspired, but all geometry here is independently
@@ -44,7 +44,8 @@ all twelve printable-part STLs and ``mission1_field_case_ams_project.3mf``.  The
 3MF contains the complete six-plate project; its lid is one compound object
 with separate shell, title, and subtitle color bodies.  The standalone lid
 STLs remain available for other slicers.  Print two copies each of the latch
-handle, latch bail, base-pin, and link-pin STLs when using standalone files.
+handle and latch bail STLs when using 4 mm rod.  Two optional printable fallback
+pins of each length are also included for test assembly.
 
 All dimensions are millimeters.  X is case width, Y is case depth, and Z is
 height.  Every default printable part validates below 250 x 250 mm in XY.
@@ -298,8 +299,18 @@ HINGE_PIN_X1 = 53.0
 # centerline during closing.  This is a real toggle linkage rather than the
 # earlier one-piece snap lip.
 LATCH_X_CENTERS = (-38.0, 38.0)
-LATCH_PIVOT_DIAMETER = 3.0
-LATCH_PIVOT_HOLE_DIAMETER = 3.6
+# Each clasp uses two nominal 4 mm stainless rods.  The rod is retained by
+# 3.9 mm teardrop bores in the stationary base ears and moving bail ears, while
+# 4.4 mm teardrop bores through the handle remain free-running pivots.  The
+# small interference is intentionally limited to the retaining ears: making
+# the handle bores press-fit would lock the toggle linkage.  FDM shrinkage and
+# horizontal-hole calibration vary, so print and verify the much smaller bail
+# and handle before committing the full base; tune or ream to suit the actual
+# printer, filament, and rod.
+LATCH_ROD_DIAMETER = 4.0
+LATCH_PRESS_FIT_BORE_DIAMETER = 3.9
+LATCH_RUNNING_BORE_DIAMETER = 4.4
+LATCH_PRINTED_FALLBACK_PIN_DIAMETER = 3.8
 LATCH_PIVOT_Z = 46.5
 LATCH_EAR_WIDTH = 4.0
 LATCH_MOUNT_CLEARANCE = 0.35
@@ -313,7 +324,7 @@ LATCH_HANDLE_PULL_TAB_WIDTH = 22.0
 LATCH_HANDLE_PULL_TAB_HEIGHT = 20.0
 LATCH_HANDLE_BASE_AXIS_LOCAL_Z = 4.5
 LATCH_HANDLE_BASE_BARREL_DIAMETER = 8.8
-LATCH_HANDLE_LINK_BARREL_DIAMETER = 6.4
+LATCH_HANDLE_LINK_BARREL_DIAMETER = 8.4
 LATCH_HANDLE_LINK_RADIUS = 8.0
 LATCH_TARGET_OVER_CENTER_OFFSET = 2.0
 LATCH_PULL_TAB_EAR_CLEARANCE = 0.5
@@ -321,7 +332,12 @@ LATCH_PULL_TAB_EAR_CLEARANCE = 0.5
 LATCH_BAIL_OUTER_WIDTH = 43.0
 LATCH_BAIL_RAIL_WIDTH = 3.5
 LATCH_BAIL_FRAME_DEPTH = 4.8
-LATCH_BAIL_PIVOT_LOCAL_Z = LATCH_HANDLE_LINK_BARREL_DIAMETER / 2.0
+# Keep the linkage axis 3.2 mm above the bail's broad print face.  The enlarged
+# 8.4 mm pivot ears are flattened at z=0 below, leaving the rails and bridge on
+# the bed instead of lifting their long undersides into midair.
+LATCH_BAIL_PIVOT_LOCAL_Z = 3.2
+LATCH_BAIL_FRAME_BELOW_PIVOT = 3.2
+LATCH_BAIL_FRAME_Z0 = LATCH_BAIL_PIVOT_LOCAL_Z - LATCH_BAIL_FRAME_BELOW_PIVOT
 LATCH_BAIL_BRIDGE_HEIGHT = 5.0
 LATCH_BAIL_HOOK_LIP_HEIGHT = 2.4
 LATCH_BAIL_HOOK_FINGER_WIDTH = 3.0
@@ -390,12 +406,12 @@ LATCH_EAR_INNER_X = max(
 )
 LATCH_EAR_SHELL_Y = -CASE_DEPTH / 2.0 + 0.3
 LATCH_EAR_LOWER_PIVOT_Z = 43.0
-LATCH_EAR_LOWER_SHELL_Z = 37.0
+LATCH_EAR_LOWER_SHELL_Z = 38.0
 LATCH_EAR_PROFILE_YZ = (
     (LATCH_EAR_SHELL_Y, 31.0),
     (LATCH_EAR_SHELL_Y, 52.0),
     (LATCH_BASE_PIVOT_Y, 52.0),
-    (LATCH_BASE_PIVOT_Y - 4.5, LATCH_PIVOT_Z),
+    (LATCH_BASE_PIVOT_Y - 4.0, LATCH_PIVOT_Z),
     (LATCH_BASE_PIVOT_Y, LATCH_EAR_LOWER_PIVOT_Z),
     (LATCH_EAR_SHELL_Y, LATCH_EAR_LOWER_SHELL_Z),
 )
@@ -1006,7 +1022,7 @@ def latch_link_pin_sweep_clearance(sample_count=720) -> float:
             LATCH_PIVOT_Z + LATCH_HANDLE_LINK_RADIUS * math.sin(angle),
         )
         if point_in_polygon_2d(center, LATCH_EAR_PROFILE_YZ):
-            return -LATCH_PIVOT_DIAMETER / 2.0
+            return -LATCH_ROD_DIAMETER / 2.0
         center_distance = min(
             point_segment_distance_2d(center, start, end)
             for start, end in zip(
@@ -1015,7 +1031,7 @@ def latch_link_pin_sweep_clearance(sample_count=720) -> float:
             )
         )
         minimum_center_distance = min(minimum_center_distance, center_distance)
-    return minimum_center_distance - LATCH_PIVOT_DIAMETER / 2.0
+    return minimum_center_distance - LATCH_ROD_DIAMETER / 2.0
 
 
 def latch_open_bridge_lid_clearance(sample_count=720) -> float:
@@ -1035,8 +1051,16 @@ def latch_open_bridge_lid_clearance(sample_count=720) -> float:
         local_y = (
             LATCH_BAIL_BRIDGE_START_Y + LATCH_BAIL_BRIDGE_HEIGHT * sample / sample_count
         )
-        world_y = location_y + math.cos(rotation) * local_y
-        world_z = location_z + math.sin(rotation) * local_y
+        world_y = (
+            location_y
+            + math.cos(rotation) * local_y
+            - math.sin(rotation) * LATCH_BAIL_FRAME_Z0
+        )
+        world_z = (
+            location_z
+            + math.sin(rotation) * local_y
+            + math.cos(rotation) * LATCH_BAIL_FRAME_Z0
+        )
         delta_y = max(lid_front_y - world_y, 0.0)
         if world_z < lid_plate_bottom_z:
             delta_z = lid_plate_bottom_z - world_z
@@ -1287,8 +1311,56 @@ def validate_configuration() -> None:
             raise ValueError(
                 f"Latch {name} needs {minimum:.2f} mm; computed {value:.2f}"
             )
-    if LATCH_PIVOT_HOLE_DIAMETER - LATCH_PIVOT_DIAMETER < 0.4:
-        raise ValueError("Latch pins need at least 0.4 mm diametral hole clearance")
+    press_fit_interference = LATCH_ROD_DIAMETER - LATCH_PRESS_FIT_BORE_DIAMETER
+    if not 0.05 <= press_fit_interference <= 0.20:
+        raise ValueError(
+            "Latch retaining ears need 0.05-0.20 mm nominal diametral "
+            "interference on the stainless rod"
+        )
+    running_clearance = LATCH_RUNNING_BORE_DIAMETER - LATCH_ROD_DIAMETER
+    if running_clearance < 0.4:
+        raise ValueError(
+            "Latch handle pivots need at least 0.4 mm diametral running clearance"
+        )
+    base_barrel_wall = (
+        LATCH_HANDLE_BASE_BARREL_DIAMETER - LATCH_RUNNING_BORE_DIAMETER
+    ) / 2.0
+    link_barrel_wall = (
+        LATCH_HANDLE_LINK_BARREL_DIAMETER - LATCH_RUNNING_BORE_DIAMETER
+    ) / 2.0
+    bail_ear_wall = (
+        LATCH_HANDLE_LINK_BARREL_DIAMETER - LATCH_PRESS_FIT_BORE_DIAMETER
+    ) / 2.0
+    if min(base_barrel_wall, link_barrel_wall, bail_ear_wall) < 2.0:
+        raise ValueError("Latch pivot barrels need at least 2.0 mm nominal side wall")
+    running_roof_height = math.sqrt(2.0) * LATCH_RUNNING_BORE_DIAMETER / 2.0
+    press_fit_roof_height = math.sqrt(2.0) * LATCH_PRESS_FIT_BORE_DIAMETER / 2.0
+    base_barrel_roof_wall = (
+        LATCH_HANDLE_BASE_BARREL_DIAMETER / 2.0 - running_roof_height
+    )
+    link_barrel_roof_wall = (
+        LATCH_HANDLE_LINK_BARREL_DIAMETER / 2.0 - running_roof_height
+    )
+    bail_ear_roof_wall = LATCH_HANDLE_LINK_BARREL_DIAMETER / 2.0 - press_fit_roof_height
+    link_barrel_floor_wall = (
+        LATCH_HANDLE_LINK_AXIS_LOCAL_Z - LATCH_RUNNING_BORE_DIAMETER / 2.0
+    )
+    bail_ear_floor_wall = LATCH_BAIL_PIVOT_LOCAL_Z - LATCH_PRESS_FIT_BORE_DIAMETER / 2.0
+    if (
+        min(
+            base_barrel_roof_wall,
+            link_barrel_roof_wall,
+            bail_ear_roof_wall,
+            link_barrel_floor_wall,
+            bail_ear_floor_wall,
+        )
+        < 1.0
+    ):
+        raise ValueError(
+            "Latch teardrop pivot barrels need at least 1.0 mm roof/floor wall"
+        )
+    if not math.isclose(LATCH_BAIL_FRAME_Z0, 0.0, abs_tol=1e-6):
+        raise ValueError("Latch bail rails and bridge must start on the print bed")
     if LATCH_BASE_PIN_LENGTH < 2.0 * (LATCH_EAR_INNER_X + LATCH_EAR_WIDTH):
         raise ValueError("Latch base pin does not span both base ears")
     if LATCH_LINK_PIN_LENGTH < LATCH_BAIL_OUTER_WIDTH:
@@ -1341,6 +1413,9 @@ def validate_configuration() -> None:
         f"latch_over_center={over_center_offset:.3f} "
         f"latch_angle={over_center_angle:.2f} "
         f"latch_peak_draw={LATCH_DEAD_CENTER_TRAVEL:.3f} "
+        f"latch_rod={LATCH_ROD_DIAMETER:.2f} "
+        f"latch_press_bore={LATCH_PRESS_FIT_BORE_DIAMETER:.2f} "
+        f"latch_running_bore={LATCH_RUNNING_BORE_DIAMETER:.2f} "
         f"latch_pin_ear_clearance={link_pin_ear_sweep_clearance:.3f} "
         f"latch_hook_clearance={hook_radial_clearance:.3f} "
         f"latch_open_lid_clearance={open_bridge_lid_clearance:.3f}"
@@ -1448,7 +1523,7 @@ def create_base(material):
         union_into(base, knuckle)
 
     # Each handle pivots between two self-supporting teardrop arms.  Their
-    # 45-degree lower edges grow outward from the shell without a floating
+    # sloped lower edges grow outward from the shell without a floating
     # cantilever, while the moving link pin remains below the arm in the full
     # closed-to-open sweep.  The bail rails run laterally outside these arms.
     mount_y = LATCH_BASE_PIVOT_Y
@@ -1465,7 +1540,7 @@ def create_base(material):
             )
             hole = add_teardrop_hole_x(
                 f"Base_Latch_{index}_Pivot_Hole",
-                LATCH_PIVOT_HOLE_DIAMETER / 2.0,
+                LATCH_PRESS_FIT_BORE_DIAMETER / 2.0,
                 LATCH_EAR_WIDTH + 0.8,
                 (ear_x, mount_y, LATCH_PIVOT_Z),
             )
@@ -1865,14 +1940,14 @@ def create_latch_handle(material):
 
     base_hole = add_teardrop_hole_x(
         "Over_Center_Handle_Base_Pivot_Hole",
-        LATCH_PIVOT_HOLE_DIAMETER / 2.0,
+        LATCH_RUNNING_BORE_DIAMETER / 2.0,
         LATCH_HANDLE_WIDTH + 1.0,
         (0.0, 0.0, LATCH_HANDLE_BASE_AXIS_LOCAL_Z),
     )
     difference_from(handle, base_hole)
     link_hole = add_teardrop_hole_x(
         "Over_Center_Handle_Moving_Link_Hole",
-        LATCH_PIVOT_HOLE_DIAMETER / 2.0,
+        LATCH_RUNNING_BORE_DIAMETER / 2.0,
         LATCH_HANDLE_WIDTH + 1.0,
         (
             0.0,
@@ -1881,6 +1956,21 @@ def create_latch_handle(material):
         ),
     )
     difference_from(handle, link_hole)
+
+    # The enlarged moving barrel reaches below the handle's broad print face.
+    # Trim that small circular cap at z=0 to retain a stable, support-free bed
+    # surface while leaving more than 1 mm below the 4.4 mm running bore.
+    below_bed_cutter = add_rounded_box(
+        "Over_Center_Handle_Below_Bed_Trim",
+        (
+            LATCH_HANDLE_PULL_TAB_WIDTH + 4.0,
+            LATCH_HANDLE_STEM_HEIGHT + 12.0,
+            20.0,
+        ),
+        (0.0, -8.5, -10.0),
+        bevel=0.0,
+    )
+    difference_from(handle, below_bed_cutter)
 
     translate_object(handle, (0.0, LATCH_HANDLE_PRINT_OFFSET_Y, 0.0))
     assign_material(handle, material)
@@ -1893,8 +1983,8 @@ def create_latch_bail(material):
         "Field_Case_Over_Center_Latch_Bail_Print_Two",
         LATCH_BAIL_OUTER_WIDTH,
         LATCH_BAIL_BRIDGE_HEIGHT,
-        0.0,
-        LATCH_BAIL_FRAME_DEPTH,
+        LATCH_BAIL_FRAME_Z0,
+        LATCH_BAIL_FRAME_Z0 + LATCH_BAIL_FRAME_DEPTH,
         1.5,
         (
             0.0,
@@ -1906,8 +1996,8 @@ def create_latch_bail(material):
             "Over_Center_Bail_Side_Rail",
             LATCH_BAIL_RAIL_WIDTH,
             LATCH_BAIL_LENGTH,
-            0.0,
-            LATCH_BAIL_FRAME_DEPTH,
+            LATCH_BAIL_FRAME_Z0,
+            LATCH_BAIL_FRAME_Z0 + LATCH_BAIL_FRAME_DEPTH,
             1.2,
             (side * rail_center_x, LATCH_BAIL_LENGTH / 2.0),
         )
@@ -1922,7 +2012,7 @@ def create_latch_bail(material):
         union_into(bridge, pivot_ear, solver="MANIFOLD")
         pivot_hole = add_teardrop_hole_x(
             "Over_Center_Bail_Moving_Pivot_Hole",
-            LATCH_PIVOT_HOLE_DIAMETER / 2.0,
+            LATCH_PRESS_FIT_BORE_DIAMETER / 2.0,
             LATCH_BAIL_RAIL_WIDTH + 0.8,
             (side * rail_center_x, 0.0, LATCH_BAIL_PIVOT_LOCAL_Z),
         )
@@ -1950,7 +2040,9 @@ def create_latch_bail(material):
             bevel=0.65,
         )
         union_into(bridge, hook_finger, solver="MANIFOLD")
-        riser_bottom_z = LATCH_BAIL_FRAME_DEPTH - LATCH_BAIL_HOOK_JOINT_OVERLAP
+        riser_bottom_z = (
+            LATCH_BAIL_FRAME_Z0 + LATCH_BAIL_FRAME_DEPTH - LATCH_BAIL_HOOK_JOINT_OVERLAP
+        )
         riser_top_z = LATCH_BAIL_HOOK_UNDERSIDE_Z + LATCH_BAIL_HOOK_FINGER_HEIGHT
         hook_riser = add_rounded_box(
             "Over_Center_Bail_Catch_Return_Riser",
@@ -1968,13 +2060,28 @@ def create_latch_bail(material):
         )
         union_into(bridge, hook_riser, solver="MANIFOLD")
 
+    # The larger press-fit pivot ears extend below the bail's broad z=0 print
+    # face.  Flatten only those round caps so both full rails and the bridge
+    # remain bed-supported in the documented orientation.
+    below_bed_cutter = add_rounded_box(
+        "Over_Center_Bail_Below_Bed_Trim",
+        (
+            LATCH_BAIL_OUTER_WIDTH + 4.0,
+            LATCH_BAIL_LENGTH + 2.0 * LATCH_HANDLE_LINK_BARREL_DIAMETER + 4.0,
+            20.0,
+        ),
+        (0.0, LATCH_BAIL_LENGTH / 2.0, -10.0),
+        bevel=0.0,
+    )
+    difference_from(bridge, below_bed_cutter)
+
     translate_object(bridge, (0.0, LATCH_BAIL_PRINT_OFFSET_Y, 0.0))
     assign_material(bridge, material)
     return bridge
 
 
 def create_latch_pin(name, length, print_offset_y, material):
-    radius = LATCH_PIVOT_DIAMETER / 2.0
+    radius = LATCH_PRINTED_FALLBACK_PIN_DIAMETER / 2.0
     flat = -0.78 * radius
     arc_limit = math.acos(flat / radius)
     arc_steps = 24
@@ -2146,14 +2253,14 @@ def create_latch_reference_mockups(parts, materials):
         )
         base_pin = add_cylinder_x(
             f"REFERENCE_ONLY_{state}_Latch_Base_Pin",
-            LATCH_PIVOT_DIAMETER / 2.0,
+            LATCH_ROD_DIAMETER / 2.0,
             LATCH_BASE_PIN_LENGTH,
             (x, LATCH_BASE_PIVOT_Y, LATCH_PIVOT_Z),
             vertices=36,
         )
         link_pin = add_cylinder_x(
             f"REFERENCE_ONLY_{state}_Latch_Link_Pin",
-            LATCH_PIVOT_DIAMETER / 2.0,
+            LATCH_ROD_DIAMETER / 2.0,
             LATCH_LINK_PIN_LENGTH,
             (x, link_pivot[0], link_pivot[1]),
             vertices=36,
@@ -3487,6 +3594,7 @@ def validate_3mf_project(path: Path) -> None:
 
 
 def validate_built_part(name: str, obj) -> None:
+    minimum, _maximum = object_world_bounds(obj)
     dimensions = object_world_dimensions(obj)
     if (
         len(obj.data.vertices) < 4
@@ -3501,6 +3609,10 @@ def validate_built_part(name: str, obj) -> None:
         raise ValueError(
             f"Built {name} exceeds {MAX_PRINT_XY:.0f} mm XY: "
             f"{dimensions.x:.2f} x {dimensions.y:.2f}"
+        )
+    if name in {"latch_handle", "latch_bail"} and minimum.z < -1e-5:
+        raise ValueError(
+            f"Built {name} extends {abs(minimum.z):.3f} mm below the print bed"
         )
     bm = bmesh.new()
     bm.from_mesh(obj.data)
