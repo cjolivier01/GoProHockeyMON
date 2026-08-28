@@ -1,3 +1,19 @@
+# GNU Make 4.3 or newer is required for the grouped targets used below.
+REQUIRED_GNU_MAKE_MAJOR := 4
+REQUIRED_GNU_MAKE_MINOR := 3
+DETECTED_GNU_MAKE_VERSION_WORDS := $(subst ., ,$(MAKE_VERSION))
+DETECTED_GNU_MAKE_MAJOR := $(word 1,$(DETECTED_GNU_MAKE_VERSION_WORDS))
+DETECTED_GNU_MAKE_MINOR := $(word 2,$(DETECTED_GNU_MAKE_VERSION_WORDS))
+SUPPORTED_GNU_MAKE_VERSION := $(shell \
+	if [ "$(DETECTED_GNU_MAKE_MAJOR)" -gt "$(REQUIRED_GNU_MAKE_MAJOR)" ] || \
+		{ [ "$(DETECTED_GNU_MAKE_MAJOR)" -eq "$(REQUIRED_GNU_MAKE_MAJOR)" ] && \
+		[ "$(DETECTED_GNU_MAKE_MINOR)" -ge "$(REQUIRED_GNU_MAKE_MINOR)" ]; }; then \
+		printf '%s' yes; \
+	fi)
+ifeq ($(SUPPORTED_GNU_MAKE_VERSION),)
+$(error GNU Make 4.3 or newer is required; detected $(MAKE_VERSION). On macOS, install a current GNU Make and run this file with gmake)
+endif
+
 BLENDER ?= $(shell command -v blender 2>/dev/null || command -v /home/colivier/Apps/Blender/blender 2>/dev/null || printf '%s' blender)
 BLENDER_FLAGS ?= --background --factory-startup
 PDF_PYTHON ?= $(shell command -v python 2>/dev/null || command -v python3 2>/dev/null || printf '%s' python3)
@@ -14,6 +30,26 @@ FLAT_FAN_COVER_STLS := flat-fan-cover.stl
 WRAPPING_FAN_COVER_STLS := wrapping-fan-cover.stl
 HORN_STLS := horn_parametric_blender.stl
 MISSION1_DUMMY_STLS := gopro_mission1_dummy_recreated.stl
+MISSION1_FIELD_CASE_STLS := \
+	mission1_field_case_base.stl \
+	mission1_field_case_lid.stl \
+	mission1_field_case_lower_tray_tpu.stl \
+	mission1_field_case_lid_retainer_tpu.stl \
+	mission1_field_case_gasket_tpu.stl \
+	mission1_field_case_over_center_latch_handle_print_two.stl \
+	mission1_field_case_over_center_latch_bail_print_two.stl \
+	mission1_field_case_latch_base_pin_print_two.stl \
+	mission1_field_case_latch_link_pin_print_two.stl \
+	mission1_field_case_hinge_pin.stl \
+	mission1_field_case_lid_title_inlay.stl \
+	mission1_field_case_lid_subtitle_inlay.stl
+MISSION1_FIELD_CASE_3MF := mission1_field_case_ams_project.3mf
+MISSION1_FIELD_CASE_OUTPUTS := $(MISSION1_FIELD_CASE_STLS) $(MISSION1_FIELD_CASE_3MF)
+MISSION1_FIELD_CASE_OBSOLETE_STLS := \
+	mission1_field_case_lower_insert.stl \
+	mission1_field_case_latch_print_two.stl \
+	mission1_field_case_pelican_latch_print_two.stl \
+	mission1_field_case_latch_pin_print_two.stl
 DUAL_FAN_HOLDER_STL := gopro_dual_fan_parametric.stl
 DUAL_FAN_ADAPTER_STLS := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('dual_fan_parametric_blender.py', encoding='utf-8').read()); names={'GOPRO_ADAPTER_PRONG_COUNTS','GOPRO_ADAPTER_PRONG_COUNT','EXPORT_ADAPTER_STL_PATHS','EXPORT_ADAPTER_STL_PATH'}; values={target.id:ast.literal_eval(node.value) for node in tree.body if isinstance(node,(ast.Assign,ast.AnnAssign)) for target in ([node.target] if isinstance(node,ast.AnnAssign) else node.targets) if isinstance(target,ast.Name) and target.id in names}; legacy_count=values['GOPRO_ADAPTER_PRONG_COUNT']; counts=(legacy_count,) if legacy_count is not None else values['GOPRO_ADAPTER_PRONG_COUNTS']; paths=dict(values['EXPORT_ADAPTER_STL_PATHS']); legacy_path=values['EXPORT_ADAPTER_STL_PATH']; paths[counts[0]]=(legacy_path or 'gopro_dual_fan_adapter.stl') if legacy_count is not None else (legacy_path or paths[counts[0]]); print(' '.join(paths[count] for count in counts))")
 DUAL_FAN_KNOWN_ADAPTER_STLS := \
@@ -175,6 +211,7 @@ STL_FILES := \
 	$(WRAPPING_FAN_COVER_STLS) \
 	$(HORN_STLS) \
 	$(MISSION1_DUMMY_STLS) \
+	$(MISSION1_FIELD_CASE_STLS) \
 	$(DUAL_FAN_STLS) \
 	$(FAN_SILENCER_STLS) \
 	$(FAN_CASE_STLS)
@@ -186,17 +223,17 @@ STL_FILES := \
 	all print_targets dim-pdf check-dim-pdf-sync \
 	dual-fan-dim-pdf check-dual-fan-dim-pdf-sync \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
-	flat-fan-cover wrapping-fan-cover horn mission1-dummy dual-fan fan-silencer \
+	flat-fan-cover wrapping-fan-cover horn mission1-dummy mission1-field-case dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymom-cam-case \
 	hockeymom-keystone-test-coupon \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
+	clean-mission1-dummy clean-mission1-field-case clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
 	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf
 
 # Keep every generated dimension guide synchronized with its model sources.
 # Each PDF target also depends on its generator, so any configuration or
 # documentation-layout change is reflected by the next normal `make all`.
-all: $(STL_FILES) $(HOCKEYMOM_CAM_CASE_STLS) \
+all: $(STL_FILES) $(MISSION1_FIELD_CASE_3MF) $(HOCKEYMOM_CAM_CASE_STLS) \
 	$(DUAL_FAN_DIMENSION_PDF) $(FAN_CASE_DIMENSION_PDF) $(DIMENSION_PDF) \
 	check-dual-fan-dim-pdf-sync check-fan-case-dim-pdf-sync check-dim-pdf-sync
 
@@ -204,13 +241,14 @@ print_targets:
 	@printf '%s\n' \
 		"Available make targets (run 'make <target>'):" \
 		'' \
-		'STL Builds' \
-		'----------' \
-		'all                       Build all STL files and synchronized dimension PDF.' \
+		'Print Builds' \
+		'------------' \
+		'all                       Build all print files and synchronized dimension PDFs.' \
 		'flat-fan-cover            Build the flat fan cover STL.' \
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
+		'mission1-field-case       Build twelve part STLs plus the complete AMS-ready 3MF project.' \
 		'dual-fan                  Build the fan holder and both GoPro adapter variants; optional splitter follows CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \
@@ -233,11 +271,12 @@ print_targets:
 		'' \
 		'Cleanup' \
 		'-------' \
-		'clean                     Remove all generated STL and dimension-PDF files.' \
+		'clean                     Remove all generated print and dimension-PDF files.' \
 		'clean-flat-fan-cover      Remove the flat fan cover STL.' \
 		'clean-wrapping-fan-cover  Remove the wrapping fan cover STL.' \
 		'clean-horn                Remove the parametric horn STL.' \
 		'clean-mission1-dummy      Remove the Mission 1 dummy STL.' \
+		'clean-mission1-field-case Remove all dual Mission 1 field-case print outputs.' \
 		'clean-dual-fan            Remove the dual-fan holder and adapter STLs.' \
 		'clean-fan-silencer        Remove fan-silencer STLs and generated render images.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
@@ -254,6 +293,7 @@ flat-fan-cover: $(FLAT_FAN_COVER_STLS)
 wrapping-fan-cover: $(WRAPPING_FAN_COVER_STLS)
 horn: $(HORN_STLS)
 mission1-dummy: $(MISSION1_DUMMY_STLS)
+mission1-field-case: $(MISSION1_FIELD_CASE_OUTPUTS)
 dual-fan: $(DUAL_FAN_STLS)
 fan-silencer: $(FAN_SILENCER_STLS)
 fan-silencer-cross-section: $(FAN_SILENCER_CROSS_SECTION)
@@ -312,6 +352,17 @@ $(HORN_STLS): horn_parametric_blender.py
 $(MISSION1_DUMMY_STLS): gopro_mission1_dummy_blender.py
 	$(call run_single_output_generator,$<,main,EXPORT_PATH)
 
+# One generator emits every printable field-case component, including both
+# separate color inlays, plus the AMS project. Reference mockups stay disabled
+# for print-output builds. The grouped rule records that one invocation updates
+# the complete kit while retaining normal timestamp-based incremental builds.
+$(MISSION1_FIELD_CASE_OUTPUTS) &: mission1_field_case_blender.py \
+	gopro_mission1_dummy_blender.py
+	$(RM) $(MISSION1_FIELD_CASE_OUTPUTS) $(MISSION1_FIELD_CASE_OBSOLETE_STLS)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
+		"import os; p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']=os.getcwd(); ns['BUILD_REFERENCE_MOCKUPS']=False; ns['build_mission1_field_case']()"
+	$(PDF_PYTHON) -c "from pathlib import Path; import zipfile; paths=[Path(name) for name in '$(MISSION1_FIELD_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; stl_payloads=[(path, path.read_bytes()) for path in paths[:-1]]; invalid_stls=[str(path) for path, data in stl_payloads if len(data) < 84 or len(data) != 84 + 50 * int.from_bytes(data[80:84], 'little')]; assert not invalid_stls, f'Invalid binary STL outputs: {invalid_stls}'; archive=zipfile.ZipFile(paths[-1]); bad_member=archive.testzip(); archive.close(); assert bad_member is None, f'Corrupt 3MF member: {bad_member}'"
+
 $(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py fan_size_presets.py
 	$(RM) $(DUAL_FAN_ALL_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
@@ -367,7 +418,7 @@ $(HOCKEYMOM_CAM_CASE_KEYSTONE_TEST_COUPON_STL): hockeymom_cam_case_blender.py \
 hockeymom-keystone-test-coupon: $(HOCKEYMOM_CAM_CASE_KEYSTONE_TEST_COUPON_STL)
 
 clean: clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
-	clean-mission1-dummy clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
+	clean-mission1-dummy clean-mission1-field-case clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
 	clean-dual-fan-dim-pdf clean-fan-case-dim-pdf clean-dim-pdf
 
 clean-flat-fan-cover:
@@ -381,6 +432,9 @@ clean-horn:
 
 clean-mission1-dummy:
 	$(RM) $(MISSION1_DUMMY_STLS)
+
+clean-mission1-field-case:
+	$(RM) $(MISSION1_FIELD_CASE_OUTPUTS) $(MISSION1_FIELD_CASE_OBSOLETE_STLS)
 
 clean-dual-fan:
 	$(RM) $(DUAL_FAN_ALL_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
