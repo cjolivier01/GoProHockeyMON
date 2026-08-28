@@ -79,11 +79,12 @@ Print two copies of:
 
 - `mission1_field_case_exact_pelican_latch_print_two.stl`
 
-Each latch uses one 36 mm length of nominal 4 mm stainless rod. The single
-integrated center tongue on the case has a 3.9 mm press-fit bore. The rod then
-passes through the latch's original fixed pivot, which scales to a 4.4 mm
-running bore. The fixed pivot bosses remain inside the reference's side cheeks;
-there are no outside mounting ears or transverse printed barrels.
+Each latch uses one nominal 4 mm stainless rod cut to `LATCH_ROD_LENGTH` (about
+36 mm with the default geometry). The single integrated center tongue on the
+case has a 3.9 mm press-fit bore. The rod then passes through the latch's
+original fixed pivot, which scales to a 4.4 mm running bore. The fixed pivot
+bosses remain inside the reference's side cheeks; there are no outside mounting
+ears or transverse printed barrels.
 
 The lid now has one integrated keeper ramp at each latch location. Its dense
 bearing arc comes from a conservative full-width projection of the exact
@@ -102,7 +103,8 @@ To install one latch:
    strings without cutting the captive internal pin.
 2. Slide the case's center tongue into the rear channel of the latch and align
    its 3.9 mm hole with the latch's 4.4 mm fixed-pivot bore.
-3. Support the tongue and press the 36 mm rod through the latch and tongue.
+3. Support the tongue and press the cut-to-`LATCH_ROD_LENGTH` rod through the
+   latch and tongue.
 4. Close the lid, place the moving head over its localized keeper ramp, and
    press the broad outer lever inward until the linkage passes over center.
    Pull that same broad lever outward to unload the ramp and release it.
@@ -162,9 +164,9 @@ and can be regenerated without editing an STL.
    notch over the matching rigid boss.
 3. Alternate the base and lid hinge knuckles, then insert the printed hinge pin
    or a 3 mm metal rod.
-4. Install each latch with one 36 mm length of 4 mm rod, then install the
-   separate handle bar with two 12 mm lengths of 4 mm rod by default or with
-   regenerated M4 hardware.
+4. Install each latch with one nominal 4 mm rod cut to `LATCH_ROD_LENGTH` (about
+   36 mm by default), then install the separate handle bar with two 12 mm
+   lengths of 4 mm rod by default or with regenerated M4 hardware.
 5. Load the two opposed cameras with their soft lens hoods in the flared ends,
    then load four batteries terminal-down.
 
