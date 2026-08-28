@@ -1,4 +1,19 @@
 # GNU Make 4.3 or newer is required for the grouped targets used below.
+REQUIRED_GNU_MAKE_MAJOR := 4
+REQUIRED_GNU_MAKE_MINOR := 3
+DETECTED_GNU_MAKE_VERSION_WORDS := $(subst ., ,$(MAKE_VERSION))
+DETECTED_GNU_MAKE_MAJOR := $(word 1,$(DETECTED_GNU_MAKE_VERSION_WORDS))
+DETECTED_GNU_MAKE_MINOR := $(word 2,$(DETECTED_GNU_MAKE_VERSION_WORDS))
+SUPPORTED_GNU_MAKE_VERSION := $(shell \
+	if [ "$(DETECTED_GNU_MAKE_MAJOR)" -gt "$(REQUIRED_GNU_MAKE_MAJOR)" ] || \
+		{ [ "$(DETECTED_GNU_MAKE_MAJOR)" -eq "$(REQUIRED_GNU_MAKE_MAJOR)" ] && \
+		[ "$(DETECTED_GNU_MAKE_MINOR)" -ge "$(REQUIRED_GNU_MAKE_MINOR)" ]; }; then \
+		printf '%s' yes; \
+	fi)
+ifeq ($(SUPPORTED_GNU_MAKE_VERSION),)
+$(error GNU Make 4.3 or newer is required; detected $(MAKE_VERSION). On macOS, install a current GNU Make and run this file with gmake)
+endif
+
 BLENDER ?= $(shell command -v blender 2>/dev/null || command -v /home/colivier/Apps/Blender/blender 2>/dev/null || printf '%s' blender)
 BLENDER_FLAGS ?= --background --factory-startup
 PDF_PYTHON ?= $(shell command -v python 2>/dev/null || command -v python3 2>/dev/null || printf '%s' python3)
