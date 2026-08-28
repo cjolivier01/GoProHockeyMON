@@ -196,7 +196,7 @@ STL_FILES := \
 	$(WRAPPING_FAN_COVER_STLS) \
 	$(HORN_STLS) \
 	$(MISSION1_DUMMY_STLS) \
-	$(MISSION1_FIELD_CASE_OUTPUTS) \
+	$(MISSION1_FIELD_CASE_STLS) \
 	$(DUAL_FAN_STLS) \
 	$(FAN_SILENCER_STLS) \
 	$(FAN_CASE_STLS)
@@ -218,7 +218,7 @@ STL_FILES := \
 # Keep every generated dimension guide synchronized with its model sources.
 # Each PDF target also depends on its generator, so any configuration or
 # documentation-layout change is reflected by the next normal `make all`.
-all: $(STL_FILES) $(HOCKEYMOM_CAM_CASE_STLS) \
+all: $(STL_FILES) $(MISSION1_FIELD_CASE_3MF) $(HOCKEYMOM_CAM_CASE_STLS) \
 	$(DUAL_FAN_DIMENSION_PDF) $(FAN_CASE_DIMENSION_PDF) $(DIMENSION_PDF) \
 	check-dual-fan-dim-pdf-sync check-fan-case-dim-pdf-sync check-dim-pdf-sync
 
