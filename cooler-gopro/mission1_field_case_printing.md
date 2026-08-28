@@ -86,16 +86,17 @@ original fixed pivot, which scales to a 4.4 mm running bore. The fixed pivot
 bosses remain inside the reference's side cheeks; there are no outside mounting
 ears or transverse printed barrels.
 
-The lid now has one integrated keeper ramp at each latch location. Its dense
-bearing arc comes from a conservative full-width projection of the exact
-hooked link, including its side bevels. At nominal closure the arc supplies
-0.25 mm of gasket draw; after that take-up, the rigid profiles clear by about
-0.0014 mm instead of jamming on coarse straight chords. Pressing the broad
-lever inward wedges the moving link against the ramp and carries the linkage
-over center. An upward lid load then bears directly from the keeper into that
+The lid rim thickens into one shallow outward capture lip at each latch. The
+lip projects about 1.38 mm from the existing lid face and only about 0.81 mm
+below the protective flange; it does not form a keeper hanging down the case
+front. Its short bearing edge comes from a conservative full-width projection
+of the exact hooked link, including its side bevels. The uncompressed lid begins
+0.25 mm above its hard seated position. Pressing the broad lever inward pulls
+the hook around the lip, draws the lid down to that seat, and carries the
+linkage over center. At the seat, the rigid hook and lip clear by about 0.0014
+mm instead of jamming. An upward lid load then bears from the rim lip into that
 link, through the two latch pivots, and into the base's 4 mm mounting rod. The
-linkage must pass back across center before the lid can rise, so no separate
-lid-side catch needs to be printed or installed.
+linkage must pass back across center before the hook can release the lid lip.
 
 To install one latch:
 
@@ -105,9 +106,9 @@ To install one latch:
    its 3.9 mm hole with the latch's 4.4 mm fixed-pivot bore.
 3. Support the tongue and press the cut-to-`LATCH_ROD_LENGTH` rod through the
    latch and tongue.
-4. Close the lid, place the moving head over its localized keeper ramp, and
-   press the broad outer lever inward until the linkage passes over center.
-   Pull that same broad lever outward to unload the ramp and release it.
+4. Close the lid, place the moving hook around the shallow lip in the lid rim,
+   and press the broad outer lever inward until the linkage passes over center.
+   Pull that same broad lever outward to unload the lip and release it.
 
 Deburr and lightly chamfer rod ends. Do not hammer a rod into an unsupported
 tongue. Printer shrinkage varies, so print one latch first and test it with the
@@ -139,6 +140,15 @@ the case face and the inside of the grip across the unobstructed 76 mm opening.
 The generator rejects less than 25 mm of raised finger clearance, less than
 75 mm of unobstructed grip width, or less than 8 mm of latch finger-access
 clearance.
+
+## Hinge clearances
+
+The alternating base and lid knuckles have matching cylindrical swing pockets
+cut through the otherwise continuous rear rims. These pockets prevent the lid
+flange from striking the base knuckles and prevent the lid knuckles from
+striking the base wall. The generated base and lid have been checked through a
+0-110 degree opening sweep without rigid intersection. Do not fill these rear
+reliefs when adding manual supports.
 
 ## Suggested printing
 

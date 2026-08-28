@@ -69,6 +69,7 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
+from itertools import pairwise
 from pathlib import Path
 
 import bmesh
@@ -299,6 +300,8 @@ HINGE_HOLE_DIAMETER = 3.5
 HINGE_PIN_DIAMETER = 2.9
 HINGE_BASE_SEGMENTS = ((-76.0, -42.0), (-18.0, 18.0), (42.0, 76.0))
 HINGE_LID_SEGMENTS = ((-41.4, -18.6), (18.6, 41.4))
+HINGE_RIM_RELIEF_RADIAL_CLEARANCE = 0.4
+HINGE_RIM_RELIEF_AXIAL_CLEARANCE = 0.2
 HINGE_PIN_X0 = -77.0
 HINGE_PIN_X1 = 77.0
 
@@ -359,14 +362,17 @@ LATCH_ROD_LENGTH = LATCH_WIDTH + 2.0
 LATCH_PRINT_OFFSET_Y = 0.0
 LATCH_FINGER_ACCESS_CLEARANCE = 8.0
 
-# The supplied hooked link bears on a localized keeper ramp generated as part
-# of the lid.  This dense arc is derived from the complete-X Y/Z projection of
-# the exact 3,996-facet link shell in its installed closed transform.  It keeps
-# every bevel conservative, rather than approximating a curved contact with a
-# few chords.  The keeper sits 0.25 mm above the arc at nominal closure and has
-# 0.002 mm of outward numerical clearance; after 0.25 mm of gasket take-up the
-# two rigid profiles have zero intersection and approximately 0.0014 mm gap.
-LATCH_LINK_CLOSED_BEARING_ARC_YZ = (
+# The supplied hooked link grabs a shallow localized lip formed into the lid's
+# existing protective rim.  This dense arc is derived from the complete-X Y/Z
+# projection of the exact 3,996-facet link shell in its installed closed
+# transform.  Only the short upper contact is used: the lip projects about
+# 1.38 mm beyond the lid face and only 0.81 mm below the existing flange, so it
+# reads and functions as a rim lip rather than a hanging keeper.  At the hard
+# seated position the lip follows the closed hook with 0.002 mm of outward
+# numerical clearance.  The uncompressed lid starts 0.25 mm higher, so closing
+# the linkage draws it down to that seat instead of translating it through the
+# base rim.  The seated rigid profiles have approximately 0.0014 mm gap.
+LATCH_LINK_CLOSED_LIP_BEARING_ARC_YZ = (
     (-79.690472, 62.759148),
     (-79.685845, 62.754593),
     (-79.616494, 62.666115),
@@ -381,32 +387,34 @@ LATCH_LINK_CLOSED_BEARING_ARC_YZ = (
     (-79.611666, 62.191277),
     (-79.669032, 62.112370),
     (-80.227547, 61.443405),
-    (-80.734589, 60.734620),
-    (-81.187281, 59.989951),
-    (-81.583125, 59.213582),
-    (-81.919936, 58.409838),
-    (-82.195817, 57.583173),
-    (-82.409215, 56.738228),
-    (-82.558953, 55.879733),
-    (-82.644169, 55.012444),
-    (-82.664403, 54.141216),
 )
-LID_LATCH_KEEPER_DRAW = 0.25
-LID_LATCH_KEEPER_OUTWARD_CLEARANCE = 0.002
-LID_LATCH_KEEPER_WIDTH = 24.0
-LID_LATCH_KEEPER_ROOT_OVERLAP = 1.2
-LID_LATCH_KEEPER_BEARING_ARC_YZ = tuple(
+LID_LATCH_LIP_DRAW = 0.25
+LID_LATCH_LIP_OUTWARD_CLEARANCE = 0.002
+LID_LATCH_LIP_WIDTH = 24.0
+LID_LATCH_LIP_ROOT_OVERLAP = 1.2
+LID_LATCH_LIP_NOSE_EXTENSION = 0.15
+LID_LATCH_LIP_UNDERSIDE_DROP = 0.25
+LID_LATCH_LIP_BEARING_ARC_YZ = tuple(
     (
-        y + LID_LATCH_KEEPER_OUTWARD_CLEARANCE,
-        z + LID_LATCH_KEEPER_DRAW,
+        y + LID_LATCH_LIP_OUTWARD_CLEARANCE,
+        z,
     )
-    for y, z in LATCH_LINK_CLOSED_BEARING_ARC_YZ
+    for y, z in LATCH_LINK_CLOSED_LIP_BEARING_ARC_YZ
 )
-LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ = (
+LID_LATCH_LIP_LAST_BEARING_Y, LID_LATCH_LIP_LAST_BEARING_Z = (
+    LID_LATCH_LIP_BEARING_ARC_YZ[-1]
+)
+LID_LATCH_LIP_INSTALLED_PROFILE_YZ = (
     (-77.8, 65.0),
-    *LID_LATCH_KEEPER_BEARING_ARC_YZ,
-    (-82.5, 52.9),
-    (-77.8, 59.0),
+    *LID_LATCH_LIP_BEARING_ARC_YZ,
+    (
+        LID_LATCH_LIP_LAST_BEARING_Y - LID_LATCH_LIP_NOSE_EXTENSION,
+        LID_LATCH_LIP_LAST_BEARING_Z - LID_LATCH_LIP_UNDERSIDE_DROP,
+    ),
+    (
+        -77.8,
+        LID_LATCH_LIP_LAST_BEARING_Z - LID_LATCH_LIP_UNDERSIDE_DROP,
+    ),
 )
 
 # Separate reference-shaped U handle.  The base lugs are unioned into the case
@@ -12319,6 +12327,17 @@ def validate_configuration() -> None:
         raise ValueError("Battery pockets do not clear the Enduro envelope")
     if min(WALL_THICKNESS, BASE_FLOOR_THICKNESS, TRAY_FLOOR_THICKNESS) < 2.0:
         raise ValueError("Default shell walls and all floors must remain at least 2 mm")
+    hinge_segments = sorted(
+        (*HINGE_BASE_SEGMENTS, *HINGE_LID_SEGMENTS),
+        key=lambda segment: segment[0],
+    )
+    minimum_hinge_axial_gap = min(
+        following[0] - preceding[1] for preceding, following in pairwise(hinge_segments)
+    )
+    if minimum_hinge_axial_gap < 2.0 * HINGE_RIM_RELIEF_AXIAL_CLEARANCE + 0.1:
+        raise ValueError("Alternating hinge segments need clearance between barrels")
+    if HINGE_RIM_RELIEF_RADIAL_CLEARANCE < LID_LATCH_LIP_DRAW + 0.1:
+        raise ValueError("Hinge rim relief must accommodate the full lid take-up")
 
     retainer_width = tray_width
     retainer_depth = tray_depth
@@ -12502,44 +12521,47 @@ def validate_configuration() -> None:
     if not BASE_HEIGHT + 2.0 <= installed_latch_top_z <= LATCH_LID_INSTALLED_Z - 4.0:
         raise ValueError("Exact latch hook does not land on the closed lid flange")
 
-    keeper_bearing_profile = LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ[
-        1 : 1 + len(LATCH_LINK_CLOSED_BEARING_ARC_YZ)
-    ]
-    keeper_offsets = tuple(
-        (keeper[0] - link[0], keeper[1] - link[1])
-        for keeper, link in zip(
-            keeper_bearing_profile,
-            LATCH_LINK_CLOSED_BEARING_ARC_YZ,
+    lip_link_arc = LATCH_LINK_CLOSED_LIP_BEARING_ARC_YZ
+    lip_bearing_profile = LID_LATCH_LIP_INSTALLED_PROFILE_YZ[1 : 1 + len(lip_link_arc)]
+    lip_offsets = tuple(
+        (lip[0] - link[0], lip[1] - link[1])
+        for lip, link in zip(
+            lip_bearing_profile,
+            lip_link_arc,
         )
     )
     if not all(
-        math.isclose(outward, LID_LATCH_KEEPER_OUTWARD_CLEARANCE, abs_tol=1e-6)
-        and math.isclose(draw, LID_LATCH_KEEPER_DRAW, abs_tol=1e-6)
-        for outward, draw in keeper_offsets
+        math.isclose(outward, LID_LATCH_LIP_OUTWARD_CLEARANCE, abs_tol=1e-6)
+        and math.isclose(seated_z_offset, 0.0, abs_tol=1e-6)
+        for outward, seated_z_offset in lip_offsets
     ):
-        raise ValueError("Lid keeper ramp no longer follows the closed latch link")
-    if not 0.15 <= LID_LATCH_KEEPER_DRAW <= 0.40:
-        raise ValueError("Lid keeper needs 0.15-0.40 mm of over-center draw")
-    if not 0.001 <= LID_LATCH_KEEPER_OUTWARD_CLEARANCE <= 0.01:
-        raise ValueError("Lid keeper needs a small outward numerical clearance")
-    keeper_root_inner_y = max(
-        point[0] for point in LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ
-    )
-    keeper_root_overlap = keeper_root_inner_y - installed_lid_front_y
+        raise ValueError("Seated lid lip no longer follows the closed latch hook")
+    if not 0.15 <= LID_LATCH_LIP_DRAW <= 0.40:
+        raise ValueError("Lid lip needs 0.15-0.40 mm of over-center draw")
+    if not 0.001 <= LID_LATCH_LIP_OUTWARD_CLEARANCE <= 0.01:
+        raise ValueError("Lid lip needs a small outward numerical clearance")
+    lip_root_inner_y = max(point[0] for point in LID_LATCH_LIP_INSTALLED_PROFILE_YZ)
+    lip_root_overlap = lip_root_inner_y - installed_lid_front_y
     if not math.isclose(
-        keeper_root_overlap,
-        LID_LATCH_KEEPER_ROOT_OVERLAP,
+        lip_root_overlap,
+        LID_LATCH_LIP_ROOT_OVERLAP,
         abs_tol=1e-6,
     ):
-        raise ValueError("Lid keeper root no longer overlaps the protective flange")
-    keeper_outward_reach = installed_lid_front_y - min(
-        point[0] for point in LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ
+        raise ValueError("Lid lip root no longer overlaps the protective flange")
+    lip_outward_reach = installed_lid_front_y - min(
+        point[0] for point in LID_LATCH_LIP_INSTALLED_PROFILE_YZ
     )
-    if not 3.0 <= keeper_outward_reach <= 5.0:
-        raise ValueError("Lid keeper ramp needs 3-5 mm of outward reach")
-    keeper_side_clearance = (LATCH_WIDTH - LID_LATCH_KEEPER_WIDTH) / 2.0
-    if keeper_side_clearance < 3.0:
-        raise ValueError("Lid keeper needs at least 3 mm side clearance in the hook")
+    if not 1.0 <= lip_outward_reach <= 2.0:
+        raise ValueError("Latch capture lip needs 1-2 mm of outward reach")
+    installed_flange_bottom_z = LATCH_LID_INSTALLED_Z - LID_WALL_HEIGHT
+    lip_below_flange = installed_flange_bottom_z - min(
+        point[1] for point in LID_LATCH_LIP_INSTALLED_PROFILE_YZ
+    )
+    if not 0.25 <= lip_below_flange <= 1.0:
+        raise ValueError("Latch capture lip must stay shallow under the lid flange")
+    lip_side_clearance = (LATCH_WIDTH - LID_LATCH_LIP_WIDTH) / 2.0
+    if lip_side_clearance < 3.0:
+        raise ValueError("Lid lip needs at least 3 mm side clearance in the hook")
 
     if HANDLE_HARDWARE_MODE not in {"ROD", "M4"}:
         raise ValueError("HANDLE_HARDWARE_MODE must be ROD or M4")
@@ -12622,7 +12644,7 @@ def validate_configuration() -> None:
     lid_print_width = CASE_WIDTH + 2.0 * LID_FLANGE_OUTSET
     lid_front = max(
         CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET,
-        max(-point[0] for point in LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ),
+        max(-point[0] for point in LID_LATCH_LIP_INSTALLED_PROFILE_YZ),
     )
     lid_back = -HINGE_AXIS_Y - HINGE_OUTER_DIAMETER / 2.0
     lid_print_depth = lid_front - lid_back
@@ -12652,9 +12674,10 @@ def validate_configuration() -> None:
         f"latch_running_bore={LATCH_RUNNING_BORE_DIAMETER:.2f} "
         f"latch_tongue_clearance={tongue_side_clearance:.2f} "
         f"latch_lid_clearance={latch_lid_face_clearance:.2f} "
-        f"latch_keeper_draw={LID_LATCH_KEEPER_DRAW:.2f} "
-        f"latch_keeper_reach={keeper_outward_reach:.2f} "
-        f"latch_keeper_side_clearance={keeper_side_clearance:.2f} "
+        f"latch_lip_draw={LID_LATCH_LIP_DRAW:.2f} "
+        f"latch_lip_reach={lip_outward_reach:.2f} "
+        f"latch_lip_below_flange={lip_below_flange:.2f} "
+        f"latch_lip_side_clearance={lip_side_clearance:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
         f"handle_mode={HANDLE_HARDWARE_MODE} "
         f"handle_fork_cheek={handle_fork_cheek_thickness:.2f} "
@@ -12710,6 +12733,18 @@ def create_base(material):
             bevel=0.9,
         )
         union_into(base, rib)
+
+    # Each lid knuckle needs a cylindrical swing pocket through the base's
+    # otherwise continuous rear wall and rim.  Cut these before adding the
+    # alternating base knuckles so the relief cannot weaken their barrels.
+    for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
+        relief = add_cylinder_x(
+            f"Base_Rear_Rim_Relief_For_Lid_Knuckle_{index}",
+            HINGE_OUTER_DIAMETER / 2.0 + HINGE_RIM_RELIEF_RADIAL_CLEARANCE,
+            x1 - x0 + 2.0 * HINGE_RIM_RELIEF_AXIAL_CLEARANCE,
+            ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
+        )
+        difference_from(base, relief)
 
     # Alternating hinge knuckles share one continuous 3.5 mm pin bore.
     for index, (x0, x1) in enumerate(HINGE_BASE_SEGMENTS, start=1):
@@ -12915,6 +12950,22 @@ def create_lid(
     )
     union_into(lid, flange)
 
+    # The base knuckles swing through the continuous rear lid flange.  Matching
+    # cylindrical pockets preserve the alternating-barrel hinge instead of
+    # letting the surrounding rim collide before the lid can close.
+    for index, (x0, x1) in enumerate(HINGE_BASE_SEGMENTS, start=1):
+        relief = add_cylinder_x(
+            f"Lid_Rear_Rim_Relief_For_Base_Knuckle_{index}",
+            HINGE_OUTER_DIAMETER / 2.0 + HINGE_RIM_RELIEF_RADIAL_CLEARANCE,
+            x1 - x0 + 2.0 * HINGE_RIM_RELIEF_AXIAL_CLEARANCE,
+            (
+                dx + (x0 + x1) / 2.0,
+                -HINGE_AXIS_Y,
+                LID_WALL_HEIGHT,
+            ),
+        )
+        difference_from(lid, relief)
+
     groove_outer = (
         CASE_WIDTH - 3.6,
         CASE_DEPTH - 3.6,
@@ -13034,25 +13085,27 @@ def create_lid(
         for island_cutter in cutters:
             difference_from(lid, island_cutter)
 
-    # Two localized keeper ramps give the supplied moving links a positive
-    # lid-side bearing surface.  The profile is specified in the assembled
+    # Two shallow capture lips thicken the existing lid rim only where the
+    # supplied moving hooks grab it.  The profile is specified in the assembled
     # case frame, then mirrored into the lid's upside-down print orientation.
-    # Its top follows the exact closed-link underside with 0.25 mm of draw, so
-    # closing the broad lever pulls the lid down and preloads the gasket.  Add
-    # these after the coplanar logo recesses so unrelated boolean evaluation
-    # cannot perturb their exact compound-material boundaries.
-    keeper_print_profile_yz = tuple(
+    # Its short outer edge follows the exact closed hook at the hard seated
+    # position.  The uncompressed lid begins 0.25 mm high, so closing the broad
+    # lever pulls it down to the seat and preloads the gasket.  The lip extends
+    # less than 1 mm below the existing flange instead of hanging down the case
+    # face.  Add these after the coplanar logo recesses so unrelated boolean
+    # evaluation cannot perturb their shared boundaries.
+    lip_print_profile_yz = tuple(
         (-installed_y, LATCH_LID_INSTALLED_Z - installed_z)
-        for installed_y, installed_z in LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ
+        for installed_y, installed_z in LID_LATCH_LIP_INSTALLED_PROFILE_YZ
     )
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
-        keeper = extrude_loop_x(
-            f"Lid_Latch_{index}_Integrated_Over_Center_Keeper_Ramp",
-            keeper_print_profile_yz,
-            dx + x - LID_LATCH_KEEPER_WIDTH / 2.0,
-            dx + x + LID_LATCH_KEEPER_WIDTH / 2.0,
+        lip = extrude_loop_x(
+            f"Lid_Latch_{index}_Integrated_Rim_Capture_Lip",
+            lip_print_profile_yz,
+            dx + x - LID_LATCH_LIP_WIDTH / 2.0,
+            dx + x + LID_LATCH_LIP_WIDTH / 2.0,
         )
-        union_into(lid, keeper)
+        union_into(lid, lip)
 
     assign_material(lid, shell_material)
     assign_material(logo_white, logo_white_material)
@@ -13489,42 +13542,70 @@ def validate_installed_latch_mechanics(parts) -> None:
             f"faces={base_faces} volume={base_volume:.6f}"
         )
 
-    lid_location = (-LID_DISPLAY_OFFSET_X, 0.0, LATCH_LID_INSTALLED_Z)
+    seated_lid_location = (-LID_DISPLAY_OFFSET_X, 0.0, LATCH_LID_INSTALLED_Z)
     lid_rotation = (math.pi, 0.0, 0.0)
-    nominal_faces, nominal_volume = exact_transformed_intersection(
+    seated_faces, seated_volume = exact_transformed_intersection(
         parts["lid"],
         parts["latch"],
-        first_location=lid_location,
+        first_location=seated_lid_location,
         first_rotation=lid_rotation,
         second_location=latch_location,
         second_rotation=latch_rotation,
     )
-    if not nominal_faces or nominal_volume < 0.1:
-        raise ValueError("Closed latch no longer preloads the lid keeper")
-
-    compressed_location = (
-        lid_location[0],
-        lid_location[1],
-        lid_location[2] - LID_LATCH_KEEPER_DRAW,
-    )
-    compressed_faces, compressed_volume = exact_transformed_intersection(
-        parts["lid"],
-        parts["latch"],
-        first_location=compressed_location,
-        first_rotation=lid_rotation,
-        second_location=latch_location,
-        second_rotation=latch_rotation,
-    )
-    if compressed_faces or compressed_volume > 1e-6:
+    if seated_faces or seated_volume > 1e-6:
         raise ValueError(
-            "Seated lid keeper still collides with the exact latch: "
-            f"faces={compressed_faces} volume={compressed_volume:.6f}"
+            "Seated lid capture lip collides with the exact latch: "
+            f"faces={seated_faces} volume={seated_volume:.6f}"
         )
+
+    uncompressed_lid_location = (
+        seated_lid_location[0],
+        seated_lid_location[1],
+        seated_lid_location[2] + LID_LATCH_LIP_DRAW,
+    )
+    preload_faces, preload_volume = exact_transformed_intersection(
+        parts["lid"],
+        parts["latch"],
+        first_location=uncompressed_lid_location,
+        first_rotation=lid_rotation,
+        second_location=latch_location,
+        second_rotation=latch_rotation,
+    )
+    if not preload_faces or preload_volume < 0.1:
+        raise ValueError("Closed latch no longer draws the lid capture lip down")
     print(
         "FIELD_CASE_INSTALLED_LATCH_VALID "
         f"base_intersection={base_volume:.6f} "
-        f"nominal_keeper_preload={nominal_volume:.6f} "
-        f"seated_intersection={compressed_volume:.6f}"
+        f"uncompressed_lip_preload={preload_volume:.6f} "
+        f"seated_intersection={seated_volume:.6f}"
+    )
+
+
+def validate_installed_case_closure(parts) -> None:
+    """Reject positive-volume base/lid interference at the hard hinge seat."""
+    # A 0.01 mm lift avoids treating the intentionally coincident hard-stop
+    # surfaces as Boolean volume while remaining far smaller than printable
+    # clearance.  Any unrelieved knuckle/rim collision remains positive here.
+    near_seated_lid_location = (
+        -LID_DISPLAY_OFFSET_X,
+        0.0,
+        LATCH_LID_INSTALLED_Z + 0.01,
+    )
+    faces, volume = exact_transformed_intersection(
+        parts["base"],
+        parts["lid"],
+        second_location=near_seated_lid_location,
+        second_rotation=(math.pi, 0.0, 0.0),
+    )
+    if faces or volume > 1e-6:
+        raise ValueError(
+            "Closed base/lid geometry still collides around the hinge: "
+            f"faces={faces} volume={volume:.6f}"
+        )
+    print(
+        "FIELD_CASE_CLOSURE_VALID "
+        f"near_seated_intersection={volume:.6f} "
+        f"hinge_relief={HINGE_RIM_RELIEF_RADIAL_CLEARANCE:.2f}"
     )
 
 
@@ -14992,6 +15073,7 @@ def build_mission1_field_case():
 
     for name, obj in parts.items():
         validate_built_part(name, obj)
+    validate_installed_case_closure(parts)
     validate_installed_latch_mechanics(parts)
     lid_islands = validate_lid_bonding_payloads(
         evaluated_mesh_payload(parts["lid"], Vector((0.0, 0.0, 0.0))),
