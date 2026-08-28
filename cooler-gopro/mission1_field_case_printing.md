@@ -85,6 +85,17 @@ passes through the latch's original fixed pivot, which scales to a 4.4 mm
 running bore. The fixed pivot bosses remain inside the reference's side cheeks;
 there are no outside mounting ears or transverse printed barrels.
 
+The lid now has one integrated keeper ramp at each latch location. Its dense
+bearing arc comes from a conservative full-width projection of the exact
+hooked link, including its side bevels. At nominal closure the arc supplies
+0.25 mm of gasket draw; after that take-up, the rigid profiles clear by about
+0.0014 mm instead of jamming on coarse straight chords. Pressing the broad
+lever inward wedges the moving link against the ramp and carries the linkage
+over center. An upward lid load then bears directly from the keeper into that
+link, through the two latch pivots, and into the base's 4 mm mounting rod. The
+linkage must pass back across center before the lid can rise, so no separate
+lid-side catch needs to be printed or installed.
+
 To install one latch:
 
 1. Work the printed-in-place center link through its full travel and clear any
@@ -92,8 +103,9 @@ To install one latch:
 2. Slide the case's center tongue into the rear channel of the latch and align
    its 3.9 mm hole with the latch's 4.4 mm fixed-pivot bore.
 3. Support the tongue and press the 36 mm rod through the latch and tongue.
-4. Close the lid, hook the moving head over the lid flange, and press the broad
-   outer lever inward. Pull that same broad lever outward to release it.
+4. Close the lid, place the moving head over its localized keeper ramp, and
+   press the broad outer lever inward until the linkage passes over center.
+   Pull that same broad lever outward to unload the ramp and release it.
 
 Deburr and lightly chamfer rod ends. Do not hammer a rod into an unsupported
 tongue. Printer shrinkage varies, so print one latch first and test it with the
@@ -103,23 +115,28 @@ actual rod before committing the full shell.
 
 `mission1_field_case_pivoting_handle_bar.stl` is the only separate handle
 print. It is a U-shaped bar with five reference-style grip holes. Its two
-fixed mounting lugs, backing walls, and gussets are generated directly into
-the case base, so the base itself needs no mounting screws.
+compact fixed mounting lugs are generated directly into the case base and sit
+inside relieved forks in the moving handle arms, so the base itself needs no
+mounting screws and neither lug intrudes into the finger opening.
 
-The default `HANDLE_HARDWARE_MODE = "ROD"` uses two 22 mm lengths of 4 mm rod.
+The default `HANDLE_HARDWARE_MODE = "ROD"` uses two 12 mm lengths of 4 mm rod.
 Each integrated lug has a 3.9 mm retaining bore and each moving handle arm has
-a 4.4 mm running bore. Press a rod from the outside through the handle arm and
-into its fixed lug.
+a 4.4 mm running bore. Press a rod through the outer fork cheek, the fixed lug,
+and the inner fork cheek.
 
 For M4 hardware, set `HANDLE_HARDWARE_MODE = "M4"` and regenerate every STL.
-That changes the integrated lug bores to 4.4 mm. Use two M4 x 25 screws with
+That changes the integrated lug bores to 4.4 mm. Use two M4 x 20 screws with
 washers and locknuts; those screws are only pivots, not base-mounting hardware.
 
-The 84 mm-wide folded bar occupies only the reserved center zone. The two exact
-latches sit outboard at X = ±68 mm; their inner edges remain more than 9 mm from
-the handle's full folded and swinging X envelope. The mounting lugs are farther
-inboard still. The generator rejects a configuration with less than 8 mm of
-latch finger-access clearance.
+The handle pivot is centered horizontally and vertically on the assembled case
+front: X = 0 and Z = 36.5 mm. The 94 mm-wide folded bar occupies only the
+reserved center zone. The two exact latches sit outboard at X = ±72.5 mm; their
+inner edges remain more than 8.5 mm from the handle's full folded and swinging X
+envelope. When raised, the smaller 32.5 mm-drop handle leaves 27.5 mm between
+the case face and the inside of the grip across the unobstructed 76 mm opening.
+The generator rejects less than 25 mm of raised finger clearance, less than
+75 mm of unobstructed grip width, or less than 8 mm of latch finger-access
+clearance.
 
 ## Suggested printing
 
@@ -146,7 +163,7 @@ and can be regenerated without editing an STL.
 3. Alternate the base and lid hinge knuckles, then insert the printed hinge pin
    or a 3 mm metal rod.
 4. Install each latch with one 36 mm length of 4 mm rod, then install the
-   separate handle bar with two 22 mm lengths of 4 mm rod by default or with
+   separate handle bar with two 12 mm lengths of 4 mm rod by default or with
    regenerated M4 hardware.
 5. Load the two opposed cameras with their soft lens hoods in the flared ends,
    then load four batteries terminal-down.

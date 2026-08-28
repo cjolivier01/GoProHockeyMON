@@ -191,7 +191,7 @@ MAX_PRINT_XY = 250.0
 
 # Compact double-capacity shell based on the proportions and component split
 # of the supplied one-camera example, without consuming its mesh geometry.
-CASE_WIDTH = 181.0
+CASE_WIDTH = 189.0
 CASE_DEPTH = 154.0
 BASE_HEIGHT = 62.0
 CASE_CORNER_RADIUS = 12.0
@@ -201,7 +201,7 @@ BASE_FLOOR_THICKNESS = 3.2
 LID_PLATE_THICKNESS = 4.0
 LID_WALL_HEIGHT = 11.0
 LID_FLANGE_OUTSET = 2.0
-LID_DISPLAY_OFFSET_X = 170.0
+LID_DISPLAY_OFFSET_X = 215.0
 
 # The lower TPU insert is a continuous recessed tray.  All cavity walls point
 # down from one flat top surface; nothing protrudes above TRAY_HEIGHT.
@@ -309,7 +309,7 @@ HINGE_PIN_X1 = 77.0
 # Uniform scaling makes the reference's existing fixed bore 4.4 mm, a running
 # fit on the nominal 4 mm mounting rod.  One integrated center tongue uses a
 # 3.9 mm press-fit bore; no exterior pivot barrel is added to the latch.
-LATCH_X_CENTERS = (-68.0, 68.0)
+LATCH_X_CENTERS = (-72.5, 72.5)
 LATCH_ROD_DIAMETER = 4.0
 LATCH_PRESS_FIT_BORE_DIAMETER = 3.9
 LATCH_RUNNING_BORE_DIAMETER = 4.4
@@ -333,13 +333,24 @@ LATCH_PIVOT_Z = 8.5
 LATCH_TONGUE_WIDTH = 9.0
 LATCH_REFERENCE_CHANNEL_WIDTH = 11.90
 LATCH_TONGUE_PROFILE_YZ = (
-    (-CASE_DEPTH / 2.0 + 0.3, 1.2),
-    (-CASE_DEPTH / 2.0 + 0.3, 19.0),
-    (-88.0, 19.0),
-    (-99.5, 14.5),
-    (-102.0, LATCH_PIVOT_Z),
-    (-99.5, 2.5),
-    (-88.0, 1.2),
+    (-CASE_DEPTH / 2.0 + 2.0, 0.8),
+    (-94.0, 0.8),
+    (-96.6635, 3.4635),
+    (-97.0, 3.3),
+    (-99.5, 3.8),
+    (-101.0, 5.5),
+    (-101.5, LATCH_PIVOT_Z),
+    (-101.0, 11.0),
+    (-99.5, 12.5),
+    (-97.0, 13.0),
+    (-95.0, 12.5),
+    (-93.5, 11.0),
+    (-93.0, LATCH_PIVOT_Z),
+    (-93.5, 5.0),
+    (-95.9706, 3.8),
+    (-82.0, 3.8),
+    (-78.0, 10.0),
+    (-CASE_DEPTH / 2.0 + 2.0, 10.0),
 )
 LATCH_ROD_LENGTH = LATCH_WIDTH + 2.0
 # Keep the dense reference mesh close to the scene origin.  Translating it by
@@ -348,35 +359,87 @@ LATCH_ROD_LENGTH = LATCH_WIDTH + 2.0
 LATCH_PRINT_OFFSET_Y = 0.0
 LATCH_FINGER_ACCESS_CLEARANCE = 8.0
 
+# The supplied hooked link bears on a localized keeper ramp generated as part
+# of the lid.  This dense arc is derived from the complete-X Y/Z projection of
+# the exact 3,996-facet link shell in its installed closed transform.  It keeps
+# every bevel conservative, rather than approximating a curved contact with a
+# few chords.  The keeper sits 0.25 mm above the arc at nominal closure and has
+# 0.002 mm of outward numerical clearance; after 0.25 mm of gasket take-up the
+# two rigid profiles have zero intersection and approximately 0.0014 mm gap.
+LATCH_LINK_CLOSED_BEARING_ARC_YZ = (
+    (-79.690472, 62.759148),
+    (-79.685845, 62.754593),
+    (-79.616494, 62.666115),
+    (-79.611666, 62.657952),
+    (-79.568440, 62.557404),
+    (-79.565049, 62.545404),
+    (-79.549414, 62.440071),
+    (-79.549155, 62.424623),
+    (-79.560650, 62.321760),
+    (-79.565049, 62.303840),
+    (-79.601376, 62.210088),
+    (-79.611666, 62.191277),
+    (-79.669032, 62.112370),
+    (-80.227547, 61.443405),
+    (-80.734589, 60.734620),
+    (-81.187281, 59.989951),
+    (-81.583125, 59.213582),
+    (-81.919936, 58.409838),
+    (-82.195817, 57.583173),
+    (-82.409215, 56.738228),
+    (-82.558953, 55.879733),
+    (-82.644169, 55.012444),
+    (-82.664403, 54.141216),
+)
+LID_LATCH_KEEPER_DRAW = 0.25
+LID_LATCH_KEEPER_OUTWARD_CLEARANCE = 0.002
+LID_LATCH_KEEPER_WIDTH = 24.0
+LID_LATCH_KEEPER_ROOT_OVERLAP = 1.2
+LID_LATCH_KEEPER_BEARING_ARC_YZ = tuple(
+    (
+        y + LID_LATCH_KEEPER_OUTWARD_CLEARANCE,
+        z + LID_LATCH_KEEPER_DRAW,
+    )
+    for y, z in LATCH_LINK_CLOSED_BEARING_ARC_YZ
+)
+LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ = (
+    (-77.8, 65.0),
+    *LID_LATCH_KEEPER_BEARING_ARC_YZ,
+    (-82.5, 52.9),
+    (-77.8, 59.0),
+)
+
 # Separate reference-shaped U handle.  The base lugs are unioned into the case
 # shell; only the bar is a separate print.  ROD uses a retaining fit in the
-# fixed lugs.  M4 regenerates 4.4 mm clearance bores for M4 x 25 hardware.
+# fixed lugs.  M4 regenerates 4.4 mm clearance bores for M4 x 20 hardware.
 HANDLE_HARDWARE_MODE = "ROD"
 HANDLE_ROD_DIAMETER = 4.0
 HANDLE_PRESS_FIT_BORE_DIAMETER = 3.9
 HANDLE_RUNNING_BORE_DIAMETER = 4.4
-HANDLE_PIVOT_X = 37.0
-HANDLE_BASE_LUG_X = 26.5
+HANDLE_PIVOT_X = 42.5
+HANDLE_BASE_LUG_X = HANDLE_PIVOT_X
 HANDLE_PIVOT_Y = -CASE_DEPTH / 2.0 - 7.0
-HANDLE_PIVOT_Z = 56.0
-HANDLE_BAR_OUTER_WIDTH = 84.0
-HANDLE_BAR_INNER_WIDTH = 64.0
-HANDLE_BAR_DROP = 50.0
-HANDLE_BAR_DEPTH = 15.0
+HANDLE_PIVOT_Z = LATCH_LID_INSTALLED_Z / 2.0
+HANDLE_BAR_OUTER_WIDTH = 94.0
+HANDLE_BAR_INNER_WIDTH = 76.0
+HANDLE_BAR_DROP = 32.5
+HANDLE_BAR_DEPTH = 12.0
 HANDLE_BAR_THICKNESS = 10.0
 HANDLE_GRIP_HOLE_DIAMETER = 7.0
 HANDLE_GRIP_HOLE_COUNT = 5
 HANDLE_GRIP_HOLE_PITCH = 12.0
-HANDLE_BASE_LUG_WIDTH = 10.0
-HANDLE_AXIAL_CLEARANCE = 0.5
+HANDLE_BASE_LUG_WIDTH = 5.0
+HANDLE_AXIAL_CLEARANCE = 0.4
+HANDLE_FORK_RELIEF_LENGTH = 20.0
+HANDLE_MIN_USABLE_GRIP_WIDTH = 75.0
+HANDLE_RAISED_FINGER_CLEARANCE = 25.0
 HANDLE_PRINT_OFFSET_Y = -285.0
 HANDLE_BASE_EAR_PROFILE_YZ = (
-    (-CASE_DEPTH / 2.0 + 0.3, 40.0),
-    (-CASE_DEPTH / 2.0 + 0.3, 61.0),
-    (HANDLE_PIVOT_Y, 61.0),
-    (HANDLE_PIVOT_Y - 4.5, HANDLE_PIVOT_Z),
-    (HANDLE_PIVOT_Y, 50.0),
-    (-CASE_DEPTH / 2.0 + 0.3, 46.0),
+    (-CASE_DEPTH / 2.0 + 0.3, HANDLE_PIVOT_Z - 5.0),
+    (-CASE_DEPTH / 2.0 + 0.3, HANDLE_PIVOT_Z + 5.0),
+    (HANDLE_PIVOT_Y, HANDLE_PIVOT_Z + 5.0),
+    (HANDLE_PIVOT_Y - 4.0, HANDLE_PIVOT_Z),
+    (HANDLE_PIVOT_Y, HANDLE_PIVOT_Z - 5.0),
 )
 
 # LZMA-compressed, repaired coordinate/triangle payload from mutedmouse's
@@ -12108,19 +12171,16 @@ def load_embedded_logo_font():
     payload = gzip.decompress(base64.b64decode(NEUROPOL_GOPRO_MISSIONS_OTF_GZIP_BASE64))
     if len(payload) != 3672:
         raise RuntimeError("Embedded Neuropol subset failed its size check")
-    temporary_file = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         prefix="mission1-neuropol-",
         suffix=".otf",
         delete=False,
-    )
-    temporary_path = Path(temporary_file.name)
-    try:
+    ) as temporary_file:
+        temporary_path = Path(temporary_file.name)
         temporary_file.write(payload)
-        temporary_file.close()
+    try:
         _embedded_logo_font = bpy.data.fonts.load(str(temporary_path))
     finally:
-        if not temporary_file.closed:
-            temporary_file.close()
         temporary_path.unlink(missing_ok=True)
     return _embedded_logo_font
 
@@ -12442,14 +12502,74 @@ def validate_configuration() -> None:
     if not BASE_HEIGHT + 2.0 <= installed_latch_top_z <= LATCH_LID_INSTALLED_Z - 4.0:
         raise ValueError("Exact latch hook does not land on the closed lid flange")
 
+    keeper_bearing_profile = LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ[
+        1 : 1 + len(LATCH_LINK_CLOSED_BEARING_ARC_YZ)
+    ]
+    keeper_offsets = tuple(
+        (keeper[0] - link[0], keeper[1] - link[1])
+        for keeper, link in zip(
+            keeper_bearing_profile,
+            LATCH_LINK_CLOSED_BEARING_ARC_YZ,
+        )
+    )
+    if not all(
+        math.isclose(outward, LID_LATCH_KEEPER_OUTWARD_CLEARANCE, abs_tol=1e-6)
+        and math.isclose(draw, LID_LATCH_KEEPER_DRAW, abs_tol=1e-6)
+        for outward, draw in keeper_offsets
+    ):
+        raise ValueError("Lid keeper ramp no longer follows the closed latch link")
+    if not 0.15 <= LID_LATCH_KEEPER_DRAW <= 0.40:
+        raise ValueError("Lid keeper needs 0.15-0.40 mm of over-center draw")
+    if not 0.001 <= LID_LATCH_KEEPER_OUTWARD_CLEARANCE <= 0.01:
+        raise ValueError("Lid keeper needs a small outward numerical clearance")
+    keeper_root_inner_y = max(
+        point[0] for point in LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ
+    )
+    keeper_root_overlap = keeper_root_inner_y - installed_lid_front_y
+    if not math.isclose(
+        keeper_root_overlap,
+        LID_LATCH_KEEPER_ROOT_OVERLAP,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("Lid keeper root no longer overlaps the protective flange")
+    keeper_outward_reach = installed_lid_front_y - min(
+        point[0] for point in LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ
+    )
+    if not 3.0 <= keeper_outward_reach <= 5.0:
+        raise ValueError("Lid keeper ramp needs 3-5 mm of outward reach")
+    keeper_side_clearance = (LATCH_WIDTH - LID_LATCH_KEEPER_WIDTH) / 2.0
+    if keeper_side_clearance < 3.0:
+        raise ValueError("Lid keeper needs at least 3 mm side clearance in the hook")
+
     if HANDLE_HARDWARE_MODE not in {"ROD", "M4"}:
         raise ValueError("HANDLE_HARDWARE_MODE must be ROD or M4")
     handle_arm_width = (HANDLE_BAR_OUTER_WIDTH - HANDLE_BAR_INNER_WIDTH) / 2.0
     handle_arm_inner_edge = HANDLE_BAR_INNER_WIDTH / 2.0
+    handle_arm_outer_edge = HANDLE_BAR_OUTER_WIDTH / 2.0
+    handle_lug_inner_edge = HANDLE_BASE_LUG_X - HANDLE_BASE_LUG_WIDTH / 2.0
     handle_lug_outer_edge = HANDLE_BASE_LUG_X + HANDLE_BASE_LUG_WIDTH / 2.0
-    handle_axial_clearance = handle_arm_inner_edge - handle_lug_outer_edge
-    if handle_axial_clearance < HANDLE_AXIAL_CLEARANCE:
-        raise ValueError("Handle bar needs its specified axial pivot clearance")
+    if not math.isclose(HANDLE_BASE_LUG_X, HANDLE_PIVOT_X, abs_tol=1e-6):
+        raise ValueError("Handle fixed lugs must align with the forked pivot axes")
+    if (
+        handle_lug_inner_edge < handle_arm_inner_edge
+        or handle_lug_outer_edge > handle_arm_outer_edge
+    ):
+        raise ValueError("Handle fixed lugs must remain inside the forked arms")
+    handle_fork_cheek_thickness = (
+        handle_arm_width - HANDLE_BASE_LUG_WIDTH - 2.0 * HANDLE_AXIAL_CLEARANCE
+    ) / 2.0
+    if handle_fork_cheek_thickness < 1.6:
+        raise ValueError(
+            "Handle pivot forks need at least 1.6 mm axial cheek thickness"
+        )
+    if HANDLE_BAR_INNER_WIDTH < HANDLE_MIN_USABLE_GRIP_WIDTH:
+        raise ValueError("Handle needs its specified unobstructed adult-hand width")
+    handle_ear_sweep_radius = max(
+        math.hypot(y - HANDLE_PIVOT_Y, z - HANDLE_PIVOT_Z)
+        for y, z in HANDLE_BASE_EAR_PROFILE_YZ
+    )
+    if HANDLE_FORK_RELIEF_LENGTH / 2.0 < handle_ear_sweep_radius + 0.5:
+        raise ValueError("Handle fork relief does not clear the fixed ear sweep")
     if HANDLE_HARDWARE_MODE == "ROD":
         handle_interference = HANDLE_ROD_DIAMETER - HANDLE_PRESS_FIT_BORE_DIAMETER
         if not 0.05 <= handle_interference <= 0.20:
@@ -12459,9 +12579,19 @@ def validate_configuration() -> None:
         raise ValueError("Handle bar needs at least 0.4 mm running clearance")
     if handle_arm_width < HANDLE_RUNNING_BORE_DIAMETER + 4.0:
         raise ValueError("Handle arms need at least 2 mm around the pivot bores")
+    assembled_front_center_z = LATCH_LID_INSTALLED_Z / 2.0
+    if not math.isclose(HANDLE_PIVOT_Z, assembled_front_center_z, abs_tol=1e-6):
+        raise ValueError("Handle pivot must stay vertically centered on the case front")
     handle_lower_z = HANDLE_PIVOT_Z - HANDLE_BAR_DROP
     if handle_lower_z < 3.0:
         raise ValueError("Folded handle must remain above the case floor")
+    handle_pivot_outset = -CASE_DEPTH / 2.0 - HANDLE_PIVOT_Y
+    handle_raised_finger_gap = handle_pivot_outset + HANDLE_BAR_DROP - HANDLE_BAR_DEPTH
+    if handle_raised_finger_gap < HANDLE_RAISED_FINGER_CLEARANCE:
+        raise ValueError(
+            "Raised handle needs its specified adult-finger clearance; "
+            f"computed {handle_raised_finger_gap:.2f} mm"
+        )
     latch_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - LATCH_WIDTH / 2.0
     latch_outer_x = max(abs(x) for x in LATCH_X_CENTERS) + LATCH_WIDTH / 2.0
     handle_outer_x = HANDLE_BAR_OUTER_WIDTH / 2.0
@@ -12484,14 +12614,15 @@ def validate_configuration() -> None:
         2.0 * (HANDLE_BASE_LUG_X + HANDLE_BASE_LUG_WIDTH / 2.0),
     )
     mount_front = min(
-        min(point[0] for point in LATCH_TONGUE_PROFILE_YZ), HANDLE_PIVOT_Y - 4.5
+        min(point[0] for point in LATCH_TONGUE_PROFILE_YZ),
+        min(point[0] for point in HANDLE_BASE_EAR_PROFILE_YZ),
     )
     hinge_back = HINGE_AXIS_Y + HINGE_OUTER_DIAMETER / 2.0
     base_print_depth = hinge_back - mount_front
     lid_print_width = CASE_WIDTH + 2.0 * LID_FLANGE_OUTSET
     lid_front = max(
         CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET,
-        CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET,
+        max(-point[0] for point in LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ),
     )
     lid_back = -HINGE_AXIS_Y - HINGE_OUTER_DIAMETER / 2.0
     lid_print_depth = lid_front - lid_back
@@ -12521,9 +12652,15 @@ def validate_configuration() -> None:
         f"latch_running_bore={LATCH_RUNNING_BORE_DIAMETER:.2f} "
         f"latch_tongue_clearance={tongue_side_clearance:.2f} "
         f"latch_lid_clearance={latch_lid_face_clearance:.2f} "
+        f"latch_keeper_draw={LID_LATCH_KEEPER_DRAW:.2f} "
+        f"latch_keeper_reach={keeper_outward_reach:.2f} "
+        f"latch_keeper_side_clearance={keeper_side_clearance:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
         f"handle_mode={HANDLE_HARDWARE_MODE} "
-        f"handle_axial_clearance={handle_axial_clearance:.2f}"
+        f"handle_fork_cheek={handle_fork_cheek_thickness:.2f} "
+        f"handle_grip_width={HANDLE_BAR_INNER_WIDTH:.2f} "
+        f"handle_center_z={HANDLE_PIVOT_Z:.2f} "
+        f"handle_raised_finger_gap={handle_raised_finger_gap:.2f}"
     )
     print(
         "FIELD_CASE_PRINT_ENVELOPES "
@@ -12601,18 +12738,20 @@ def create_base(material):
             x - LATCH_TONGUE_WIDTH / 2.0,
             x + LATCH_TONGUE_WIDTH / 2.0,
         )
-        hole = add_teardrop_hole_x(
+        hole = add_cylinder_x(
             f"Base_Latch_{index}_3p9mm_Press_Fit_Hole",
             LATCH_PRESS_FIT_BORE_DIAMETER / 2.0,
             LATCH_TONGUE_WIDTH + 0.8,
             (x, LATCH_BASE_PIVOT_Y, LATCH_PIVOT_Z),
+            vertices=48,
         )
         difference_from(tongue, hole)
         union_into(base, tongue)
 
-    # The suitcase-handle base is part of the shell: one broad lug per side,
-    # with the separate handle arms immediately outboard.  The open inner side
-    # remains accessible for either a short press-fit rod or M4 screw and nut.
+    # The suitcase-handle base is part of the shell: one compact lug per side
+    # sits inside a relieved fork in the separate handle arm.  Keeping both
+    # lugs outside the 76 mm grip opening preserves the full raised finger gap.
+    # The outer fork cheek remains accessible for a short rod or M4 screw.
     handle_base_bore = (
         HANDLE_PRESS_FIT_BORE_DIAMETER
         if HANDLE_HARDWARE_MODE == "ROD"
@@ -12895,6 +13034,26 @@ def create_lid(
         for island_cutter in cutters:
             difference_from(lid, island_cutter)
 
+    # Two localized keeper ramps give the supplied moving links a positive
+    # lid-side bearing surface.  The profile is specified in the assembled
+    # case frame, then mirrored into the lid's upside-down print orientation.
+    # Its top follows the exact closed-link underside with 0.25 mm of draw, so
+    # closing the broad lever pulls the lid down and preloads the gasket.  Add
+    # these after the coplanar logo recesses so unrelated boolean evaluation
+    # cannot perturb their exact compound-material boundaries.
+    keeper_print_profile_yz = tuple(
+        (-installed_y, LATCH_LID_INSTALLED_Z - installed_z)
+        for installed_y, installed_z in LID_LATCH_KEEPER_INSTALLED_PROFILE_YZ
+    )
+    for index, x in enumerate(LATCH_X_CENTERS, start=1):
+        keeper = extrude_loop_x(
+            f"Lid_Latch_{index}_Integrated_Over_Center_Keeper_Ramp",
+            keeper_print_profile_yz,
+            dx + x - LID_LATCH_KEEPER_WIDTH / 2.0,
+            dx + x + LID_LATCH_KEEPER_WIDTH / 2.0,
+        )
+        union_into(lid, keeper)
+
     assign_material(lid, shell_material)
     assign_material(logo_white, logo_white_material)
     return (lid, *logo_parts)
@@ -13154,6 +13313,21 @@ def create_pivoting_handle_bar(material):
             (side * HANDLE_PIVOT_X, 0.0, HANDLE_BAR_THICKNESS / 2.0),
         )
         difference_from(handle, pivot_hole)
+        fork_relief = add_rounded_box(
+            "Pivoting_Handle_Fixed_Lug_Sweep_Relief",
+            (
+                HANDLE_BASE_LUG_WIDTH + 2.0 * HANDLE_AXIAL_CLEARANCE,
+                HANDLE_FORK_RELIEF_LENGTH,
+                HANDLE_BAR_THICKNESS + 1.0,
+            ),
+            (
+                side * HANDLE_PIVOT_X,
+                0.0,
+                HANDLE_BAR_THICKNESS / 2.0,
+            ),
+            bevel=0.0,
+        )
+        difference_from(handle, fork_relief)
 
     for hole_index in range(HANDLE_GRIP_HOLE_COUNT):
         hole_x = (
@@ -13222,6 +13396,15 @@ def duplicate_reference_part(source, name, material):
     return reference
 
 
+def position_installed_latch(latch, x: float) -> None:
+    latch.rotation_euler.x = math.radians(-90.0)
+    latch.location = (
+        x,
+        LATCH_BASE_PIVOT_Y - LATCH_PIVOT_LOCAL_Z,
+        LATCH_PIVOT_Z + LATCH_PIVOT_LOCAL_Y,
+    )
+
+
 def create_latch_reference_mockups(parts, materials):
     latch_material, rod_material = materials
     objects = []
@@ -13231,12 +13414,7 @@ def create_latch_reference_mockups(parts, materials):
             f"REFERENCE_ONLY_CLOSED_Exact_Pelican_Latch_{index}",
             latch_material,
         )
-        latch.rotation_euler.x = math.radians(-90.0)
-        latch.location = (
-            x,
-            LATCH_BASE_PIVOT_Y - LATCH_PIVOT_LOCAL_Z,
-            LATCH_PIVOT_Z + LATCH_PIVOT_LOCAL_Y,
-        )
+        position_installed_latch(latch, x)
         objects.append(latch)
         base_pin = add_cylinder_x(
             f"REFERENCE_ONLY_Latch_{index}_4mm_Mounting_Rod",
@@ -13248,6 +13426,106 @@ def create_latch_reference_mockups(parts, materials):
         assign_material(base_pin, rod_material)
         objects.append(base_pin)
     return objects
+
+
+def exact_transformed_intersection(
+    first,
+    second,
+    *,
+    first_location=(0.0, 0.0, 0.0),
+    first_rotation=(0.0, 0.0, 0.0),
+    second_location=(0.0, 0.0, 0.0),
+    second_rotation=(0.0, 0.0, 0.0),
+):
+    """Return face count and volume of an exact temporary solid intersection."""
+    probe = first.copy()
+    probe.data = first.data.copy()
+    probe.name = "TEMPORARY_Installed_Clearance_Intersection"
+    bpy.context.collection.objects.link(probe)
+    probe.location = first_location
+    probe.rotation_euler = first_rotation
+    tool = second.copy()
+    tool.data = second.data.copy()
+    tool.name = "TEMPORARY_Installed_Clearance_Tool"
+    bpy.context.collection.objects.link(tool)
+    tool.location = second_location
+    tool.rotation_euler = second_rotation
+    try:
+        modifier = probe.modifiers.new("Exact_Installed_Intersection", "BOOLEAN")
+        modifier.operation = "INTERSECT"
+        modifier.solver = "EXACT"
+        modifier.object = tool
+        select_only(probe)
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+        bm = bmesh.new()
+        try:
+            bm.from_mesh(probe.data)
+            face_count = len(bm.faces)
+            volume = abs(bm.calc_volume(signed=True)) if bm.faces else 0.0
+        finally:
+            bm.free()
+    finally:
+        bpy.data.objects.remove(tool, do_unlink=True)
+        bpy.data.objects.remove(probe, do_unlink=True)
+    return face_count, volume
+
+
+def validate_installed_latch_mechanics(parts) -> None:
+    latch_location = (
+        LATCH_X_CENTERS[1],
+        LATCH_BASE_PIVOT_Y - LATCH_PIVOT_LOCAL_Z,
+        LATCH_PIVOT_Z + LATCH_PIVOT_LOCAL_Y,
+    )
+    latch_rotation = (math.radians(-90.0), 0.0, 0.0)
+    base_faces, base_volume = exact_transformed_intersection(
+        parts["base"],
+        parts["latch"],
+        second_location=latch_location,
+        second_rotation=latch_rotation,
+    )
+    if base_faces or base_volume > 1e-6:
+        raise ValueError(
+            "Installed exact latch collides with its base mount: "
+            f"faces={base_faces} volume={base_volume:.6f}"
+        )
+
+    lid_location = (-LID_DISPLAY_OFFSET_X, 0.0, LATCH_LID_INSTALLED_Z)
+    lid_rotation = (math.pi, 0.0, 0.0)
+    nominal_faces, nominal_volume = exact_transformed_intersection(
+        parts["lid"],
+        parts["latch"],
+        first_location=lid_location,
+        first_rotation=lid_rotation,
+        second_location=latch_location,
+        second_rotation=latch_rotation,
+    )
+    if not nominal_faces or nominal_volume < 0.1:
+        raise ValueError("Closed latch no longer preloads the lid keeper")
+
+    compressed_location = (
+        lid_location[0],
+        lid_location[1],
+        lid_location[2] - LID_LATCH_KEEPER_DRAW,
+    )
+    compressed_faces, compressed_volume = exact_transformed_intersection(
+        parts["lid"],
+        parts["latch"],
+        first_location=compressed_location,
+        first_rotation=lid_rotation,
+        second_location=latch_location,
+        second_rotation=latch_rotation,
+    )
+    if compressed_faces or compressed_volume > 1e-6:
+        raise ValueError(
+            "Seated lid keeper still collides with the exact latch: "
+            f"faces={compressed_faces} volume={compressed_volume:.6f}"
+        )
+    print(
+        "FIELD_CASE_INSTALLED_LATCH_VALID "
+        f"base_intersection={base_volume:.6f} "
+        f"nominal_keeper_preload={nominal_volume:.6f} "
+        f"seated_intersection={compressed_volume:.6f}"
+    )
 
 
 def create_reference_mockups(materials, parts):
@@ -13403,7 +13681,13 @@ def validate_triangle_payload(name, vertices, triangles) -> None:
             edge_uses.setdefault(tuple(sorted((start, end))), []).append((start, end))
     invalid_edges = [edge for edge, uses in edge_uses.items() if len(uses) != 2]
     if invalid_edges:
-        raise ValueError(f"{name} has {len(invalid_edges)} non-manifold triangle edges")
+        first_edge = invalid_edges[0]
+        raise ValueError(
+            f"{name} has {len(invalid_edges)} non-manifold triangle edges; "
+            f"first={first_edge} coordinates="
+            f"{vertices[first_edge[0]]!r}->{vertices[first_edge[1]]!r} "
+            f"uses={edge_uses[first_edge]!r}"
+        )
     reversed_edges = [
         edge
         for edge, uses in edge_uses.items()
@@ -13428,6 +13712,9 @@ def evaluated_mesh_payload(obj, origin):
         world = evaluated.matrix_world
         vertices = []
         vertex_indices = {}
+        # The repaired exact latch has deliberately distinct vertices at a few
+        # sub-0.01 mm source seams.  Do not merge those solely by rounded
+        # coordinates during export.
         preserve_topology = obj.name.startswith("Field_Case_Exact_Pelican_Latch")
         positions = {}
         for vertex in bm.verts:
@@ -13456,15 +13743,15 @@ def write_binary_stl(path: Path, name: str, payload) -> None:
     vertices, triangles = payload
     if len(triangles) >= 2**32:
         raise ValueError(f"{name} has too many triangles for binary STL")
-    temporary_file = tempfile.NamedTemporaryFile(
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        dir=path.parent,
-        delete=False,
-    )
-    temporary_path = Path(temporary_file.name)
+    temporary_path = None
     try:
-        with temporary_file:
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            dir=path.parent,
+            delete=False,
+        ) as temporary_file:
+            temporary_path = Path(temporary_file.name)
             header = f"Reco field-case part: {name}".encode("ascii")[:80]
             temporary_file.write(header.ljust(80, b"\0"))
             temporary_file.write(struct.pack("<I", len(triangles)))
@@ -13491,7 +13778,7 @@ def write_binary_stl(path: Path, name: str, payload) -> None:
                 )
         temporary_path.replace(path)
     finally:
-        if temporary_path.exists():
+        if temporary_path is not None and temporary_path.exists():
             temporary_path.unlink()
 
 
@@ -14070,14 +14357,13 @@ def export_3mf_project(path: Path, parts) -> Path:
             identify_id += 1
     ET.SubElement(model_settings, "assemble")
 
-    temporary_file = tempfile.NamedTemporaryFile(
+    with tempfile.NamedTemporaryFile(
         prefix=f".{path.name}.",
         suffix=".tmp",
         dir=path.parent,
         delete=False,
-    )
-    temporary_path = Path(temporary_file.name)
-    temporary_file.close()
+    ) as temporary_file:
+        temporary_path = Path(temporary_file.name)
     try:
         with zipfile.ZipFile(temporary_path, "w") as archive:
             write_3mf_member(archive, "[Content_Types].xml", xml_bytes(content_types))
@@ -14595,7 +14881,21 @@ def validate_built_part(name: str, obj) -> None:
         for edge in non_manifold_edges[:8]
     ]
     volume = bm.calc_volume(signed=False)
-    connected_components = len(mesh_vertex_islands(bm))
+    vertex_islands = mesh_vertex_islands(bm)
+    connected_components = len(vertex_islands)
+    island_bounds = [
+        (
+            tuple(
+                round(min(float(vertex.co[axis]) for vertex in island), 3)
+                for axis in range(3)
+            ),
+            tuple(
+                round(max(float(vertex.co[axis]) for vertex in island), 3)
+                for axis in range(3)
+            ),
+        )
+        for island in vertex_islands
+    ]
     bm.free()
     if non_manifold:
         raise ValueError(
@@ -14608,7 +14908,7 @@ def validate_built_part(name: str, obj) -> None:
     if not name.startswith("logo_") and connected_components != expected_components:
         raise ValueError(
             f"Built {name} contains {connected_components} disconnected islands; "
-            f"expected {expected_components}"
+            f"expected {expected_components}; bounds={island_bounds}"
         )
     print(
         "FIELD_CASE_PART "
@@ -14692,6 +14992,7 @@ def build_mission1_field_case():
 
     for name, obj in parts.items():
         validate_built_part(name, obj)
+    validate_installed_latch_mechanics(parts)
     lid_islands = validate_lid_bonding_payloads(
         evaluated_mesh_payload(parts["lid"], Vector((0.0, 0.0, 0.0))),
         (
