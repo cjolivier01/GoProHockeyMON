@@ -231,14 +231,14 @@ LID_LATCH_TROUGH_SHOULDER_WIDTH = 4.5
 LID_LATCH_TROUGH_SHOULDER_RISE = 1.0
 LID_LATCH_RECESS_BACK_WALL = 4.0
 LID_LATCH_CAPTURE_RAIL_RADIUS = 1.3
-LID_LATCH_CAPTURE_RAIL_CENTER_OUTSET = 3.0
+LID_LATCH_CAPTURE_RAIL_CENTER_OUTSET = 6.0
 LID_LATCH_CAPTURE_RAIL_CENTER_Z = 11.0
 LID_LATCH_CAPTURE_WEB_THICKNESS = 1.2
 LID_LATCH_CAPTURE_RAIL_END_OVERLAP = 0.4
 LID_LATCH_CAPTURE_BAY_Z0 = LID_PLATE_THICKNESS
 LID_LATCH_CAPTURE_BAY_CLEARANCE = 0.5
-LID_LATCH_CAPTURE_TOWER_OUTSET = 0.8
-LID_LATCH_PROTECTOR_TOP_CAP_RISE = 0.8
+LID_LATCH_CAPTURE_TOWER_OUTSET = 0.7
+LID_LATCH_PROTECTOR_TOP_CAP_RISE = 0.0
 LID_DISPLAY_OFFSET_X = 215.0
 
 # The lower TPU insert is a continuous recessed tray.  All cavity walls point
@@ -541,13 +541,15 @@ LATCH_CAPTURE_RELEASE_GUARD_MIN_VOLUME = 0.1
 LATCH_CAPTURE_UPPER_ARM_THICKNESS = 3.2
 LATCH_CAPTURE_UPPER_ARM_FRONT_OVERLAP = 0.2
 LATCH_CAPTURE_UPPER_ARM_AXIAL_INSET = 0.04
-LATCH_CAPTURE_NUB_CASEWARD_WIDTH = 0.6
-LATCH_CAPTURE_NUB_CASEWARD_DROP = 0.3
-LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE = 0.35
-LATCH_CAPTURE_NUB_AXIAL_WIDTH = 12.0
+LATCH_CAPTURE_NUB_RADIUS = 1.4
+LATCH_CAPTURE_NUB_ROOT_BOSS_RADIUS = 1.7
+LATCH_CAPTURE_NUB_RAIL_CLEARANCE = 0.10
+LATCH_CAPTURE_NUB_AXIAL_WIDTH = 16.0
 LATCH_CAPTURE_NUB_RECESS_AXIAL_CLEARANCE = 0.4
 LATCH_CAPTURE_NUB_SEATED_CLEARANCE = 0.10
-LATCH_CAPTURE_NUB_ROOT_OVERLAP = 0.8
+LATCH_CAPTURE_NUB_CORE_RADIAL_MARGIN = 0.35
+LATCH_CAPTURE_NUB_CORE_AXIAL_MARGIN = 0.4
+LATCH_CAPTURE_NUB_LANDING_RELEASE_CLEARANCE = 0.12
 LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y = -82.5
 LATCH_CAPTURE_OUTWARD_PEEL_TRAVEL = 0.6
 LATCH_CAPTURE_OUTWARD_PEEL_MIN_VOLUME = 0.02
@@ -570,8 +572,8 @@ LATCH_PROTECTOR_ROOT_Z = 3.0
 LATCH_PROTECTOR_FRONT_LOWER_Z = LATCH_PROTECTOR_ROOT_Z + abs(
     LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y
 )
-LATCH_PROTECTOR_FRONT_UPPER_Z = 54.0
-LATCH_PROTECTOR_TOP_Z = 58.0
+LATCH_PROTECTOR_FRONT_UPPER_Z = 53.5
+LATCH_PROTECTOR_TOP_Z = 56.5
 LATCH_PROTECTOR_PROFILE_YZ = (
     (LATCH_PROTECTOR_BODY_Y, LATCH_PROTECTOR_ROOT_Z),
     (LATCH_PROTECTOR_FRONT_Y, LATCH_PROTECTOR_FRONT_LOWER_Z),
@@ -583,10 +585,12 @@ LATCH_PROTECTOR_PROFILE_YZ = (
 # Each closed source hook nests in a deep molded bay cut through the lid skirt.
 # A 2.6 mm horizontal rail spans the bay and is tied to its 4 mm back wall by a
 # narrower outer webs, following the reference case's molded crossbar.  The
-# matching hook has a reinforced upper arm and a central downturned nub that
-# bears on a sloped landing behind the rail.  The over-center linkage holds the
-# nub there until deliberate lever travel cams it down and clear.  Buttressed
-# side towers support the rail ends and prevent lateral walk-off.
+# matching hook has a reinforced upper arm and a broad cylindrical boss that
+# seats behind the rail on a flat landing.  A second overlapping round boss
+# gives the TPU load path a thick root instead of a folding wedge.  The
+# over-center linkage holds the boss there until deliberate lever travel cams
+# it through the deeper external release corridor.  Buttressed side towers
+# support the rail ends and prevent lateral walk-off.
 LID_LATCH_LIP_DRAW = GASKET_HEIGHT - GASKET_CHANNEL_DEPTH
 LID_LATCH_RIM_EDGE_THICKNESS = LID_WALL_HEIGHT - LID_FLANGE_EDGE_START_Z
 LID_LATCH_CAPTURE_RAIL_CENTER_Y = (
@@ -594,10 +598,23 @@ LID_LATCH_CAPTURE_RAIL_CENTER_Y = (
 )
 LATCH_CAPTURE_RAIL_INSTALLED_Y = -LID_LATCH_CAPTURE_RAIL_CENTER_Y
 LATCH_CAPTURE_RAIL_INSTALLED_Z = LATCH_LID_INSTALLED_Z - LID_LATCH_CAPTURE_RAIL_CENTER_Z
+LID_LATCH_CAPTURE_NUB_CENTER_Y = (
+    LID_LATCH_CAPTURE_RAIL_CENTER_Y
+    - LID_LATCH_CAPTURE_RAIL_RADIUS
+    - LATCH_CAPTURE_NUB_RAIL_CLEARANCE
+    - LATCH_CAPTURE_NUB_RADIUS
+)
+LID_LATCH_CAPTURE_NUB_CENTER_Z = (
+    LID_LATCH_NUB_LANDING_CONTACT_Z
+    - LATCH_CAPTURE_NUB_SEATED_CLEARANCE
+    - LATCH_CAPTURE_NUB_RADIUS
+)
+LATCH_CAPTURE_NUB_INSTALLED_Y = -LID_LATCH_CAPTURE_NUB_CENTER_Y
+LATCH_CAPTURE_NUB_INSTALLED_Z = LATCH_LID_INSTALLED_Z - LID_LATCH_CAPTURE_NUB_CENTER_Z
 
 
 def latch_hook_global_angle_degrees(lever_angle: float) -> float:
-    """Cam the true-behind nub down the landing and clear of the lid rail."""
+    """Cam the true-behind round boss clear of the lid capture rail."""
     if lever_angle <= LATCH_CAPTURE_FULL_RELEASE_ANGLE:
         return (
             LATCH_HOOK_CLOSED_ANGLE
@@ -665,6 +682,20 @@ def installed_yz_in_hook_local(
     return (
         math.cos(hook_radians) * delta_y + math.sin(hook_radians) * delta_z,
         -math.sin(hook_radians) * delta_y + math.cos(hook_radians) * delta_z,
+    )
+
+
+def hook_local_yz_in_installed(lever_angle: float, local_y: float, local_z: float):
+    """Transform a moving-hook point into installed case coordinates."""
+    hook_origin_y, hook_origin_z = latch_hook_origin_yz(lever_angle)
+    hook_radians = math.radians(latch_hook_global_angle_degrees(lever_angle))
+    return (
+        hook_origin_y
+        + math.cos(hook_radians) * local_y
+        - math.sin(hook_radians) * local_z,
+        hook_origin_z
+        + math.sin(hook_radians) * local_y
+        + math.cos(hook_radians) * local_z,
     )
 
 
@@ -3415,8 +3446,8 @@ def validate_configuration() -> None:
         raise ValueError("Latch recess does not cut into the lid skirt")
     if LID_LATCH_CAPTURE_RAIL_RADIUS < 1.2:
         raise ValueError("Latch capture rail needs at least a 2.4 mm diameter")
-    if not 2.5 <= LID_LATCH_CAPTURE_RAIL_CENTER_OUTSET <= 3.5:
-        raise ValueError("Latch capture rail center needs a 2.5-3.5 mm rim outset")
+    if not 5.5 <= LID_LATCH_CAPTURE_RAIL_CENTER_OUTSET <= 6.5:
+        raise ValueError("Latch capture rail center needs a 5.5-6.5 mm rim outset")
     if LID_LATCH_CAPTURE_WEB_THICKNESS < 1.2:
         raise ValueError("Latch capture rail web is too thin")
     if LATCH_CAPTURE_HOOK_WALL < PIVOT_MIN_WALL_THICKNESS:
@@ -3451,14 +3482,28 @@ def validate_configuration() -> None:
         < LATCH_LEVER_CLOSED_ANGLE
     ):
         raise ValueError("Latch capture guard/release angles are out of sequence")
+    if LATCH_CAPTURE_NUB_LANDING_RELEASE_CLEARANCE < 0.1:
+        raise ValueError("Round-boss landing release needs at least 0.1 mm clearance")
     if LATCH_CAPTURE_UPPER_ARM_THICKNESS < 3.2:
         raise ValueError("Latch upper capture arm needs at least 3.2 mm thickness")
-    if LATCH_CAPTURE_NUB_AXIAL_WIDTH < 12.0:
-        raise ValueError("Latch behind-rail nub needs at least 12 mm axial width")
-    if LATCH_CAPTURE_NUB_ROOT_OVERLAP < 0.8:
-        raise ValueError(
-            "Latch behind-rail nub is not bonded deeply into its upper arm"
-        )
+    if LATCH_CAPTURE_NUB_RADIUS < 1.4:
+        raise ValueError("Latch behind-rail boss needs at least a 2.8 mm diameter")
+    if LATCH_CAPTURE_NUB_ROOT_BOSS_RADIUS < LATCH_CAPTURE_NUB_RADIUS + 0.3:
+        raise ValueError("Latch behind-rail boss needs a larger rounded root")
+    if LATCH_CAPTURE_NUB_AXIAL_WIDTH < 16.0:
+        raise ValueError("Latch behind-rail boss needs at least 16 mm axial width")
+    nub_recess_depth = (
+        LID_LATCH_CAPTURE_RAIL_CENTER_Y
+        - LID_LATCH_CAPTURE_RAIL_RADIUS
+        - ((CASE_DEPTH - 0.8) / 2.0 + LID_LATCH_RECESS_BACK_WALL)
+    )
+    nub_release_depth = (
+        2.0 * LATCH_CAPTURE_NUB_RADIUS
+        + LATCH_CAPTURE_NUB_RAIL_CLEARANCE
+        + 2.0 * LATCH_CAPTURE_NUB_SEATED_CLEARANCE
+    )
+    if nub_recess_depth < nub_release_depth:
+        raise ValueError("Lid recess is too shallow for the round TPU boss")
     if not 0.02 <= LATCH_CAPTURE_NUB_SEATED_CLEARANCE <= 0.10:
         raise ValueError("Latch nub hard-seat clearance must remain 0.02-0.10 mm")
     if LATCH_CAPTURE_OUTWARD_PEEL_TRAVEL <= LATCH_CAPTURE_RAIL_PATH_CLEARANCE:
@@ -3653,6 +3698,9 @@ def validate_configuration() -> None:
         f"latch_rail_path_clearance={LATCH_CAPTURE_RAIL_PATH_CLEARANCE:.2f} "
         f"latch_rail_release={LATCH_CAPTURE_FULL_RELEASE_ANGLE:.2f}deg "
         f"latch_capture_hook_wall={LATCH_CAPTURE_HOOK_WALL:.2f} "
+        f"latch_round_boss={2.0 * LATCH_CAPTURE_NUB_RADIUS:.2f}x"
+        f"{LATCH_CAPTURE_NUB_AXIAL_WIDTH:.2f} "
+        f"latch_round_root={2.0 * LATCH_CAPTURE_NUB_ROOT_BOSS_RADIUS:.2f} "
         f"latch_protector={LATCH_PROTECTOR_BASE_WIDTH:.2f}x"
         f"{abs(LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y):.2f} "
         f"lid_protector={LID_LATCH_TROUGH_SHOULDER_WIDTH:.2f} "
@@ -4021,9 +4069,9 @@ def create_lid(
     # a deep molded bay completely through the front skirt, leaving a 4 mm back
     # wall, then span that bay with a substantial horizontal rail.  A narrower
     # outer webs tie the rail into the back wall while preserving a central
-    # recess for the hook's behind-rail nub.  The reinforced upper arm presses
-    # that nub onto a sloped landing and can cam clear only along the linkage's
-    # deliberate opening path.  Robust side towers guide the 20.48 mm hook,
+    # recess for the hook's behind-rail round boss.  The reinforced upper arm
+    # presses that boss onto a flat landing and can cam clear only along the
+    # linkage's deliberate opening path.  Robust side towers guide the 20.48 mm hook,
     # prevent lateral walk-off, shield it from side impacts, and support the
     # 21.6 mm rail as a short printable bridge.
     rim_front_y = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET
@@ -4080,10 +4128,10 @@ def create_lid(
         )
         union_into(lid, rail)
         # Two outer back webs retain the rail while leaving a central recess
-        # for the hook's true-behind nub.  A short central landing below that
-        # recess takes the nub's downward clamp load and ties back into both
-        # the molded wall and the rail; the old full-width midplane web would
-        # physically occupy the requested nub space.
+        # for the hook's true-behind round boss.  A short central landing below
+        # that recess takes the boss's downward clamp load and ties back into
+        # both the molded wall and the rail; the old full-width midplane web
+        # would physically occupy the requested boss space.
         nub_recess_half_width = (
             LATCH_CAPTURE_NUB_AXIAL_WIDTH / 2.0
             + LATCH_CAPTURE_NUB_RECESS_AXIAL_CLEARANCE
@@ -4135,24 +4183,11 @@ def create_lid(
             - LID_LATCH_CAPTURE_RAIL_RADIUS
             + LATCH_CAPTURE_NUB_LANDING_RAIL_OVERLAP
         )
-        nub_contact_outward_y = -(
-            LATCH_CAPTURE_RAIL_INSTALLED_Y
-            + LID_LATCH_CAPTURE_RAIL_RADIUS
-            + LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE
-        )
         landing_back_y = recess_back_y - 0.2
-        landing_ramp_rise_per_y = (
-            LATCH_CAPTURE_NUB_CASEWARD_DROP / LATCH_CAPTURE_NUB_CASEWARD_WIDTH
-        )
-        landing_back_contact_z = (
-            LID_LATCH_NUB_LANDING_CONTACT_Z
-            + (nub_contact_outward_y - landing_back_y) * landing_ramp_rise_per_y
-        )
         landing = extrude_loop_x(
-            f"Lid_Latch_{index}_Behind_Rail_Nub_Load_Landing",
+            f"Lid_Latch_{index}_Behind_Rail_Round_Boss_Load_Landing",
             (
-                (landing_back_y, landing_back_contact_z),
-                (nub_contact_outward_y, LID_LATCH_NUB_LANDING_CONTACT_Z),
+                (landing_back_y, LID_LATCH_NUB_LANDING_CONTACT_Z),
                 (landing_front_y, LID_LATCH_NUB_LANDING_CONTACT_Z),
                 (
                     landing_front_y,
@@ -4160,18 +4195,37 @@ def create_lid(
                     + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
                 ),
                 (
-                    nub_contact_outward_y,
+                    landing_back_y,
                     LID_LATCH_NUB_LANDING_CONTACT_Z
                     + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
-                ),
-                (
-                    landing_back_y,
-                    landing_back_contact_z + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
                 ),
             ),
             dx + x - nub_recess_half_width,
             dx + x + nub_recess_half_width,
         )
+        nub_hook_y, nub_hook_z = installed_yz_in_hook_local(
+            LATCH_LEVER_CLOSED_ANGLE,
+            LATCH_CAPTURE_NUB_INSTALLED_Y,
+            LATCH_CAPTURE_NUB_INSTALLED_Z,
+        )
+        boss_installed_y, boss_installed_z = hook_local_yz_in_installed(
+            LATCH_CAPTURE_FULL_RELEASE_ANGLE,
+            nub_hook_y,
+            nub_hook_z,
+        )
+        landing_release_cutter = add_cylinder_x(
+            f"Lid_Latch_{index}_Round_Boss_Full_Release_Scallop",
+            LATCH_CAPTURE_NUB_RADIUS + LATCH_CAPTURE_NUB_LANDING_RELEASE_CLEARANCE,
+            LATCH_CAPTURE_NUB_AXIAL_WIDTH
+            + 2.0 * LATCH_CAPTURE_NUB_RECESS_AXIAL_CLEARANCE,
+            (
+                dx + x,
+                -boss_installed_y,
+                LATCH_LID_INSTALLED_Z + LID_LATCH_LIP_DRAW - boss_installed_z,
+            ),
+            vertices=64,
+        )
+        difference_from(landing, landing_release_cutter)
         union_into(lid, landing)
         landing_back_riser = extrude_loop_x(
             f"Lid_Latch_{index}_Behind_Rail_Nub_Landing_Back_Riser",
@@ -4180,11 +4234,13 @@ def create_lid(
                 (recess_back_y, LID_WALL_HEIGHT - 0.2),
                 (
                     recess_back_y,
-                    landing_back_contact_z + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
+                    LID_LATCH_NUB_LANDING_CONTACT_Z
+                    + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
                 ),
                 (
                     recess_back_y - 0.4,
-                    landing_back_contact_z + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
+                    LID_LATCH_NUB_LANDING_CONTACT_Z
+                    + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
                 ),
             ),
             dx + x - nub_recess_half_width,
@@ -4587,10 +4643,11 @@ def create_pelican_latch_parts(material):
             difference_from(part, hook_bore)
             # The source hook's rounded lower tooth made the latch look as if
             # it were balancing on, or biting around, the lid rail.  Remove
-            # that lower jaw.  The replacement follows the actual Pelican
-            # load path: a full-width upper arm, plus a narrower downturned
-            # nub that enters the molded recess on the true caseward side of
-            # the rail and bears on the horizontal landing behind it.
+            # that lower jaw.  The replacement follows the requested Pelican
+            # load path: a full-width upper arm, a broad cylindrical TPU boss
+            # behind the rail, and a second overlapping round root boss.  The
+            # contact is deliberately round and thick rather than a folding
+            # wedge or point.
             lower_jaw_corners_installed = (
                 (-91.0, 53.0),
                 (LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y, 53.0),
@@ -4628,33 +4685,12 @@ def create_pelican_latch_parts(material):
                 - rail_running_radius
                 + LATCH_CAPTURE_UPPER_ARM_FRONT_OVERLAP
             )
-            nub_contact_outward_installed_y = (
-                LATCH_CAPTURE_RAIL_INSTALLED_Y
-                + LID_LATCH_CAPTURE_RAIL_RADIUS
-                + LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE
-            )
-            nub_contact_caseward_installed_y = (
-                nub_contact_outward_installed_y + LATCH_CAPTURE_NUB_CASEWARD_WIDTH
-            )
-            nub_contact_outward_installed_z = (
-                LATCH_LID_INSTALLED_Z
-                - LID_LATCH_NUB_LANDING_CONTACT_Z
-                + LATCH_CAPTURE_NUB_SEATED_CLEARANCE
-            )
-            nub_contact_caseward_installed_z = (
-                nub_contact_outward_installed_z - LATCH_CAPTURE_NUB_CASEWARD_DROP
-            )
-            nub_front_y, nub_front_z = installed_yz_in_hook_local(
+            nub_center_y, nub_center_z = installed_yz_in_hook_local(
                 LATCH_LEVER_CLOSED_ANGLE,
-                nub_contact_outward_installed_y,
-                nub_contact_outward_installed_z,
+                LATCH_CAPTURE_NUB_INSTALLED_Y,
+                LATCH_CAPTURE_NUB_INSTALLED_Z,
             )
-            nub_back_y, nub_back_z = installed_yz_in_hook_local(
-                LATCH_LEVER_CLOSED_ANGLE,
-                nub_contact_caseward_installed_y,
-                nub_contact_caseward_installed_z,
-            )
-            upper_arm_back_z = nub_front_z - 0.1
+            upper_arm_back_z = nub_center_z + 0.5 * LATCH_CAPTURE_NUB_RADIUS
             obsolete_upper_tooth_cutter = extrude_loop_x(
                 "Pelican_Hook_Remove_Obsolete_Caseward_Upper_Tooth",
                 (
@@ -4680,26 +4716,31 @@ def create_pelican_latch_parts(material):
             )
             union_into(part, upper_arm)
 
-            nub_root_y = upper_arm_outer_y + LATCH_CAPTURE_NUB_ROOT_OVERLAP
-            capture_nub = extrude_loop_x(
-                "Pelican_Hook_Central_Behind_Rail_Downturned_Nub",
-                (
-                    (nub_root_y, nub_front_z - LATCH_CAPTURE_NUB_ROOT_OVERLAP),
-                    (nub_front_y, nub_front_z),
-                    (nub_back_y, nub_back_z),
-                    (nub_root_y, upper_arm_back_z),
-                ),
-                -LATCH_CAPTURE_NUB_AXIAL_WIDTH / 2.0,
-                LATCH_CAPTURE_NUB_AXIAL_WIDTH / 2.0,
+            capture_nub = add_cylinder_x(
+                "Pelican_Hook_Central_Behind_Rail_Round_TPU_Boss",
+                LATCH_CAPTURE_NUB_RADIUS,
+                LATCH_CAPTURE_NUB_AXIAL_WIDTH,
+                (0.0, nub_center_y, nub_center_z),
+                vertices=64,
             )
             union_into(part, capture_nub)
+            root_boss_center_y = (upper_arm_inner_y + nub_center_y) / 2.0
+            root_boss_center_z = nub_center_z + 0.35 * LATCH_CAPTURE_NUB_RADIUS
+            root_boss = add_cylinder_x(
+                "Pelican_Hook_Round_TPU_Boss_Reinforced_Root",
+                LATCH_CAPTURE_NUB_ROOT_BOSS_RADIUS,
+                LATCH_CAPTURE_NUB_AXIAL_WIDTH,
+                (0.0, root_boss_center_y, root_boss_center_z),
+                vertices=64,
+            )
+            union_into(part, root_boss)
 
             # Sample the fixed rail in the cammed moving-hook frame and remove
-            # its close-running envelope.  The first 12 degrees translate the
-            # whole upper arm outward while it stays captured.  From the guard
-            # pose to 24 degrees, the short nub tracks down the matching sloped
-            # landing and the rail exits through the deliberately open
-            # underside; no lower jaw or disconnected tooth is needed.
+            # its close-running envelope.  The first 12 degrees retain the
+            # round boss behind the rail.  From the guard pose to 24 degrees,
+            # the boss moves through the deeper external recess and the rail
+            # exits through the deliberately open underside; no lower jaw,
+            # pointed wedge, or disconnected tooth is needed.
             release_sweep_steps = max(
                 1,
                 math.ceil(
@@ -5107,28 +5148,15 @@ def validate_built_lid_capture_rails(lid) -> None:
                 ),
             )
         )
-        landing_front_y = (
-            LID_LATCH_CAPTURE_RAIL_CENTER_Y
-            - LID_LATCH_CAPTURE_RAIL_RADIUS
-            + LATCH_CAPTURE_NUB_LANDING_RAIL_OVERLAP
-        )
-        landing_probe_y = (recess_back_y + landing_front_y) / 2.0
-        nub_contact_outward_y = -(
-            LATCH_CAPTURE_RAIL_INSTALLED_Y
-            + LID_LATCH_CAPTURE_RAIL_RADIUS
-            + LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE
-        )
-        landing_probe_surface_z = LID_LATCH_NUB_LANDING_CONTACT_Z + max(
-            0.0,
-            nub_contact_outward_y - landing_probe_y,
-        ) * (LATCH_CAPTURE_NUB_CASEWARD_DROP / LATCH_CAPTURE_NUB_CASEWARD_WIDTH)
+        landing_probe_y = LID_LATCH_CAPTURE_NUB_CENTER_Y
         landing_volumes.append(
             overlap_at(
-                f"TEMPORARY_Lid_Latch_{index}_Solid_Nub_Landing_Probe",
+                f"TEMPORARY_Lid_Latch_{index}_Solid_Round_Boss_Landing_Probe",
                 (
                     center_x,
                     landing_probe_y,
-                    landing_probe_surface_z + LATCH_CAPTURE_NUB_LANDING_THICKNESS / 2.0,
+                    LID_LATCH_NUB_LANDING_CONTACT_Z
+                    + LATCH_CAPTURE_NUB_LANDING_THICKNESS / 2.0,
                 ),
             )
         )
@@ -5167,8 +5195,8 @@ def validate_built_lid_capture_rails(lid) -> None:
 
 
 def validate_built_latch_hook_capture(hook) -> None:
-    """Prove the hook has an upper arm/nub and no obsolete lower jaw."""
-    rail_local_y, rail_local_z = latch_rail_in_hook_local_yz(LATCH_LEVER_CLOSED_ANGLE)
+    """Prove the hook has a full round boss/core and no obsolete lower jaw."""
+    rail_local_y, _rail_local_z = latch_rail_in_hook_local_yz(LATCH_LEVER_CLOSED_ANGLE)
     rail_running_radius = (
         LID_LATCH_CAPTURE_RAIL_RADIUS + LATCH_CAPTURE_RAIL_PATH_CLEARANCE
     )
@@ -5180,34 +5208,14 @@ def validate_built_latch_hook_capture(hook) -> None:
     upper_arm_front_z = (
         release_rail_z - rail_running_radius + LATCH_CAPTURE_UPPER_ARM_FRONT_OVERLAP
     )
-    nub_contact_outward_installed_y = (
-        LATCH_CAPTURE_RAIL_INSTALLED_Y
-        + LID_LATCH_CAPTURE_RAIL_RADIUS
-        + LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE
-    )
-    nub_contact_caseward_installed_y = (
-        nub_contact_outward_installed_y + LATCH_CAPTURE_NUB_CASEWARD_WIDTH
-    )
-    nub_contact_outward_installed_z = (
-        LATCH_LID_INSTALLED_Z
-        - LID_LATCH_NUB_LANDING_CONTACT_Z
-        + LATCH_CAPTURE_NUB_SEATED_CLEARANCE
-    )
-    nub_contact_caseward_installed_z = (
-        nub_contact_outward_installed_z - LATCH_CAPTURE_NUB_CASEWARD_DROP
-    )
-    nub_front_y, nub_front_z = installed_yz_in_hook_local(
+    nub_center_y, nub_center_z = installed_yz_in_hook_local(
         LATCH_LEVER_CLOSED_ANGLE,
-        nub_contact_outward_installed_y,
-        nub_contact_outward_installed_z,
+        LATCH_CAPTURE_NUB_INSTALLED_Y,
+        LATCH_CAPTURE_NUB_INSTALLED_Z,
     )
-    nub_back_y, nub_back_z = installed_yz_in_hook_local(
-        LATCH_LEVER_CLOSED_ANGLE,
-        nub_contact_caseward_installed_y,
-        nub_contact_caseward_installed_z,
-    )
-    upper_arm_back_z = nub_front_z - 0.1
-    nub_root_y = upper_arm_outer_y + LATCH_CAPTURE_NUB_ROOT_OVERLAP
+    upper_arm_back_z = nub_center_z + 0.5 * LATCH_CAPTURE_NUB_RADIUS
+    root_boss_center_y = (upper_arm_inner_y + nub_center_y) / 2.0
+    root_boss_center_z = nub_center_z + 0.35 * LATCH_CAPTURE_NUB_RADIUS
 
     def overlap_with_sphere(name, location, radius=0.18):
         probe = add_uv_sphere(name, radius, location, segments=24, ring_count=12)
@@ -5216,6 +5224,19 @@ def validate_built_latch_hook_capture(hook) -> None:
                 hook,
                 probe,
                 second_location=location,
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        return volume
+
+    def overlap_with_cylinder(name, location, radius, length):
+        probe = add_cylinder_x(name, radius, length, location, vertices=64)
+        try:
+            _faces, volume = exact_transformed_intersection(
+                hook,
+                probe,
+                second_location=location,
+                second_rotation=probe.rotation_euler.copy(),
             )
         finally:
             bpy.data.objects.remove(probe, do_unlink=True)
@@ -5233,49 +5254,70 @@ def validate_built_latch_hook_capture(hook) -> None:
             start=1,
         )
     ]
-    nub_volume = overlap_with_sphere(
-        "TEMPORARY_Latch_Central_Nub_Solid_Probe",
-        (
-            0.0,
-            (nub_root_y + nub_front_y + nub_back_y) / 3.0,
-            (upper_arm_back_z + nub_front_z + nub_back_z) / 3.0,
-        ),
+    core_length = (
+        LATCH_CAPTURE_NUB_AXIAL_WIDTH - 2.0 * LATCH_CAPTURE_NUB_CORE_AXIAL_MARGIN
     )
-    root_volume = overlap_with_sphere(
-        "TEMPORARY_Latch_Nub_Root_Bond_Probe",
-        (
-            0.0,
-            (nub_root_y + upper_arm_inner_y) / 2.0,
-            upper_arm_back_z - 0.25,
-        ),
+    nub_core_radius = LATCH_CAPTURE_NUB_RADIUS - LATCH_CAPTURE_NUB_CORE_RADIAL_MARGIN
+    root_core_radius = (
+        LATCH_CAPTURE_NUB_ROOT_BOSS_RADIUS - LATCH_CAPTURE_NUB_CORE_RADIAL_MARGIN
+    )
+    nub_core_volume = overlap_with_cylinder(
+        "TEMPORARY_Latch_Round_Boss_Full_Core_Probe",
+        (0.0, nub_center_y, nub_center_z),
+        nub_core_radius,
+        core_length,
+    )
+    root_core_volume = overlap_with_cylinder(
+        "TEMPORARY_Latch_Round_Boss_Root_Core_Probe",
+        (0.0, root_boss_center_y, root_boss_center_z),
+        root_core_radius,
+        core_length,
+    )
+    neck_center_y = (nub_center_y + root_boss_center_y) / 2.0
+    neck_center_z = (nub_center_z + root_boss_center_z) / 2.0
+    neck_core_radius = 0.8
+    neck_core_volume = overlap_with_cylinder(
+        "TEMPORARY_Latch_Round_Boss_Neck_Core_Probe",
+        (0.0, neck_center_y, neck_center_z),
+        neck_core_radius,
+        core_length,
     )
     lower_jaw_local_y, lower_jaw_local_z = installed_yz_in_hook_local(
         LATCH_LEVER_CLOSED_ANGLE,
-        -85.5,
-        59.5,
+        -87.5,
+        58.5,
     )
     lower_jaw_volume = overlap_with_sphere(
         "TEMPORARY_Latch_Obsolete_Lower_Jaw_Air_Probe",
         (0.0, lower_jaw_local_y, lower_jaw_local_z),
         radius=0.25,
     )
-    minimum_probe_volume = 4.0 / 3.0 * math.pi * 0.18**3 * 0.9
-    if min(arm_volumes) < minimum_probe_volume:
+    minimum_arm_probe_volume = 4.0 / 3.0 * math.pi * 0.18**3 * 0.9
+    if min(arm_volumes) < minimum_arm_probe_volume:
         raise ValueError(
             "Latch reinforced upper arm is not solid across its full width"
         )
-    if nub_volume < minimum_probe_volume:
-        raise ValueError("Latch behind-rail nub is not solid")
-    if root_volume < minimum_probe_volume:
-        raise ValueError("Latch behind-rail nub is not bonded into its upper arm")
+    expected_nub_core_volume = math.pi * nub_core_radius**2 * core_length
+    expected_root_core_volume = math.pi * root_core_radius**2 * core_length
+    expected_neck_core_volume = math.pi * neck_core_radius**2 * core_length
+    if nub_core_volume < 0.95 * expected_nub_core_volume:
+        raise ValueError("Latch round behind-rail boss lacks a full solid core")
+    if root_core_volume < 0.95 * expected_root_core_volume:
+        raise ValueError("Latch round behind-rail boss root is hollow or carved")
+    if neck_core_volume < 0.95 * expected_neck_core_volume:
+        raise ValueError("Latch round behind-rail boss has a thin folding neck")
     if lower_jaw_volume > 1e-7:
         raise ValueError("Obsolete lower latch jaw remains below the lid rail")
     print(
         "FIELD_CASE_LATCH_HOOK_CAPTURE_VALID "
         f"upper_arm_thickness={LATCH_CAPTURE_UPPER_ARM_THICKNESS:.2f} "
         f"upper_arm_solid_min={min(arm_volumes):.6f} "
-        f"nub_width={LATCH_CAPTURE_NUB_AXIAL_WIDTH:.2f} "
-        f"nub_solid={nub_volume:.6f} root_solid={root_volume:.6f} "
+        f"round_boss={2.0 * LATCH_CAPTURE_NUB_RADIUS:.2f}x"
+        f"{LATCH_CAPTURE_NUB_AXIAL_WIDTH:.2f} "
+        f"round_root_diameter={2.0 * LATCH_CAPTURE_NUB_ROOT_BOSS_RADIUS:.2f} "
+        f"boss_core={nub_core_volume:.6f}/{expected_nub_core_volume:.6f} "
+        f"root_core={root_core_volume:.6f}/{expected_root_core_volume:.6f} "
+        f"neck_core={neck_core_volume:.6f}/{expected_neck_core_volume:.6f} "
         f"lower_jaw_air={lower_jaw_volume:.9f}"
     )
 
@@ -5355,7 +5397,7 @@ def validate_built_latch_impact_protectors(parts) -> None:
                     (
                         lid_tower_center_x,
                         lid_tower_outer_y - 0.5,
-                        lid_tower_slope_top_z + 0.4,
+                        lid_tower_slope_top_z - 0.25,
                     ),
                     lid_probe_dimensions,
                 )
@@ -5750,13 +5792,14 @@ def validate_installed_latch_mechanics(parts) -> None:
                 hook_origin_z,
             )
             hook_rotation = (math.radians(hook_angle), 0.0, 0.0)
-            faces, volume = exact_transformed_intersection(
+            faces, volume, bounds = exact_transformed_intersection(
                 parts["lid"],
                 parts["latch_hook"],
                 first_location=uncompressed_lid_location,
                 first_rotation=lid_rotation,
                 second_location=hook_location,
                 second_rotation=hook_rotation,
+                return_bounds=True,
             )
             if require_capture and (
                 not faces or volume < LATCH_CAPTURE_RELEASE_GUARD_MIN_VOLUME
@@ -5770,7 +5813,8 @@ def validate_installed_latch_mechanics(parts) -> None:
                 raise ValueError(
                     "Latch hook does not fully release the horizontal rail: "
                     f"axial={axial_offset:+.2f} "
-                    f"lever={lever_angle:.2f} faces={faces} volume={volume:.6f}"
+                    f"lever={lever_angle:.2f} faces={faces} volume={volume:.6f} "
+                    f"bounds={bounds}"
                 )
             output.append(volume)
 
@@ -5872,16 +5916,17 @@ def validate_installed_case_closure(parts) -> None:
         0.0,
         LATCH_LID_INSTALLED_Z + 0.01,
     )
-    faces, volume = exact_transformed_intersection(
+    faces, volume, bounds = exact_transformed_intersection(
         parts["base"],
         parts["lid"],
         second_location=near_seated_lid_location,
         second_rotation=(math.pi, 0.0, 0.0),
+        return_bounds=True,
     )
     if faces or volume > 1e-6:
         raise ValueError(
             "Closed base/lid geometry still collides around the hinge: "
-            f"faces={faces} volume={volume:.6f}"
+            f"faces={faces} volume={volume:.6f} bounds={bounds}"
         )
     print(
         "FIELD_CASE_CLOSURE_VALID "

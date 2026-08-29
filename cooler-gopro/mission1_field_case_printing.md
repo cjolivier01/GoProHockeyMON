@@ -133,24 +133,34 @@ edge and 5.4 mm radial thickness. At each latch, a deep bay is cut through the
 outer skirt while retaining a 4 mm skirt back wall. A 2.6 mm-diameter
 horizontal capture rail spans that bay. Two outer 1.2 mm webs bond the rail to
 the back wall while leaving a central recess behind it. A central 1.2 mm-thick
-sloped landing transfers clamp load from that recess into the wall and rail.
+flat landing transfers clamp load from that recess into the wall and rail.
 The 4.5 mm-thick side towers carry the rail ends, keep the 20.48 mm-wide hook
 from walking sideways off the catch, and stand proud of it to deflect impacts.
 
 The source model's obsolete lower jaw has been removed. The moving hook now
-has a full-width 3.2 mm reinforced upper arm and a 12 mm-wide central nub that
-turns down into the recess on the true caseward side of the rail. Its root
-overlaps the upper arm by 0.8 mm, and its lower face matches the lid's sloped
-landing with 0.10 mm hard-seat clearance. This is the positive stop against
-outward peel: the latch cannot swing away from the lid without first moving
-the nub out from behind the fixed rail.
+has a full-width 3.2 mm reinforced upper arm and a true cylindrical central
+boss, 2.8 mm in diameter and 16 mm wide, that enters the recess on the
+caseward side of the rail. A second overlapping 3.4 mm-diameter round boss
+bonds it deeply into the arm. There is no pointed nose or thin flexing wedge.
+After all motion clearances are cut, generation verifies an intact 2.1 x 15.2
+mm core through the catch, an intact 2.7 x 15.2 mm core through its root, and
+an intact 1.6 x 15.2 mm core through the overlap between them. These large
+continuous sections are intended to remain sturdy when the hook is printed in
+hard TPU.
+
+The round boss rests 0.10 mm above the flat hard-seat landing. This is the
+positive stop against outward peel: the latch cannot swing away from the lid
+without first moving the full cylindrical boss out from behind the fixed rail.
 
 The rail has 0.10 mm running clearance along its generated release path. The
 Python generator samples the actual two-pivot linkage and cuts that path in the
 hook's moving frame. During the first 12 degrees of deliberate lever travel,
-the upper arm moves outward but the nub remains captured. Between 12 and 24
-degrees, the nub cams down the sloped landing and the rail exits through the
-open underside. There is no disconnected tooth or lower jaw to print.
+the upper arm moves outward but the round boss remains captured. The deeper
+external bay preserves the rigid 4 mm lid back wall while giving the fat boss
+room to move during release. A round-matched scallop in the landing clears its
+fully released pose without shaving the TPU boss. At 24 degrees the rail exits
+through the open underside. There is no disconnected tooth or lower jaw to
+print.
 
 Matching 4.5 mm-thick impact cheeks are integrated into the base on both sides
 of each lever. They stand forward of the closed lever, join the shell on
@@ -163,12 +173,12 @@ do not require support in the exported orientation.
 
 The uncompressed lid begins 0.25 mm above its hard seated position. Pressing
 the broad lever inward pulls the upper arm against the horizontal rail, loads
-the nub onto its landing, draws the lid down onto the gasket, and passes the
-linkage over center. The generated geometry verifies zero hard-seated
-hook/lid intersection, 1.214326 mm3 minimum capture during an attempted 0.15
-mm lid lift, 5.394359 mm3 minimum rail preload at the full 0.25 mm
-uncompressed gasket position, and 15.612705 mm3 minimum engagement during a
-0.60 mm outward-peel attempt. It also verifies 3.053371 mm3 minimum capture at
+the round boss onto its landing, draws the lid down onto the gasket, and passes
+the linkage over center. The generated geometry verifies zero hard-seated
+hook/lid intersection, 1.396054 mm3 minimum capture during an attempted 0.15
+mm lid lift, 5.769714 mm3 minimum rail preload at the full 0.25 mm
+uncompressed gasket position, and 30.978098 mm3 minimum engagement during a
+0.60 mm outward-peel attempt. It also verifies 2.194807 mm3 minimum capture at
 12 degrees open and complete rail release at 24 degrees. The complete coupled
 opening path has zero hook/base, hook/lid, and lever/hook collision.
 
@@ -191,14 +201,14 @@ To install one latch:
 3. Nest the hook around the lever's moving end, align the link holes, and press
    the rod cut to `LATCH_LINK_ROD_LENGTH` through the hook and lever until its
    ends are flush.
-4. Close the lid and lift the broad lever far enough to place the hook's
-   central nub in the molded recess behind the horizontal lid rail, between the
-   two protective towers. Press the broad outer lever inward until the hidden
-   detent snaps closed. Confirm that the upper arm is centered between the
-   towers and that the nub is behind the rail, not perched on its outside face.
-   Pull the broad lever outward through the detent to unload the gasket; the
-   linkage then cams the nub down the landing and clear of the rail so the lid
-   can open.
+4. Close the lid and lift the broad lever far enough to place the hook's round
+   central boss in the molded recess behind the horizontal lid rail, between
+   the two protective towers. Press the broad outer lever inward until the
+   hidden detent snaps closed. Confirm that the upper arm is centered between
+   the towers and that the boss is behind the rail, not perched on its outside
+   face. Pull the broad lever outward through the detent to unload the gasket;
+   the linkage then cams the boss through the landing scallop and clear of the
+   rail so the lid can open.
 
 Deburr and lightly chamfer rod ends. Do not hammer a rod into an unsupported
 ear or hook cheek. Printer shrinkage varies, so print one lever and hook first
@@ -266,9 +276,13 @@ through both rigid case halves with 3.49 mm cylindrical clearance probes.
 
 ## Suggested printing
 
-- Base, lid, latch levers and hooks, handle bar, and hinge pin: PETG, ASA,
-  nylon, or another impact-tolerant rigid filament; 0.20 mm layers, four walls,
-  and at least 25% infill.
+- Base, lid, broad latch levers, handle bar, and hinge pin: PETG, ASA, nylon,
+  or another impact-tolerant rigid filament; 0.20 mm layers, four walls, and at
+  least 25% infill.
+- The upper moving latch hooks may be printed in hard TPU. Use the stiffest TPU
+  your printer handles reliably, at least five walls, and high infill around
+  the round catch and link-pivot end. Soft 95A tray-style settings are not
+  recommended for this load-bearing part.
 - Lower tray, lid pad, and gasket: TPU 95A, two or three walls, and 15-20%
   infill. The gasket is for dust and splash resistance, not certified
   waterproofing.
