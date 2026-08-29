@@ -17,10 +17,14 @@ make -C cooler-gopro mission1-field-case
 The Makefile requires GNU Make 4.3 or newer. On macOS, install a current GNU
 Make and run the command as `gmake` when the system `make` is BSD Make.
 
-The lower insert is one flush-top TPU tray. It has two independent camera
-pockets cut from the local procedural MISSION 1 body, including its offset lens
-housing, controls, and rounded body. The cameras face opposite directions so
-their lens lobes nest while a continuous TPU web keeps the pockets separate.
+The lower insert is one flush-top TPU tray. In the assembled Blender scene its
+bottom is positioned at Z = 3.2 mm, directly on top of the rigid case floor;
+it does not share the floor's Z = 0-3.2 mm volume. The standalone STL and 3MF
+plate normalize the tray back to Z = 0 for printing. It has two independent
+camera pockets cut from the local procedural MISSION 1 body, including its
+offset lens housing, controls, and rounded body. The cameras face opposite
+directions so their lens lobes nest while a continuous TPU web keeps the
+pockets separate.
 Each lens end widens into a trapezoidal relief for the soft MISSION 1 Pro lens
 flare/hood. Four exact 33.5 x 12.5 mm battery pockets retain their existing
 21.8 mm insertion depth; the generated inspection batteries are 40.56 mm tall

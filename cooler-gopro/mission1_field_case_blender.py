@@ -245,6 +245,7 @@ LID_DISPLAY_OFFSET_X = 215.0
 INSERT_SIDE_CLEARANCE = 0.5
 TRAY_HEIGHT = 35.0
 TRAY_FLOOR_THICKNESS = 3.0
+LOWER_TRAY_INSTALLED_Z = BASE_FLOOR_THICKNESS
 INSERT_CORNER_RADIUS = CASE_CORNER_RADIUS - WALL_THICKNESS - 0.5
 
 # Camera cavities are cut directly with expanded copies of the procedural
@@ -2823,6 +2824,12 @@ def validate_configuration() -> None:
         raise ValueError("Battery-door lid hold-down must fit inside the door outline")
     if min(WALL_THICKNESS, BASE_FLOOR_THICKNESS, TRAY_FLOOR_THICKNESS) < 2.0:
         raise ValueError("Default shell walls and all floors must remain at least 2 mm")
+    if not math.isclose(
+        LOWER_TRAY_INSTALLED_Z,
+        BASE_FLOOR_THICKNESS,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("The installed lower tray must rest on top of the base floor")
     hinge_segments = sorted(
         (*HINGE_BASE_SEGMENTS, *HINGE_LID_SEGMENTS),
         key=lambda segment: segment[0],
@@ -3427,6 +3434,7 @@ def validate_configuration() -> None:
         f"door_pocket={BATTERY_DOOR_SLOT_SIZE[0]:.1f}x"
         f"{BATTERY_DOOR_SLOT_SIZE[1]:.1f}x{BATTERY_DOOR_SLOT_DEPTH:.1f} "
         f"door_pad_preload={battery_door_pad_compression:.2f} "
+        f"tray_installed_z={LOWER_TRAY_INSTALLED_Z:.2f} "
         f"misc_pockets={misc_specs[0][1][0]:.1f}x{misc_specs[0][1][1]:.1f}/"
         f"{misc_specs[1][1][0]:.1f}x{misc_specs[1][1][1]:.1f}x"
         f"{TRAY_HEIGHT - MISC_COMPARTMENT_FLOOR_Z:.1f} "
@@ -5178,6 +5186,69 @@ def validate_installed_case_closure(parts) -> None:
     )
 
 
+def validate_installed_lower_tray(parts) -> None:
+    """Prove the tray rests on, rather than intersects, the rigid base floor."""
+    tray_minimum, tray_maximum = object_world_bounds(parts["lower_tray"])
+    if not math.isclose(
+        tray_minimum.z,
+        LOWER_TRAY_INSTALLED_Z,
+        abs_tol=1e-6,
+    ):
+        raise ValueError(
+            "Installed lower tray bottom does not align with the base floor top: "
+            f"tray_z={tray_minimum.z:.6f} floor_z={BASE_FLOOR_THICKNESS:.6f}"
+        )
+    if not math.isclose(
+        tray_maximum.z,
+        LOWER_TRAY_INSTALLED_Z + TRAY_HEIGHT,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("Installed lower tray height is inconsistent")
+
+    # Lift the tray by a negligible amount to avoid treating its intended
+    # coplanar floor contact as Boolean volume. Any real floor or wall overlap
+    # remains after this 0.001 mm numerical-clearance probe.
+    validation_lift = 0.001
+    clearance_faces, clearance_volume = exact_transformed_intersection(
+        parts["base"],
+        parts["lower_tray"],
+        second_location=(
+            0.0,
+            0.0,
+            LOWER_TRAY_INSTALLED_Z + validation_lift,
+        ),
+    )
+    if clearance_faces or clearance_volume > 1e-6:
+        raise ValueError(
+            "Installed lower tray intersects the rigid case: "
+            f"faces={clearance_faces} volume={clearance_volume:.6f}"
+        )
+
+    # A small deliberate downward probe must intersect the base floor. This
+    # guards against fixing an overlap by accidentally leaving the tray
+    # floating above its support surface.
+    contact_probe_depth = 0.05
+    contact_faces, contact_volume = exact_transformed_intersection(
+        parts["base"],
+        parts["lower_tray"],
+        second_location=(
+            0.0,
+            0.0,
+            LOWER_TRAY_INSTALLED_Z - contact_probe_depth,
+        ),
+    )
+    if not contact_faces or contact_volume < 100.0:
+        raise ValueError("Installed lower tray does not contact the rigid base floor")
+    print(
+        "FIELD_CASE_INSTALLED_TRAY_VALID "
+        f"base_floor_top={BASE_FLOOR_THICKNESS:.3f} "
+        f"tray_bottom={tray_minimum.z:.3f} "
+        f"clearance_intersection={clearance_volume:.6f} "
+        f"contact_probe={contact_probe_depth:.3f}/"
+        f"{contact_volume:.6f}"
+    )
+
+
 def create_reference_mockups(materials, parts):
     objects = []
     (
@@ -5193,6 +5264,7 @@ def create_reference_mockups(materials, parts):
             placement,
             as_cutter=False,
         )
+        translate_object(mockup, (0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
         assign_material(mockup, camera_material)
         objects.append(mockup)
     for index, center in enumerate(BATTERY_CENTERS, start=1):
@@ -5205,6 +5277,7 @@ def create_reference_mockups(materials, parts):
             1.6,
             center,
         )
+        translate_object(mockup, (0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
         assign_material(mockup, battery_material)
         objects.append(mockup)
     for index, center in enumerate(BATTERY_DOOR_SLOT_CENTERS, start=1):
@@ -5217,6 +5290,7 @@ def create_reference_mockups(materials, parts):
             1.3,
             center,
         )
+        translate_object(mockup, (0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
         assign_material(mockup, battery_material)
         objects.append(mockup)
     objects.extend(
@@ -5259,8 +5333,15 @@ def export_path(name: str) -> Path:
     return directory / name
 
 
-def export_stl(path: Path, obj) -> Path:
-    payload = evaluated_mesh_payload(obj, Vector((0.0, 0.0, 0.0)))
+def export_stl(path: Path, obj, print_origin=None) -> Path:
+    if print_origin is None:
+        print_origin = Vector((0.0, 0.0, 0.0))
+    payload = evaluated_mesh_payload(obj, print_origin)
+    minimum_print_z = min(vertex[2] for vertex in payload[0])
+    if not math.isclose(minimum_print_z, 0.0, abs_tol=1e-5):
+        raise ValueError(
+            f"STL print origin leaves {obj.name} at Z={minimum_print_z:.6f}"
+        )
     write_binary_stl(path, obj.name, payload)
     print(f"FIELD_CASE_EXPORTED {path}")
     return path
@@ -6648,6 +6729,7 @@ def build_mission1_field_case():
     parts = {}
     parts["base"] = create_base(shell_material)
     parts["lower_tray"] = create_lower_tray(tpu_material)
+    translate_object(parts["lower_tray"], (0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
     (
         lid,
         logo_white,
@@ -6688,6 +6770,7 @@ def build_mission1_field_case():
 
     for name, obj in parts.items():
         validate_built_part(name, obj)
+    validate_installed_lower_tray(parts)
     validate_installed_case_closure(parts)
     validate_built_lid_capture_rails(parts["lid"])
     validate_installed_latch_mechanics(parts)
@@ -6722,7 +6805,12 @@ def build_mission1_field_case():
             (LOGO_CYAN_INLAY_STL_NAME, parts["logo_cyan_inlay"]),
         )
         for filename, obj in exports:
-            export_stl(export_path(filename), obj)
+            print_origin = (
+                Vector((0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
+                if obj is parts["lower_tray"]
+                else None
+            )
+            export_stl(export_path(filename), obj, print_origin)
         project_path = export_3mf_project(export_path(PROJECT_3MF_NAME), parts)
         validate_3mf_project(project_path)
 
