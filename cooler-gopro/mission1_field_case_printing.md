@@ -165,8 +165,8 @@ The uncompressed lid begins 0.25 mm above its hard seated position. Pressing
 the broad lever inward pulls the upper arm against the horizontal rail, loads
 the nub onto its landing, draws the lid down onto the gasket, and passes the
 linkage over center. The generated geometry verifies zero hard-seated
-hook/lid intersection, 1.214324 mm3 minimum capture during an attempted 0.15
-mm lid lift, 5.394357 mm3 minimum rail preload at the full 0.25 mm
+hook/lid intersection, 1.214326 mm3 minimum capture during an attempted 0.15
+mm lid lift, 5.394359 mm3 minimum rail preload at the full 0.25 mm
 uncompressed gasket position, and 15.612705 mm3 minimum engagement during a
 0.60 mm outward-peel attempt. It also verifies 3.053371 mm3 minimum capture at
 12 degrees open and complete rail release at 24 degrees. The complete coupled

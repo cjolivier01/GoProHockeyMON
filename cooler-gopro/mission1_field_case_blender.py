@@ -4036,8 +4036,8 @@ def create_lid(
         + LID_LATCH_CAPTURE_RAIL_RADIUS
         + LID_LATCH_CAPTURE_BAY_CLEARANCE
     )
-    side_web_z0 = LID_LATCH_CAPTURE_RAIL_CENTER_Z + 0.2
     side_web_z1 = LID_LATCH_CAPTURE_RAIL_CENTER_Z + LID_LATCH_CAPTURE_RAIL_RADIUS - 0.1
+    side_web_z0 = side_web_z1 - LID_LATCH_CAPTURE_WEB_THICKNESS
     tower_back_y = recess_back_y - 0.2
     tower_slope_start_y = rim_front_y - 1.0
     tower_base_z = LID_FLANGE_EDGE_START_Z - LID_LATCH_TROUGH_SHOULDER_RISE
