@@ -227,7 +227,7 @@ LID_FLANGE_OUTSET = 5.0
 LID_FLANGE_FLARE_START_Z = 3.0
 LID_FLANGE_EDGE_START_Z = 8.0
 LID_LATCH_TROUGH_WIDTH = 21.6
-LID_LATCH_TROUGH_SHOULDER_WIDTH = 3.0
+LID_LATCH_TROUGH_SHOULDER_WIDTH = 4.5
 LID_LATCH_TROUGH_SHOULDER_RISE = 1.0
 LID_LATCH_RECESS_BACK_WALL = 4.0
 LID_LATCH_CAPTURE_RAIL_RADIUS = 1.3
@@ -237,7 +237,8 @@ LID_LATCH_CAPTURE_WEB_THICKNESS = 1.2
 LID_LATCH_CAPTURE_RAIL_END_OVERLAP = 0.4
 LID_LATCH_CAPTURE_BAY_Z0 = LID_PLATE_THICKNESS
 LID_LATCH_CAPTURE_BAY_CLEARANCE = 0.5
-LID_LATCH_CAPTURE_TOWER_OUTSET = 0.2
+LID_LATCH_CAPTURE_TOWER_OUTSET = 0.8
+LID_LATCH_PROTECTOR_TOP_CAP_RISE = 0.8
 LID_DISPLAY_OFFSET_X = 215.0
 
 # The lower TPU insert is a continuous recessed tray.  All cavity walls point
@@ -362,6 +363,9 @@ HINGE_RIM_RELIEF_RADIAL_CLEARANCE = 0.4
 HINGE_RIM_RELIEF_AXIAL_CLEARANCE = 0.2
 HINGE_PIN_X0 = -77.0
 HINGE_PIN_X1 = 77.0
+HINGE_PIN_PATH_AXIAL_CLEARANCE = 0.2
+HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL = 0.6
+HINGE_BORE_VALIDATION_RADIAL_CLEARANCE = 0.005
 
 # Each base knuckle grows from a full-width 45-degree web rather than leaving
 # the lower half of its circular barrel unsupported.  The ramp meets the
@@ -469,7 +473,9 @@ LATCH_BASE_PIVOT_Z = 41.65
 LATCH_LEVER_CLOSED_ANGLE = 0.0
 LATCH_LEVER_OPEN_ANGLE = -80.0
 LATCH_HOOK_CLOSED_ANGLE = -80.0
-LATCH_HOOK_OPEN_ANGLE = 0.0
+LATCH_HOOK_CAM_ROTATION_DEGREES = -12.0
+LATCH_HOOK_CAM_GUARD_ROTATION_DEGREES = -5.0
+LATCH_HOOK_POST_RELEASE_FOLLOW_RATIO = 0.2
 LATCH_SWEEP_STEP_DEGREES = 2.0
 LATCH_SWEEP_RESIDUAL_VOLUME_LIMIT = 1e-5
 LATCH_AXIAL_CONTACT_RESIDUAL_VOLUME_LIMIT = 0.001
@@ -526,25 +532,61 @@ LATCH_DETENT_MIN_PEAK_VOLUME = 0.05
 LATCH_DETENT_RELEASE_RESIDUAL_VOLUME_LIMIT = 0.0001
 LATCH_WRONG_WAY_STOP_ANGLE = 10.0
 LATCH_WRONG_WAY_STOP_MIN_VOLUME = 10.0
-LATCH_CAPTURE_SLOT_CLEARANCE = 0.1
+LATCH_CAPTURE_RAIL_PATH_CLEARANCE = 0.1
 LATCH_CAPTURE_HOOK_WALL = 2.0
 LATCH_CAPTURE_CLEARANCE_SWEEP_STEP_DEGREES = 2.0
 LATCH_CAPTURE_RELEASE_GUARD_ANGLE = -12.0
 LATCH_CAPTURE_FULL_RELEASE_ANGLE = -24.0
 LATCH_CAPTURE_RELEASE_GUARD_MIN_VOLUME = 0.1
+LATCH_CAPTURE_UPPER_ARM_THICKNESS = 3.2
+LATCH_CAPTURE_UPPER_ARM_FRONT_OVERLAP = 0.2
+LATCH_CAPTURE_UPPER_ARM_AXIAL_INSET = 0.04
+LATCH_CAPTURE_NUB_CASEWARD_WIDTH = 0.6
+LATCH_CAPTURE_NUB_CASEWARD_DROP = 0.3
+LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE = 0.35
+LATCH_CAPTURE_NUB_AXIAL_WIDTH = 12.0
+LATCH_CAPTURE_NUB_RECESS_AXIAL_CLEARANCE = 0.4
+LATCH_CAPTURE_NUB_SEATED_CLEARANCE = 0.10
+LATCH_CAPTURE_NUB_ROOT_OVERLAP = 0.8
+LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y = -82.5
+LATCH_CAPTURE_OUTWARD_PEEL_TRAVEL = 0.6
+LATCH_CAPTURE_OUTWARD_PEEL_MIN_VOLUME = 0.02
+LID_LATCH_NUB_LANDING_CONTACT_Z = (
+    LID_LATCH_CAPTURE_RAIL_CENTER_Z + LID_LATCH_CAPTURE_RAIL_RADIUS + 0.1
+)
+LATCH_CAPTURE_NUB_LANDING_THICKNESS = 1.2
+LATCH_CAPTURE_NUB_LANDING_RAIL_OVERLAP = 0.5
 LATCH_FIXED_ROD_LENGTH = (
     LATCH_WIDTH + 2.0 * LATCH_BASE_EAR_AXIAL_CLEARANCE + 2.0 * LATCH_BASE_EAR_WIDTH
 )
 LATCH_LINK_ROD_LENGTH = LATCH_WIDTH
 LATCH_FINGER_ACCESS_CLEARANCE = 24.0
 LATCH_MOUNT_HANDLE_CLEARANCE = 20.0
+LATCH_PROTECTOR_BASE_WIDTH = 4.5
+LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT = 0.25
+LATCH_PROTECTOR_BODY_Y = -CASE_DEPTH / 2.0 + 0.3
+LATCH_PROTECTOR_FRONT_Y = -98.0
+LATCH_PROTECTOR_ROOT_Z = 3.0
+LATCH_PROTECTOR_FRONT_LOWER_Z = LATCH_PROTECTOR_ROOT_Z + abs(
+    LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y
+)
+LATCH_PROTECTOR_FRONT_UPPER_Z = 54.0
+LATCH_PROTECTOR_TOP_Z = 58.0
+LATCH_PROTECTOR_PROFILE_YZ = (
+    (LATCH_PROTECTOR_BODY_Y, LATCH_PROTECTOR_ROOT_Z),
+    (LATCH_PROTECTOR_FRONT_Y, LATCH_PROTECTOR_FRONT_LOWER_Z),
+    (LATCH_PROTECTOR_FRONT_Y, LATCH_PROTECTOR_FRONT_UPPER_Z),
+    (LATCH_PROTECTOR_FRONT_Y + 1.5, LATCH_PROTECTOR_FRONT_UPPER_Z + 2.0),
+    (LATCH_PROTECTOR_BODY_Y, LATCH_PROTECTOR_TOP_Z),
+)
 
 # Each closed source hook nests in a deep molded bay cut through the lid skirt.
 # A 2.6 mm horizontal rail spans the bay and is tied to its 4 mm back wall by a
-# narrower web, following the reference case's molded crossbar.  The matching
-# reinforced hook throat seats deeply around the rail; the over-center linkage
-# holds it there until deliberate lever travel slides the throat off the rail.
-# Buttressed side towers support the rail ends and prevent lateral walk-off.
+# narrower outer webs, following the reference case's molded crossbar.  The
+# matching hook has a reinforced upper arm and a central downturned nub that
+# bears on a sloped landing behind the rail.  The over-center linkage holds the
+# nub there until deliberate lever travel cams it down and clear.  Buttressed
+# side towers support the rail ends and prevent lateral walk-off.
 LID_LATCH_LIP_DRAW = GASKET_HEIGHT - GASKET_CHANNEL_DEPTH
 LID_LATCH_RIM_EDGE_THICKNESS = LID_WALL_HEIGHT - LID_FLANGE_EDGE_START_Z
 LID_LATCH_CAPTURE_RAIL_CENTER_Y = (
@@ -552,6 +594,79 @@ LID_LATCH_CAPTURE_RAIL_CENTER_Y = (
 )
 LATCH_CAPTURE_RAIL_INSTALLED_Y = -LID_LATCH_CAPTURE_RAIL_CENTER_Y
 LATCH_CAPTURE_RAIL_INSTALLED_Z = LATCH_LID_INSTALLED_Z - LID_LATCH_CAPTURE_RAIL_CENTER_Z
+
+
+def latch_hook_global_angle_degrees(lever_angle: float) -> float:
+    """Cam the true-behind nub down the landing and clear of the lid rail."""
+    if lever_angle <= LATCH_CAPTURE_FULL_RELEASE_ANGLE:
+        return (
+            LATCH_HOOK_CLOSED_ANGLE
+            + LATCH_HOOK_CAM_ROTATION_DEGREES
+            + LATCH_HOOK_POST_RELEASE_FOLLOW_RATIO
+            * (lever_angle - LATCH_CAPTURE_FULL_RELEASE_ANGLE)
+        )
+    if lever_angle >= LATCH_CAPTURE_RELEASE_GUARD_ANGLE:
+        guard_span = LATCH_LEVER_CLOSED_ANGLE - LATCH_CAPTURE_RELEASE_GUARD_ANGLE
+        guard_progress = (LATCH_LEVER_CLOSED_ANGLE - lever_angle) / guard_span
+        cam_rotation = LATCH_HOOK_CAM_GUARD_ROTATION_DEGREES * guard_progress
+    else:
+        release_span = (
+            LATCH_CAPTURE_RELEASE_GUARD_ANGLE - LATCH_CAPTURE_FULL_RELEASE_ANGLE
+        )
+        release_progress = (
+            LATCH_CAPTURE_RELEASE_GUARD_ANGLE - lever_angle
+        ) / release_span
+        cam_rotation = (
+            LATCH_HOOK_CAM_GUARD_ROTATION_DEGREES
+            + (LATCH_HOOK_CAM_ROTATION_DEGREES - LATCH_HOOK_CAM_GUARD_ROTATION_DEGREES)
+            * release_progress
+        )
+    cam_rotation = min(
+        0.0,
+        max(LATCH_HOOK_CAM_ROTATION_DEGREES, cam_rotation),
+    )
+    return LATCH_HOOK_CLOSED_ANGLE + cam_rotation
+
+
+def latch_hook_origin_yz(lever_angle: float):
+    """Return the moving hook-pivot origin in installed case coordinates."""
+    lever_radians = math.radians(lever_angle)
+    link_y, link_z = LATCH_LINK_PIVOT_LOCAL_YZ
+    return (
+        LATCH_BASE_PIVOT_Y
+        + math.cos(lever_radians) * link_y
+        - math.sin(lever_radians) * link_z,
+        LATCH_BASE_PIVOT_Z
+        + math.sin(lever_radians) * link_y
+        + math.cos(lever_radians) * link_z,
+    )
+
+
+def latch_rail_in_hook_local_yz(lever_angle: float):
+    """Transform the fixed lid rail into the cammed moving hook frame."""
+    hook_origin_y, hook_origin_z = latch_hook_origin_yz(lever_angle)
+    hook_radians = math.radians(latch_hook_global_angle_degrees(lever_angle))
+    delta_y = LATCH_CAPTURE_RAIL_INSTALLED_Y - hook_origin_y
+    delta_z = LATCH_CAPTURE_RAIL_INSTALLED_Z - hook_origin_z
+    return (
+        math.cos(hook_radians) * delta_y + math.sin(hook_radians) * delta_z,
+        -math.sin(hook_radians) * delta_y + math.cos(hook_radians) * delta_z,
+    )
+
+
+def installed_yz_in_hook_local(
+    lever_angle: float, installed_y: float, installed_z: float
+):
+    """Transform an installed case point into the moving hook's local frame."""
+    hook_origin_y, hook_origin_z = latch_hook_origin_yz(lever_angle)
+    hook_radians = math.radians(latch_hook_global_angle_degrees(lever_angle))
+    delta_y = installed_y - hook_origin_y
+    delta_z = installed_z - hook_origin_z
+    return (
+        math.cos(hook_radians) * delta_y + math.sin(hook_radians) * delta_z,
+        -math.sin(hook_radians) * delta_y + math.cos(hook_radians) * delta_z,
+    )
+
 
 # Separate reference-shaped U handle.  The base lugs are unioned into the case
 # shell; only the bar is a separate print.  ROD uses a retaining fit in the
@@ -2860,6 +2975,16 @@ def validate_configuration() -> None:
         raise ValueError("Alternating hinge segments need clearance between barrels")
     if HINGE_RIM_RELIEF_RADIAL_CLEARANCE < LID_LATCH_LIP_DRAW + 0.1:
         raise ValueError("Hinge rim relief must accommodate the full lid take-up")
+    hinge_bore_probe_diameter = HINGE_HOLE_DIAMETER - 2.0 * (
+        HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
+    )
+    if not (
+        0.0 < HINGE_BORE_VALIDATION_RADIAL_CLEARANCE <= 0.01
+        and hinge_bore_probe_diameter > HINGE_PIN_DIAMETER
+    ):
+        raise ValueError("Hinge bore validation probe must remain near-nominal")
+    if HINGE_PIN_PATH_AXIAL_CLEARANCE < HINGE_RIM_RELIEF_AXIAL_CLEARANCE:
+        raise ValueError("Lid rim relief must cover the complete hinge pin path")
     hinge_gusset_run = HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y
     hinge_gusset_rise = HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z
     hinge_gusset_overhang = math.degrees(
@@ -3296,14 +3421,14 @@ def validate_configuration() -> None:
         raise ValueError("Latch capture rail web is too thin")
     if LATCH_CAPTURE_HOOK_WALL < PIVOT_MIN_WALL_THICKNESS:
         raise ValueError("Latch capture hook wall violates the minimum-wall rule")
-    if not 0.08 <= LATCH_CAPTURE_SLOT_CLEARANCE <= 0.30:
-        raise ValueError("Latch capture C-slot needs 0.08-0.30 mm clearance")
+    if not 0.08 <= LATCH_CAPTURE_RAIL_PATH_CLEARANCE <= 0.30:
+        raise ValueError("Latch capture rail path needs 0.08-0.30 mm clearance")
     capture_slot_height = 2.0 * (
-        LID_LATCH_CAPTURE_RAIL_RADIUS + LATCH_CAPTURE_SLOT_CLEARANCE
+        LID_LATCH_CAPTURE_RAIL_RADIUS + LATCH_CAPTURE_RAIL_PATH_CLEARANCE
     )
     capture_rail_diameter = 2.0 * LID_LATCH_CAPTURE_RAIL_RADIUS
     if capture_slot_height - capture_rail_diameter > 0.6:
-        raise ValueError("Latch capture throat leaves excessive rail clearance")
+        raise ValueError("Latch capture path leaves excessive rail clearance")
     rail_bottom_z = LID_LATCH_CAPTURE_RAIL_CENTER_Z - LID_LATCH_CAPTURE_RAIL_RADIUS
     if rail_bottom_z < LID_FLANGE_EDGE_START_Z + 1.0:
         raise ValueError("Latch capture rail lacks a printable lower support rise")
@@ -3315,7 +3440,7 @@ def validate_configuration() -> None:
         raise ValueError("Latch capture rail does not stand proud of its back wall")
     if LID_LATCH_TROUGH_WIDTH > 25.0:
         raise ValueError("Latch capture rail exceeds the printable bridge span")
-    if LID_LATCH_TROUGH_SHOULDER_WIDTH < 3.0:
+    if LID_LATCH_TROUGH_SHOULDER_WIDTH < 4.0:
         raise ValueError("Latch capture rail side towers are too thin")
     if not 1.0 <= LATCH_CAPTURE_CLEARANCE_SWEEP_STEP_DEGREES <= 3.0:
         raise ValueError("Latch rail-clearance sweep step must remain 1-3 degrees")
@@ -3326,6 +3451,35 @@ def validate_configuration() -> None:
         < LATCH_LEVER_CLOSED_ANGLE
     ):
         raise ValueError("Latch capture guard/release angles are out of sequence")
+    if LATCH_CAPTURE_UPPER_ARM_THICKNESS < 3.2:
+        raise ValueError("Latch upper capture arm needs at least 3.2 mm thickness")
+    if LATCH_CAPTURE_NUB_AXIAL_WIDTH < 12.0:
+        raise ValueError("Latch behind-rail nub needs at least 12 mm axial width")
+    if LATCH_CAPTURE_NUB_ROOT_OVERLAP < 0.8:
+        raise ValueError(
+            "Latch behind-rail nub is not bonded deeply into its upper arm"
+        )
+    if not 0.02 <= LATCH_CAPTURE_NUB_SEATED_CLEARANCE <= 0.10:
+        raise ValueError("Latch nub hard-seat clearance must remain 0.02-0.10 mm")
+    if LATCH_CAPTURE_OUTWARD_PEEL_TRAVEL <= LATCH_CAPTURE_RAIL_PATH_CLEARANCE:
+        raise ValueError("Latch peel validation travel must exceed rail clearance")
+    protector_inner_offset = (
+        LATCH_BASE_EAR_CENTER_OFFSET_X
+        + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+        - LATCH_PROTECTOR_BASE_WIDTH / 2.0
+    )
+    moving_latch_outer_offset = LATCH_WIDTH / 2.0 + LATCH_BASE_EAR_AXIAL_CLEARANCE
+    if protector_inner_offset < moving_latch_outer_offset - 1e-6:
+        raise ValueError("Base latch protectors enter the moving latch envelope")
+    if LATCH_PROTECTOR_BASE_WIDTH < 4.0:
+        raise ValueError("Base latch protectors need at least 4 mm thickness")
+    protector_ramp_run = abs(LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y)
+    protector_ramp_rise = LATCH_PROTECTOR_FRONT_LOWER_Z - LATCH_PROTECTOR_ROOT_Z
+    if protector_ramp_rise + 1e-6 < protector_ramp_run:
+        raise ValueError("Base latch protector lower ramp exceeds a 45-degree overhang")
+    lever_front_y = LATCH_BASE_PIVOT_Y - LATCH_LEVER_PRINT_SIZE[1] / 2.0
+    if LATCH_PROTECTOR_FRONT_Y > lever_front_y - 1.0:
+        raise ValueError("Base latch protectors do not stand proud of the lever")
 
     if HANDLE_HARDWARE_MODE not in {"ROD", "M4"}:
         raise ValueError("HANDLE_HARDWARE_MODE must be ROD or M4")
@@ -3431,6 +3585,7 @@ def validate_configuration() -> None:
     mount_front = min(
         min(point[0] for point in LATCH_BASE_EAR_PROFILE_YZ),
         min(point[0] for point in HANDLE_BASE_EAR_PROFILE_YZ),
+        LATCH_PROTECTOR_FRONT_Y,
     )
     hinge_back = HINGE_AXIS_Y + HINGE_OUTER_DIAMETER / 2.0
     base_print_depth = hinge_back - mount_front
@@ -3495,9 +3650,12 @@ def validate_configuration() -> None:
         f"latch_rail_diameter={capture_rail_diameter:.2f} "
         f"latch_rail_outset={LID_LATCH_CAPTURE_RAIL_CENTER_OUTSET:.2f} "
         f"latch_rail_web={LID_LATCH_CAPTURE_WEB_THICKNESS:.2f} "
-        f"latch_c_slot_clearance={LATCH_CAPTURE_SLOT_CLEARANCE:.2f} "
-        f"latch_c_slot_release={LATCH_CAPTURE_FULL_RELEASE_ANGLE:.2f}deg "
+        f"latch_rail_path_clearance={LATCH_CAPTURE_RAIL_PATH_CLEARANCE:.2f} "
+        f"latch_rail_release={LATCH_CAPTURE_FULL_RELEASE_ANGLE:.2f}deg "
         f"latch_capture_hook_wall={LATCH_CAPTURE_HOOK_WALL:.2f} "
+        f"latch_protector={LATCH_PROTECTOR_BASE_WIDTH:.2f}x"
+        f"{abs(LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y):.2f} "
+        f"lid_protector={LID_LATCH_TROUGH_SHOULDER_WIDTH:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
         f"latch_mount_handle_clearance={latch_mount_handle_clearance:.2f} "
         f"handle_mode={HANDLE_HARDWARE_MODE} "
@@ -3590,11 +3748,12 @@ def create_base(material):
             ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
         )
         union_into(base, knuckle)
-        hole = add_cylinder_x(
+        hole = add_teardrop_hole_x(
             f"Base_Hinge_Hole_{index}",
             HINGE_HOLE_DIAMETER / 2.0,
-            x1 - x0 + 0.8,
+            x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
             ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
+            arc_steps=90,
         )
         difference_from(base, hole)
 
@@ -3635,6 +3794,31 @@ def create_base(material):
                 )
                 union_into(ear, detent_boss)
             union_into(base, ear)
+
+    # Thick impact cheeks stand proud of both sides of each closed lever, as
+    # on the supplied Pelican reference.  Their lower faces grow from the
+    # shell on 45-degree ramps, their front edges shield the lever from snags,
+    # and their chamfered tops return into the body without a brittle corner.
+    # The cheeks overlap the existing pivot ears; drill the common 4 mm-rod
+    # path again after union so this extra protection cannot refill a bore.
+    for index, x in enumerate(LATCH_X_CENTERS, start=1):
+        for side in (-1.0, 1.0):
+            ear_x = x + side * LATCH_BASE_EAR_CENTER_OFFSET_X
+            protector_center_x = ear_x + side * LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+            protector = extrude_loop_x(
+                f"Base_Latch_{index}_Side_Impact_Protector",
+                LATCH_PROTECTOR_PROFILE_YZ,
+                protector_center_x - LATCH_PROTECTOR_BASE_WIDTH / 2.0,
+                protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0,
+            )
+            union_into(base, protector)
+            protected_bore = add_teardrop_hole_x(
+                f"Base_Latch_{index}_Protected_3p9mm_Press_Fit_Hole",
+                LATCH_PRESS_FIT_BORE_DIAMETER / 2.0,
+                LATCH_PROTECTOR_BASE_WIDTH + 0.8,
+                (protector_center_x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
+            )
+            difference_from(base, protected_bore)
 
     # The suitcase-handle base is part of the shell: one reinforced, ramped lug
     # per side sits inside a relieved fork in the separate handle arm.  Its
@@ -3836,11 +4020,12 @@ def create_lid(
     # Match the supplied Pelican case's actual capture architecture: first cut
     # a deep molded bay completely through the front skirt, leaving a 4 mm back
     # wall, then span that bay with a substantial horizontal rail.  A narrower
-    # web ties the rail into the back wall.  The matching reinforced hook throat
-    # surrounds the rail at its deep closed end and can slide clear only along
-    # the linkage's deliberate opening path.  Robust side towers guide the
-    # 20.48 mm hook, prevent lateral walk-off, and support the 21.6 mm rail as a
-    # short printable bridge.
+    # outer webs tie the rail into the back wall while preserving a central
+    # recess for the hook's behind-rail nub.  The reinforced upper arm presses
+    # that nub onto a sloped landing and can cam clear only along the linkage's
+    # deliberate opening path.  Robust side towers guide the 20.48 mm hook,
+    # prevent lateral walk-off, shield it from side impacts, and support the
+    # 21.6 mm rail as a short printable bridge.
     rim_front_y = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET
     rim_inner_front_y = (CASE_DEPTH - 0.8) / 2.0
     recess_back_y = rim_inner_front_y + LID_LATCH_RECESS_BACK_WALL
@@ -3851,13 +4036,17 @@ def create_lid(
         + LID_LATCH_CAPTURE_RAIL_RADIUS
         + LID_LATCH_CAPTURE_BAY_CLEARANCE
     )
-    web_half_height = LID_LATCH_CAPTURE_WEB_THICKNESS / 2.0
+    side_web_z0 = LID_LATCH_CAPTURE_RAIL_CENTER_Z + 0.2
+    side_web_z1 = LID_LATCH_CAPTURE_RAIL_CENTER_Z + LID_LATCH_CAPTURE_RAIL_RADIUS - 0.1
     tower_back_y = recess_back_y - 0.2
     tower_slope_start_y = rim_front_y - 1.0
     tower_base_z = LID_FLANGE_EDGE_START_Z - LID_LATCH_TROUGH_SHOULDER_RISE
     tower_outer_y = rail_outer_y + LID_LATCH_CAPTURE_TOWER_OUTSET
     tower_slope_top_z = tower_base_z + tower_outer_y - tower_slope_start_y
-    tower_top_z = LID_LATCH_CAPTURE_RAIL_CENTER_Z + LID_LATCH_CAPTURE_RAIL_RADIUS + 0.2
+    tower_top_z = max(
+        LID_LATCH_CAPTURE_RAIL_CENTER_Z + LID_LATCH_CAPTURE_RAIL_RADIUS + 0.2,
+        tower_slope_top_z + LID_LATCH_PROTECTOR_TOP_CAP_RISE,
+    )
     tower_profile_yz = (
         (tower_back_y, tower_base_z),
         (tower_slope_start_y, tower_base_z),
@@ -3890,30 +4079,118 @@ def create_lid(
             vertices=64,
         )
         union_into(lid, rail)
-        web = extrude_loop_x(
-            f"Lid_Latch_{index}_Capture_Rail_Back_Web",
+        # Two outer back webs retain the rail while leaving a central recess
+        # for the hook's true-behind nub.  A short central landing below that
+        # recess takes the nub's downward clamp load and ties back into both
+        # the molded wall and the rail; the old full-width midplane web would
+        # physically occupy the requested nub space.
+        nub_recess_half_width = (
+            LATCH_CAPTURE_NUB_AXIAL_WIDTH / 2.0
+            + LATCH_CAPTURE_NUB_RECESS_AXIAL_CLEARANCE
+        )
+        web_outer_half_width = LID_LATCH_TROUGH_WIDTH / 2.0
+        for side in (-1.0, 1.0):
+            web_x0 = (
+                dx
+                + x
+                + min(
+                    side * nub_recess_half_width,
+                    side * web_outer_half_width,
+                )
+            )
+            web_x1 = (
+                dx
+                + x
+                + max(
+                    side * nub_recess_half_width,
+                    side * web_outer_half_width,
+                )
+            )
+            web = extrude_loop_x(
+                f"Lid_Latch_{index}_Capture_Rail_Side_Back_Web",
+                (
+                    (
+                        recess_back_y - 0.2,
+                        side_web_z0,
+                    ),
+                    (
+                        LID_LATCH_CAPTURE_RAIL_CENTER_Y,
+                        side_web_z0,
+                    ),
+                    (
+                        LID_LATCH_CAPTURE_RAIL_CENTER_Y,
+                        side_web_z1,
+                    ),
+                    (
+                        recess_back_y - 0.2,
+                        side_web_z1,
+                    ),
+                ),
+                web_x0,
+                web_x1,
+            )
+            union_into(lid, web)
+        landing_front_y = (
+            LID_LATCH_CAPTURE_RAIL_CENTER_Y
+            - LID_LATCH_CAPTURE_RAIL_RADIUS
+            + LATCH_CAPTURE_NUB_LANDING_RAIL_OVERLAP
+        )
+        nub_contact_outward_y = -(
+            LATCH_CAPTURE_RAIL_INSTALLED_Y
+            + LID_LATCH_CAPTURE_RAIL_RADIUS
+            + LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE
+        )
+        landing_back_y = recess_back_y - 0.2
+        landing_ramp_rise_per_y = (
+            LATCH_CAPTURE_NUB_CASEWARD_DROP / LATCH_CAPTURE_NUB_CASEWARD_WIDTH
+        )
+        landing_back_contact_z = (
+            LID_LATCH_NUB_LANDING_CONTACT_Z
+            + (nub_contact_outward_y - landing_back_y) * landing_ramp_rise_per_y
+        )
+        landing = extrude_loop_x(
+            f"Lid_Latch_{index}_Behind_Rail_Nub_Load_Landing",
             (
+                (landing_back_y, landing_back_contact_z),
+                (nub_contact_outward_y, LID_LATCH_NUB_LANDING_CONTACT_Z),
+                (landing_front_y, LID_LATCH_NUB_LANDING_CONTACT_Z),
                 (
-                    recess_back_y - 0.2,
-                    LID_LATCH_CAPTURE_RAIL_CENTER_Z - web_half_height,
+                    landing_front_y,
+                    LID_LATCH_NUB_LANDING_CONTACT_Z
+                    + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
                 ),
                 (
-                    LID_LATCH_CAPTURE_RAIL_CENTER_Y,
-                    LID_LATCH_CAPTURE_RAIL_CENTER_Z - web_half_height,
+                    nub_contact_outward_y,
+                    LID_LATCH_NUB_LANDING_CONTACT_Z
+                    + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
                 ),
                 (
-                    LID_LATCH_CAPTURE_RAIL_CENTER_Y,
-                    LID_LATCH_CAPTURE_RAIL_CENTER_Z + web_half_height,
-                ),
-                (
-                    recess_back_y - 0.2,
-                    LID_LATCH_CAPTURE_RAIL_CENTER_Z + web_half_height,
+                    landing_back_y,
+                    landing_back_contact_z + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
                 ),
             ),
-            dx + x - LID_LATCH_TROUGH_WIDTH / 2.0,
-            dx + x + LID_LATCH_TROUGH_WIDTH / 2.0,
+            dx + x - nub_recess_half_width,
+            dx + x + nub_recess_half_width,
         )
-        union_into(lid, web)
+        union_into(lid, landing)
+        landing_back_riser = extrude_loop_x(
+            f"Lid_Latch_{index}_Behind_Rail_Nub_Landing_Back_Riser",
+            (
+                (recess_back_y - 0.4, LID_WALL_HEIGHT - 0.2),
+                (recess_back_y, LID_WALL_HEIGHT - 0.2),
+                (
+                    recess_back_y,
+                    landing_back_contact_z + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
+                ),
+                (
+                    recess_back_y - 0.4,
+                    landing_back_contact_z + LATCH_CAPTURE_NUB_LANDING_THICKNESS,
+                ),
+            ),
+            dx + x - nub_recess_half_width,
+            dx + x + nub_recess_half_width,
+        )
+        union_into(lid, landing_back_riser)
         for side in (-1.0, 1.0):
             inner_x = dx + x + side * LID_LATCH_TROUGH_WIDTH / 2.0
             outer_x = inner_x + side * LID_LATCH_TROUGH_SHOULDER_WIDTH
@@ -3929,12 +4206,24 @@ def create_lid(
     # cylindrical pockets preserve the alternating-barrel hinge instead of
     # letting the surrounding rim collide before the lid can close.
     for index, (x0, x1) in enumerate(HINGE_BASE_SEGMENTS, start=1):
+        relief_x0 = x0 - HINGE_RIM_RELIEF_AXIAL_CLEARANCE
+        relief_x1 = x1 + HINGE_RIM_RELIEF_AXIAL_CLEARANCE
+        if index == 1:
+            relief_x0 = min(
+                relief_x0,
+                HINGE_PIN_X0 - HINGE_PIN_PATH_AXIAL_CLEARANCE,
+            )
+        if index == len(HINGE_BASE_SEGMENTS):
+            relief_x1 = max(
+                relief_x1,
+                HINGE_PIN_X1 + HINGE_PIN_PATH_AXIAL_CLEARANCE,
+            )
         relief = add_cylinder_x(
             f"Lid_Rear_Rim_Relief_For_Base_Knuckle_{index}",
             HINGE_OUTER_DIAMETER / 2.0 + HINGE_RIM_RELIEF_RADIAL_CLEARANCE,
-            x1 - x0 + 2.0 * HINGE_RIM_RELIEF_AXIAL_CLEARANCE,
+            relief_x1 - relief_x0,
             (
-                dx + (x0 + x1) / 2.0,
+                dx + (relief_x0 + relief_x1) / 2.0,
                 -HINGE_AXIS_Y,
                 LID_WALL_HEIGHT,
             ),
@@ -3962,7 +4251,10 @@ def create_lid(
     difference_from(lid, groove)
 
     # In print orientation the lid's hinge is at -Y; flipping the finished lid
-    # around X places it on the base's +Y hinge line.
+    # around X places it on the base's +Y hinge line.  Union each barrel into
+    # the complete flared rim before drilling through the combined solid.  If
+    # the barrel were drilled first, the later rim union would refill the lower
+    # half of its pin bore.
     for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
         knuckle = add_cylinder_x(
             f"Lid_Hinge_Knuckle_{index}",
@@ -3970,14 +4262,15 @@ def create_lid(
             x1 - x0,
             (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
         )
-        hole = add_cylinder_x(
+        union_into(lid, knuckle)
+        hole = add_teardrop_hole_x(
             f"Lid_Hinge_Hole_{index}",
             HINGE_HOLE_DIAMETER / 2.0,
-            x1 - x0 + 0.8,
+            x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
             (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
+            arc_steps=90,
         )
-        difference_from(knuckle, hole)
-        union_into(lid, knuckle)
+        difference_from(lid, hole)
 
     # The asymmetric interior boss mates with the TPU pad's open perimeter
     # notch.  A 180-degree-misrotated pad therefore cannot sit flat with its
@@ -4292,47 +4585,121 @@ def create_pelican_latch_parts(material):
                 vertices=64,
             )
             difference_from(part, hook_bore)
-            # The reference case does not balance its top clamp on a knife
-            # edge.  Its molded lid rail seats deeply inside a reinforced,
-            # round-ended hook throat.  Build that hidden jaw around the exact
-            # closed rail pose, then cut a close-running channel along the
-            # linkage's release direction.  The over-center linkage keeps the
-            # rail at the closed end until deliberate lever travel slides the
-            # throat clear.
-            closed_hook_radians = math.radians(LATCH_HOOK_CLOSED_ANGLE)
-            closed_hook_origin_y = LATCH_BASE_PIVOT_Y + LATCH_LINK_PIVOT_LOCAL_YZ[0]
-            closed_hook_origin_z = LATCH_BASE_PIVOT_Z + LATCH_LINK_PIVOT_LOCAL_YZ[1]
-
-            def installed_yz_to_closed_hook_local(y, z):
-                delta_y = y - closed_hook_origin_y
-                delta_z = z - closed_hook_origin_z
-                return (
-                    math.cos(closed_hook_radians) * delta_y
-                    + math.sin(closed_hook_radians) * delta_z,
-                    -math.sin(closed_hook_radians) * delta_y
-                    + math.cos(closed_hook_radians) * delta_z,
-                )
-
-            rail_local_y, rail_local_z = installed_yz_to_closed_hook_local(
-                LATCH_CAPTURE_RAIL_INSTALLED_Y,
-                LATCH_CAPTURE_RAIL_INSTALLED_Z,
+            # The source hook's rounded lower tooth made the latch look as if
+            # it were balancing on, or biting around, the lid rail.  Remove
+            # that lower jaw.  The replacement follows the actual Pelican
+            # load path: a full-width upper arm, plus a narrower downturned
+            # nub that enters the molded recess on the true caseward side of
+            # the rail and bears on the horizontal landing behind it.
+            lower_jaw_corners_installed = (
+                (-91.0, 53.0),
+                (LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y, 53.0),
+                (LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y, 61.85),
+                (-91.0, 61.85),
             )
-            capture_hook_boss = add_cylinder_x(
-                "Pelican_Hook_Reinforced_Lid_Capture_Jaw",
-                LID_LATCH_CAPTURE_RAIL_RADIUS
-                + LATCH_CAPTURE_SLOT_CLEARANCE
-                + LATCH_CAPTURE_HOOK_WALL,
-                LATCH_WIDTH,
-                (0.0, rail_local_y, rail_local_z),
-                vertices=64,
+            lower_jaw_cutter = extrude_loop_x(
+                "Pelican_Hook_Remove_Obsolete_Lower_Capture_Jaw",
+                tuple(
+                    installed_yz_in_hook_local(
+                        LATCH_LEVER_CLOSED_ANGLE,
+                        installed_y,
+                        installed_z,
+                    )
+                    for installed_y, installed_z in lower_jaw_corners_installed
+                ),
+                -LATCH_WIDTH / 2.0 - 0.4,
+                LATCH_WIDTH / 2.0 + 0.4,
             )
-            union_into(part, capture_hook_boss)
-            # The hook keeps the same global attitude while the coupled lever
-            # translates it along a shallow curved path.  Sample the fixed lid
-            # rail in each moving hook-local frame and subtract that exact
-            # swept envelope.  This produces a round-ended release channel:
-            # the closed end wraps the rail, while the far end becomes
-            # reachable only after deliberate lever travel.
+            difference_from(part, lower_jaw_cutter)
+
+            rail_local_y, rail_local_z = latch_rail_in_hook_local_yz(
+                LATCH_LEVER_CLOSED_ANGLE
+            )
+            rail_running_radius = (
+                LID_LATCH_CAPTURE_RAIL_RADIUS + LATCH_CAPTURE_RAIL_PATH_CLEARANCE
+            )
+            upper_arm_inner_y = rail_local_y - rail_running_radius
+            upper_arm_outer_y = upper_arm_inner_y - LATCH_CAPTURE_UPPER_ARM_THICKNESS
+            _release_rail_y, release_rail_z = latch_rail_in_hook_local_yz(
+                LATCH_CAPTURE_FULL_RELEASE_ANGLE
+            )
+            upper_arm_front_z = (
+                release_rail_z
+                - rail_running_radius
+                + LATCH_CAPTURE_UPPER_ARM_FRONT_OVERLAP
+            )
+            nub_contact_outward_installed_y = (
+                LATCH_CAPTURE_RAIL_INSTALLED_Y
+                + LID_LATCH_CAPTURE_RAIL_RADIUS
+                + LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE
+            )
+            nub_contact_caseward_installed_y = (
+                nub_contact_outward_installed_y + LATCH_CAPTURE_NUB_CASEWARD_WIDTH
+            )
+            nub_contact_outward_installed_z = (
+                LATCH_LID_INSTALLED_Z
+                - LID_LATCH_NUB_LANDING_CONTACT_Z
+                + LATCH_CAPTURE_NUB_SEATED_CLEARANCE
+            )
+            nub_contact_caseward_installed_z = (
+                nub_contact_outward_installed_z - LATCH_CAPTURE_NUB_CASEWARD_DROP
+            )
+            nub_front_y, nub_front_z = installed_yz_in_hook_local(
+                LATCH_LEVER_CLOSED_ANGLE,
+                nub_contact_outward_installed_y,
+                nub_contact_outward_installed_z,
+            )
+            nub_back_y, nub_back_z = installed_yz_in_hook_local(
+                LATCH_LEVER_CLOSED_ANGLE,
+                nub_contact_caseward_installed_y,
+                nub_contact_caseward_installed_z,
+            )
+            upper_arm_back_z = nub_front_z - 0.1
+            obsolete_upper_tooth_cutter = extrude_loop_x(
+                "Pelican_Hook_Remove_Obsolete_Caseward_Upper_Tooth",
+                (
+                    (-50.0, upper_arm_back_z - 0.05),
+                    (-24.0, upper_arm_back_z - 0.05),
+                    (-24.0, 15.0),
+                    (-50.0, 15.0),
+                ),
+                -LATCH_WIDTH / 2.0 - 0.4,
+                LATCH_WIDTH / 2.0 + 0.4,
+            )
+            difference_from(part, obsolete_upper_tooth_cutter)
+            upper_arm = extrude_loop_x(
+                "Pelican_Hook_Full_Width_Reinforced_Upper_Arm",
+                (
+                    (upper_arm_outer_y, upper_arm_front_z),
+                    (upper_arm_inner_y, upper_arm_front_z),
+                    (upper_arm_inner_y, upper_arm_back_z),
+                    (upper_arm_outer_y, upper_arm_back_z),
+                ),
+                -LATCH_WIDTH / 2.0 + LATCH_CAPTURE_UPPER_ARM_AXIAL_INSET,
+                LATCH_WIDTH / 2.0 - LATCH_CAPTURE_UPPER_ARM_AXIAL_INSET,
+            )
+            union_into(part, upper_arm)
+
+            nub_root_y = upper_arm_outer_y + LATCH_CAPTURE_NUB_ROOT_OVERLAP
+            capture_nub = extrude_loop_x(
+                "Pelican_Hook_Central_Behind_Rail_Downturned_Nub",
+                (
+                    (nub_root_y, nub_front_z - LATCH_CAPTURE_NUB_ROOT_OVERLAP),
+                    (nub_front_y, nub_front_z),
+                    (nub_back_y, nub_back_z),
+                    (nub_root_y, upper_arm_back_z),
+                ),
+                -LATCH_CAPTURE_NUB_AXIAL_WIDTH / 2.0,
+                LATCH_CAPTURE_NUB_AXIAL_WIDTH / 2.0,
+            )
+            union_into(part, capture_nub)
+
+            # Sample the fixed rail in the cammed moving-hook frame and remove
+            # its close-running envelope.  The first 12 degrees translate the
+            # whole upper arm outward while it stays captured.  From the guard
+            # pose to 24 degrees, the short nub tracks down the matching sloped
+            # landing and the rail exits through the deliberately open
+            # underside; no lower jaw or disconnected tooth is needed.
             release_sweep_steps = max(
                 1,
                 math.ceil(
@@ -4340,7 +4707,6 @@ def create_pelican_latch_parts(material):
                     / LATCH_CAPTURE_CLEARANCE_SWEEP_STEP_DEGREES
                 ),
             )
-            link_y, link_z = LATCH_LINK_PIVOT_LOCAL_YZ
             for step in range(release_sweep_steps + 1):
                 lever_angle = (
                     LATCH_LEVER_CLOSED_ANGLE
@@ -4348,41 +4714,32 @@ def create_pelican_latch_parts(material):
                     * step
                     / release_sweep_steps
                 )
-                sample_ratio = (lever_angle - LATCH_LEVER_CLOSED_ANGLE) / (
-                    LATCH_LEVER_OPEN_ANGLE - LATCH_LEVER_CLOSED_ANGLE
-                )
-                relative_hook_angle = LATCH_HOOK_CLOSED_ANGLE + sample_ratio * (
-                    LATCH_HOOK_OPEN_ANGLE - LATCH_HOOK_CLOSED_ANGLE
-                )
-                hook_angle = lever_angle + relative_hook_angle
-                lever_radians = math.radians(lever_angle)
-                hook_origin_y = (
-                    LATCH_BASE_PIVOT_Y
-                    + math.cos(lever_radians) * link_y
-                    - math.sin(lever_radians) * link_z
-                )
-                hook_origin_z = (
-                    LATCH_BASE_PIVOT_Z
-                    + math.sin(lever_radians) * link_y
-                    + math.cos(lever_radians) * link_z
-                )
-                hook_radians = math.radians(hook_angle)
-                delta_y = LATCH_CAPTURE_RAIL_INSTALLED_Y - hook_origin_y
-                delta_z = LATCH_CAPTURE_RAIL_INSTALLED_Z - hook_origin_z
-                local_y = (
-                    math.cos(hook_radians) * delta_y + math.sin(hook_radians) * delta_z
-                )
-                local_z = (
-                    -math.sin(hook_radians) * delta_y + math.cos(hook_radians) * delta_z
-                )
+                local_y, local_z = latch_rail_in_hook_local_yz(lever_angle)
                 capture_sweep_clearance = add_cylinder_x(
                     f"Pelican_Hook_Rail_Release_Sweep_{step:02d}",
-                    LID_LATCH_CAPTURE_RAIL_RADIUS + LATCH_CAPTURE_SLOT_CLEARANCE,
+                    rail_running_radius,
                     LATCH_WIDTH + 0.8,
                     (0.0, local_y, local_z),
                     vertices=64,
                 )
                 difference_from(part, capture_sweep_clearance)
+            release_lift_steps = 4
+            release_lift_distance = LID_LATCH_LIP_DRAW + LATCH_MAX_CAPTURE_FREE_LIFT
+            for step in range(1, release_lift_steps + 1):
+                lift = release_lift_distance * step / release_lift_steps
+                local_y, local_z = installed_yz_in_hook_local(
+                    LATCH_CAPTURE_FULL_RELEASE_ANGLE,
+                    LATCH_CAPTURE_RAIL_INSTALLED_Y,
+                    LATCH_CAPTURE_RAIL_INSTALLED_Z + lift,
+                )
+                release_lift_clearance = add_cylinder_x(
+                    f"Pelican_Hook_Rail_Lid_Lift_Release_{step:02d}",
+                    rail_running_radius,
+                    LATCH_WIDTH + 0.8,
+                    (0.0, local_y, local_z),
+                    vertices=64,
+                )
+                difference_from(part, release_lift_clearance)
             # The reinforced fixed lever boss is circular and stationary in
             # the lever frame.  In the rotating hook frame it follows this
             # sampled arc.  Relieving that swept envelope preserves the full
@@ -4390,17 +4747,20 @@ def create_pelican_latch_parts(material):
             relief_steps = max(
                 1,
                 math.ceil(
-                    abs(LATCH_HOOK_OPEN_ANGLE - LATCH_HOOK_CLOSED_ANGLE)
+                    abs(LATCH_LEVER_OPEN_ANGLE - LATCH_LEVER_CLOSED_ANGLE)
                     / LATCH_REINFORCEMENT_RELIEF_STEP_DEGREES
                 ),
             )
             link_y, link_z = LATCH_LINK_PIVOT_LOCAL_YZ
             for step in range(relief_steps + 1):
-                relative_angle = math.radians(
-                    LATCH_HOOK_CLOSED_ANGLE
-                    + (LATCH_HOOK_OPEN_ANGLE - LATCH_HOOK_CLOSED_ANGLE)
+                lever_angle = (
+                    LATCH_LEVER_CLOSED_ANGLE
+                    + (LATCH_LEVER_OPEN_ANGLE - LATCH_LEVER_CLOSED_ANGLE)
                     * step
                     / relief_steps
+                )
+                relative_angle = math.radians(
+                    latch_hook_global_angle_degrees(lever_angle) - lever_angle
                 )
                 delta_y = -link_y
                 delta_z = -link_z
@@ -4621,6 +4981,7 @@ def exact_transformed_intersection(
     first_rotation=(0.0, 0.0, 0.0),
     second_location=(0.0, 0.0, 0.0),
     second_rotation=(0.0, 0.0, 0.0),
+    return_bounds=False,
 ):
     """Return face count and volume of an exact temporary solid intersection."""
     probe = first.copy()
@@ -4647,16 +5008,29 @@ def exact_transformed_intersection(
             bm.from_mesh(probe.data)
             face_count = len(bm.faces)
             volume = abs(bm.calc_volume(signed=True)) if bm.faces else 0.0
+            if bm.verts:
+                coordinates = [probe.matrix_world @ vertex.co for vertex in bm.verts]
+                bounds = tuple(
+                    (
+                        min(coordinate[axis] for coordinate in coordinates),
+                        max(coordinate[axis] for coordinate in coordinates),
+                    )
+                    for axis in range(3)
+                )
+            else:
+                bounds = None
         finally:
             bm.free()
     finally:
         bpy.data.objects.remove(tool, do_unlink=True)
         bpy.data.objects.remove(probe, do_unlink=True)
+    if return_bounds:
+        return face_count, volume, bounds
     return face_count, volume
 
 
 def validate_built_lid_capture_rails(lid) -> None:
-    """Prove both exported latch bays contain solid, air-backed T-rails."""
+    """Prove both latch bays retain their rail, nub recess, and load landing."""
     rim_inner_front_y = (CASE_DEPTH - 0.8) / 2.0
     recess_back_y = rim_inner_front_y + LID_LATCH_RECESS_BACK_WALL
     probe_dimensions = (1.0, 0.2, 0.2)
@@ -4678,7 +5052,9 @@ def validate_built_lid_capture_rails(lid) -> None:
     minimum_back_wall_fill = math.prod(back_wall_dimensions) * 0.95
     bay_air_volumes = []
     rail_volumes = []
-    web_volumes = []
+    side_web_volumes = []
+    nub_recess_air_volumes = []
+    landing_volumes = []
     back_wall_volumes = []
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
         center_x = LID_DISPLAY_OFFSET_X + x
@@ -4704,13 +5080,55 @@ def validate_built_lid_capture_rails(lid) -> None:
                 ),
             )
         )
-        web_volumes.append(
+        nub_recess_half_width = (
+            LATCH_CAPTURE_NUB_AXIAL_WIDTH / 2.0
+            + LATCH_CAPTURE_NUB_RECESS_AXIAL_CLEARANCE
+        )
+        web_outer_half_width = LID_LATCH_TROUGH_WIDTH / 2.0
+        for side in (-1.0, 1.0):
+            side_web_volumes.append(
+                overlap_at(
+                    f"TEMPORARY_Lid_Latch_{index}_Solid_Side_Web_Probe",
+                    (
+                        center_x
+                        + side * (nub_recess_half_width + web_outer_half_width) / 2.0,
+                        (recess_back_y + LID_LATCH_CAPTURE_RAIL_CENTER_Y) / 2.0,
+                        LID_LATCH_CAPTURE_RAIL_CENTER_Z + 0.7,
+                    ),
+                )
+            )
+        nub_recess_air_volumes.append(
             overlap_at(
-                f"TEMPORARY_Lid_Latch_{index}_Solid_Rail_Web_Probe",
+                f"TEMPORARY_Lid_Latch_{index}_Open_Nub_Recess_Probe",
                 (
                     center_x,
                     (recess_back_y + LID_LATCH_CAPTURE_RAIL_CENTER_Y) / 2.0,
                     LID_LATCH_CAPTURE_RAIL_CENTER_Z,
+                ),
+            )
+        )
+        landing_front_y = (
+            LID_LATCH_CAPTURE_RAIL_CENTER_Y
+            - LID_LATCH_CAPTURE_RAIL_RADIUS
+            + LATCH_CAPTURE_NUB_LANDING_RAIL_OVERLAP
+        )
+        landing_probe_y = (recess_back_y + landing_front_y) / 2.0
+        nub_contact_outward_y = -(
+            LATCH_CAPTURE_RAIL_INSTALLED_Y
+            + LID_LATCH_CAPTURE_RAIL_RADIUS
+            + LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE
+        )
+        landing_probe_surface_z = LID_LATCH_NUB_LANDING_CONTACT_Z + max(
+            0.0,
+            nub_contact_outward_y - landing_probe_y,
+        ) * (LATCH_CAPTURE_NUB_CASEWARD_DROP / LATCH_CAPTURE_NUB_CASEWARD_WIDTH)
+        landing_volumes.append(
+            overlap_at(
+                f"TEMPORARY_Lid_Latch_{index}_Solid_Nub_Landing_Probe",
+                (
+                    center_x,
+                    landing_probe_y,
+                    landing_probe_surface_z + LATCH_CAPTURE_NUB_LANDING_THICKNESS / 2.0,
                 ),
             )
         )
@@ -4729,16 +5147,235 @@ def validate_built_lid_capture_rails(lid) -> None:
         raise ValueError("Lid skirt filled the molded latch capture bay")
     if min(rail_volumes) < minimum_solid_fill:
         raise ValueError("A generated horizontal latch capture rail is hollow")
-    if min(web_volumes) < minimum_solid_fill:
-        raise ValueError("A generated latch capture rail is disconnected from its web")
+    if min(side_web_volumes) < minimum_solid_fill:
+        raise ValueError("A generated latch rail is disconnected from a side web")
+    if max(nub_recess_air_volumes) > 1e-7:
+        raise ValueError("A generated latch nub recess is obstructed")
+    if min(landing_volumes) < minimum_solid_fill:
+        raise ValueError("A generated behind-rail nub landing is disconnected")
     if min(back_wall_volumes) < minimum_back_wall_fill:
         raise ValueError("A generated latch recess weakened its skirt back wall")
     print(
         "FIELD_CASE_LID_RAIL_VALID "
         f"bay_air_max={max(bay_air_volumes):.9f} "
         f"rail_solid_min={min(rail_volumes):.6f} "
-        f"web_solid_min={min(web_volumes):.6f} "
+        f"side_web_solid_min={min(side_web_volumes):.6f} "
+        f"nub_recess_air_max={max(nub_recess_air_volumes):.9f} "
+        f"nub_landing_solid_min={min(landing_volumes):.6f} "
         f"back_wall_solid_min={min(back_wall_volumes):.6f}"
+    )
+
+
+def validate_built_latch_hook_capture(hook) -> None:
+    """Prove the hook has an upper arm/nub and no obsolete lower jaw."""
+    rail_local_y, rail_local_z = latch_rail_in_hook_local_yz(LATCH_LEVER_CLOSED_ANGLE)
+    rail_running_radius = (
+        LID_LATCH_CAPTURE_RAIL_RADIUS + LATCH_CAPTURE_RAIL_PATH_CLEARANCE
+    )
+    upper_arm_inner_y = rail_local_y - rail_running_radius
+    upper_arm_outer_y = upper_arm_inner_y - LATCH_CAPTURE_UPPER_ARM_THICKNESS
+    _release_rail_y, release_rail_z = latch_rail_in_hook_local_yz(
+        LATCH_CAPTURE_FULL_RELEASE_ANGLE
+    )
+    upper_arm_front_z = (
+        release_rail_z - rail_running_radius + LATCH_CAPTURE_UPPER_ARM_FRONT_OVERLAP
+    )
+    nub_contact_outward_installed_y = (
+        LATCH_CAPTURE_RAIL_INSTALLED_Y
+        + LID_LATCH_CAPTURE_RAIL_RADIUS
+        + LATCH_CAPTURE_NUB_RAIL_TANGENT_CLEARANCE
+    )
+    nub_contact_caseward_installed_y = (
+        nub_contact_outward_installed_y + LATCH_CAPTURE_NUB_CASEWARD_WIDTH
+    )
+    nub_contact_outward_installed_z = (
+        LATCH_LID_INSTALLED_Z
+        - LID_LATCH_NUB_LANDING_CONTACT_Z
+        + LATCH_CAPTURE_NUB_SEATED_CLEARANCE
+    )
+    nub_contact_caseward_installed_z = (
+        nub_contact_outward_installed_z - LATCH_CAPTURE_NUB_CASEWARD_DROP
+    )
+    nub_front_y, nub_front_z = installed_yz_in_hook_local(
+        LATCH_LEVER_CLOSED_ANGLE,
+        nub_contact_outward_installed_y,
+        nub_contact_outward_installed_z,
+    )
+    nub_back_y, nub_back_z = installed_yz_in_hook_local(
+        LATCH_LEVER_CLOSED_ANGLE,
+        nub_contact_caseward_installed_y,
+        nub_contact_caseward_installed_z,
+    )
+    upper_arm_back_z = nub_front_z - 0.1
+    nub_root_y = upper_arm_outer_y + LATCH_CAPTURE_NUB_ROOT_OVERLAP
+
+    def overlap_with_sphere(name, location, radius=0.18):
+        probe = add_uv_sphere(name, radius, location, segments=24, ring_count=12)
+        try:
+            _faces, volume = exact_transformed_intersection(
+                hook,
+                probe,
+                second_location=location,
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        return volume
+
+    arm_probe_z = (upper_arm_front_z + upper_arm_back_z) / 2.0
+    arm_probe_y = (upper_arm_inner_y + upper_arm_outer_y) / 2.0
+    arm_volumes = [
+        overlap_with_sphere(
+            f"TEMPORARY_Latch_Upper_Arm_Solid_Probe_{index}",
+            (x, arm_probe_y, arm_probe_z),
+        )
+        for index, x in enumerate(
+            (-LATCH_WIDTH / 2.0 + 0.5, 0.0, LATCH_WIDTH / 2.0 - 0.5),
+            start=1,
+        )
+    ]
+    nub_volume = overlap_with_sphere(
+        "TEMPORARY_Latch_Central_Nub_Solid_Probe",
+        (
+            0.0,
+            (nub_root_y + nub_front_y + nub_back_y) / 3.0,
+            (upper_arm_back_z + nub_front_z + nub_back_z) / 3.0,
+        ),
+    )
+    root_volume = overlap_with_sphere(
+        "TEMPORARY_Latch_Nub_Root_Bond_Probe",
+        (
+            0.0,
+            (nub_root_y + upper_arm_inner_y) / 2.0,
+            upper_arm_back_z - 0.25,
+        ),
+    )
+    lower_jaw_local_y, lower_jaw_local_z = installed_yz_in_hook_local(
+        LATCH_LEVER_CLOSED_ANGLE,
+        -85.5,
+        59.5,
+    )
+    lower_jaw_volume = overlap_with_sphere(
+        "TEMPORARY_Latch_Obsolete_Lower_Jaw_Air_Probe",
+        (0.0, lower_jaw_local_y, lower_jaw_local_z),
+        radius=0.25,
+    )
+    minimum_probe_volume = 4.0 / 3.0 * math.pi * 0.18**3 * 0.9
+    if min(arm_volumes) < minimum_probe_volume:
+        raise ValueError(
+            "Latch reinforced upper arm is not solid across its full width"
+        )
+    if nub_volume < minimum_probe_volume:
+        raise ValueError("Latch behind-rail nub is not solid")
+    if root_volume < minimum_probe_volume:
+        raise ValueError("Latch behind-rail nub is not bonded into its upper arm")
+    if lower_jaw_volume > 1e-7:
+        raise ValueError("Obsolete lower latch jaw remains below the lid rail")
+    print(
+        "FIELD_CASE_LATCH_HOOK_CAPTURE_VALID "
+        f"upper_arm_thickness={LATCH_CAPTURE_UPPER_ARM_THICKNESS:.2f} "
+        f"upper_arm_solid_min={min(arm_volumes):.6f} "
+        f"nub_width={LATCH_CAPTURE_NUB_AXIAL_WIDTH:.2f} "
+        f"nub_solid={nub_volume:.6f} root_solid={root_volume:.6f} "
+        f"lower_jaw_air={lower_jaw_volume:.9f}"
+    )
+
+
+def validate_built_latch_impact_protectors(parts) -> None:
+    """Prove the base/lid impact cheeks are solid and leave lever access open."""
+
+    def overlap_at(part, name, location, dimensions):
+        probe = add_rounded_box(name, dimensions, location, bevel=0.0)
+        try:
+            _faces, volume = exact_transformed_intersection(
+                part,
+                probe,
+                second_location=location,
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        return volume
+
+    base_probe_dimensions = (0.8, 0.5, 0.8)
+    base_minimum_fill = math.prod(base_probe_dimensions) * 0.9
+    base_guard_volumes = []
+    base_bond_volumes = []
+    access_air_volumes = []
+    lid_guard_volumes = []
+    lid_probe_dimensions = (0.8, 0.4, 0.4)
+    lid_minimum_fill = math.prod(lid_probe_dimensions) * 0.9
+    for index, x in enumerate(LATCH_X_CENTERS, start=1):
+        access_air_volumes.append(
+            overlap_at(
+                parts["base"],
+                f"TEMPORARY_Latch_{index}_Protector_Finger_Access_Probe",
+                (x, LATCH_PROTECTOR_FRONT_Y + 1.0, 36.0),
+                (LATCH_WIDTH - 1.0, 0.5, 1.0),
+            )
+        )
+        for side in (-1.0, 1.0):
+            protector_center_x = x + side * (
+                LATCH_BASE_EAR_CENTER_OFFSET_X + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+            )
+            base_guard_volumes.append(
+                overlap_at(
+                    parts["base"],
+                    f"TEMPORARY_Latch_{index}_Base_Protector_Solid_Probe",
+                    (protector_center_x, LATCH_PROTECTOR_FRONT_Y + 0.3, 40.0),
+                    base_probe_dimensions,
+                )
+            )
+            base_bond_volumes.append(
+                overlap_at(
+                    parts["base"],
+                    f"TEMPORARY_Latch_{index}_Base_Protector_Bond_Probe",
+                    (protector_center_x, LATCH_PROTECTOR_BODY_Y, 40.0),
+                    base_probe_dimensions,
+                )
+            )
+            lid_tower_center_x = (
+                LID_DISPLAY_OFFSET_X
+                + x
+                + side
+                * (LID_LATCH_TROUGH_WIDTH / 2.0 + LID_LATCH_TROUGH_SHOULDER_WIDTH / 2.0)
+            )
+            lid_tower_outer_y = (
+                LID_LATCH_CAPTURE_RAIL_CENTER_Y
+                + LID_LATCH_CAPTURE_RAIL_RADIUS
+                + LID_LATCH_CAPTURE_TOWER_OUTSET
+            )
+            lid_tower_slope_start_y = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET - 1.0
+            lid_tower_base_z = LID_FLANGE_EDGE_START_Z - LID_LATCH_TROUGH_SHOULDER_RISE
+            lid_tower_slope_top_z = (
+                lid_tower_base_z + lid_tower_outer_y - lid_tower_slope_start_y
+            )
+            lid_guard_volumes.append(
+                overlap_at(
+                    parts["lid"],
+                    f"TEMPORARY_Latch_{index}_Lid_Protector_Solid_Probe",
+                    (
+                        lid_tower_center_x,
+                        lid_tower_outer_y - 0.5,
+                        lid_tower_slope_top_z + 0.4,
+                    ),
+                    lid_probe_dimensions,
+                )
+            )
+    if min(base_guard_volumes) < base_minimum_fill:
+        raise ValueError("A base latch impact protector is hollow")
+    if min(base_bond_volumes) < base_minimum_fill:
+        raise ValueError("A base latch impact protector is not bonded to the shell")
+    if max(access_air_volumes) > 1e-7:
+        raise ValueError("Base latch protectors obstruct lever finger access")
+    if min(lid_guard_volumes) < lid_minimum_fill:
+        raise ValueError("A lid latch impact protector is hollow")
+    print(
+        "FIELD_CASE_LATCH_PROTECTORS_VALID "
+        f"base_thickness={LATCH_PROTECTOR_BASE_WIDTH:.2f} "
+        f"base_solid_min={min(base_guard_volumes):.6f} "
+        f"base_bond_min={min(base_bond_volumes):.6f} "
+        f"lid_thickness={LID_LATCH_TROUGH_SHOULDER_WIDTH:.2f} "
+        f"lid_solid_min={min(lid_guard_volumes):.6f} "
+        f"finger_access_air_max={max(access_air_volumes):.9f}"
     )
 
 
@@ -4802,20 +5439,13 @@ def validate_installed_latch_mechanics(parts) -> None:
             lever_angle = LATCH_LEVER_CLOSED_ANGLE + sample_ratio * (
                 LATCH_LEVER_OPEN_ANGLE - LATCH_LEVER_CLOSED_ANGLE
             )
-            relative_hook_angle = LATCH_HOOK_CLOSED_ANGLE + sample_ratio * (
-                LATCH_HOOK_OPEN_ANGLE - LATCH_HOOK_CLOSED_ANGLE
-            )
-            hook_angle = lever_angle + relative_hook_angle
+            hook_angle = latch_hook_global_angle_degrees(lever_angle)
             lever_radians = math.radians(lever_angle)
-            link_y, link_z = LATCH_LINK_PIVOT_LOCAL_YZ
+            hook_origin_y, hook_origin_z = latch_hook_origin_yz(lever_angle)
             hook_location = (
                 lever_location[0],
-                lever_location[1]
-                + math.cos(lever_radians) * link_y
-                - math.sin(lever_radians) * link_z,
-                lever_location[2]
-                + math.sin(lever_radians) * link_y
-                + math.cos(lever_radians) * link_z,
+                hook_origin_y,
+                hook_origin_z,
             )
             lever_rotation = (lever_radians, 0.0, 0.0)
             hook_rotation = (math.radians(hook_angle), 0.0, 0.0)
@@ -4924,10 +5554,22 @@ def validate_installed_latch_mechanics(parts) -> None:
                     lid_faces,
                 )
             if lid_volume > LATCH_SWEEP_RESIDUAL_VOLUME_LIMIT:
+                _debug_faces, _debug_volume, collision_bounds = (
+                    exact_transformed_intersection(
+                        parts["lid"],
+                        parts["latch_hook"],
+                        first_location=seated_lid_location,
+                        first_rotation=lid_rotation,
+                        second_location=hook_location,
+                        second_rotation=hook_rotation,
+                        return_bounds=True,
+                    )
+                )
                 raise ValueError(
                     "Coupled latch release sweep collides with the seated lid rim: "
                     f"lever_angle={lever_angle:.2f} axial={axial_offset:+.2f} "
-                    f"faces={lid_faces} volume={lid_volume:.6f}"
+                    f"faces={lid_faces} volume={lid_volume:.6f} "
+                    f"bounds={collision_bounds}"
                 )
             if sample_index == 0:
                 closed_hook_poses[axial_offset] = (hook_location, hook_rotation)
@@ -5029,6 +5671,18 @@ def validate_installed_latch_mechanics(parts) -> None:
     )
     capture_volumes = []
     preload_volumes = []
+    outward_peel_volumes = []
+    central_capture_rail = add_cylinder_x(
+        "TEMPORARY_Central_Lid_Rail_Outward_Peel_Probe",
+        LID_LATCH_CAPTURE_RAIL_RADIUS,
+        LATCH_CAPTURE_NUB_AXIAL_WIDTH - 2.0 * LATCH_BASE_EAR_AXIAL_CLEARANCE,
+        (
+            LATCH_X_CENTERS[1],
+            LATCH_CAPTURE_RAIL_INSTALLED_Y,
+            LATCH_CAPTURE_RAIL_INSTALLED_Z,
+        ),
+        vertices=64,
+    )
     for axial_offset in axial_offsets:
         closed_hook_location, closed_hook_rotation = closed_hook_poses[axial_offset]
         capture_faces, capture_volume = exact_transformed_intersection(
@@ -5061,35 +5715,39 @@ def validate_installed_latch_mechanics(parts) -> None:
             )
         preload_volumes.append(preload_volume)
 
+        peeled_hook_location = (
+            closed_hook_location[0],
+            closed_hook_location[1] - LATCH_CAPTURE_OUTWARD_PEEL_TRAVEL,
+            closed_hook_location[2],
+        )
+        peel_faces, peel_volume = exact_transformed_intersection(
+            central_capture_rail,
+            parts["latch_hook"],
+            first_location=central_capture_rail.location,
+            second_location=peeled_hook_location,
+            second_rotation=closed_hook_rotation,
+        )
+        if not peel_faces or peel_volume < LATCH_CAPTURE_OUTWARD_PEEL_MIN_VOLUME:
+            raise ValueError(
+                "Closed hook can peel outward past the behind-rail nub: "
+                f"axial={axial_offset:+.2f} volume={peel_volume:.6f}"
+            )
+        outward_peel_volumes.append(peel_volume)
+    bpy.data.objects.remove(central_capture_rail, do_unlink=True)
+
     guarded_capture_volumes = []
     released_capture_volumes = []
     for lever_angle, output, require_capture in (
         (LATCH_CAPTURE_RELEASE_GUARD_ANGLE, guarded_capture_volumes, True),
         (LATCH_CAPTURE_FULL_RELEASE_ANGLE, released_capture_volumes, False),
     ):
-        sample_ratio = (lever_angle - LATCH_LEVER_CLOSED_ANGLE) / (
-            LATCH_LEVER_OPEN_ANGLE - LATCH_LEVER_CLOSED_ANGLE
-        )
-        relative_hook_angle = LATCH_HOOK_CLOSED_ANGLE + sample_ratio * (
-            LATCH_HOOK_OPEN_ANGLE - LATCH_HOOK_CLOSED_ANGLE
-        )
-        hook_angle = lever_angle + relative_hook_angle
-        lever_radians = math.radians(lever_angle)
-        link_y, link_z = LATCH_LINK_PIVOT_LOCAL_YZ
+        hook_angle = latch_hook_global_angle_degrees(lever_angle)
+        hook_origin_y, hook_origin_z = latch_hook_origin_yz(lever_angle)
         for axial_offset in axial_offsets:
-            lever_location = (
-                LATCH_X_CENTERS[1] + axial_offset,
-                LATCH_BASE_PIVOT_Y,
-                LATCH_BASE_PIVOT_Z,
-            )
             hook_location = (
-                lever_location[0],
-                lever_location[1]
-                + math.cos(lever_radians) * link_y
-                - math.sin(lever_radians) * link_z,
-                lever_location[2]
-                + math.sin(lever_radians) * link_y
-                + math.cos(lever_radians) * link_z,
+                LATCH_X_CENTERS[1] + axial_offset,
+                hook_origin_y,
+                hook_origin_z,
             )
             hook_rotation = (math.radians(hook_angle), 0.0, 0.0)
             faces, volume = exact_transformed_intersection(
@@ -5156,6 +5814,8 @@ def validate_installed_latch_mechanics(parts) -> None:
         f"capture_at_{LATCH_MAX_CAPTURE_FREE_LIFT:.2f}mm_min="
         f"{min(capture_volumes):.6f} "
         f"uncompressed_rail_preload_min={min(preload_volumes):.6f} "
+        f"outward_peel_capture_min={min(outward_peel_volumes):.6f}@"
+        f"{LATCH_CAPTURE_OUTWARD_PEEL_TRAVEL:.2f}mm "
         f"rail_guard_at_{LATCH_CAPTURE_RELEASE_GUARD_ANGLE:.2f}deg_min="
         f"{min(guarded_capture_volumes):.6f} "
         f"rail_release_at_{LATCH_CAPTURE_FULL_RELEASE_ANGLE:.2f}deg_max="
@@ -5279,7 +5939,7 @@ def validate_built_base_hinge_gussets(base) -> None:
 
         bore_probe = add_cylinder_x(
             f"TEMPORARY_Base_Hinge_{index}_Open_Bore_Probe",
-            HINGE_HOLE_DIAMETER / 2.0 - 0.2,
+            HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
             x1 - x0 - 0.8,
             ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
         )
@@ -5299,11 +5959,39 @@ def validate_built_base_hinge_gussets(base) -> None:
             )
         bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
 
+    full_path_probe = add_cylinder_x(
+        "TEMPORARY_Base_Full_Hinge_Pin_Path_Probe",
+        HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+        HINGE_PIN_X1 - HINGE_PIN_X0,
+        (
+            (HINGE_PIN_X0 + HINGE_PIN_X1) / 2.0,
+            HINGE_AXIS_Y,
+            BASE_HEIGHT,
+        ),
+    )
+    try:
+        full_path_faces, full_path_overlap = exact_transformed_intersection(
+            base,
+            full_path_probe,
+            second_location=full_path_probe.location.copy(),
+            second_rotation=full_path_probe.rotation_euler.copy(),
+        )
+    finally:
+        bpy.data.objects.remove(full_path_probe, do_unlink=True)
+    if full_path_faces or full_path_overlap > 1e-6:
+        raise ValueError(
+            "Base obstructs the continuous hinge pin path: "
+            f"faces={full_path_faces} volume={full_path_overlap:.6f}"
+        )
+
     hinge_gusset_overhang = math.degrees(
         math.atan2(
             HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y,
             HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z,
         )
+    )
+    bore_probe_diameter = HINGE_HOLE_DIAMETER - 2.0 * (
+        HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
     )
     print(
         "FIELD_CASE_BASE_HINGE_GUSSETS_VALID "
@@ -5313,7 +6001,76 @@ def validate_built_base_hinge_gussets(base) -> None:
         f"tangent_yz={HINGE_BASE_GUSSET_TANGENT_Y:.3f},"
         f"{HINGE_BASE_GUSSET_TANGENT_Z:.3f} "
         f"solid_probe_min={minimum_solid_fill:.6f} "
-        f"bore_overlap_max={bore_overlap_maximum:.6f}"
+        f"bore_probe_diameter={bore_probe_diameter:.3f} "
+        f"bore_overlap_max={bore_overlap_maximum:.6f} "
+        f"full_pin_path_overlap={full_path_overlap:.6f}"
+    )
+
+
+def validate_built_lid_hinge_bores(lid) -> None:
+    """Reject any rim material left inside either completed lid pin bore."""
+    bore_overlap_maximum = 0.0
+    for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
+        bore_probe = add_cylinder_x(
+            f"TEMPORARY_Lid_Hinge_{index}_Open_Bore_Probe",
+            HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+            x1 - x0 - 0.8,
+            (
+                LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0,
+                -HINGE_AXIS_Y,
+                LID_WALL_HEIGHT,
+            ),
+        )
+        try:
+            bore_faces, bore_overlap = exact_transformed_intersection(
+                lid,
+                bore_probe,
+                second_location=bore_probe.location.copy(),
+                second_rotation=bore_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(bore_probe, do_unlink=True)
+        if bore_faces or bore_overlap > 1e-6:
+            raise ValueError(
+                "Lid hinge pin bore is obstructed by the completed rim: "
+                f"segment={index} faces={bore_faces} volume={bore_overlap:.6f}"
+            )
+        bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
+
+    full_path_probe = add_cylinder_x(
+        "TEMPORARY_Lid_Full_Hinge_Pin_Path_Probe",
+        HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+        HINGE_PIN_X1 - HINGE_PIN_X0,
+        (
+            LID_DISPLAY_OFFSET_X + (HINGE_PIN_X0 + HINGE_PIN_X1) / 2.0,
+            -HINGE_AXIS_Y,
+            LID_WALL_HEIGHT,
+        ),
+    )
+    try:
+        full_path_faces, full_path_overlap = exact_transformed_intersection(
+            lid,
+            full_path_probe,
+            second_location=full_path_probe.location.copy(),
+            second_rotation=full_path_probe.rotation_euler.copy(),
+        )
+    finally:
+        bpy.data.objects.remove(full_path_probe, do_unlink=True)
+    if full_path_faces or full_path_overlap > 1e-6:
+        raise ValueError(
+            "Lid obstructs the continuous hinge pin path: "
+            f"faces={full_path_faces} volume={full_path_overlap:.6f}"
+        )
+
+    probe_diameter = HINGE_HOLE_DIAMETER - 2.0 * (
+        HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
+    )
+    print(
+        "FIELD_CASE_LID_HINGE_BORES_VALID "
+        f"count={len(HINGE_LID_SEGMENTS)} "
+        f"probe_diameter={probe_diameter:.3f} "
+        f"overlap_max={bore_overlap_maximum:.6f} "
+        f"full_pin_path_overlap={full_path_overlap:.6f}"
     )
 
 
@@ -6903,8 +7660,11 @@ def build_mission1_field_case():
         validate_built_part(name, obj)
     validate_installed_lower_tray(parts)
     validate_built_base_hinge_gussets(parts["base"])
+    validate_built_lid_hinge_bores(parts["lid"])
     validate_installed_case_closure(parts)
     validate_built_lid_capture_rails(parts["lid"])
+    validate_built_latch_hook_capture(parts["latch_hook"])
+    validate_built_latch_impact_protectors(parts)
     validate_installed_latch_mechanics(parts)
     validate_installed_handle_mechanics(parts)
     lid_islands = validate_lid_bonding_payloads(
