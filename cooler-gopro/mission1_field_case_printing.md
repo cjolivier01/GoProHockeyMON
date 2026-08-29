@@ -1,11 +1,14 @@
 # Dual MISSION 1 field case
 
-`mission1_field_case_blender.py` procedurally creates every printable part of a
+`mission1_field_case_blender.py` creates every printable part of a
 rugged case for two GoPro MISSION 1 cameras and four Enduro 2/HERO13-format
-batteries. No downloaded mesh is required or included, and every part fits
-within a 250 x 250 mm build area.
+batteries. It reads no STL during generation, and every part fits within a
+250 x 250 mm build area. The latch lever and moving hook are derived from the
+mechanism in the user-supplied `pelican_case_blender_2.9.blend`; their processed
+mesh coordinates are embedded directly in the Python file, so generation does
+not load that `.blend` or any STL at runtime.
 
-Build the complete STL set and AMS-ready project with:
+Build all thirteen STLs and the multicolor 3MF project with:
 
 ```sh
 make -C cooler-gopro mission1-field-case
@@ -14,120 +17,215 @@ make -C cooler-gopro mission1-field-case
 The Makefile requires GNU Make 4.3 or newer. On macOS, install a current GNU
 Make and run the command as `gmake` when the system `make` is BSD Make.
 
-The lower insert is one flat-topped TPU tray. It has two distinct camera
-pockets cut from the local procedural MISSION 1 body—including its offset lens
-housing, controls, and rounded body—and four recessed battery pockets. The two
-cameras face in opposite directions so the lens lobes nest side by side while
-a continuous TPU web keeps the camera pockets separate. Nothing rises above
-the tray's top plane. Each lens end widens into a trapezoidal relief for the
-soft MISSION 1 Pro lens-flare/hood attachment shown in the supplied one-camera
-case. Two thin side slots store the removable battery-cage doors edge-on; the
-round top scoops provide pinch access. Their default recesses are 4.6 x 32 mm;
-measure the actual doors and tune `BATTERY_DOOR_SLOT_SIZE` before a long print
-if that hardware differs.
+The lower insert is one flush-top TPU tray. It has two independent camera
+pockets cut from the local procedural MISSION 1 body, including its offset lens
+housing, controls, and rounded body. The cameras face opposite directions so
+their lens lobes nest while a continuous TPU web keeps the pockets separate.
+Each lens end widens into a trapezoidal relief for the soft MISSION 1 Pro lens
+flare/hood. Four exact 33.5 x 12.5 mm battery pockets retain their existing
+21.8 mm insertion depth; the generated inspection batteries are 40.56 mm tall
+and sit terminal-down. Two outer 50 x 10 mm door pockets are recessed 10 mm.
+The generated 18 mm-tall door solids remain 8 mm proud for an easy finger grip.
 
-The TPU lid pad has separate shallow reliefs for the two shutter buttons. An
-asymmetric perimeter notch mates with one boss inside the rigid lid, so the pad
-cannot seat after a 180-degree rotation with those reliefs over the wrong ends
-of the cameras. The rigid lid's hinge then preserves that keyed orientation
-relative to the lower tray every time the case closes.
+The TPU lid pad has separate shutter-button reliefs. Its asymmetric perimeter
+notch mates with a rigid lid boss, so the pad seats in only the correct
+direction. Two localized 11 mm extensions meet the proud battery doors with
+the same 0.6 mm preload as the camera/battery contact face, preventing the
+doors from rattling when the case is closed.
+
+With `BUILD_REFERENCE_MOCKUPS = True`, the script also creates four procedural
+40.56 mm battery solids and two procedural 50 x 10 x 18 mm door solids seated
+in those pockets for visual inspection. They are reference-only scene objects,
+not additional STL dependencies or print outputs.
+
+## Lid logo
+
+The only lid text is `GoPro Missions`, set in a large embedded Neuropol glyph
+subset. Four small blocks below it follow the GoPro mark: dark blue, blue,
+cyan, and white. The text and last block share one white inlay STL, while the
+other three blocks have their own color bodies.
+
+The embedded Neuropol 3.100 glyph subset is from Ray Larabie's CC0 release. It
+keeps Blender CLI and Text Editor generation self-contained; no system font is
+needed.
+
+`mission1_field_case_ams_project.3mf` contains the lid as one aligned five-color
+compound object:
+
+- black shell
+- white `GoPro Missions` text and white block
+- dark-blue block
+- blue block
+- cyan block
+
+The 3MF declares those five rigid filaments plus TPU as filament 6. Five rigid
+colors require more than one four-slot AMS, a tool-changing system, or planned
+manual color swaps. TPU remains on separate plates and should normally use an
+external spool.
+
+For another slicer, import these files together without changing their relative
+positions:
+
+- `mission1_field_case_lid.stl`
+- `mission1_field_case_lid_logo_white_inlay.stl`
+- `mission1_field_case_lid_logo_dark_blue_inlay.stl`
+- `mission1_field_case_lid_logo_blue_inlay.stl`
+- `mission1_field_case_lid_logo_cyan_inlay.stl`
+
+The 0.8 mm inlays have exact shared boundaries with the shell for compound
+multicolor slicing and every island shares a verified bonding face. Standalone
+inlay installation may require light sanding because no assembly gap is added
+to the multicolor interface.
+
+## Pelican toggle latches
+
+Each clasp uses the two moving bodies extracted from the supplied Pelican case
+scene: the broad outer lever and its curved moving hook. They are separate,
+manifold prints rather than a print-in-place substitute. The visible source
+surfaces are retained at 80% scale; the two pin bores and hidden overlapping
+interior surfaces were adapted so the visualization geometry can articulate as
+a printable mechanism.
+
+Print two copies of:
+
+- `mission1_field_case_pelican_latch_lever_print_two.stl`
+- `mission1_field_case_pelican_latch_hook_print_two.stl`
+
+Each latch uses two nominal 4 mm stainless rods:
+
+- one fixed-pivot rod cut to `LATCH_FIXED_ROD_LENGTH` (28.88 mm by default)
+- one moving-link rod cut to `LATCH_LINK_ROD_LENGTH` (20.48 mm by default)
+
+Two shaped mounting ears are part of the case base. Their 3.9 mm retaining
+bores grip the fixed rod while the source lever's 4.4 mm bore turns freely on
+it. At the moving pivot, the rod passes through the lever's second 4.4 mm
+running bore and is retained by the hook's 3.9 mm bore. The exposed circular
+ends in the assembled view are the requested stainless rods, not printed latch
+features.
+
+The lid has one continuous 5 mm flared rim with a full 2 mm vertical loaded
+edge. At each latch, that rim forms a 21.6 mm-wide capture trough around the
+20.48 mm hook. A self-supporting 1 mm, 45-degree bead enters the hook's curved
+jaw, and raised shoulders on both sides keep the hook indexed in the trough so
+it cannot walk sideways off the rim. The bead and shoulders grow upward from
+the continuous flare; there is no keeper hanging down the case front.
+
+The uncompressed lid begins 0.25 mm above its hard seated position. Pressing
+the broad lever inward curls the hook around the capture bead and draws the lid
+down onto the gasket. The generated geometry verifies zero hard-seated
+hook/lid intersection, 1.65 mm3 of engagement during an attempted 0.15 mm lid
+lift, and 3.76 mm3 at the full 0.25 mm uncompressed gasket position. The
+complete coupled opening path is also checked for zero hook/base, hook/lid,
+and lever/hook collision.
+
+The source toggle's natural over-center travel is retained. Opposed hidden
+spherical snap detents in both base ears center the lever and prevent normal
+pivot play from bypassing the snap. The ear spacing leaves 0.2 mm axial
+clearance per side, while the larger opposed dimples clear both worst-case
+axial positions at the fully seated pose. A dedicated quarter-degree exact
+sweep at -0.2, 0, and +0.2 mm verifies zero closed contact, at least 0.0560 mm3
+of peak release engagement everywhere in that range, and complete release by
+22 degrees open. Pushing the lever in the wrong direction is stopped by the
+base across the same axial range.
+
+To install one latch:
+
+1. Place the lever between the two integrated base ears and align the fixed
+   pivot holes.
+2. Support both ears and press the rod cut to `LATCH_FIXED_ROD_LENGTH` through
+   the first ear, lever, and second ear until centered.
+3. Nest the hook around the lever's moving end, align the link holes, and press
+   the rod cut to `LATCH_LINK_ROD_LENGTH` through the hook and lever until its
+   ends are flush.
+4. Close the lid, place the moving hook in its flanked rim trough, and press the
+   broad outer lever inward until the hidden detent snaps closed. The hook must
+   visibly wrap around the trough's diamond-shaped bead. Pull the broad lever
+   outward through the detent to unload the bead, then lift the hook clear.
+
+Deburr and lightly chamfer rod ends. Do not hammer a rod into an unsupported
+ear or hook cheek. Printer shrinkage varies, so print one lever and hook first
+and test both fits with the actual rod before committing the full shell.
+
+## Separate pivoting handle
+
+`mission1_field_case_pivoting_handle_bar.stl` is the only separate handle
+print. It is a U-shaped bar with five reference-style grip holes. Its two
+compact fixed mounting lugs are generated directly into the case base and sit
+inside relieved forks in the moving handle arms, so the base itself needs no
+mounting screws and neither lug intrudes into the finger opening.
+
+The default `HANDLE_HARDWARE_MODE = "ROD"` uses two 12 mm lengths of 4 mm rod.
+Each integrated lug has a 3.9 mm retaining bore and each moving handle arm has
+a 4.4 mm running bore. Press a rod through the outer fork cheek, the fixed lug,
+and the inner fork cheek.
+
+For M4 hardware, set `HANDLE_HARDWARE_MODE = "M4"` and regenerate every STL.
+That changes the integrated lug bores to 4.4 mm. Use two M4 x 20 screws with
+washers and locknuts; those screws are only pivots, not base-mounting hardware.
+
+The handle pivot is centered horizontally and vertically on the assembled case
+front: X = 0 and Z = 36.5 mm. The 94 mm-wide folded bar occupies only the
+reserved center zone. The two exact latches sit outboard at X = ±82 mm; their
+mounting envelopes remain more than 20.5 mm from the handle's full folded and
+swinging X envelope. When raised, the smaller 32.5 mm-drop handle leaves 27.5
+mm between the case face and the inside of the grip across the unobstructed 76
+mm opening.
+The generator rejects less than 25 mm of raised finger clearance, less than
+75 mm of unobstructed grip width, or less than 20 mm of latch finger-access
+clearance.
+
+## Hinge clearances
+
+The alternating base and lid knuckles have matching cylindrical swing pockets
+cut through the otherwise continuous rear rims. These pockets prevent the lid
+flange from striking the base knuckles and prevent the lid knuckles from
+striking the base wall. The generated base and lid have been checked through a
+0-110 degree opening sweep without rigid intersection. Do not fill these rear
+reliefs when adding manual supports.
 
 ## Suggested printing
 
-- Base, lid, two-piece over-center latches, optional fallback latch pins, and
-  hinge pin: PETG,
-  ASA, nylon, or another impact-tolerant rigid filament; 0.20 mm layers, four
-  walls, and 25% or greater infill.
+- Base, lid, latch levers and hooks, handle bar, and hinge pin: PETG, ASA,
+  nylon, or another impact-tolerant rigid filament; 0.20 mm layers, four walls,
+  and at least 25% infill.
 - Lower tray, lid pad, and gasket: TPU 95A, two or three walls, and 15-20%
   infill. The gasket is for dust and splash resistance, not certified
   waterproofing.
-- Print the base, tray, lid pad, gasket, and lid in their exported
-  orientations. Print all three pin types on their D-shaped flats. Print the
-  latch handle and bail with their broad faces on the bed. The latch bores have
-  self-supporting teardrop roofs. If printer tolerance makes the pivots tight,
-  ream only the handle's 4.4 mm running bores; preserve a firm press fit in the
-  3.9 mm base and bail retaining-ear bores.
-- For the intended stainless hardware, print two copies of the handle and bail
-  files. The base-pin and link-pin STLs are optional 3.8 mm D-profile fallback
-  pins for fit checks or temporary assembly; print two of each only when they
-  are needed. Print every other STL once:
+- Print the base, lid, tray, lid pad, gasket, latches, and handle bar in their
+  exported orientations. Their broad faces are already on the bed.
+- Print the hinge pin on its D-shaped flat. A 3 mm metal rod can replace it.
 
-  - `mission1_field_case_over_center_latch_handle_print_two.stl`
-  - `mission1_field_case_over_center_latch_bail_print_two.stl`
-  - `mission1_field_case_latch_base_pin_print_two.stl`
-  - `mission1_field_case_latch_link_pin_print_two.stl`
+Test camera, battery, latch, handle, and hinge fits before field use. Pocket,
+pivot, and press-fit dimensions are constants near the top of the Python file
+and can be regenerated without editing an STL.
 
-Printer and filament tolerances vary. Test a camera pocket, battery pocket,
-hinge, and latch engagement before relying on the case in the field. In
-particular, test the 3.9 mm retaining-ear press fit and 4.4 mm handle running
-fit against the actual 4 mm rod and printer calibration. Pocket and pin
-clearances are constants near the top of the Python generator and can be tuned
-without importing or editing an STL.
+## Case assembly
 
-The default soft-hood relief opens to 55.6 mm and extends 10 mm beyond the
-procedural lens face. Those dimensions are based on the supplied case visuals;
-measure the particular soft attachment and tune the `LENS_HOOD_*` constants if
-its production tolerance differs.
+1. Press the lower TPU tray into the base and lay the two removable battery
+   doors in the shallow outer pockets if carried; each door remains 8 mm proud.
+2. Seat the TPU gasket in the lid channel. Fit the TPU pad with its asymmetric
+   notch over the matching rigid boss.
+3. Alternate the base and lid hinge knuckles, then insert the printed hinge pin
+   or a 3 mm metal rod.
+4. Install each latch with rods cut to `LATCH_FIXED_ROD_LENGTH` and
+   `LATCH_LINK_ROD_LENGTH`, then install the separate handle bar with two 12 mm
+   lengths of 4 mm rod by default or with regenerated M4 hardware.
+5. Load the two opposed cameras with their soft lens hoods in the flared ends,
+   then load four batteries terminal-down.
 
-## Multicolor lid
+## Reference acknowledgments
 
-Open `mission1_field_case_ams_project.3mf` for the complete six-plate kit. The
-lid is a single compound object with aligned shell, title, and subtitle color
-bodies, so an AMS filament can be assigned to each body without repositioning
-text. Every lettering island shares a bonding face with the lid. The project
-also contains two handles, two bails, two optional base pins, two optional link
-pins, and the hinge pin on its printed-hardware plate. It uses stock P1S, PETG,
-and TPU preset IDs; review the selected presets for the loaded filament before
-slicing.
+The latch bodies come from the user-supplied
+`pelican_case_blender_2.9.blend`. The local file is a source reference only;
+the generator embeds the processed coordinates needed for its two latch STLs
+and has no runtime dependency on the file. The handle meshes were used only as
+visual and functional references; the handle remains independent parametric
+geometry:
 
-Use the AMS for the three-color PETG lid plate. A standard AMS does not feed
-TPU reliably, so map the TPU-only plates to the external spool and print those
-plates separately.
+- “Suitcase/Box/Case Handle” by Thingiverse user `henryarnold`:
+  <https://www.thingiverse.com/thing:2926036>
+- The handle package also acknowledges its upstream design:
+  <https://www.thingiverse.com/thing:299982>
 
-The three matching STLs remain available for slicers that do not consume 3MF.
-Import them together as a single multi-part object without moving them relative
-to one another:
-
-- `mission1_field_case_lid.stl`
-- `mission1_field_case_lid_title_inlay.stl`
-- `mission1_field_case_lid_subtitle_inlay.stl`
-
-Assign a shell color to the lid and separate colors to the title and subtitle.
-The inlays are 0.8 mm deep and sit flush in matching recesses. A multi-material
-printer can print all three parts together; with a single-material printer,
-print the inlays separately and bond them into the recesses.
-
-## Assembly
-
-1. Press the lower TPU tray into the base. Slide the two removable battery-cage
-   doors edge-on into the thin outer slots if they are being carried.
-2. Seat the TPU gasket in the lid channel. Fit the TPU pad inside the lid with
-   its asymmetric notch over the matching boss; it will not sit flat in the
-   reverse orientation.
-3. Alternate the base and lid hinge knuckles, then slide in the printed hinge
-   pin. A 3 mm metal rod may be substituted for a more durable hinge.
-4. Cut two 4 mm stainless base rods to 32 mm and two 4 mm stainless link rods
-   to 44 mm; deburr and lightly chamfer both ends. Put one handle between each
-   pair of supported base ears, with the broad lower pull tab facing the case,
-   and press a base rod through the 3.9 mm ear bores and 4.4 mm handle bore.
-   Place the bail rails outside the base ears, align both 3.9 mm bail-ear bores
-   with the handle's 4.4 mm moving-link bore, and press in the 44 mm link rod.
-   The retaining ears grip each rod while the clearance bore lets the handle
-   pivot. Support the opposite ear during pressing and do not hammer the rod
-   into an unsupported printed ear. The optional printed pins use integral
-   heads and shallow far-end detents instead of an interference fit.
-5. With a handle pulled outward, hook its U-shaped bail over the rounded lid
-   catch. Swing the lower handle inward against its positive stop. The moving
-   link pin briefly aligns with the base pin and catch, adds about 0.18 mm of
-   draw, then passes 14.5 degrees over center. Bail tension now holds the handle
-   against the stop instead of relying on a flexing snap lip. To release it,
-   pull the lower tab outward across center and lift the slack bail off.
-6. Load the two cameras into their separate, opposed pockets with the soft lens
-   hoods in the flared ends, then place the four batteries terminal-down. The
-   keyed lid pad preloads the camera bodies and batteries without pressing the
-   shutter buttons.
-
-The dimensions use the local procedural MISSION 1 reference and battery-slot
-cross-checks from the existing holder designs linked in the generator's module
-documentation. The user-supplied case and Pelican-latch models are functional
-and visual precedents only; their meshes are not copied or imported.
+The local reference packages state Creative Commons Attribution but do not
+identify a version. The GoPro name and logo are separate trademarks.
