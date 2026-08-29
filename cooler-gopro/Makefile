@@ -36,7 +36,8 @@ MISSION1_FIELD_CASE_STLS := \
 	mission1_field_case_lower_tray_tpu.stl \
 	mission1_field_case_lid_retainer_tpu.stl \
 	mission1_field_case_gasket_tpu.stl \
-	mission1_field_case_exact_pelican_latch_print_two.stl \
+	mission1_field_case_pelican_latch_lever_print_two.stl \
+	mission1_field_case_pelican_latch_hook_print_two.stl \
 	mission1_field_case_pivoting_handle_bar.stl \
 	mission1_field_case_hinge_pin.stl \
 	mission1_field_case_lid_logo_white_inlay.stl \
@@ -54,8 +55,7 @@ MISSION1_FIELD_CASE_OBSOLETE_STLS := \
 	mission1_field_case_over_center_latch_bail_print_two.stl \
 	mission1_field_case_latch_base_pin_print_two.stl \
 	mission1_field_case_latch_link_pin_print_two.stl \
-	mission1_field_case_pelican_latch_lever_print_two.stl \
-	mission1_field_case_pelican_latch_hook_print_two.stl \
+	mission1_field_case_exact_pelican_latch_print_two.stl \
 	mission1_field_case_lid_title_inlay.stl \
 	mission1_field_case_lid_subtitle_inlay.stl
 DUAL_FAN_HOLDER_STL := gopro_dual_fan_parametric.stl
@@ -256,7 +256,7 @@ print_targets:
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
-		'mission1-field-case       Build twelve part STLs plus the complete multicolor 3MF project.' \
+		'mission1-field-case       Build thirteen-part STLs plus the complete multicolor 3MF project.' \
 		'dual-fan                  Build the fan holder and both GoPro adapter variants; optional splitter follows CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \

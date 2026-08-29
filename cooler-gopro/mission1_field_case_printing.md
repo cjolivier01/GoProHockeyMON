@@ -3,11 +3,12 @@
 `mission1_field_case_blender.py` creates every printable part of a
 rugged case for two GoPro MISSION 1 cameras and four Enduro 2/HERO13-format
 batteries. It reads no STL during generation, and every part fits within a
-250 x 250 mm build area. The repaired coordinates of the CC BY Pelican latch
-reference are embedded directly in the Python file so its output matches the
-supplied latch without a runtime file dependency.
+250 x 250 mm build area. The latch lever and moving hook are derived from the
+mechanism in the user-supplied `pelican_case_blender_2.9.blend`; their processed
+mesh coordinates are embedded directly in the Python file, so generation does
+not load that `.blend` or any STL at runtime.
 
-Build all twelve STLs and the multicolor 3MF project with:
+Build all thirteen STLs and the multicolor 3MF project with:
 
 ```sh
 make -C cooler-gopro mission1-field-case
@@ -21,12 +22,21 @@ pockets cut from the local procedural MISSION 1 body, including its offset lens
 housing, controls, and rounded body. The cameras face opposite directions so
 their lens lobes nest while a continuous TPU web keeps the pockets separate.
 Each lens end widens into a trapezoidal relief for the soft MISSION 1 Pro lens
-flare/hood. Four batteries sit terminal-down, and two thin outer slots store
-the removable battery-cage doors edge-on.
+flare/hood. Four exact 33.5 x 12.5 mm battery pockets retain their existing
+21.8 mm insertion depth; the generated inspection batteries are 40.56 mm tall
+and sit terminal-down. Two outer 50 x 17 mm door pockets are recessed 10 mm.
+The generated 18 mm-tall door solids remain 8 mm proud for an easy finger grip.
 
 The TPU lid pad has separate shutter-button reliefs. Its asymmetric perimeter
 notch mates with a rigid lid boss, so the pad seats in only the correct
-direction.
+direction. Two localized 11 mm extensions meet the proud battery doors with
+the same 0.6 mm preload as the camera/battery contact face, preventing the
+doors from rattling when the case is closed.
+
+With `BUILD_REFERENCE_MOCKUPS = True`, the script also creates four procedural
+40.56 mm battery solids and two procedural 50 x 17 x 18 mm door solids seated
+in those pockets for visual inspection. They are reference-only scene objects,
+not additional STL dependencies or print outputs.
 
 ## Lid logo
 
@@ -69,50 +79,72 @@ to the multicolor interface.
 
 ## Pelican toggle latches
 
-Each clasp is the supplied Pelican-catch geometry: a broad outer U lever, its
-nested hooked link, and the original captive link pin. The three shells print
-in place as one moving mechanism. The generator embeds repaired coordinates
-from the reference, scales them uniformly so the existing fixed bore is 4.4 mm,
-and adds no cylinders, barrels, or other geometry to the latch silhouette.
+Each clasp uses the two moving bodies extracted from the supplied Pelican case
+scene: the broad outer lever and its curved moving hook. They are separate,
+manifold prints rather than a print-in-place substitute. The visible source
+surfaces are retained at 80% scale; the two pin bores and hidden overlapping
+interior surfaces were adapted so the visualization geometry can articulate as
+a printable mechanism.
 
 Print two copies of:
 
-- `mission1_field_case_exact_pelican_latch_print_two.stl`
+- `mission1_field_case_pelican_latch_lever_print_two.stl`
+- `mission1_field_case_pelican_latch_hook_print_two.stl`
 
-Each latch uses one nominal 4 mm stainless rod cut to `LATCH_ROD_LENGTH` (about
-36 mm with the default geometry). The single integrated center tongue on the
-case has a 3.9 mm press-fit bore. The rod then passes through the latch's
-original fixed pivot, which scales to a 4.4 mm running bore. The fixed pivot
-bosses remain inside the reference's side cheeks; there are no outside mounting
-ears or transverse printed barrels.
+Each latch uses two nominal 4 mm stainless rods:
 
-The lid rim thickens into one shallow outward capture lip at each latch. The
-lip projects about 1.38 mm from the existing lid face and only about 0.81 mm
-below the protective flange; it does not form a keeper hanging down the case
-front. Its short bearing edge comes from a conservative full-width projection
-of the exact hooked link, including its side bevels. The uncompressed lid begins
-0.25 mm above its hard seated position. Pressing the broad lever inward pulls
-the hook around the lip, draws the lid down to that seat, and carries the
-linkage over center. At the seat, the rigid hook and lip clear by about 0.0014
-mm instead of jamming. An upward lid load then bears from the rim lip into that
-link, through the two latch pivots, and into the base's 4 mm mounting rod. The
-linkage must pass back across center before the hook can release the lid lip.
+- one fixed-pivot rod cut to `LATCH_FIXED_ROD_LENGTH` (28.88 mm by default)
+- one moving-link rod cut to `LATCH_LINK_ROD_LENGTH` (20.48 mm by default)
+
+Two shaped mounting ears are part of the case base. Their 3.9 mm retaining
+bores grip the fixed rod while the source lever's 4.4 mm bore turns freely on
+it. At the moving pivot, the rod passes through the lever's second 4.4 mm
+running bore and is retained by the hook's 3.9 mm bore. The exposed circular
+ends in the assembled view are the requested stainless rods, not printed latch
+features.
+
+The lid has one continuous 5 mm flared rim with a full 2 mm vertical loaded
+edge. At each latch, that rim forms a 21.6 mm-wide capture trough around the
+20.48 mm hook. A self-supporting 1 mm, 45-degree bead enters the hook's curved
+jaw, and raised shoulders on both sides keep the hook indexed in the trough so
+it cannot walk sideways off the rim. The bead and shoulders grow upward from
+the continuous flare; there is no keeper hanging down the case front.
+
+The uncompressed lid begins 0.25 mm above its hard seated position. Pressing
+the broad lever inward curls the hook around the capture bead and draws the lid
+down onto the gasket. The generated geometry verifies zero hard-seated
+hook/lid intersection, 1.65 mm3 of engagement during an attempted 0.15 mm lid
+lift, and 3.76 mm3 at the full 0.25 mm uncompressed gasket position. The
+complete coupled opening path is also checked for zero hook/base, hook/lid,
+and lever/hook collision.
+
+The source toggle's natural over-center travel is retained. Opposed hidden
+spherical snap detents in both base ears center the lever and prevent normal
+pivot play from bypassing the snap. The ear spacing leaves 0.2 mm axial
+clearance per side, while the larger opposed dimples clear both worst-case
+axial positions at the fully seated pose. A dedicated quarter-degree exact
+sweep at -0.2, 0, and +0.2 mm verifies zero closed contact, at least 0.0560 mm3
+of peak release engagement everywhere in that range, and complete release by
+22 degrees open. Pushing the lever in the wrong direction is stopped by the
+base across the same axial range.
 
 To install one latch:
 
-1. Work the printed-in-place center link through its full travel and clear any
-   strings without cutting the captive internal pin.
-2. Slide the case's center tongue into the rear channel of the latch and align
-   its 3.9 mm hole with the latch's 4.4 mm fixed-pivot bore.
-3. Support the tongue and press the cut-to-`LATCH_ROD_LENGTH` rod through the
-   latch and tongue.
-4. Close the lid, place the moving hook around the shallow lip in the lid rim,
-   and press the broad outer lever inward until the linkage passes over center.
-   Pull that same broad lever outward to unload the lip and release it.
+1. Place the lever between the two integrated base ears and align the fixed
+   pivot holes.
+2. Support both ears and press the rod cut to `LATCH_FIXED_ROD_LENGTH` through
+   the first ear, lever, and second ear until centered.
+3. Nest the hook around the lever's moving end, align the link holes, and press
+   the rod cut to `LATCH_LINK_ROD_LENGTH` through the hook and lever until its
+   ends are flush.
+4. Close the lid, place the moving hook in its flanked rim trough, and press the
+   broad outer lever inward until the hidden detent snaps closed. The hook must
+   visibly wrap around the trough's diamond-shaped bead. Pull the broad lever
+   outward through the detent to unload the bead, then lift the hook clear.
 
 Deburr and lightly chamfer rod ends. Do not hammer a rod into an unsupported
-tongue. Printer shrinkage varies, so print one latch first and test it with the
-actual rod before committing the full shell.
+ear or hook cheek. Printer shrinkage varies, so print one lever and hook first
+and test both fits with the actual rod before committing the full shell.
 
 ## Separate pivoting handle
 
@@ -133,12 +165,13 @@ washers and locknuts; those screws are only pivots, not base-mounting hardware.
 
 The handle pivot is centered horizontally and vertically on the assembled case
 front: X = 0 and Z = 36.5 mm. The 94 mm-wide folded bar occupies only the
-reserved center zone. The two exact latches sit outboard at X = ±72.5 mm; their
-inner edges remain more than 8.5 mm from the handle's full folded and swinging X
-envelope. When raised, the smaller 32.5 mm-drop handle leaves 27.5 mm between
-the case face and the inside of the grip across the unobstructed 76 mm opening.
+reserved center zone. The two exact latches sit outboard at X = ±82 mm; their
+mounting envelopes remain more than 20.5 mm from the handle's full folded and
+swinging X envelope. When raised, the smaller 32.5 mm-drop handle leaves 27.5
+mm between the case face and the inside of the grip across the unobstructed 76
+mm opening.
 The generator rejects less than 25 mm of raised finger clearance, less than
-75 mm of unobstructed grip width, or less than 8 mm of latch finger-access
+75 mm of unobstructed grip width, or less than 20 mm of latch finger-access
 clearance.
 
 ## Hinge clearances
@@ -152,7 +185,7 @@ reliefs when adding manual supports.
 
 ## Suggested printing
 
-- Base, lid, print-in-place latches, handle bar, and hinge pin: PETG, ASA,
+- Base, lid, latch levers and hooks, handle bar, and hinge pin: PETG, ASA,
   nylon, or another impact-tolerant rigid filament; 0.20 mm layers, four walls,
   and at least 25% infill.
 - Lower tray, lid pad, and gasket: TPU 95A, two or three walls, and 15-20%
@@ -168,27 +201,27 @@ and can be regenerated without editing an STL.
 
 ## Case assembly
 
-1. Press the lower TPU tray into the base and load the two removable battery
-   doors into the thin outer slots if carried.
+1. Press the lower TPU tray into the base and lay the two removable battery
+   doors in the shallow outer pockets if carried; each door remains 8 mm proud.
 2. Seat the TPU gasket in the lid channel. Fit the TPU pad with its asymmetric
    notch over the matching rigid boss.
 3. Alternate the base and lid hinge knuckles, then insert the printed hinge pin
    or a 3 mm metal rod.
-4. Install each latch with one nominal 4 mm rod cut to `LATCH_ROD_LENGTH` (about
-   36 mm by default), then install the separate handle bar with two 12 mm
+4. Install each latch with rods cut to `LATCH_FIXED_ROD_LENGTH` and
+   `LATCH_LINK_ROD_LENGTH`, then install the separate handle bar with two 12 mm
    lengths of 4 mm rod by default or with regenerated M4 hardware.
 5. Load the two opposed cameras with their soft lens hoods in the flared ends,
    then load four batteries terminal-down.
 
 ## Reference acknowledgments
 
-The Pelican latch is redistributed as repaired, compressed coordinate data
-under its stated Creative Commons Attribution license. The handle meshes were
-used only as visual and functional references; the handle remains independent
-parametric geometry:
+The latch bodies come from the user-supplied
+`pelican_case_blender_2.9.blend`. The local file is a source reference only;
+the generator embeds the processed coordinates needed for its two latch STLs
+and has no runtime dependency on the file. The handle meshes were used only as
+visual and functional references; the handle remains independent parametric
+geometry:
 
-- “Pelican 1550 Catch Remix” by Thingiverse user `mutedmouse`:
-  <https://www.thingiverse.com/thing:4775467>
 - “Suitcase/Box/Case Handle” by Thingiverse user `henryarnold`:
   <https://www.thingiverse.com/thing:2926036>
 - The handle package also acknowledges its upstream design:
