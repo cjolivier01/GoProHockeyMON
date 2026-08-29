@@ -27,6 +27,12 @@ flare/hood. Four exact 33.5 x 12.5 mm battery pockets retain their existing
 and sit terminal-down. Two outer 50 x 10 mm door pockets are recessed 10 mm.
 The generated 18 mm-tall door solids remain 8 mm proud for an easy finger grip.
 
+Two miscellaneous-storage compartments use the open TPU directly above those
+door slots and outside the lower camera pocket. The left compartment is 38 x
+23 x 31 mm and the right is 58.5 x 23 x 31 mm. Both leave 4 mm of TPU beneath
+their floors and at least 4 mm to the tray side walls, battery-door slots,
+battery row, and procedural camera/hood recesses.
+
 The TPU lid pad has separate shutter-button reliefs. Its asymmetric perimeter
 notch mates with a rigid lid boss, so the pad seats in only the correct
 direction. Two localized 11 mm extensions meet the proud battery doors with
@@ -117,18 +123,20 @@ the lever snap dimple, which still leaves 2.45 mm between the fixed bore and
 air. Matching generated sweep reliefs preserve the complete source toggle path
 without thinning either link-pivot ring.
 
-The lid has one continuous 5 mm flared rim with a full 2 mm vertical loaded
-edge. At each latch, that rim forms a 21.6 mm-wide capture trough around the
-20.48 mm hook. A self-supporting 1 mm, 45-degree bead enters the hook's curved
-jaw, and raised shoulders on both sides keep the hook indexed in the trough so
-it cannot walk sideways off the rim. The bead and shoulders grow upward from
-the continuous flare; there is no keeper hanging down the case front.
+The lid has one continuous 5 mm flared rim with a full 3 mm vertical loaded
+edge and 5.4 mm radial thickness. At each latch, a Boolean cutter first removes
+the outer skirt beneath the catch; the 1 mm-thick capture lip is unioned only
+after that cut. The exported solid therefore has a real 0.5 x 1.4 mm undercut
+with air beneath the lip rather than a ridge filled back in by the skirt. A 4
+mm-thick skirt wall remains behind the recess. The 21.6 mm-wide trough clears
+the 20.48 mm hook by 0.56 mm per side, and raised side shoulders keep the hook
+from walking laterally off the lip. Its upper face remains self-supporting.
 
 The uncompressed lid begins 0.25 mm above its hard seated position. Pressing
-the broad lever inward curls the hook around the capture bead and draws the lid
+the broad lever inward curls the hook around the capture lip and draws the lid
 down onto the gasket. The generated geometry verifies zero hard-seated
-hook/lid intersection, 1.65 mm3 of engagement during an attempted 0.15 mm lid
-lift, and 3.76 mm3 at the full 0.25 mm uncompressed gasket position. The
+hook/lid intersection, 0.38 mm3 of engagement during an attempted 0.15 mm lid
+lift, and 1.49 mm3 at the full 0.25 mm uncompressed gasket position. The
 complete coupled opening path is also checked for zero hook/base, hook/lid,
 and lever/hook collision.
 
@@ -153,8 +161,8 @@ To install one latch:
    ends are flush.
 4. Close the lid, place the moving hook in its flanked rim trough, and press the
    broad outer lever inward until the hidden detent snaps closed. The hook must
-   visibly wrap around the trough's diamond-shaped bead. Pull the broad lever
-   outward through the detent to unload the bead, then lift the hook clear.
+   visibly wrap beneath the trough's overhanging lip. Pull the broad lever
+   outward through the detent to unload the lip, then lift the hook clear.
 
 Deburr and lightly chamfer rod ends. Do not hammer a rod into an unsupported
 ear or hook cheek. Printer shrinkage varies, so print one lever and hook first

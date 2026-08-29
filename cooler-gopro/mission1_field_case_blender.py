@@ -224,12 +224,17 @@ BASE_FLOOR_THICKNESS = 3.2
 LID_PLATE_THICKNESS = 4.0
 LID_WALL_HEIGHT = 11.0
 LID_FLANGE_OUTSET = 5.0
-LID_FLANGE_FLARE_START_Z = LID_PLATE_THICKNESS
-LID_FLANGE_EDGE_START_Z = 9.0
+LID_FLANGE_FLARE_START_Z = 3.0
+LID_FLANGE_EDGE_START_Z = 8.0
 LID_LATCH_TROUGH_WIDTH = 21.6
 LID_LATCH_TROUGH_SHOULDER_WIDTH = 3.0
 LID_LATCH_TROUGH_SHOULDER_RISE = 1.0
-LID_LATCH_CAPTURE_BEAD_OUTSET = 1.0
+LID_LATCH_CAPTURE_LIP_OUTSET = 0.4
+LID_LATCH_CAPTURE_LIP_NOSE_THICKNESS = 1.0
+LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z = 10.5
+LID_LATCH_RECESS_BACK_WALL = 4.0
+LID_LATCH_HOOK_CLEARANCE_HEIGHT = 1.0
+LID_LATCH_HOOK_RUNNING_CLEARANCE = 0.1
 LID_DISPLAY_OFFSET_X = 215.0
 
 # The lower TPU insert is a continuous recessed tray.  All cavity walls point
@@ -310,6 +315,16 @@ BATTERY_DOOR_LID_HOLD_DOWN_EXTENSION = (
     + mission1.BODY_HEIGHT
     - (BATTERY_DOOR_SLOT_FLOOR_Z + BATTERY_DOOR_SIZE[2])
 )
+
+# Two deep miscellaneous-storage pockets use the otherwise empty TPU beside
+# the lower camera and directly above the removable battery-door slots.  Their
+# conservative rectangular envelopes preserve 4 mm to the tray floor, outer
+# side walls, door slots, battery row, and nearest camera cutter.
+MISC_COMPARTMENT_MIN_WEB = 4.0
+MISC_COMPARTMENT_FLOOR_Z = MISC_COMPARTMENT_MIN_WEB
+MISC_COMPARTMENT_Y_BOUNDS = (-51.0, -28.0)
+MISC_COMPARTMENT_X_BOUNDS = ((-99.0, -61.0), (40.5, 99.0))
+MISC_COMPARTMENT_CORNER_RADIUS = 3.0
 
 LID_RETAINER_HEIGHT = 12.4
 LID_BUTTON_RELIEF_DEPTH = 4.2
@@ -490,11 +505,11 @@ LATCH_LINK_ROD_LENGTH = LATCH_WIDTH
 LATCH_FINGER_ACCESS_CLEARANCE = 24.0
 LATCH_MOUNT_HANDLE_CLEARANCE = 20.0
 
-# Each closed source hook nests in a shallow saddle formed into the continuous
-# lid rim.  A 45-degree capture bead wraps into the hook jaw, while a raised
-# shoulder on either side prevents the hook from walking sideways off the rim.
-# Nothing hangs below the rim: the bead and shoulders grow from the supported
-# flare, and the full 2 mm continuous loaded edge remains beneath them.
+# Each closed source hook nests in a recessed saddle cut into the continuous
+# lid rim.  A separately unioned, 45-degree-supported capture lip overhangs the
+# recess and enters the hook jaw, while a raised shoulder on either side keeps
+# the hook from walking laterally.  The uninterrupted rim has a 3 mm loaded
+# tip; even behind each undercut the recessed skirt retains a 4 mm back wall.
 LID_LATCH_LIP_DRAW = GASKET_HEIGHT - GASKET_CHANNEL_DEPTH
 LID_LATCH_RIM_EDGE_THICKNESS = LID_WALL_HEIGHT - LID_FLANGE_EDGE_START_Z
 
@@ -2947,6 +2962,68 @@ def validate_configuration() -> None:
         ):
             raise ValueError("Battery-door lid hold-down exceeds the TPU lid pad")
 
+    if MISC_COMPARTMENT_FLOOR_Z < MISC_COMPARTMENT_MIN_WEB:
+        raise ValueError("Miscellaneous compartments need a 4 mm TPU floor")
+    misc_depth = MISC_COMPARTMENT_Y_BOUNDS[1] - MISC_COMPARTMENT_Y_BOUNDS[0]
+    misc_center_y = sum(MISC_COMPARTMENT_Y_BOUNDS) / 2.0
+    misc_specs = []
+    for x_bounds in MISC_COMPARTMENT_X_BOUNDS:
+        misc_width = x_bounds[1] - x_bounds[0]
+        misc_center = (sum(x_bounds) / 2.0, misc_center_y)
+        misc_size = (misc_width, misc_depth)
+        misc_specs.append((misc_center, misc_size))
+        if (
+            abs(misc_center[0]) + misc_width / 2.0 + MISC_COMPARTMENT_MIN_WEB
+            > tray_width / 2.0 + 1e-6
+        ):
+            raise ValueError("Miscellaneous compartment weakens a TPU side wall")
+        for bounds in (*camera_bounds, *hood_bounds):
+            neighbor_center = (
+                (bounds[0] + bounds[1]) / 2.0,
+                (bounds[2] + bounds[3]) / 2.0,
+            )
+            neighbor_size = (bounds[1] - bounds[0], bounds[3] - bounds[2])
+            if rectangles_overlap(
+                misc_center,
+                misc_size,
+                neighbor_center,
+                neighbor_size,
+                gap=MISC_COMPARTMENT_MIN_WEB,
+            ):
+                raise ValueError(
+                    "Miscellaneous compartment needs 4 mm from camera recesses"
+                )
+        for center in BATTERY_CENTERS:
+            if rectangles_overlap(
+                misc_center,
+                misc_size,
+                center,
+                battery_size,
+                gap=MISC_COMPARTMENT_MIN_WEB,
+            ):
+                raise ValueError(
+                    "Miscellaneous compartment needs 4 mm from battery pockets"
+                )
+        for center in BATTERY_DOOR_SLOT_CENTERS:
+            if rectangles_overlap(
+                misc_center,
+                misc_size,
+                center,
+                door_slot_size,
+                gap=MISC_COMPARTMENT_MIN_WEB,
+            ):
+                raise ValueError(
+                    "Miscellaneous compartment needs 4 mm from battery-door slots"
+                )
+    if rectangles_overlap(
+        misc_specs[0][0],
+        misc_specs[0][1],
+        misc_specs[1][0],
+        misc_specs[1][1],
+        gap=MISC_COMPARTMENT_MIN_WEB,
+    ):
+        raise ValueError("Miscellaneous compartments need a 4 mm separating web")
+
     camera_contact_top = BASE_FLOOR_THICKNESS + CAMERA_FLOOR_Z + mission1.BODY_HEIGHT
     battery_top = BASE_FLOOR_THICKNESS + BATTERY_FLOOR_Z + BATTERY_HEIGHT
     content_top = max(camera_contact_top, battery_top)
@@ -3135,15 +3212,36 @@ def validate_configuration() -> None:
     flare_height = LID_FLANGE_EDGE_START_Z - LID_FLANGE_FLARE_START_Z
     if LID_FLANGE_OUTSET > flare_height + 1e-6:
         raise ValueError("Lid rim flare exceeds a 45-degree self-supporting slope")
-    if LID_LATCH_RIM_EDGE_THICKNESS < 2.0:
-        raise ValueError("Lid capture rim needs at least a 2 mm loaded edge")
+    if LID_LATCH_RIM_EDGE_THICKNESS < 3.0:
+        raise ValueError("Lid skirt needs at least a 3 mm loaded tip")
+    skirt_radial_tip = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET - (CASE_DEPTH - 0.8) / 2.0
+    if skirt_radial_tip < 4.0:
+        raise ValueError("Lid skirt tip needs at least 4 mm radial thickness")
     trough_side_clearance = (LID_LATCH_TROUGH_WIDTH - LATCH_WIDTH) / 2.0
     if not 0.35 <= trough_side_clearance <= 0.8:
         raise ValueError("Latch trough needs 0.35-0.8 mm clearance per hook side")
     if LID_LATCH_TROUGH_SHOULDER_RISE < 0.8:
         raise ValueError("Latch trough shoulders are too low to retain the hook")
-    if LID_LATCH_CAPTURE_BEAD_OUTSET > LID_LATCH_RIM_EDGE_THICKNESS / 2.0:
-        raise ValueError("Latch capture bead exceeds a self-supporting 45-degree slope")
+    if LID_LATCH_RECESS_BACK_WALL < 4.0:
+        raise ValueError("Latch recess leaves too little skirt behind the lip")
+    if LID_LATCH_RECESS_BACK_WALL >= skirt_radial_tip:
+        raise ValueError("Latch recess does not cut into the lid skirt")
+    if LID_LATCH_CAPTURE_LIP_NOSE_THICKNESS < 1.0:
+        raise ValueError("Latch capture lip nose is too thin")
+    lip_nose_upper_z = (
+        LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z - LID_LATCH_CAPTURE_LIP_NOSE_THICKNESS
+    )
+    lip_support_base_z = LID_FLANGE_EDGE_START_Z + LID_LATCH_HOOK_CLEARANCE_HEIGHT
+    lip_support_rise = lip_nose_upper_z - lip_support_base_z
+    if LID_LATCH_CAPTURE_LIP_OUTSET > lip_support_rise + 1e-6:
+        raise ValueError("Latch capture lip exceeds a 45-degree printable slope")
+    if LID_LATCH_HOOK_CLEARANCE_HEIGHT < 1.0:
+        raise ValueError("Latch hook needs clearance below the thicker skirt tip")
+    if LID_LATCH_HOOK_RUNNING_CLEARANCE < 0.1:
+        raise ValueError("Latch lip support needs 0.1 mm hook running clearance")
+    lip_undercut_height = LID_WALL_HEIGHT - LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z
+    if lip_undercut_height < 0.5:
+        raise ValueError("Latch capture lip needs a visible undercut below its nose")
 
     if HANDLE_HARDWARE_MODE not in {"ROD", "M4"}:
         raise ValueError("HANDLE_HARDWARE_MODE must be ROD or M4")
@@ -3253,7 +3351,7 @@ def validate_configuration() -> None:
     hinge_back = HINGE_AXIS_Y + HINGE_OUTER_DIAMETER / 2.0
     base_print_depth = hinge_back - mount_front
     lid_print_width = CASE_WIDTH + 2.0 * LID_FLANGE_OUTSET
-    lid_front = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET + LID_LATCH_CAPTURE_BEAD_OUTSET
+    lid_front = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET + LID_LATCH_CAPTURE_LIP_OUTSET
     lid_back = -HINGE_AXIS_Y - HINGE_OUTER_DIAMETER / 2.0
     lid_print_depth = lid_front - lid_back
     for part, dimensions in (
@@ -3282,6 +3380,10 @@ def validate_configuration() -> None:
         f"door_pocket={BATTERY_DOOR_SLOT_SIZE[0]:.1f}x"
         f"{BATTERY_DOOR_SLOT_SIZE[1]:.1f}x{BATTERY_DOOR_SLOT_DEPTH:.1f} "
         f"door_pad_preload={battery_door_pad_compression:.2f} "
+        f"misc_pockets={misc_specs[0][1][0]:.1f}x{misc_specs[0][1][1]:.1f}/"
+        f"{misc_specs[1][1][0]:.1f}x{misc_specs[1][1][1]:.1f}x"
+        f"{TRAY_HEIGHT - MISC_COMPARTMENT_FLOOR_Z:.1f} "
+        f"misc_web={MISC_COMPARTMENT_MIN_WEB:.1f} "
         f"latch_source_scale={LATCH_SOURCE_SCALE:.2f} "
         f"latch_lever={LATCH_LEVER_PRINT_SIZE[0]:.2f}x"
         f"{LATCH_LEVER_PRINT_SIZE[1]:.2f}x{LATCH_LEVER_PRINT_SIZE[2]:.2f} "
@@ -3299,8 +3401,12 @@ def validate_configuration() -> None:
         f"latch_lip_draw={LID_LATCH_LIP_DRAW:.2f} "
         f"latch_rim_outset={LID_FLANGE_OUTSET:.2f} "
         f"latch_rim_edge={LID_LATCH_RIM_EDGE_THICKNESS:.2f} "
+        f"latch_skirt_radial={skirt_radial_tip:.2f} "
         f"latch_trough={LID_LATCH_TROUGH_WIDTH:.2f} "
-        f"latch_bead={LID_LATCH_CAPTURE_BEAD_OUTSET:.2f} "
+        f"latch_lip_outset={LID_LATCH_CAPTURE_LIP_OUTSET:.2f} "
+        f"latch_lip_nose={LID_LATCH_CAPTURE_LIP_NOSE_THICKNESS:.2f} "
+        f"latch_undercut={lip_undercut_height:.2f}x"
+        f"{skirt_radial_tip - LID_LATCH_RECESS_BACK_WALL:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
         f"latch_mount_handle_clearance={latch_mount_handle_clearance:.2f} "
         f"handle_mode={HANDLE_HARDWARE_MODE} "
@@ -3539,6 +3645,21 @@ def create_lower_tray(material):
         )
         difference_from(tray, scoop)
 
+    misc_center_y = sum(MISC_COMPARTMENT_Y_BOUNDS) / 2.0
+    misc_depth = MISC_COMPARTMENT_Y_BOUNDS[1] - MISC_COMPARTMENT_Y_BOUNDS[0]
+    for index, x_bounds in enumerate(MISC_COMPARTMENT_X_BOUNDS, start=1):
+        misc_width = x_bounds[1] - x_bounds[0]
+        pocket = add_rounded_prism(
+            f"Miscellaneous_Storage_Compartment_{index}",
+            misc_width,
+            misc_depth,
+            MISC_COMPARTMENT_FLOOR_Z,
+            TRAY_HEIGHT + 0.4,
+            MISC_COMPARTMENT_CORNER_RADIUS,
+            (sum(x_bounds) / 2.0, misc_center_y),
+        )
+        difference_from(tray, pocket)
+
     assign_material(tray, material)
     return tray
 
@@ -3575,7 +3696,7 @@ def create_lid(
     )
     union_into(lid, wall)
     # Pelican-style continuous mouth rim. A true rounded frustum grows outward
-    # at 45 degrees from the lid wall, followed by a 2 mm loaded edge. Unlike a
+    # at 45 degrees from the lid wall, followed by a 3 mm loaded edge. Unlike a
     # localized hanging keeper, this ledge distributes latch load around the
     # complete perimeter and is supported at every print layer.
     flange_flare = rounded_ring_frustum(
@@ -3609,50 +3730,71 @@ def create_lid(
     )
     union_into(lid, flange_edge)
 
-    # A localized saddle makes each latch positive in both directions without
-    # replacing the continuous rim with a dangling keeper.  The center bead is
-    # a 45-degree diamond that enters the source hook's curved jaw.  Two taller
-    # buttressed shoulders flank the 21.6 mm trough, leaving 0.56 mm clearance
-    # per side around the 20.48 mm hook and preventing it from walking sideways
-    # off the bead after the toggle is closed.
+    # Cut a real pocket into the continuous skirt before adding the catch.  The
+    # earlier diamond was unioned over an uncut skirt, making its lower face
+    # visually and mechanically merge back into the rim.  Here the hook sees a
+    # distinct flat underside with air behind it: a 1 mm-thick nose projects
+    # over a 0.5 mm-high by 1.4 mm-deep opening, backed by 4 mm of skirt.  The
+    # top face reaches the nose at exactly 45 degrees for support-free printing.
+    # Raised versions of the same robust profile flank the 21.6 mm trough,
+    # leaving 0.56 mm per side around the 20.48 mm hook.
     rim_front_y = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET
-    bead_profile_yz = (
-        (rim_front_y - 0.8, LID_FLANGE_EDGE_START_Z - 0.1),
-        (rim_front_y, LID_FLANGE_EDGE_START_Z),
-        (
-            rim_front_y + LID_LATCH_CAPTURE_BEAD_OUTSET,
-            LID_FLANGE_EDGE_START_Z + LID_LATCH_CAPTURE_BEAD_OUTSET,
-        ),
-        (rim_front_y, LID_WALL_HEIGHT),
-        (rim_front_y - 0.8, LID_WALL_HEIGHT),
+    rim_inner_front_y = (CASE_DEPTH - 0.8) / 2.0
+    recess_back_y = rim_inner_front_y + LID_LATCH_RECESS_BACK_WALL
+    lip_root_y = rim_front_y - 0.8 - LID_LATCH_HOOK_RUNNING_CLEARANCE
+    lip_nose_y = rim_front_y + LID_LATCH_CAPTURE_LIP_OUTSET
+    lip_support_base_z = LID_FLANGE_EDGE_START_Z + LID_LATCH_HOOK_CLEARANCE_HEIGHT
+    lip_nose_upper_z = (
+        LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z - LID_LATCH_CAPTURE_LIP_NOSE_THICKNESS
     )
-    shoulder_profile_yz = (
-        (
-            rim_front_y - LID_LATCH_TROUGH_SHOULDER_RISE - 0.2,
-            LID_FLANGE_EDGE_START_Z - LID_LATCH_TROUGH_SHOULDER_RISE,
-        ),
-        (
-            rim_front_y - LID_LATCH_TROUGH_SHOULDER_RISE,
-            LID_FLANGE_EDGE_START_Z - LID_LATCH_TROUGH_SHOULDER_RISE,
-        ),
-        (
-            rim_front_y + LID_LATCH_CAPTURE_BEAD_OUTSET,
-            LID_FLANGE_EDGE_START_Z + LID_LATCH_CAPTURE_BEAD_OUTSET,
-        ),
-        (rim_front_y, LID_WALL_HEIGHT),
-        (
-            rim_front_y - LID_LATCH_TROUGH_SHOULDER_RISE - 0.2,
-            LID_WALL_HEIGHT,
-        ),
+    lip_profile_yz = (
+        (lip_root_y, lip_support_base_z - 0.1),
+        (rim_front_y, lip_support_base_z),
+        (lip_nose_y, lip_nose_upper_z),
+        (lip_nose_y, LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z),
+        (recess_back_y, LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z),
+    )
+    shoulder_profile_yz = tuple(
+        (y, z - LID_LATCH_TROUGH_SHOULDER_RISE) for y, z in lip_profile_yz
     )
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
-        trough = extrude_loop_x(
-            f"Lid_Latch_{index}_Capture_Trough_Bead",
-            bead_profile_yz,
+        hook_clearance = extrude_loop_x(
+            f"Lid_Latch_{index}_Hook_Sweep_Clearance_Cutter",
+            (
+                (
+                    CASE_DEPTH / 2.0 - LID_LATCH_HOOK_RUNNING_CLEARANCE,
+                    LID_PLATE_THICKNESS,
+                ),
+                (lip_nose_y + 0.5, LID_PLATE_THICKNESS),
+                (lip_nose_y + 0.5, lip_support_base_z),
+                (
+                    rim_front_y - LID_LATCH_HOOK_RUNNING_CLEARANCE,
+                    lip_support_base_z,
+                ),
+            ),
             dx + x - LID_LATCH_TROUGH_WIDTH / 2.0,
             dx + x + LID_LATCH_TROUGH_WIDTH / 2.0,
         )
-        union_into(lid, trough)
+        difference_from(lid, hook_clearance)
+        recess = extrude_loop_x(
+            f"Lid_Latch_{index}_True_Undercut_Recess_Cutter",
+            (
+                (recess_back_y, LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z),
+                (lip_nose_y + 0.5, LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z),
+                (lip_nose_y + 0.5, LID_WALL_HEIGHT + 0.5),
+                (recess_back_y, LID_WALL_HEIGHT + 0.5),
+            ),
+            dx + x - LID_LATCH_TROUGH_WIDTH / 2.0,
+            dx + x + LID_LATCH_TROUGH_WIDTH / 2.0,
+        )
+        difference_from(lid, recess)
+        lip = extrude_loop_x(
+            f"Lid_Latch_{index}_Overhanging_Capture_Lip",
+            lip_profile_yz,
+            dx + x - LID_LATCH_TROUGH_WIDTH / 2.0,
+            dx + x + LID_LATCH_TROUGH_WIDTH / 2.0,
+        )
+        union_into(lid, lip)
         for side in (-1.0, 1.0):
             inner_x = dx + x + side * LID_LATCH_TROUGH_WIDTH / 2.0
             outer_x = inner_x + side * LID_LATCH_TROUGH_SHOULDER_WIDTH
@@ -4301,6 +4443,80 @@ def exact_transformed_intersection(
         bpy.data.objects.remove(tool, do_unlink=True)
         bpy.data.objects.remove(probe, do_unlink=True)
     return face_count, volume
+
+
+def validate_built_lid_capture_lips(lid) -> None:
+    """Prove the exported lid retains air beneath two solid capture lips."""
+    rim_front_y = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET
+    rim_inner_front_y = (CASE_DEPTH - 0.8) / 2.0
+    recess_back_y = rim_inner_front_y + LID_LATCH_RECESS_BACK_WALL
+    lip_nose_y = rim_front_y + LID_LATCH_CAPTURE_LIP_OUTSET
+    probe_dimensions = (1.0, 0.2, 0.2)
+
+    def overlap_at(name, location, dimensions=probe_dimensions):
+        probe = add_rounded_box(name, dimensions, location, bevel=0.0)
+        try:
+            _faces, volume = exact_transformed_intersection(
+                lid,
+                probe,
+                second_location=location,
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        return volume
+
+    minimum_nose_fill = math.prod(probe_dimensions) * 0.95
+    back_wall_dimensions = (1.0, 0.5, 0.2)
+    minimum_back_wall_fill = math.prod(back_wall_dimensions) * 0.95
+    undercut_volumes = []
+    nose_volumes = []
+    back_wall_volumes = []
+    for index, x in enumerate(LATCH_X_CENTERS, start=1):
+        center_x = LID_DISPLAY_OFFSET_X + x
+        undercut_volumes.append(
+            overlap_at(
+                f"TEMPORARY_Lid_Latch_{index}_Undercut_Air_Probe",
+                (
+                    center_x,
+                    (recess_back_y + rim_front_y) / 2.0,
+                    (LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z + LID_WALL_HEIGHT) / 2.0,
+                ),
+            )
+        )
+        nose_volumes.append(
+            overlap_at(
+                f"TEMPORARY_Lid_Latch_{index}_Solid_Lip_Nose_Probe",
+                (
+                    center_x,
+                    lip_nose_y - 0.15,
+                    LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z
+                    - LID_LATCH_CAPTURE_LIP_NOSE_THICKNESS / 2.0,
+                ),
+            )
+        )
+        back_wall_volumes.append(
+            overlap_at(
+                f"TEMPORARY_Lid_Latch_{index}_Solid_Back_Wall_Probe",
+                (
+                    center_x,
+                    (rim_inner_front_y + recess_back_y) / 2.0,
+                    (LID_LATCH_CAPTURE_LIP_UNDERSIDE_Z + LID_WALL_HEIGHT) / 2.0,
+                ),
+                back_wall_dimensions,
+            )
+        )
+    if max(undercut_volumes) > 1e-7:
+        raise ValueError("Lid skirt filled the latch-lip undercut")
+    if min(nose_volumes) < minimum_nose_fill:
+        raise ValueError("A generated latch capture lip has a hollow or thin nose")
+    if min(back_wall_volumes) < minimum_back_wall_fill:
+        raise ValueError("A generated latch recess weakened its skirt back wall")
+    print(
+        "FIELD_CASE_LID_LIP_VALID "
+        f"undercut_air_max={max(undercut_volumes):.9f} "
+        f"nose_solid_min={min(nose_volumes):.6f} "
+        f"back_wall_solid_min={min(back_wall_volumes):.6f}"
+    )
 
 
 def validate_installed_latch_mechanics(parts) -> None:
@@ -6243,6 +6459,7 @@ def build_mission1_field_case():
     for name, obj in parts.items():
         validate_built_part(name, obj)
     validate_installed_case_closure(parts)
+    validate_built_lid_capture_lips(parts["lid"])
     validate_installed_latch_mechanics(parts)
     validate_installed_handle_mechanics(parts)
     lid_islands = validate_lid_bonding_payloads(
