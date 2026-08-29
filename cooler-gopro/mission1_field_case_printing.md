@@ -227,6 +227,14 @@ striking the base wall. The generated base and lid have been checked through a
 0-110 degree opening sweep without rigid intersection. Do not fill these rear
 reliefs when adding manual supports.
 
+Each of the three base knuckles now has a full-width tapered web beneath its
+barrel. The web begins 0.3 mm inside the rear case wall, rises outward at 45
+degrees, and joins the 10 mm barrel at its lower-outboard tangent. This removes
+the unsupported lower circular arc and gives the barrel a much larger load path
+into the shell without changing the hinge axis, 3.5 mm bore, alternating axial
+clearances, or internal case dimensions. Print the base upright as exported;
+the hinge webs are designed not to require support.
+
 ## Suggested printing
 
 - Base, lid, latch levers and hooks, handle bar, and hinge pin: PETG, ASA,

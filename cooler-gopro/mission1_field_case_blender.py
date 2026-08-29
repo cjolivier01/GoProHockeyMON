@@ -363,6 +363,25 @@ HINGE_RIM_RELIEF_AXIAL_CLEARANCE = 0.2
 HINGE_PIN_X0 = -77.0
 HINGE_PIN_X1 = 77.0
 
+# Each base knuckle grows from a full-width 45-degree web rather than leaving
+# the lower half of its circular barrel unsupported.  The ramp meets the
+# barrel at its lower-outboard tangent, while a small overlap into the rear
+# wall makes the Boolean bond robust without entering the internal envelope.
+HINGE_BASE_GUSSET_WALL_OVERLAP = 0.3
+HINGE_BASE_GUSSET_MAX_OVERHANG_DEGREES = 45.0
+HINGE_BASE_GUSSET_TANGENT_OFFSET = HINGE_OUTER_DIAMETER / 2.0 / math.sqrt(2.0)
+HINGE_BASE_GUSSET_TANGENT_Y = HINGE_AXIS_Y + HINGE_BASE_GUSSET_TANGENT_OFFSET
+HINGE_BASE_GUSSET_TANGENT_Z = BASE_HEIGHT - HINGE_BASE_GUSSET_TANGENT_OFFSET
+HINGE_BASE_GUSSET_ROOT_Y = CASE_DEPTH / 2.0 - HINGE_BASE_GUSSET_WALL_OVERLAP
+HINGE_BASE_GUSSET_ROOT_Z = HINGE_BASE_GUSSET_TANGENT_Z - (
+    HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y
+)
+HINGE_BASE_GUSSET_PROFILE_YZ = (
+    (HINGE_BASE_GUSSET_ROOT_Y, HINGE_BASE_GUSSET_ROOT_Z),
+    (HINGE_BASE_GUSSET_TANGENT_Y, HINGE_BASE_GUSSET_TANGENT_Z),
+    (HINGE_BASE_GUSSET_ROOT_Y, HINGE_BASE_GUSSET_TANGENT_Z),
+)
+
 
 def support_free_mount_profile_yz(
     pivot_y,
@@ -2841,6 +2860,21 @@ def validate_configuration() -> None:
         raise ValueError("Alternating hinge segments need clearance between barrels")
     if HINGE_RIM_RELIEF_RADIAL_CLEARANCE < LID_LATCH_LIP_DRAW + 0.1:
         raise ValueError("Hinge rim relief must accommodate the full lid take-up")
+    hinge_gusset_run = HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y
+    hinge_gusset_rise = HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z
+    hinge_gusset_overhang = math.degrees(
+        math.atan2(hinge_gusset_run, hinge_gusset_rise)
+    )
+    if hinge_gusset_overhang > HINGE_BASE_GUSSET_MAX_OVERHANG_DEGREES + 1e-6:
+        raise ValueError("Base hinge gusset exceeds the configured printable overhang")
+    if not 0.1 <= HINGE_BASE_GUSSET_WALL_OVERLAP < WALL_THICKNESS:
+        raise ValueError("Base hinge gusset needs a bounded positive rear-wall overlap")
+    if HINGE_BASE_GUSSET_ROOT_Y < CASE_DEPTH / 2.0 - WALL_THICKNESS:
+        raise ValueError("Base hinge gusset intrudes into the locked internal depth")
+    if not BASE_FLOOR_THICKNESS < HINGE_BASE_GUSSET_ROOT_Z:
+        raise ValueError("Base hinge gusset root must remain above the case floor")
+    if not (HINGE_BASE_GUSSET_TANGENT_Z < BASE_HEIGHT - HINGE_HOLE_DIAMETER / 2.0):
+        raise ValueError("Base hinge gusset must remain below the pin bore")
 
     retainer_width = tray_width
     retainer_depth = tray_depth
@@ -3537,22 +3571,32 @@ def create_base(material):
         )
         difference_from(base, relief)
 
-    # Alternating hinge knuckles share one continuous 3.5 mm pin bore.
+    # Alternating hinge knuckles share one continuous 3.5 mm pin bore.  A
+    # full-width lower web rises from the rear wall at 45 degrees and meets
+    # each barrel tangentially, eliminating its unsupported lower arc while
+    # adding substantially more bonded section at the shell.
     for index, (x0, x1) in enumerate(HINGE_BASE_SEGMENTS, start=1):
+        gusset = extrude_loop_x(
+            f"Base_Hinge_Knuckle_{index}_Support_Free_Gusset",
+            HINGE_BASE_GUSSET_PROFILE_YZ,
+            x0,
+            x1,
+        )
+        union_into(base, gusset)
         knuckle = add_cylinder_x(
             f"Base_Hinge_Knuckle_{index}",
             HINGE_OUTER_DIAMETER / 2.0,
             x1 - x0,
             ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
         )
+        union_into(base, knuckle)
         hole = add_cylinder_x(
             f"Base_Hinge_Hole_{index}",
             HINGE_HOLE_DIAMETER / 2.0,
             x1 - x0 + 0.8,
             ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
         )
-        difference_from(knuckle, hole)
-        union_into(base, knuckle)
+        difference_from(base, hole)
 
     # The source lever sits between two reinforced case ears.  Each ear rises
     # from the shell on a printable lower ramp, wraps the pivot with the shared
@@ -5186,6 +5230,93 @@ def validate_installed_case_closure(parts) -> None:
     )
 
 
+def validate_built_base_hinge_gussets(base) -> None:
+    """Prove every support-free web is bonded and every pin bore stays open."""
+    ramp_mid_y = (HINGE_BASE_GUSSET_ROOT_Y + HINGE_BASE_GUSSET_TANGENT_Y) / 2.0
+    ramp_mid_z = (HINGE_BASE_GUSSET_ROOT_Z + HINGE_BASE_GUSSET_TANGENT_Z) / 2.0
+    solid_probe_size_yz = 0.3
+    solid_probe_inset_z = 0.6
+    minimum_solid_fraction = 0.95
+    minimum_solid_fill = None
+    bore_overlap_maximum = 0.0
+
+    for index, (x0, x1) in enumerate(HINGE_BASE_SEGMENTS, start=1):
+        solid_probe_dimensions = (
+            x1 - x0 - 1.0,
+            solid_probe_size_yz,
+            solid_probe_size_yz,
+        )
+        solid_probe = add_rounded_box(
+            f"TEMPORARY_Base_Hinge_Gusset_{index}_Solid_Probe",
+            solid_probe_dimensions,
+            (
+                (x0 + x1) / 2.0,
+                ramp_mid_y,
+                ramp_mid_z + solid_probe_inset_z,
+            ),
+            bevel=0.0,
+        )
+        try:
+            _faces, solid_fill = exact_transformed_intersection(
+                base,
+                solid_probe,
+                second_location=solid_probe.location.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(solid_probe, do_unlink=True)
+        required_solid_fill = math.prod(solid_probe_dimensions) * minimum_solid_fraction
+        if solid_fill < required_solid_fill:
+            raise ValueError(
+                "Base hinge support web is not fully bonded: "
+                f"segment={index} volume={solid_fill:.6f} "
+                f"required={required_solid_fill:.6f}"
+            )
+        minimum_solid_fill = (
+            solid_fill
+            if minimum_solid_fill is None
+            else min(minimum_solid_fill, solid_fill)
+        )
+
+        bore_probe = add_cylinder_x(
+            f"TEMPORARY_Base_Hinge_{index}_Open_Bore_Probe",
+            HINGE_HOLE_DIAMETER / 2.0 - 0.2,
+            x1 - x0 - 0.8,
+            ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
+        )
+        try:
+            bore_faces, bore_overlap = exact_transformed_intersection(
+                base,
+                bore_probe,
+                second_location=bore_probe.location.copy(),
+                second_rotation=bore_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(bore_probe, do_unlink=True)
+        if bore_faces or bore_overlap > 1e-6:
+            raise ValueError(
+                "Base hinge pin bore is obstructed after gusseting: "
+                f"segment={index} faces={bore_faces} volume={bore_overlap:.6f}"
+            )
+        bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
+
+    hinge_gusset_overhang = math.degrees(
+        math.atan2(
+            HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y,
+            HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z,
+        )
+    )
+    print(
+        "FIELD_CASE_BASE_HINGE_GUSSETS_VALID "
+        f"count={len(HINGE_BASE_SEGMENTS)} "
+        f"overhang={hinge_gusset_overhang:.2f}deg "
+        f"root_z={HINGE_BASE_GUSSET_ROOT_Z:.3f} "
+        f"tangent_yz={HINGE_BASE_GUSSET_TANGENT_Y:.3f},"
+        f"{HINGE_BASE_GUSSET_TANGENT_Z:.3f} "
+        f"solid_probe_min={minimum_solid_fill:.6f} "
+        f"bore_overlap_max={bore_overlap_maximum:.6f}"
+    )
+
+
 def validate_installed_lower_tray(parts) -> None:
     """Prove the tray rests on, rather than intersects, the rigid base floor."""
     tray_minimum, tray_maximum = object_world_bounds(parts["lower_tray"])
@@ -6771,6 +6902,7 @@ def build_mission1_field_case():
     for name, obj in parts.items():
         validate_built_part(name, obj)
     validate_installed_lower_tray(parts)
+    validate_built_base_hinge_gussets(parts["base"])
     validate_installed_case_closure(parts)
     validate_built_lid_capture_rails(parts["lid"])
     validate_installed_latch_mechanics(parts)
