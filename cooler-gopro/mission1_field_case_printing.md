@@ -103,6 +103,20 @@ running bore and is retained by the hook's 3.9 mm bore. The exposed circular
 ends in the assembled view are the requested stainless rods, not printed latch
 features.
 
+`PIVOT_MIN_WALL_THICKNESS = 2.0` is the shared configurable strength rule for
+the case mounts, latch parts, and handle. Each case ear now starts as a gradual
+lower web, reaches the boss on a 45-degree printable chord, follows a rounded
+upper arc, and curves back into the case wall. There is no horizontal underside
+ledge to support. The reinforced ears retain at least 2.22 mm
+beside the lower chord and 3.14 mm above the teardrop bore roof.
+
+The lever has dedicated circular reinforcement around both 4.4 mm bores, and
+the hook has reinforced outer cheeks around its 3.9 mm bore. These moving-part
+bosses provide 2.50 mm nominal radial wall. The closest intentional opening is
+the lever snap dimple, which still leaves 2.45 mm between the fixed bore and
+air. Matching generated sweep reliefs preserve the complete source toggle path
+without thinning either link-pivot ring.
+
 The lid has one continuous 5 mm flared rim with a full 2 mm vertical loaded
 edge. At each latch, that rim forms a 21.6 mm-wide capture trough around the
 20.48 mm hook. A self-supporting 1 mm, 45-degree bead enters the hook's curved
@@ -150,9 +164,11 @@ and test both fits with the actual rod before committing the full shell.
 
 `mission1_field_case_pivoting_handle_bar.stl` is the only separate handle
 print. It is a U-shaped bar with five reference-style grip holes. Its two
-compact fixed mounting lugs are generated directly into the case base and sit
-inside relieved forks in the moving handle arms, so the base itself needs no
-mounting screws and neither lug intrudes into the finger opening.
+fixed mounting lugs are generated directly into the case base and sit inside
+relieved forks in the moving handle arms, so the base itself needs no mounting
+screws and neither lug intrudes into the finger opening. Like the latch ears,
+the lugs rise on printable lower webs and use curved upper returns rather than
+sharp projecting corners.
 
 The default `HANDLE_HARDWARE_MODE = "ROD"` uses two 12 mm lengths of 4 mm rod.
 Each integrated lug has a 3.9 mm retaining bore and each moving handle arm has
@@ -164,15 +180,20 @@ That changes the integrated lug bores to 4.4 mm. Use two M4 x 20 screws with
 washers and locknuts; those screws are only pivots, not base-mounting hardware.
 
 The handle pivot is centered horizontally and vertically on the assembled case
-front: X = 0 and Z = 36.5 mm. The 94 mm-wide folded bar occupies only the
-reserved center zone. The two exact latches sit outboard at X = ±82 mm; their
-mounting envelopes remain more than 20.5 mm from the handle's full folded and
-swinging X envelope. When raised, the smaller 32.5 mm-drop handle leaves 27.5
-mm between the case face and the inside of the grip across the unobstructed 76
-mm opening.
+front: X = 0 and Z = 36.5 mm. The 95 mm-wide folded bar occupies only the
+reserved center zone. The two exact latches retain their compatible X = ±82 mm
+centerlines; their
+moving levers remain 24.26 mm from the handle's full folded and swinging X
+envelope, while the integrated mounts retain 20.06 mm clearance. The two old
+front-center impact ribs are deliberately omitted so this entire access path
+stays open. When raised, the smaller 32.5 mm-drop handle leaves 28.1
+mm between the case face and the inside of the grip across the unobstructed 75
+mm opening. Each fork cheek is 2.10 mm thick, while the support-free outer
+pivot profile leaves at least 2.11 mm beside its lower chord and 2.99 mm above
+the teardrop running bore.
 The generator rejects less than 25 mm of raised finger clearance, less than
-75 mm of unobstructed grip width, or less than 20 mm of latch finger-access
-clearance.
+75 mm of unobstructed grip width, less than 24 mm of moving-latch finger-access
+clearance, or less than 20 mm between the handle and integrated latch mounts.
 
 ## Hinge clearances
 
@@ -193,6 +214,8 @@ reliefs when adding manual supports.
   waterproofing.
 - Print the base, lid, tray, lid pad, gasket, latches, and handle bar in their
   exported orientations. Their broad faces are already on the bed.
+- The case-side latch and handle mounts rise on 45-degree lower webs and do not
+  require support. Do not place support inside their teardrop pivot bores.
 - Print the hinge pin on its D-shaped flat. A 3 mm metal rod can replace it.
 
 Test camera, battery, latch, handle, and hinge fits before field use. Pocket,

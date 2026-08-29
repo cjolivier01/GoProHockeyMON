@@ -339,6 +339,71 @@ HINGE_RIM_RELIEF_AXIAL_CLEARANCE = 0.2
 HINGE_PIN_X0 = -77.0
 HINGE_PIN_X1 = 77.0
 
+
+def support_free_mount_profile_yz(
+    pivot_y,
+    pivot_z,
+    body_y,
+    body_lower_z,
+    body_upper_z,
+    outer_radius,
+    *,
+    upper_arc_steps=6,
+    return_steps=6,
+):
+    """Return a printable case-mount profile with a curved upper return.
+
+    The lower body web rises to the pivot boss before extending outward.  Its
+    exposed boss edge is a 45-degree chord from the bottom point to the most
+    outward point, so the case prints upright without a horizontal ledge.  The
+    upper half follows a circular arc, then a quadratic curve blends back into
+    the case wall instead of ending in sharp projecting corners.
+    """
+    bottom = (pivot_y, pivot_z - outer_radius)
+    outward = (pivot_y - outer_radius, pivot_z)
+    profile = [(body_y, body_lower_z), bottom, outward]
+    for step in range(1, upper_arc_steps + 1):
+        angle = math.pi - (math.pi / 2.0) * step / upper_arc_steps
+        profile.append(
+            (
+                pivot_y + outer_radius * math.cos(angle),
+                pivot_z + outer_radius * math.sin(angle),
+            )
+        )
+    top = profile[-1]
+    control = (
+        pivot_y + 0.58 * (body_y - pivot_y),
+        top[1],
+    )
+    for step in range(1, return_steps + 1):
+        t = step / return_steps
+        one_minus_t = 1.0 - t
+        profile.append(
+            (
+                one_minus_t * one_minus_t * top[0]
+                + 2.0 * one_minus_t * t * control[0]
+                + t * t * body_y,
+                one_minus_t * one_minus_t * top[1]
+                + 2.0 * one_minus_t * t * control[1]
+                + t * t * body_upper_z,
+            )
+        )
+    return tuple(profile)
+
+
+# Every handle/latch pivot uses this same minimum radial ligament.  All
+# reinforcement bosses derive from it; large increases may also require more
+# exterior clearance while the internal case envelope remains fixed.
+PIVOT_MIN_WALL_THICKNESS = 2.0
+PIVOT_REINFORCEMENT_MARGIN = 0.5
+PIVOT_REFERENCE_MAX_BORE_RADIUS = 2.2
+PIVOT_MOUNT_RADIUS_MARGIN = 0.31
+PIVOT_MOUNT_OUTER_RADIUS = (
+    PIVOT_REFERENCE_MAX_BORE_RADIUS + PIVOT_MIN_WALL_THICKNESS
+) * math.sqrt(2.0) + PIVOT_MOUNT_RADIUS_MARGIN
+PIVOT_MOUNT_BODY_Y = -CASE_DEPTH / 2.0 + 0.3
+PIVOT_MOUNT_RAMP_VERTICAL_MARGIN = 0.5
+
 # The two-piece mechanism comes from the latch bodies in the user-supplied
 # ``pelican_case_blender_2.9.blend``.  The embedded coordinates are already
 # scaled to 80% for this shorter case.  The lever's fixed and moving bores are
@@ -353,8 +418,8 @@ LATCH_RUNNING_BORE_DIAMETER = 4.4
 LATCH_LID_INSTALLED_Z = BASE_HEIGHT + LID_WALL_HEIGHT
 LATCH_SOURCE_SCALE = 0.8
 LATCH_WIDTH = 20.48
-LATCH_LEVER_PRINT_SIZE = (41.611443, 18.100159, LATCH_WIDTH)
-LATCH_HOOK_PRINT_SIZE = (16.732555, 48.681593, LATCH_WIDTH)
+LATCH_LEVER_PRINT_SIZE = (43.113704, 18.100159, LATCH_WIDTH)
+LATCH_HOOK_PRINT_SIZE = (16.732555, 50.241260, LATCH_WIDTH)
 LATCH_LINK_PIVOT_LOCAL_YZ = (0.733023, -10.648121)
 LATCH_BASE_PIVOT_Y = -85.0
 LATCH_BASE_PIVOT_Z = 41.65
@@ -371,15 +436,40 @@ LATCH_BASE_EAR_AXIAL_CLEARANCE = 0.2
 LATCH_BASE_EAR_CENTER_OFFSET_X = (
     LATCH_WIDTH / 2.0 + LATCH_BASE_EAR_AXIAL_CLEARANCE + LATCH_BASE_EAR_WIDTH / 2.0
 )
-LATCH_BASE_EAR_PROFILE_YZ = (
-    (-CASE_DEPTH / 2.0 + 3.3, 34.5),
-    (-CASE_DEPTH / 2.0 + 3.3, 49.3),
-    (-83.2, 49.3),
-    (-88.8, 45.5),
-    (-89.8, LATCH_BASE_PIVOT_Z),
-    (-88.8, 38.3),
-    (-83.2, 34.5),
+LATCH_MOUNT_LOWER_Z = (
+    LATCH_BASE_PIVOT_Z
+    - PIVOT_MOUNT_OUTER_RADIUS
+    - abs(PIVOT_MOUNT_BODY_Y - LATCH_BASE_PIVOT_Y)
+    - PIVOT_MOUNT_RAMP_VERTICAL_MARGIN
 )
+LATCH_BASE_EAR_PROFILE_YZ = support_free_mount_profile_yz(
+    LATCH_BASE_PIVOT_Y,
+    LATCH_BASE_PIVOT_Z,
+    PIVOT_MOUNT_BODY_Y,
+    LATCH_MOUNT_LOWER_Z,
+    54.5,
+    PIVOT_MOUNT_OUTER_RADIUS,
+)
+LATCH_LEVER_FIXED_BOSS_RADIUS = (
+    LATCH_RUNNING_BORE_DIAMETER / 2.0
+    + PIVOT_MIN_WALL_THICKNESS
+    + PIVOT_REINFORCEMENT_MARGIN
+)
+LATCH_LEVER_LINK_BOSS_RADIUS = LATCH_LEVER_FIXED_BOSS_RADIUS
+LATCH_HOOK_LINK_BOSS_RADIUS = (
+    LATCH_PRESS_FIT_BORE_DIAMETER / 2.0
+    + PIVOT_MIN_WALL_THICKNESS
+    + PIVOT_REINFORCEMENT_MARGIN
+)
+# The source lever has an 8.8 mm central link tongue.  The hook uses two outer
+# cheeks beginning at X = +/-4.6 mm, leaving 0.2 mm running clearance per side.
+LATCH_LEVER_LINK_TONGUE_WIDTH = 8.8
+LATCH_HOOK_CHEEK_INNER_X = 4.6
+LATCH_HOOK_CHEEK_OUTER_X = LATCH_WIDTH / 2.0
+LATCH_HOOK_CHEEK_WIDTH = LATCH_HOOK_CHEEK_OUTER_X - LATCH_HOOK_CHEEK_INNER_X
+LATCH_REINFORCEMENT_RUNNING_CLEARANCE = 0.30
+LATCH_REINFORCEMENT_AXIAL_CLEARANCE = 0.10
+LATCH_REINFORCEMENT_RELIEF_STEP_DEGREES = 10.0
 LATCH_DETENT_SIDES = (-1.0, 1.0)
 LATCH_DETENT_LOCAL_YZ = (5.0, -4.0)
 LATCH_DETENT_BOSS_RADIUS = 1.5
@@ -397,7 +487,8 @@ LATCH_FIXED_ROD_LENGTH = (
     LATCH_WIDTH + 2.0 * LATCH_BASE_EAR_AXIAL_CLEARANCE + 2.0 * LATCH_BASE_EAR_WIDTH
 )
 LATCH_LINK_ROD_LENGTH = LATCH_WIDTH
-LATCH_FINGER_ACCESS_CLEARANCE = 20.0
+LATCH_FINGER_ACCESS_CLEARANCE = 24.0
+LATCH_MOUNT_HANDLE_CLEARANCE = 20.0
 
 # Each closed source hook nests in a shallow saddle formed into the continuous
 # lid rim.  A 45-degree capture bead wraps into the hook jaw, while a raised
@@ -416,28 +507,51 @@ HANDLE_PRESS_FIT_BORE_DIAMETER = 3.9
 HANDLE_RUNNING_BORE_DIAMETER = 4.4
 HANDLE_PIVOT_X = 42.5
 HANDLE_BASE_LUG_X = HANDLE_PIVOT_X
-HANDLE_PIVOT_Y = -CASE_DEPTH / 2.0 - 7.0
+HANDLE_PIVOT_RADIUS_MARGIN = 0.16
+HANDLE_PIVOT_BOSS_RADIUS = (
+    PIVOT_REFERENCE_MAX_BORE_RADIUS + PIVOT_MIN_WALL_THICKNESS
+) * math.sqrt(2.0) + HANDLE_PIVOT_RADIUS_MARGIN
+HANDLE_FOLDED_FACE_CLEARANCE = 0.5
+HANDLE_PIVOT_Y = (
+    -CASE_DEPTH / 2.0 - HANDLE_PIVOT_BOSS_RADIUS - HANDLE_FOLDED_FACE_CLEARANCE
+)
 HANDLE_PIVOT_Z = LATCH_LID_INSTALLED_Z / 2.0
-HANDLE_BAR_OUTER_WIDTH = 94.0
-HANDLE_BAR_INNER_WIDTH = 76.0
+HANDLE_BAR_OUTER_WIDTH = 95.0
+HANDLE_BAR_INNER_WIDTH = 75.0
 HANDLE_BAR_DROP = 32.5
-HANDLE_BAR_DEPTH = 12.0
-HANDLE_BAR_THICKNESS = 10.0
+HANDLE_BAR_DEPTH = 11.0
+HANDLE_BAR_THICKNESS = 2.0 * HANDLE_PIVOT_BOSS_RADIUS
 HANDLE_GRIP_HOLE_DIAMETER = 7.0
 HANDLE_GRIP_HOLE_COUNT = 5
 HANDLE_GRIP_HOLE_PITCH = 12.0
 HANDLE_BASE_LUG_WIDTH = 5.0
 HANDLE_AXIAL_CLEARANCE = 0.4
-HANDLE_FORK_RELIEF_LENGTH = 20.0
 HANDLE_MIN_USABLE_GRIP_WIDTH = 75.0
 HANDLE_RAISED_FINGER_CLEARANCE = 25.0
+HANDLE_SWEEP_STEP_DEGREES = 2.0
+HANDLE_SWEEP_RESIDUAL_VOLUME_LIMIT = 1e-5
 HANDLE_PRINT_OFFSET_Y = -285.0
-HANDLE_BASE_EAR_PROFILE_YZ = (
-    (-CASE_DEPTH / 2.0 + 0.3, HANDLE_PIVOT_Z - 5.0),
-    (-CASE_DEPTH / 2.0 + 0.3, HANDLE_PIVOT_Z + 5.0),
-    (HANDLE_PIVOT_Y, HANDLE_PIVOT_Z + 5.0),
-    (HANDLE_PIVOT_Y - 4.0, HANDLE_PIVOT_Z),
-    (HANDLE_PIVOT_Y, HANDLE_PIVOT_Z - 5.0),
+HANDLE_MOUNT_LOWER_Z = (
+    HANDLE_PIVOT_Z
+    - PIVOT_MOUNT_OUTER_RADIUS
+    - abs(PIVOT_MOUNT_BODY_Y - HANDLE_PIVOT_Y)
+    - PIVOT_MOUNT_RAMP_VERTICAL_MARGIN
+)
+HANDLE_BASE_EAR_PROFILE_YZ = support_free_mount_profile_yz(
+    HANDLE_PIVOT_Y,
+    HANDLE_PIVOT_Z,
+    PIVOT_MOUNT_BODY_Y,
+    HANDLE_MOUNT_LOWER_Z,
+    49.0,
+    PIVOT_MOUNT_OUTER_RADIUS,
+)
+HANDLE_FORK_SWEEP_CLEARANCE = 0.6
+HANDLE_FORK_RELIEF_LENGTH = 2.0 * (
+    max(
+        math.hypot(y - HANDLE_PIVOT_Y, z - HANDLE_PIVOT_Z)
+        for y, z in HANDLE_BASE_EAR_PROFILE_YZ
+    )
+    + HANDLE_FORK_SWEEP_CLEARANCE
 )
 
 # LZMA-compressed lever and hook coordinates extracted from the user-supplied
@@ -2170,6 +2284,20 @@ def extrude_loop_z(name: str, loop_xy, z0: float, z1: float):
     return create_mesh_object(name, vertices, faces)
 
 
+def support_free_pivot_boss_loop_yz(center_y, center_z, radius, arc_steps=12):
+    """Return an outer pivot boss with 45-degree printable lower chords."""
+    loop = [(center_y, center_z - radius), (center_y - radius, center_z)]
+    for step in range(1, arc_steps + 1):
+        angle = math.pi - math.pi * step / arc_steps
+        loop.append(
+            (
+                center_y + radius * math.cos(angle),
+                center_z + radius * math.sin(angle),
+            )
+        )
+    return tuple(loop)
+
+
 def add_teardrop_hole_x(name, radius, length, location, arc_steps=30):
     """Create a self-supporting horizontal-bore cutter with 45-degree roof."""
     center_x, center_y, center_z = location
@@ -2850,6 +2978,103 @@ def validate_configuration() -> None:
     if relief_ceiling - camera_button_top < 0.3:
         raise ValueError("Lid pad button relief does not clear the shutter buttons")
 
+    if PIVOT_MIN_WALL_THICKNESS < 2.0:
+        raise ValueError("Pivot minimum wall must remain at least 2 mm")
+    if PIVOT_REINFORCEMENT_MARGIN < 0.0:
+        raise ValueError("Pivot reinforcement margin cannot be negative")
+    maximum_mount_bore_radius = (
+        max(
+            LATCH_PRESS_FIT_BORE_DIAMETER,
+            HANDLE_PRESS_FIT_BORE_DIAMETER,
+            HANDLE_RUNNING_BORE_DIAMETER,
+        )
+        / 2.0
+    )
+    if not math.isclose(
+        PIVOT_REFERENCE_MAX_BORE_RADIUS,
+        maximum_mount_bore_radius,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("Pivot reference bore radius is stale")
+    mount_lower_chord_wall = (
+        PIVOT_MOUNT_OUTER_RADIUS / math.sqrt(2.0) - maximum_mount_bore_radius
+    )
+    mount_roof_wall = (
+        PIVOT_MOUNT_OUTER_RADIUS - math.sqrt(2.0) * maximum_mount_bore_radius
+    )
+    if min(mount_lower_chord_wall, mount_roof_wall) < PIVOT_MIN_WALL_THICKNESS:
+        raise ValueError(
+            "Support-free mount bosses violate the configured pivot minimum wall"
+        )
+    for name, profile, pivot_y, pivot_z in (
+        (
+            "latch",
+            LATCH_BASE_EAR_PROFILE_YZ,
+            LATCH_BASE_PIVOT_Y,
+            LATCH_BASE_PIVOT_Z,
+        ),
+        (
+            "handle",
+            HANDLE_BASE_EAR_PROFILE_YZ,
+            HANDLE_PIVOT_Y,
+            HANDLE_PIVOT_Z,
+        ),
+    ):
+        lower_anchor_y, lower_anchor_z = profile[0]
+        bottom_y, bottom_z = profile[1]
+        lower_rise = bottom_z - lower_anchor_z
+        lower_outset = abs(bottom_y - lower_anchor_y)
+        if lower_rise + 1e-6 < lower_outset:
+            raise ValueError(
+                f"{name.title()} mount lower web exceeds a 45-degree printable slope"
+            )
+        if not math.isclose(bottom_y, pivot_y, abs_tol=1e-6):
+            raise ValueError(f"{name.title()} mount ramp misses its pivot centerline")
+        if not math.isclose(
+            bottom_z,
+            pivot_z - PIVOT_MOUNT_OUTER_RADIUS,
+            abs_tol=1e-6,
+        ):
+            raise ValueError(f"{name.title()} mount ramp misses its pivot boss")
+    lever_fixed_wall = LATCH_LEVER_FIXED_BOSS_RADIUS - LATCH_RUNNING_BORE_DIAMETER / 2.0
+    lever_link_wall = LATCH_LEVER_LINK_BOSS_RADIUS - LATCH_RUNNING_BORE_DIAMETER / 2.0
+    hook_link_wall = LATCH_HOOK_LINK_BOSS_RADIUS - LATCH_PRESS_FIT_BORE_DIAMETER / 2.0
+    detent_to_bore_wall = (
+        math.hypot(*LATCH_DETENT_LOCAL_YZ)
+        - LATCH_DETENT_DIMPLE_RADIUS
+        - LATCH_RUNNING_BORE_DIAMETER / 2.0
+    )
+    if (
+        min(
+            lever_fixed_wall,
+            lever_link_wall,
+            hook_link_wall,
+            detent_to_bore_wall,
+        )
+        < PIVOT_MIN_WALL_THICKNESS
+    ):
+        raise ValueError("Latch parts violate the configured pivot minimum wall")
+    link_center_distance = math.hypot(*LATCH_LINK_PIVOT_LOCAL_YZ)
+    relief_cutter_radius = (
+        LATCH_LEVER_FIXED_BOSS_RADIUS + LATCH_REINFORCEMENT_RUNNING_CLEARANCE
+    )
+    relief_sample_chord = (
+        2.0
+        * link_center_distance
+        * math.sin(math.radians(LATCH_REINFORCEMENT_RELIEF_STEP_DEGREES) / 2.0)
+    )
+    maximum_covered_chord = 2.0 * math.sqrt(
+        relief_cutter_radius * relief_cutter_radius
+        - LATCH_LEVER_FIXED_BOSS_RADIUS * LATCH_LEVER_FIXED_BOSS_RADIUS
+    )
+    if relief_sample_chord > maximum_covered_chord:
+        raise ValueError("Latch reinforcement sweep relief is sampled too coarsely")
+    hook_ring_clearance_from_fixed_relief = (
+        link_center_distance - relief_cutter_radius - LATCH_HOOK_LINK_BOSS_RADIUS
+    )
+    if hook_ring_clearance_from_fixed_relief < 0.5:
+        raise ValueError("Fixed-boss sweep relief weakens the hook pivot ring")
+
     press_fit_interference = LATCH_ROD_DIAMETER - LATCH_PRESS_FIT_BORE_DIAMETER
     running_clearance = LATCH_RUNNING_BORE_DIAMETER - LATCH_ROD_DIAMETER
     if not 0.05 <= press_fit_interference <= 0.20:
@@ -2876,6 +3101,13 @@ def validate_configuration() -> None:
         raise ValueError("Latch fixed rod does not span both integrated case ears")
     if LATCH_LINK_ROD_LENGTH < LATCH_WIDTH - 0.1:
         raise ValueError("Latch link rod does not span both hook cheeks")
+    link_axial_clearance = (
+        2.0 * LATCH_HOOK_CHEEK_INNER_X - LATCH_LEVER_LINK_TONGUE_WIDTH
+    ) / 2.0
+    if link_axial_clearance < 0.2 - 1e-6:
+        raise ValueError("Latch lever tongue needs 0.2 mm clearance at each hook cheek")
+    if LATCH_HOOK_CHEEK_WIDTH < PIVOT_MIN_WALL_THICKNESS:
+        raise ValueError("Latch hook cheeks are thinner than the configured minimum")
     if not 0.5 <= LATCH_SWEEP_STEP_DEGREES <= 5.0:
         raise ValueError("Latch sweep validation step must remain 0.5-5 degrees")
     if not 0.0 < LATCH_SWEEP_RESIDUAL_VOLUME_LIMIT <= 0.1:
@@ -2929,10 +3161,8 @@ def validate_configuration() -> None:
     handle_fork_cheek_thickness = (
         handle_arm_width - HANDLE_BASE_LUG_WIDTH - 2.0 * HANDLE_AXIAL_CLEARANCE
     ) / 2.0
-    if handle_fork_cheek_thickness < 1.6:
-        raise ValueError(
-            "Handle pivot forks need at least 1.6 mm axial cheek thickness"
-        )
+    if handle_fork_cheek_thickness < PIVOT_MIN_WALL_THICKNESS:
+        raise ValueError("Handle pivot forks violate the configured pivot minimum wall")
     if HANDLE_BAR_INNER_WIDTH < HANDLE_MIN_USABLE_GRIP_WIDTH:
         raise ValueError("Handle needs its specified unobstructed adult-hand width")
     handle_ear_sweep_radius = max(
@@ -2948,14 +3178,35 @@ def validate_configuration() -> None:
     handle_running_clearance = HANDLE_RUNNING_BORE_DIAMETER - HANDLE_ROD_DIAMETER
     if handle_running_clearance < 0.4:
         raise ValueError("Handle bar needs at least 0.4 mm running clearance")
-    if handle_arm_width < HANDLE_RUNNING_BORE_DIAMETER + 4.0:
-        raise ValueError("Handle arms need at least 2 mm around the pivot bores")
+    handle_pivot_lower_chord_wall = (
+        HANDLE_PIVOT_BOSS_RADIUS / math.sqrt(2.0) - HANDLE_RUNNING_BORE_DIAMETER / 2.0
+    )
+    handle_pivot_roof_wall = (
+        HANDLE_PIVOT_BOSS_RADIUS - math.sqrt(2.0) * HANDLE_RUNNING_BORE_DIAMETER / 2.0
+    )
+    if (
+        min(handle_pivot_lower_chord_wall, handle_pivot_roof_wall)
+        < PIVOT_MIN_WALL_THICKNESS
+    ):
+        raise ValueError("Handle bar pivot violates the configured minimum wall")
     assembled_front_center_z = LATCH_LID_INSTALLED_Z / 2.0
     if not math.isclose(HANDLE_PIVOT_Z, assembled_front_center_z, abs_tol=1e-6):
         raise ValueError("Handle pivot must stay vertically centered on the case front")
     handle_lower_z = HANDLE_PIVOT_Z - HANDLE_BAR_DROP
     if handle_lower_z < 3.0:
         raise ValueError("Folded handle must remain above the case floor")
+    folded_handle_face_gap = -CASE_DEPTH / 2.0 - (
+        HANDLE_PIVOT_Y + HANDLE_BAR_THICKNESS / 2.0
+    )
+    if folded_handle_face_gap < HANDLE_FOLDED_FACE_CLEARANCE:
+        raise ValueError(
+            "Folded handle intersects or sits too close to the case face; "
+            f"computed {folded_handle_face_gap:.2f} mm"
+        )
+    if not 0.5 <= HANDLE_SWEEP_STEP_DEGREES <= 5.0:
+        raise ValueError("Handle sweep validation step must remain 0.5-5 degrees")
+    if not 0.0 < HANDLE_SWEEP_RESIDUAL_VOLUME_LIMIT <= 0.001:
+        raise ValueError("Handle sweep residual-volume limit is too permissive")
     handle_pivot_outset = -CASE_DEPTH / 2.0 - HANDLE_PIVOT_Y
     handle_raised_finger_gap = handle_pivot_outset + HANDLE_BAR_DROP - HANDLE_BAR_DEPTH
     if handle_raised_finger_gap < HANDLE_RAISED_FINGER_CLEARANCE:
@@ -2966,20 +3217,27 @@ def validate_configuration() -> None:
     latch_mount_half_width = (
         LATCH_WIDTH / 2.0 + LATCH_BASE_EAR_AXIAL_CLEARANCE + LATCH_BASE_EAR_WIDTH
     )
-    latch_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - latch_mount_half_width
+    latch_mount_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - latch_mount_half_width
+    latch_lever_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - LATCH_WIDTH / 2.0
     latch_outer_x = max(abs(x) for x in LATCH_X_CENTERS) + latch_mount_half_width
     handle_outer_x = HANDLE_BAR_OUTER_WIDTH / 2.0
-    latch_handle_clearance = latch_inner_x - handle_outer_x
+    latch_handle_clearance = latch_lever_inner_x - handle_outer_x
     if latch_handle_clearance < LATCH_FINGER_ACCESS_CLEARANCE:
         raise ValueError(
             "Folded/swinging handle enters the latch finger-access zone: "
             f"computed {latch_handle_clearance:.2f} mm"
         )
+    latch_mount_handle_clearance = latch_mount_inner_x - handle_outer_x
+    if latch_mount_handle_clearance < LATCH_MOUNT_HANDLE_CLEARANCE:
+        raise ValueError(
+            "Handle sits too close to the integrated latch mount: "
+            f"computed {latch_mount_handle_clearance:.2f} mm"
+        )
     latch_case_edge_clearance = CASE_WIDTH / 2.0 - latch_outer_x
     if latch_case_edge_clearance < 4.0:
         raise ValueError("Exact latch needs at least 4 mm clearance from the case edge")
     handle_lug_outer_x = HANDLE_BASE_LUG_X + HANDLE_BASE_LUG_WIDTH / 2.0
-    if latch_inner_x - handle_lug_outer_x < LATCH_FINGER_ACCESS_CLEARANCE:
+    if latch_lever_inner_x - handle_lug_outer_x < LATCH_FINGER_ACCESS_CLEARANCE:
         raise ValueError("Handle bases enter the latch finger-access zones")
 
     # Conservative analytic envelopes include every projection on each part.
@@ -3032,14 +3290,23 @@ def validate_configuration() -> None:
         f"latch_press_bore={LATCH_PRESS_FIT_BORE_DIAMETER:.2f} "
         f"latch_running_bore={LATCH_RUNNING_BORE_DIAMETER:.2f} "
         f"latch_ear_clearance={LATCH_BASE_EAR_AXIAL_CLEARANCE:.2f} "
+        f"pivot_min_wall={PIVOT_MIN_WALL_THICKNESS:.2f} "
+        f"mount_chord_wall={mount_lower_chord_wall:.2f} "
+        f"mount_roof_wall={mount_roof_wall:.2f} "
+        f"latch_boss_wall={min(lever_fixed_wall, lever_link_wall, hook_link_wall):.2f} "
+        f"latch_detent_wall={detent_to_bore_wall:.2f} "
         f"latch_lip_draw={LID_LATCH_LIP_DRAW:.2f} "
         f"latch_rim_outset={LID_FLANGE_OUTSET:.2f} "
         f"latch_rim_edge={LID_LATCH_RIM_EDGE_THICKNESS:.2f} "
         f"latch_trough={LID_LATCH_TROUGH_WIDTH:.2f} "
         f"latch_bead={LID_LATCH_CAPTURE_BEAD_OUTSET:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
+        f"latch_mount_handle_clearance={latch_mount_handle_clearance:.2f} "
         f"handle_mode={HANDLE_HARDWARE_MODE} "
         f"handle_fork_cheek={handle_fork_cheek_thickness:.2f} "
+        f"handle_pivot_chord_wall={handle_pivot_lower_chord_wall:.2f} "
+        f"handle_pivot_roof_wall={handle_pivot_roof_wall:.2f} "
+        f"handle_folded_face_gap={folded_handle_face_gap:.2f} "
         f"handle_grip_width={HANDLE_BAR_INNER_WIDTH:.2f} "
         f"handle_center_z={HANDLE_PIVOT_Z:.2f} "
         f"handle_raised_finger_gap={handle_raised_finger_gap:.2f}"
@@ -3075,12 +3342,13 @@ def create_base(material):
     )
     difference_from(base, inner)
 
-    # Exterior impact ribs are deliberately below the sealing edge.
+    # Exterior impact ribs are deliberately below the sealing edge.  The
+    # front-center ribs are omitted because they would obstruct the measured
+    # 24 mm finger corridor between the carry handle and each moving latch.
+    # The integrated handle/latch mounts already reinforce that face.
     rib_specs = []
     for x in (-42.0, 0.0, 42.0):
         rib_specs.append(((x, CASE_DEPTH / 2.0 + 1.3, 24.0), (6.0, 4.8, 42.0)))
-    for x in (-52.0, 52.0):
-        rib_specs.append(((x, -CASE_DEPTH / 2.0 - 1.0, 24.0), (6.0, 4.5, 42.0)))
     for x in (-CASE_WIDTH / 2.0 - 1.3, CASE_WIDTH / 2.0 + 1.3):
         for y in (-38.0, 38.0):
             rib_specs.append(((x, y, 22.0), (5.0, 24.0, 38.0)))
@@ -3122,11 +3390,11 @@ def create_base(material):
         difference_from(knuckle, hole)
         union_into(base, knuckle)
 
-    # The source lever sits between two compact case ears, matching the source
-    # case's fixed-pivot arrangement.  Both ears retain the fixed 4 mm rod in
-    # 3.9 mm bores while the lever's embedded 4.4 mm bore turns freely.  These
-    # are shaped mounting plates joined directly to the shell, not loose or
-    # decorative cylinders.
+    # The source lever sits between two reinforced case ears.  Each ear rises
+    # from the shell on a printable lower ramp, wraps the pivot with the shared
+    # minimum wall, and curves back into the body above the bore.  The 3.9 mm
+    # retaining holes use a 45-degree roof instead of an unsupported circular
+    # ceiling; the lever's 4.4 mm bore turns freely between them.
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
         for side in (-1.0, 1.0):
             ear_x = x + side * LATCH_BASE_EAR_CENTER_OFFSET_X
@@ -3136,12 +3404,11 @@ def create_base(material):
                 ear_x - LATCH_BASE_EAR_WIDTH / 2.0,
                 ear_x + LATCH_BASE_EAR_WIDTH / 2.0,
             )
-            hole = add_cylinder_x(
+            hole = add_teardrop_hole_x(
                 f"Base_Latch_{index}_3p9mm_Press_Fit_Hole",
                 LATCH_PRESS_FIT_BORE_DIAMETER / 2.0,
                 LATCH_BASE_EAR_WIDTH + 0.8,
                 (ear_x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
-                vertices=48,
             )
             difference_from(ear, hole)
             if side in LATCH_DETENT_SIDES:
@@ -3161,10 +3428,11 @@ def create_base(material):
                 union_into(ear, detent_boss)
             union_into(base, ear)
 
-    # The suitcase-handle base is part of the shell: one compact lug per side
-    # sits inside a relieved fork in the separate handle arm.  Keeping both
-    # lugs outside the 76 mm grip opening preserves the full raised finger gap.
-    # The outer fork cheek remains accessible for a short rod or M4 screw.
+    # The suitcase-handle base is part of the shell: one reinforced, ramped lug
+    # per side sits inside a relieved fork in the separate handle arm.  Its
+    # upper edge curves back into the case body, and its horizontal bore has a
+    # printable 45-degree roof.  Keeping both lugs outside the 75 mm grip
+    # opening preserves the full raised finger gap.
     handle_base_bore = (
         HANDLE_PRESS_FIT_BORE_DIAMETER
         if HANDLE_HARDWARE_MODE == "ROD"
@@ -3678,6 +3946,53 @@ def create_pelican_latch_parts(material):
         part = bpy.data.objects.new(object_name, mesh)
         bpy.context.collection.objects.link(part)
         if part_index == 0:
+            fixed_boss = add_cylinder_x(
+                "Pelican_Lever_Reinforced_Fixed_Pivot_Boss",
+                LATCH_LEVER_FIXED_BOSS_RADIUS,
+                LATCH_WIDTH,
+                (0.0, 0.0, 0.0),
+                vertices=64,
+            )
+            union_into(part, fixed_boss)
+            link_boss = add_cylinder_x(
+                "Pelican_Lever_Reinforced_Link_Pivot_Boss",
+                LATCH_LEVER_LINK_BOSS_RADIUS,
+                LATCH_LEVER_LINK_TONGUE_WIDTH,
+                (0.0, *LATCH_LINK_PIVOT_LOCAL_YZ),
+                vertices=64,
+            )
+            union_into(part, link_boss)
+            # The hook carries its reinforced link bore in two outer cheeks.
+            # Clear those exact axial bands from the source lever frame while
+            # preserving the lever's reinforced central link tongue.
+            for side in (-1.0, 1.0):
+                cheek_center_x = side * (
+                    LATCH_HOOK_CHEEK_INNER_X + LATCH_HOOK_CHEEK_WIDTH / 2.0
+                )
+                hook_boss_relief = add_cylinder_x(
+                    "Pelican_Lever_Clearance_For_Reinforced_Hook_Cheek",
+                    LATCH_HOOK_LINK_BOSS_RADIUS + LATCH_REINFORCEMENT_RUNNING_CLEARANCE,
+                    LATCH_HOOK_CHEEK_WIDTH + 2.0 * LATCH_REINFORCEMENT_AXIAL_CLEARANCE,
+                    (cheek_center_x, *LATCH_LINK_PIVOT_LOCAL_YZ),
+                    vertices=64,
+                )
+                difference_from(part, hook_boss_relief)
+            fixed_bore = add_cylinder_x(
+                "Pelican_Lever_4p4mm_Fixed_Running_Bore",
+                LATCH_RUNNING_BORE_DIAMETER / 2.0,
+                LATCH_WIDTH + 0.8,
+                (0.0, 0.0, 0.0),
+                vertices=64,
+            )
+            difference_from(part, fixed_bore)
+            link_bore = add_cylinder_x(
+                "Pelican_Lever_4p4mm_Link_Running_Bore",
+                LATCH_RUNNING_BORE_DIAMETER / 2.0,
+                LATCH_LEVER_LINK_TONGUE_WIDTH + 0.8,
+                (0.0, *LATCH_LINK_PIVOT_LOCAL_YZ),
+                vertices=64,
+            )
+            difference_from(part, link_bore)
             for side in LATCH_DETENT_SIDES:
                 dimple_center_x = side * (
                     LATCH_WIDTH / 2.0
@@ -3694,6 +4009,65 @@ def create_pelican_latch_parts(material):
                     ),
                 )
                 difference_from(part, dimple)
+        else:
+            for side in (-1.0, 1.0):
+                cheek_center_x = side * (
+                    LATCH_HOOK_CHEEK_INNER_X + LATCH_HOOK_CHEEK_WIDTH / 2.0
+                )
+                cheek_boss = add_cylinder_x(
+                    "Pelican_Hook_Reinforced_Link_Pivot_Cheek",
+                    LATCH_HOOK_LINK_BOSS_RADIUS,
+                    LATCH_HOOK_CHEEK_WIDTH,
+                    (cheek_center_x, 0.0, 0.0),
+                    vertices=64,
+                )
+                union_into(part, cheek_boss)
+            hook_bore = add_cylinder_x(
+                "Pelican_Hook_3p9mm_Link_Press_Fit_Bore",
+                LATCH_PRESS_FIT_BORE_DIAMETER / 2.0,
+                LATCH_WIDTH + 0.8,
+                (0.0, 0.0, 0.0),
+                vertices=64,
+            )
+            difference_from(part, hook_bore)
+            # The reinforced fixed lever boss is circular and stationary in
+            # the lever frame.  In the rotating hook frame it follows this
+            # sampled arc.  Relieving that swept envelope preserves the full
+            # toggle motion without thinning the hook's own link-pivot ring.
+            relief_steps = max(
+                1,
+                math.ceil(
+                    abs(LATCH_HOOK_OPEN_ANGLE - LATCH_HOOK_CLOSED_ANGLE)
+                    / LATCH_REINFORCEMENT_RELIEF_STEP_DEGREES
+                ),
+            )
+            link_y, link_z = LATCH_LINK_PIVOT_LOCAL_YZ
+            for step in range(relief_steps + 1):
+                relative_angle = math.radians(
+                    LATCH_HOOK_CLOSED_ANGLE
+                    + (LATCH_HOOK_OPEN_ANGLE - LATCH_HOOK_CLOSED_ANGLE)
+                    * step
+                    / relief_steps
+                )
+                delta_y = -link_y
+                delta_z = -link_z
+                fixed_y_in_hook = (
+                    math.cos(relative_angle) * delta_y
+                    + math.sin(relative_angle) * delta_z
+                )
+                fixed_z_in_hook = (
+                    -math.sin(relative_angle) * delta_y
+                    + math.cos(relative_angle) * delta_z
+                )
+                fixed_boss_relief = add_cylinder_x(
+                    "Pelican_Hook_Clearance_For_Reinforced_Fixed_Lever_Boss",
+                    LATCH_LEVER_FIXED_BOSS_RADIUS
+                    + LATCH_REINFORCEMENT_RUNNING_CLEARANCE,
+                    LATCH_WIDTH + 0.8,
+                    (0.0, fixed_y_in_hook, fixed_z_in_hook),
+                    vertices=64,
+                )
+                difference_from(part, fixed_boss_relief)
         # A broad source side is the support-free print face.  Keep the mesh
         # data itself in its installed coordinate frame so reference copies can
         # be positioned by simply clearing this object transform.
@@ -3728,12 +4102,15 @@ def create_pivoting_handle_bar(material):
             bevel=2.6,
         )
         union_into(handle, arm)
-        pivot_barrel = add_cylinder_x(
-            "Pivoting_Handle_4mm_Pivot_Barrel",
-            HANDLE_BAR_THICKNESS / 2.0,
-            arm_width,
-            (side * HANDLE_PIVOT_X, 0.0, HANDLE_BAR_THICKNESS / 2.0),
-            vertices=48,
+        pivot_barrel = extrude_loop_x(
+            "Pivoting_Handle_Reinforced_Support_Free_Pivot_Boss",
+            support_free_pivot_boss_loop_yz(
+                0.0,
+                HANDLE_BAR_THICKNESS / 2.0,
+                HANDLE_PIVOT_BOSS_RADIUS,
+            ),
+            side * HANDLE_PIVOT_X - arm_width / 2.0,
+            side * HANDLE_PIVOT_X + arm_width / 2.0,
         )
         union_into(handle, pivot_barrel)
         pivot_hole = add_teardrop_hole_x(
@@ -4288,6 +4665,41 @@ def validate_installed_latch_mechanics(parts) -> None:
         f"over_center_angle={toggle_angle:.2f} "
         f"over_center_depth={over_center_depth:.3f}"
         f" wrong_way_stop_min={min(wrong_way_volumes):.6f}"
+    )
+
+
+def validate_installed_handle_mechanics(parts) -> None:
+    """Sweep the reinforced moving handle through its complete working arc."""
+    sweep_steps = max(1, math.ceil(90.0 / HANDLE_SWEEP_STEP_DEGREES))
+    maximum_overlap = (0.0, 0.0, 0)
+    local_pivot_z = HANDLE_BAR_THICKNESS / 2.0
+    for sample_index in range(sweep_steps + 1):
+        angle = 90.0 * sample_index / sweep_steps
+        radians = math.radians(angle)
+        handle_location = (
+            0.0,
+            HANDLE_PIVOT_Y + math.sin(radians) * local_pivot_z,
+            HANDLE_PIVOT_Z - math.cos(radians) * local_pivot_z,
+        )
+        faces, volume = exact_transformed_intersection(
+            parts["base"],
+            parts["handle_bar"],
+            second_location=handle_location,
+            second_rotation=(radians, 0.0, 0.0),
+        )
+        if volume > maximum_overlap[0]:
+            maximum_overlap = (volume, angle, faces)
+        if volume > HANDLE_SWEEP_RESIDUAL_VOLUME_LIMIT:
+            raise ValueError(
+                "Pivoting handle sweep collides with the reinforced case mounts: "
+                f"angle={angle:.2f} faces={faces} volume={volume:.6f}"
+            )
+    print(
+        "FIELD_CASE_INSTALLED_HANDLE_VALID "
+        f"samples={sweep_steps + 1} "
+        f"sweep=0.00-90.00deg "
+        f"maximum_intersection={maximum_overlap[0]:.6f}@"
+        f"{maximum_overlap[1]:.2f}deg"
     )
 
 
@@ -5831,6 +6243,7 @@ def build_mission1_field_case():
         validate_built_part(name, obj)
     validate_installed_case_closure(parts)
     validate_installed_latch_mechanics(parts)
+    validate_installed_handle_mechanics(parts)
     lid_islands = validate_lid_bonding_payloads(
         evaluated_mesh_payload(parts["lid"], Vector((0.0, 0.0, 0.0))),
         (
