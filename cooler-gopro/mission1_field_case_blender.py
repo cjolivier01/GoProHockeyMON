@@ -2962,6 +2962,8 @@ def validate_configuration() -> None:
         ):
             raise ValueError("Battery-door lid hold-down exceeds the TPU lid pad")
 
+    if len(MISC_COMPARTMENT_X_BOUNDS) != 2:
+        raise ValueError("Exactly two miscellaneous compartments are required")
     if MISC_COMPARTMENT_FLOOR_Z < MISC_COMPARTMENT_MIN_WEB:
         raise ValueError("Miscellaneous compartments need a 4 mm TPU floor")
     misc_depth = MISC_COMPARTMENT_Y_BOUNDS[1] - MISC_COMPARTMENT_Y_BOUNDS[0]
