@@ -24,7 +24,7 @@ their lens lobes nest while a continuous TPU web keeps the pockets separate.
 Each lens end widens into a trapezoidal relief for the soft MISSION 1 Pro lens
 flare/hood. Four exact 33.5 x 12.5 mm battery pockets retain their existing
 21.8 mm insertion depth; the generated inspection batteries are 40.56 mm tall
-and sit terminal-down. Two outer 50 x 17 mm door pockets are recessed 10 mm.
+and sit terminal-down. Two outer 50 x 10 mm door pockets are recessed 10 mm.
 The generated 18 mm-tall door solids remain 8 mm proud for an easy finger grip.
 
 The TPU lid pad has separate shutter-button reliefs. Its asymmetric perimeter
@@ -34,7 +34,7 @@ the same 0.6 mm preload as the camera/battery contact face, preventing the
 doors from rattling when the case is closed.
 
 With `BUILD_REFERENCE_MOCKUPS = True`, the script also creates four procedural
-40.56 mm battery solids and two procedural 50 x 17 x 18 mm door solids seated
+40.56 mm battery solids and two procedural 50 x 10 x 18 mm door solids seated
 in those pockets for visual inspection. They are reference-only scene objects,
 not additional STL dependencies or print outputs.
 

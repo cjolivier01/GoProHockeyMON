@@ -296,15 +296,15 @@ BATTERY_CENTERS = (
     (30.0, -48.0),
 )
 
-# Each removable battery-cage door lies flat in a 50 x 17 mm pocket sunk only
+# Each removable battery-cage door lies flat in a 50 x 10 mm pocket sunk only
 # 10 mm into the TPU. The 18 mm inspection solid therefore remains 8 mm proud
 # for finger access. Matching lid-pad bosses prevent either door from rattling.
-BATTERY_DOOR_SIZE = (50.0, 17.0, 18.0)
+BATTERY_DOOR_SIZE = (50.0, 10.0, 18.0)
 BATTERY_DOOR_SLOT_SIZE = BATTERY_DOOR_SIZE[:2]
 BATTERY_DOOR_SLOT_DEPTH = 10.0
 BATTERY_DOOR_SLOT_FLOOR_Z = TRAY_HEIGHT - BATTERY_DOOR_SLOT_DEPTH
 BATTERY_DOOR_SLOT_CENTERS = ((-70.0, -60.0), (70.0, -60.0))
-BATTERY_DOOR_LID_HOLD_DOWN_SIZE = (42.0, 12.0)
+BATTERY_DOOR_LID_HOLD_DOWN_SIZE = (42.0, 7.0)
 BATTERY_DOOR_LID_HOLD_DOWN_EXTENSION = (
     CAMERA_FLOOR_Z
     + mission1.BODY_HEIGHT
@@ -2647,10 +2647,17 @@ def validate_configuration() -> None:
     ):
         raise ValueError("Battery pockets must remain 33.5 x 12.5 x 21.8 mm")
     if not (
-        BATTERY_DOOR_SLOT_SIZE == (50.0, 17.0)
+        BATTERY_DOOR_SLOT_SIZE == (50.0, 10.0)
         and math.isclose(BATTERY_DOOR_SLOT_DEPTH, 10.0, abs_tol=1e-6)
     ):
-        raise ValueError("Battery-door pockets must remain 50 x 17 x 10 mm")
+        raise ValueError("Battery-door pockets must remain 50 x 10 x 10 mm")
+    if any(
+        hold_down >= pocket
+        for hold_down, pocket in zip(
+            BATTERY_DOOR_LID_HOLD_DOWN_SIZE, BATTERY_DOOR_SLOT_SIZE
+        )
+    ):
+        raise ValueError("Battery-door lid hold-down must fit inside the door outline")
     if min(WALL_THICKNESS, BASE_FLOOR_THICKNESS, TRAY_FLOOR_THICKNESS) < 2.0:
         raise ValueError("Default shell walls and all floors must remain at least 2 mm")
     hinge_segments = sorted(
@@ -3233,7 +3240,7 @@ def create_lower_tray(material):
 
     for index, center in enumerate(BATTERY_DOOR_SLOT_CENTERS, start=1):
         slot = add_rounded_prism(
-            f"Battery_Cage_Door_{index}_50x17x10_Storage_Pocket",
+            f"Battery_Cage_Door_{index}_50x10x10_Storage_Pocket",
             BATTERY_DOOR_SLOT_SIZE[0],
             BATTERY_DOOR_SLOT_SIZE[1],
             BATTERY_DOOR_SLOT_FLOOR_Z,
