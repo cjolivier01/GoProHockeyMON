@@ -2985,6 +2985,7 @@ def validate_configuration() -> None:
     maximum_mount_bore_radius = (
         max(
             LATCH_PRESS_FIT_BORE_DIAMETER,
+            LATCH_RUNNING_BORE_DIAMETER,
             HANDLE_PRESS_FIT_BORE_DIAMETER,
             HANDLE_RUNNING_BORE_DIAMETER,
         )
