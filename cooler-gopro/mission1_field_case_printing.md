@@ -26,17 +26,19 @@ offset lens housing, controls, and rounded body. The cameras face opposite
 directions so their lens lobes nest while a continuous TPU web keeps the
 pockets separate.
 Each lens end widens into a trapezoidal relief for the soft MISSION 1 Pro lens
-flare/hood. Four exact 33.5 x 12.5 mm battery pockets retain their existing
-21.8 mm insertion depth; the generated inspection batteries are 40.56 mm tall
-and sit terminal-down. Two outer 50 x 10 mm door pockets are recessed 10 mm.
-The generated 18 mm-tall door solids remain 8 mm proud for an easy finger grip.
+flare/hood. Four 34.5 x 13.5 mm battery pockets provide 1 mm total clearance
+around the 33.5 x 12.5 mm generated inspection batteries and retain their
+existing 21.8 mm insertion depth. The batteries are 40.56 mm tall and sit
+terminal-down. Two outer 50 x 11 mm door pockets are recessed 11 mm. The
+generated 50 x 10 x 18 mm door solids remain 7 mm proud for an easy finger
+grip.
 
 Two miscellaneous-storage compartments follow the open side channels in the
 supplied `lower_tray.stl` reference. The left compartment runs beside both
-opposed cameras and is 37.8 x 119 x 31 mm. The right compartment runs up to
-the flared lens-hood clearance and is 58.4 x 53.5 x 31 mm. Both leave 4 mm of
-TPU beneath their floors and at least 4 mm to the tray side walls,
-battery-door slots, battery row, and procedural camera/hood recesses.
+opposed cameras and is 37.8 x 118.4 x 31 mm. The right compartment runs up to
+the flared lens-hood clearance and is 58 x 52.9 x 31 mm. Both leave 4 mm of TPU
+beneath their floors and at least 4 mm to the tray side walls, enlarged
+battery-door slots, enlarged battery row, and procedural camera/hood recesses.
 
 The TPU lid pad has separate shutter-button reliefs. Its asymmetric perimeter
 notch mates with a rigid lid boss, so the pad seats in only the correct
@@ -45,9 +47,9 @@ the same 0.6 mm preload as the camera/battery contact face, preventing the
 doors from rattling when the case is closed.
 
 With `BUILD_REFERENCE_MOCKUPS = True`, the script also creates four procedural
-40.56 mm battery solids and two procedural 50 x 10 x 18 mm door solids seated
-in those pockets for visual inspection. They are reference-only scene objects,
-not additional STL dependencies or print outputs.
+33.5 x 12.5 x 40.56 mm battery solids and two procedural 50 x 10 x 18 mm door
+solids seated in those pockets for visual inspection. They are reference-only
+scene objects, not additional STL dependencies or print outputs.
 
 ## Lid logo
 
@@ -299,7 +301,7 @@ and can be regenerated without editing an STL.
 ## Case assembly
 
 1. Press the lower TPU tray into the base and lay the two removable battery
-   doors in the shallow outer pockets if carried; each door remains 8 mm proud.
+   doors in the shallow outer pockets if carried; each door remains 7 mm proud.
 2. Seat the TPU gasket in the lid channel. Fit the TPU pad with its asymmetric
    notch over the matching rigid boss.
 3. Alternate the base and lid hinge knuckles, then insert the printed hinge pin

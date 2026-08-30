@@ -288,13 +288,13 @@ CAMERA_PLACEMENTS = (
     ),
 )
 
-# User-measured Mission 1 battery storage envelope. The requested pocket plan
-# is exactly 33.5 x 12.5 mm; its existing 21.8 mm insertion depth is retained,
+# User-measured Mission 1 battery envelope. The pocket adds 1 mm total in both
+# plan dimensions, while retaining the existing 21.8 mm insertion depth and
 # leaving enough of the 40.56 mm battery exposed for a finger grip.
 BATTERY_HEIGHT = 40.56
 BATTERY_WIDTH = 33.5
 BATTERY_THICKNESS = 12.5
-BATTERY_CLEARANCE = 0.0
+BATTERY_CLEARANCE = 1.0
 BATTERY_POCKET_WIDTH = BATTERY_THICKNESS + BATTERY_CLEARANCE
 BATTERY_POCKET_DEPTH = BATTERY_WIDTH + BATTERY_CLEARANCE
 BATTERY_POCKET_INSERTION_DEPTH = 21.8
@@ -306,12 +306,12 @@ BATTERY_CENTERS = (
     (30.0, -48.0),
 )
 
-# Each removable battery-cage door lies flat in a 50 x 10 mm pocket sunk only
-# 10 mm into the TPU. The 18 mm inspection solid therefore remains 8 mm proud
+# Each removable battery-cage door lies flat in a 50 x 11 mm pocket sunk only
+# 11 mm into the TPU. The 18 mm inspection solid therefore remains 7 mm proud
 # for finger access. Matching lid-pad bosses prevent either door from rattling.
 BATTERY_DOOR_SIZE = (50.0, 10.0, 18.0)
-BATTERY_DOOR_SLOT_SIZE = BATTERY_DOOR_SIZE[:2]
-BATTERY_DOOR_SLOT_DEPTH = 10.0
+BATTERY_DOOR_SLOT_SIZE = (BATTERY_DOOR_SIZE[0], 11.0)
+BATTERY_DOOR_SLOT_DEPTH = 11.0
 BATTERY_DOOR_SLOT_FLOOR_Z = TRAY_HEIGHT - BATTERY_DOOR_SLOT_DEPTH
 BATTERY_DOOR_SLOT_CENTERS = ((-70.0, -60.0), (70.0, -60.0))
 BATTERY_DOOR_LID_HOLD_DOWN_SIZE = (42.0, 7.0)
@@ -331,8 +331,8 @@ BATTERY_DOOR_LID_HOLD_DOWN_EXTENSION = (
 MISC_COMPARTMENT_MIN_WEB = 4.0
 MISC_COMPARTMENT_FLOOR_Z = MISC_COMPARTMENT_MIN_WEB
 MISC_COMPARTMENT_BOUNDS = (
-    ((-98.9, -61.1), (-51.0, 68.0)),
-    ((40.5, 98.9), (-51.0, 2.5)),
+    ((-98.9, -61.1), (-50.4, 68.0)),
+    ((40.9, 98.9), (-50.4, 2.5)),
 )
 MISC_COMPARTMENT_CORNER_RADIUS = 3.0
 
@@ -2970,16 +2970,16 @@ def validate_configuration() -> None:
     tray_depth = inner_depth - 2.0 * INSERT_SIDE_CLEARANCE
 
     if not (
-        math.isclose(BATTERY_POCKET_DEPTH, 33.5, abs_tol=1e-6)
-        and math.isclose(BATTERY_POCKET_WIDTH, 12.5, abs_tol=1e-6)
+        math.isclose(BATTERY_POCKET_DEPTH, 34.5, abs_tol=1e-6)
+        and math.isclose(BATTERY_POCKET_WIDTH, 13.5, abs_tol=1e-6)
         and math.isclose(BATTERY_POCKET_INSERTION_DEPTH, 21.8, abs_tol=1e-6)
     ):
-        raise ValueError("Battery pockets must remain 33.5 x 12.5 x 21.8 mm")
+        raise ValueError("Battery pockets must remain 34.5 x 13.5 x 21.8 mm")
     if not (
-        BATTERY_DOOR_SLOT_SIZE == (50.0, 10.0)
-        and math.isclose(BATTERY_DOOR_SLOT_DEPTH, 10.0, abs_tol=1e-6)
+        BATTERY_DOOR_SLOT_SIZE == (50.0, 11.0)
+        and math.isclose(BATTERY_DOOR_SLOT_DEPTH, 11.0, abs_tol=1e-6)
     ):
-        raise ValueError("Battery-door pockets must remain 50 x 10 x 10 mm")
+        raise ValueError("Battery-door pockets must remain 50 x 11 x 11 mm")
     if any(
         hold_down >= pocket
         for hold_down, pocket in zip(
@@ -3948,7 +3948,7 @@ def create_lower_tray(material):
 
     for index, center in enumerate(BATTERY_DOOR_SLOT_CENTERS, start=1):
         slot = add_rounded_prism(
-            f"Battery_Cage_Door_{index}_50x10x10_Storage_Pocket",
+            f"Battery_Cage_Door_{index}_50x11x11_Storage_Pocket",
             BATTERY_DOOR_SLOT_SIZE[0],
             BATTERY_DOOR_SLOT_SIZE[1],
             BATTERY_DOOR_SLOT_FLOOR_Z,
