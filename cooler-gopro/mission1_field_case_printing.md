@@ -35,10 +35,13 @@ grip.
 
 Two miscellaneous-storage compartments follow the open side channels in the
 supplied `lower_tray.stl` reference. The left compartment runs beside both
-opposed cameras and is 37.8 x 118.4 x 31 mm. The right compartment runs up to
-the flared lens-hood clearance and is 58 x 52.9 x 31 mm. Both leave 4 mm of TPU
-beneath their floors and at least 4 mm to the tray side walls, enlarged
-battery-door slots, enlarged battery row, and procedural camera/hood recesses.
+opposed cameras and is 37.8 x 118.4 x 31 mm. The right compartment is a
+continuous stepped pocket: its 58 x 52.9 mm lower section continues upward as
+a narrower 37.9 x 68.5 mm section beside the rear camera. The sections overlap,
+and a 2 mm inside fillet rounds the step instead of leaving a TPU tear point.
+Both compartments leave 4 mm of TPU beneath their floors and at least 4 mm to
+the tray side walls, enlarged battery-door slots, enlarged battery row, and
+procedural camera/hood recesses.
 
 The TPU lid pad has separate shutter-button reliefs. Its asymmetric perimeter
 notch mates with a rigid lid boss, so the pad seats in only the correct
@@ -122,37 +125,45 @@ without thinning either link-pivot ring.
 
 The lid has one continuous 5 mm flared rim with a full 3 mm vertical loaded
 edge and 5.4 mm radial thickness. At each latch, a deep bay is cut through the
-outer skirt while retaining a 4 mm skirt back wall. A 2.6 mm-diameter
-horizontal capture rail spans that bay. Two outer 1.2 mm webs bond the rail to
-the back wall while leaving a central recess behind it. A central 1.2 mm-thick
-flat landing transfers clamp load from that recess into the wall and rail.
-The 4.5 mm-thick side towers carry the rail ends, keep the 20.48 mm-wide hook
-from walking sideways off the catch, and stand proud of it to deflect impacts.
+outer skirt while retaining a 4 mm skirt back wall. A continuous 2.4 mm-thick,
+22.4 mm-wide flat load ledge fills the former open space between that wall and
+the catch. It overlaps the back wall by 1 mm and reaches 0.4 mm into each side
+tower. The 2.6 mm-diameter horizontal capture rail is embedded through the
+outer edge of this ledge rather than hanging as a stand-alone cylinder. Its
+exposed upper half remains the retention bead. The 4.5 mm-thick side towers
+carry both ends, keep the 20.48 mm-wide hook from walking sideways off the
+catch, and stand proud of it to deflect impacts.
 
 The source model's obsolete lower jaw has been removed. The moving hook now
 has a full-width 3.2 mm reinforced upper arm and a true cylindrical central
 boss, 2.8 mm in diameter and 16 mm wide, that enters the recess on the
 caseward side of the rail. A second overlapping 3.4 mm-diameter round boss
-bonds it deeply into the arm. There is no pointed nose or thin flexing wedge.
-After all motion clearances are cut, generation verifies an intact 2.1 x 15.2
-mm core through the catch, an intact 2.7 x 15.2 mm core through its root, and
-an intact 1.6 x 15.2 mm core through the overlap between them. These large
+bonds it deeply into the arm. Below those round retention features is an 18
+mm-wide by 1.3 mm-deep flat bearing pad with a 2.8 mm-tall reinforced root.
+That pad—not the cylinder—carries the downward clamp load. There is no pointed
+nose or thin flexing wedge. After all motion clearances are cut, generation
+verifies an intact 2.1 x 15.2 mm core through the catch, an intact 2.7 x 15.2
+mm core through its root, an intact 1.6 x 15.2 mm core through their overlap,
+and 48.245998 of the intended 48.246000 mm3 flat-pad core. These large
 continuous sections are intended to remain sturdy when the hook is printed in
 hard TPU.
 
-The round boss rests 0.10 mm above the flat hard-seat landing. This is the
-positive stop against outward peel: the latch cannot swing away from the lid
-without first moving the full cylindrical boss out from behind the fixed rail.
+At the hard lid seat, the flat pad has 0.14 mm clearance above the ledge. The
+uncompressed gasket raises the lid 0.25 mm, producing 0.11 mm of flat-surface
+preload. The round retention boss remains 0.25 mm above the ledge and the
+larger root clears even the uncompressed ledge by 0.05 mm, so neither round
+feature substitutes line contact for the requested flat downward-bearing
+surface. The cylindrical boss still blocks outward peel behind the exposed
+rail bead.
 
 The rail has 0.10 mm running clearance along its generated release path. The
 Python generator samples the actual two-pivot linkage and cuts that path in the
 hook's moving frame. During the first 12 degrees of deliberate lever travel,
-the upper arm moves outward but the round boss remains captured. The deeper
-external bay preserves the rigid 4 mm lid back wall while giving the fat boss
-room to move during release. A round-matched scallop in the landing clears its
-fully released pose without shaving the TPU boss. At 24 degrees the rail exits
-through the open underside. There is no disconnected tooth or lower jaw to
-print.
+the upper arm moves outward while the flat pad and round boss remain captured.
+The deeper external bay preserves the rigid 4 mm lid back wall while giving
+the hook room to move during release. At 24 degrees the pad, root, and boss all
+lift clear of the continuous ledge, so the ledge needs no weakening release
+scallop. There is no disconnected tooth or lower jaw to print.
 
 Matching 4.5 mm-thick impact cheeks are integrated into the base on both sides
 of each lever. They stand forward of the closed lever, join the shell on
@@ -160,19 +171,21 @@ of each lever. They stand forward of the closed lever, join the shell on
 brittle square-ended posts. Together with the lid towers, they protect the
 closed hardware from side hits and snags while leaving the full center finger
 corridor open. The horizontal catch rail is the only short bridge that may
-benefit from tuned bridging or localized support; the guard ramps themselves
-do not require support in the exported orientation.
+benefit from tuned bridging or localized support. The load ledge turns that
+bridge into an 8.6 mm-deep structural shelf tied into the lid wall and towers;
+the guard ramps themselves do not require support in the exported orientation.
 
 The uncompressed lid begins 0.25 mm above its hard seated position. Pressing
-the broad lever inward pulls the upper arm against the horizontal rail, loads
-the round boss onto its landing, draws the lid down onto the gasket, and passes
-the linkage over center. The generated geometry verifies zero hard-seated
-hook/lid intersection, 1.396054 mm3 minimum capture during an attempted 0.15
-mm lid lift, 5.769714 mm3 minimum rail preload at the full 0.25 mm
-uncompressed gasket position, and 30.978098 mm3 minimum engagement during a
-0.60 mm outward-peel attempt. It also verifies 2.194807 mm3 minimum capture at
-12 degrees open and complete rail release at 24 degrees. The complete coupled
-opening path has zero hook/base, hook/lid, and lever/hook collision.
+the broad lever inward places its flat pad against the load ledge, draws the
+lid down onto the gasket, and passes the linkage over center. The generated
+geometry verifies zero hard-seated hook/lid intersection, 1.246471 mm3 minimum
+total capture and 0.228854 mm3 of flat-pad capture during an attempted 0.15 mm
+lid lift, 6.656732 mm3 total preload and 2.516820 mm3 of isolated flat-pad
+preload at the full 0.25 mm uncompressed gasket position, and 31.467644 mm3
+minimum engagement during a 0.60 mm outward-peel attempt. It also verifies
+1.399353 mm3 minimum capture at 12 degrees open and complete rail/ledge release
+at 24 degrees. The complete coupled opening path has zero hook/base, hook/lid,
+and lever/hook collision.
 
 The source toggle's natural over-center travel is retained. Opposed hidden
 spherical snap detents in both base ears center the lever and prevent normal
@@ -197,10 +210,10 @@ To install one latch:
    central boss in the molded recess behind the horizontal lid rail, between
    the two protective towers. Press the broad outer lever inward until the
    hidden detent snaps closed. Confirm that the upper arm is centered between
-   the towers and that the boss is behind the rail, not perched on its outside
-   face. Pull the broad lever outward through the detent to unload the gasket;
-   the linkage then cams the boss through the landing scallop and clear of the
-   rail so the lid can open.
+   the towers, its flat pad is over the load ledge, and the boss is behind the
+   rail rather than perched on its outside face. Pull the broad lever outward
+   through the detent to unload the gasket; the linkage then lifts both pad and
+   boss clear of the continuous ledge and rail so the lid can open.
 
 Deburr and lightly chamfer rod ends. Do not hammer a rod into an unsupported
 ear or hook cheek. Printer shrinkage varies, so print one lever and hook first
@@ -273,8 +286,8 @@ through both rigid case halves with 3.49 mm cylindrical clearance probes.
   least 25% infill.
 - The upper moving latch hooks may be printed in hard TPU. Use the stiffest TPU
   your printer handles reliably, at least five walls, and high infill around
-  the round catch and link-pivot end. Soft 95A tray-style settings are not
-  recommended for this load-bearing part.
+  the flat bearing pad, round retention boss, and link-pivot end. Soft 95A
+  tray-style settings are not recommended for this load-bearing part.
 - Lower tray, lid pad, and gasket: TPU 95A, two or three walls, and 15-20%
   infill. The gasket is for dust and splash resistance, not certified
   waterproofing.
