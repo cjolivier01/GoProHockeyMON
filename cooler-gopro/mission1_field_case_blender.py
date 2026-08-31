@@ -10,7 +10,7 @@ from disk.  The default kit holds:
 * a flush-top recessed TPU equipment tray and a one-way-keyed TPU lid pad,
 * a TPU dust/splash gasket, two source-derived two-piece Pelican latch
   mechanisms mounted on 4 mm stainless rods, and a separate pivoting handle,
-* a flush Neuropol ``GoPro Missions`` mark with the four GoPro color blocks.
+* flush orange heavy-block ``GoPro Missions`` lettering with four matching blocks.
 
 The case is Pelican/rugged-box inspired.  The user-supplied MakerWorld example is used as
 a functional precedent for recessed upper/lower inserts, gasket, case shell,
@@ -30,8 +30,6 @@ Reference sources (checked 2026-08-27):
 * User-supplied latch mechanism source: ``~/pelican_case_blender_2.9.blend``
 * Local pivoting-handle references (``handle/files``):
   https://www.thingiverse.com/thing:2926036
-* GoPro-style Neuropol identification:
-  https://fontmeme.com/gopro-logo-font/
 * Four-battery travel magazine (slot-layout cross-check):
   https://www.printables.com/model/1777128-gopro-hero-9-13-battery-magazine-for-air-travel
 * One-camera rugged case with battery slots and separate seal/latch:
@@ -44,13 +42,14 @@ Run inside Blender::
 
 Set ``EXPORT_STL = True`` below, or use
 ``make -C cooler-gopro mission1-field-case`` from the repository root, to emit
-all thirteen printable-part STLs and ``mission1_field_case_ams_project.3mf``.
+all ten printable-part STLs and ``mission1_field_case_ams_project.3mf``.
 The 3MF contains the complete six-plate project; its lid is one compound object
-with separate shell and four logo-color bodies.  The standalone lid STLs remain
-available for other slicers.  Print two copies each of the latch lever and hook
-STLs.  A fixed 4 mm rod mounts each lever between integrated case ears, and a
-second 4 mm rod joins its moving hook.  The handle bar is a separate print and
-its mounting lugs are generated as part of the base shell.
+with a black shell and one orange text-and-block inlay body.  The standalone
+lid STLs remain available for other slicers.  Print two copies each of the
+latch lever and hook STLs.  A fixed 4 mm rod mounts each lever between
+integrated case ears, and a second 4 mm rod joins its moving hook.  The handle
+bar is a separate print and its mounting lugs are generated as part of the base
+shell.
 
 All dimensions are millimeters.  X is case width, Y is case depth, and Z is
 height.  Every default printable part validates below 250 x 250 mm in XY.
@@ -184,10 +183,7 @@ LATCH_LEVER_STL_NAME = "mission1_field_case_pelican_latch_lever_print_two.stl"
 LATCH_HOOK_STL_NAME = "mission1_field_case_pelican_latch_hook_print_two.stl"
 HANDLE_BAR_STL_NAME = "mission1_field_case_pivoting_handle_bar.stl"
 HINGE_PIN_STL_NAME = "mission1_field_case_hinge_pin.stl"
-LOGO_WHITE_INLAY_STL_NAME = "mission1_field_case_lid_logo_white_inlay.stl"
-LOGO_DARK_BLUE_INLAY_STL_NAME = "mission1_field_case_lid_logo_dark_blue_inlay.stl"
-LOGO_BLUE_INLAY_STL_NAME = "mission1_field_case_lid_logo_blue_inlay.stl"
-LOGO_CYAN_INLAY_STL_NAME = "mission1_field_case_lid_logo_cyan_inlay.stl"
+LOGO_ORANGE_INLAY_STL_NAME = "mission1_field_case_lid_logo_orange_inlay.stl"
 PROJECT_3MF_NAME = "mission1_field_case_ams_project.3mf"
 
 PRINTABLE_STL_NAMES = (
@@ -200,10 +196,7 @@ PRINTABLE_STL_NAMES = (
     LATCH_HOOK_STL_NAME,
     HANDLE_BAR_STL_NAME,
     HINGE_PIN_STL_NAME,
-    LOGO_WHITE_INLAY_STL_NAME,
-    LOGO_DARK_BLUE_INLAY_STL_NAME,
-    LOGO_BLUE_INLAY_STL_NAME,
-    LOGO_CYAN_INLAY_STL_NAME,
+    LOGO_ORANGE_INLAY_STL_NAME,
 )
 
 
@@ -2244,20 +2237,21 @@ PELICAN_BLEND_LATCH_MESHES_LZMA_BASE85 = (
     b"3HhHA2hmNbf$sv`cSPibm1;L1OsqBa*_0vx$~^pd1pp1200HQo2Y|yQ_U+=ZvBYQl0ssI200dcD"
 )
 
-# Flush five-color GoPro-style mark.  Neuropol is the identified logo-style
-# face; the embedded glyph subset is CC0 and contains only ``GoPro Missions``.
-LID_LOGO_TEXT = "GoPro Missions"
-LID_LOGO_TEXT_SIZE = 18.0
-LID_LOGO_TEXT_MAX_WIDTH = 122.0
-LID_LOGO_TEXT_CENTER_Y = -7.0
+# Flush orange GoPro-style mark with deliberately heavy printable strokes.
+LID_LOGO_TEXT_LINES = ("GoPro", "Missions")
+LID_LOGO_TEXT_LINE_CENTER_Y = (-42.0, 4.0)
+LID_LOGO_TEXT_CELL_SIZE = 8.0
+LID_LOGO_TEXT_CHARACTER_GAP = 1.0
+LID_LOGO_LEGACY_MIN_FEATURE_WIDTH = 1.475
+LID_LOGO_MIN_THICKNESS_MULTIPLIER = 5.0
 LID_LOGO_BLOCK_SIZE = (14.0, 5.0)
 LID_LOGO_BLOCK_GAP = 2.0
-LID_LOGO_BLOCK_CENTER_Y = 18.0
+LID_LOGO_BLOCK_CENTER_Y = 35.0
 LID_INLAY_DEPTH = 0.8
 LID_INLAY_CLEARANCE = 0.0
 
-# Gzip-compressed CC0 Neuropol 3.100 subset containing only the glyphs used by
-# LID_LOGO_TEXT.  Embedding it keeps Text Editor and CLI generation portable.
+# Legacy embedded CC0 Neuropol 3.100 subset retained for compatibility with
+# older generated scenes; the current 5x-thickness lid uses PIXEL_TEXT_3X5.
 NEUROPOL_GOPRO_MISSIONS_OTF_GZIP_BASE64 = (
     "H4sICB2mkWoCA05ldXJvcG9sLUdvUHJvLU1pc3Npb25zLm90ZgC9F2lwE+f1rVbatbRC2DWi5VjtgjGnkYQxBDANlMM0DNiObSgE"
     "KJKttaxYh1nJB0wytATGnZqZBMKQtsM1ntLhMKFuqUlgmk6BZkppeiYdmClJj2mHSQo1bem3Zk3Vt59WRjJJ21/dnW/3vfe963vv"
@@ -2890,6 +2884,100 @@ def add_text_mesh(
     return text_obj
 
 
+PIXEL_TEXT_3X5 = {
+    "G": ("111", "100", "101", "101", "111"),
+    "I": ("111", "010", "010", "010", "111"),
+    "M": ("101", "111", "111", "101", "101"),
+    "N": ("101", "111", "111", "111", "101"),
+    "O": ("111", "101", "101", "101", "111"),
+    "P": ("111", "101", "111", "100", "100"),
+    "R": ("111", "101", "111", "101", "101"),
+    "S": ("111", "100", "111", "001", "111"),
+}
+
+
+def add_heavy_pixel_text_mesh(name, body, center, depth, mirror_y=False):
+    """Build a manifold 3x5 block face with an 8 mm printable stroke."""
+    cell = LID_LOGO_TEXT_CELL_SIZE
+    advance = 3.0 * cell + LID_LOGO_TEXT_CHARACTER_GAP
+    total_width = len(body) * 3.0 * cell + (len(body) - 1) * (
+        LID_LOGO_TEXT_CHARACTER_GAP
+    )
+    vertices = []
+    vertex_indices = {}
+    faces = []
+
+    def vertex_index(coordinate):
+        key = tuple(round(value, 8) for value in coordinate)
+        if key not in vertex_indices:
+            vertex_indices[key] = len(vertices)
+            vertices.append(coordinate)
+        return vertex_indices[key]
+
+    def add_face(coordinates):
+        faces.append(tuple(vertex_index(coordinate) for coordinate in coordinates))
+
+    for character_index, character in enumerate(body.upper()):
+        pattern = PIXEL_TEXT_3X5.get(character)
+        if pattern is None:
+            raise ValueError(f"Unsupported heavy lid-text character: {character!r}")
+        character_center_x = (
+            center[0] - total_width / 2.0 + 1.5 * cell + character_index * advance
+        )
+        occupied = {
+            (row, column)
+            for row, values in enumerate(pattern)
+            for column, value in enumerate(values)
+            if value == "1"
+        }
+        for row, values in enumerate(pattern):
+            for column, value in enumerate(values):
+                if value != "1":
+                    continue
+                y_offset = (2.0 - row) * cell
+                if mirror_y:
+                    y_offset = -y_offset
+                cell_center_x = character_center_x + (column - 1.0) * cell
+                cell_center_y = center[1] + y_offset
+                x0 = cell_center_x - cell / 2.0
+                x1 = cell_center_x + cell / 2.0
+                y0 = cell_center_y - cell / 2.0
+                y1 = cell_center_y + cell / 2.0
+                z0 = center[2]
+                z1 = center[2] + depth
+                add_face(((x0, y1, z0), (x1, y1, z0), (x1, y0, z0), (x0, y0, z0)))
+                add_face(((x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)))
+                if (row, column - 1) not in occupied:
+                    add_face(((x0, y0, z0), (x0, y0, z1), (x0, y1, z1), (x0, y1, z0)))
+                if (row, column + 1) not in occupied:
+                    add_face(((x1, y1, z0), (x1, y1, z1), (x1, y0, z1), (x1, y0, z0)))
+                previous_row = row + (1 if mirror_y else -1)
+                next_row = row + (-1 if mirror_y else 1)
+                if (previous_row, column) not in occupied:
+                    add_face(((x0, y1, z0), (x0, y1, z1), (x1, y1, z1), (x1, y1, z0)))
+                if (next_row, column) not in occupied:
+                    add_face(((x1, y0, z0), (x1, y0, z1), (x0, y0, z1), (x0, y0, z0)))
+    if not faces:
+        raise RuntimeError("Heavy lid text produced no printable cells")
+    text_obj = create_mesh_object(name, vertices, faces)
+    cleanup_mesh(text_obj)
+    bm = bmesh.new()
+    bm.from_mesh(text_obj.data)
+    bmesh.ops.dissolve_limit(
+        bm,
+        angle_limit=math.radians(0.1),
+        verts=list(bm.verts),
+        edges=list(bm.edges),
+        delimit=set(),
+        use_dissolve_boundaries=True,
+    )
+    bm.to_mesh(text_obj.data)
+    bm.free()
+    text_obj.data.update()
+    recalc_normals(text_obj)
+    return text_obj
+
+
 def duplicate_as_cutter(source, name, clearance):
     _source_minimum, source_maximum = object_world_bounds(source)
     cutter = source.copy()
@@ -2950,6 +3038,51 @@ def separate_loose_meshes(obj, name_prefix):
         piece.name = f"{name_prefix}_{index}"
         cleanup_mesh(piece)
     return pieces
+
+
+def remove_small_disconnected_islands(obj, maximum_span: float) -> int:
+    """Remove only bounded Boolean slivers while preserving the main solid."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    islands = mesh_vertex_islands(bm)
+    if len(islands) <= 1:
+        bm.free()
+        return 0
+    main_island = max(islands, key=len)
+    removable = [island for island in islands if island is not main_island]
+    for island in removable:
+        spans = [
+            max(vertex.co[axis] for vertex in island)
+            - min(vertex.co[axis] for vertex in island)
+            for axis in range(3)
+        ]
+        if max(spans) > maximum_span:
+            bm.free()
+            raise RuntimeError(
+                f"{obj.name} Boolean created an oversized disconnected island: "
+                f"spans={tuple(round(span, 3) for span in spans)}"
+            )
+    bmesh.ops.delete(
+        bm,
+        geom=[vertex for island in removable for vertex in island],
+        context="VERTS",
+    )
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+    cleanup_mesh(obj)
+    return len(removable)
+
+
+def triangulate_mesh_faces(obj) -> None:
+    """Triangulate a known-manifold mesh before a complex shallow Boolean."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.triangulate(bm, faces=list(bm.faces))
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
 
 
 # ---------------------------------------------------------------------------
@@ -4001,10 +4134,7 @@ def create_lower_tray(material):
 
 def create_lid(
     shell_material,
-    logo_white_material,
-    logo_dark_blue_material,
-    logo_blue_material,
-    logo_cyan_material,
+    logo_orange_material,
 ):
     dx = LID_DISPLAY_OFFSET_X
     lid = add_rounded_prism(
@@ -4344,29 +4474,44 @@ def create_lid(
     union_into(lid, key_boss)
 
     # Pre-mirroring Y makes the logo read normally after the lid is installed.
-    # The only text is the requested GoPro-style ``GoPro Missions`` mark.
-    logo_white = add_text_mesh(
-        "Lid_GoPro_Missions_White_Inlay",
-        LID_LOGO_TEXT,
-        LID_LOGO_TEXT_SIZE,
-        LID_LOGO_TEXT_MAX_WIDTH,
-        (dx, LID_LOGO_TEXT_CENTER_Y, 0.0),
-        LID_INLAY_DEPTH,
-        mirror_y=True,
-        font=load_embedded_logo_font(),
+    # Two lines let the custom heavy-block face preserve readable spacing while
+    # every printed component remains at least five times thicker than before.
+    logo_text_objects = []
+    for line_index, (body, center_y) in enumerate(
+        zip(LID_LOGO_TEXT_LINES, LID_LOGO_TEXT_LINE_CENTER_Y), start=1
+    ):
+        logo_text_objects.append(
+            add_heavy_pixel_text_mesh(
+                f"Lid_GoPro_Missions_Orange_Line_{line_index}_Inlay",
+                body,
+                (dx, center_y, 0.0),
+                LID_INLAY_DEPTH,
+                mirror_y=True,
+            )
+        )
+    minimum_text_dimension = LID_LOGO_TEXT_CELL_SIZE
+    required_text_dimension = (
+        LID_LOGO_LEGACY_MIN_FEATURE_WIDTH * LID_LOGO_MIN_THICKNESS_MULTIPLIER
+    )
+    if minimum_text_dimension < required_text_dimension - 1e-6:
+        raise RuntimeError(
+            "Lid logo text is not at least five times thicker: "
+            f"minimum={minimum_text_dimension:.3f}mm "
+            f"required={required_text_dimension:.3f}mm"
+        )
+    print(
+        "FIELD_CASE_LID_TEXT_THICKNESS "
+        f"minimum={minimum_text_dimension:.3f}mm "
+        f"legacy={LID_LOGO_LEGACY_MIN_FEATURE_WIDTH:.3f}mm "
+        f"multiplier={minimum_text_dimension / LID_LOGO_LEGACY_MIN_FEATURE_WIDTH:.2f}x"
     )
     block_total_width = 4.0 * LID_LOGO_BLOCK_SIZE[0] + 3.0 * LID_LOGO_BLOCK_GAP
     block_start_x = -block_total_width / 2.0 + LID_LOGO_BLOCK_SIZE[0] / 2.0
-    block_specs = (
-        ("dark_blue", logo_dark_blue_material),
-        ("blue", logo_blue_material),
-        ("cyan", logo_cyan_material),
-        ("white", logo_white_material),
-    )
+    block_specs = ("one", "two", "three", "four")
     blocks = {}
-    for block_index, (color_name, material) in enumerate(block_specs):
+    for block_index, block_name in enumerate(block_specs):
         block = add_rounded_prism(
-            f"Lid_GoPro_Logo_{color_name.title()}_Block_Inlay",
+            f"Lid_GoPro_Logo_Orange_Block_{block_index + 1}_Inlay",
             LID_LOGO_BLOCK_SIZE[0],
             LID_LOGO_BLOCK_SIZE[1],
             0.0,
@@ -4379,42 +4524,36 @@ def create_lid(
                 LID_LOGO_BLOCK_CENTER_Y,
             ),
         )
-        assign_material(block, material)
-        blocks[color_name] = block
+        blocks[block_name] = block
 
-    # White text and the final white logo block share one slicer body while
-    # remaining intentionally disconnected islands in the STL.
-    select_only(logo_white)
-    blocks["white"].select_set(True)
-    bpy.context.view_layer.objects.active = logo_white
+    # All lid lettering and blocks intentionally share one orange material and
+    # one slicer body, leaving only two AMS filaments on the compound lid.
+    logo_orange = logo_text_objects[0]
+    select_only(logo_orange)
+    for text_obj in logo_text_objects[1:]:
+        text_obj.select_set(True)
+    for block in blocks.values():
+        block.select_set(True)
+    bpy.context.view_layer.objects.active = logo_orange
     bpy.ops.object.join()
-    logo_white.name = "Lid_GoPro_Missions_And_White_Block_Inlay"
-    logo_parts = (
-        logo_white,
-        blocks["dark_blue"],
-        blocks["blue"],
-        blocks["cyan"],
+    logo_orange.name = "Lid_GoPro_Missions_And_Blocks_Orange_Inlay"
+    triangulate_mesh_faces(lid)
+    cutter = duplicate_as_cutter(
+        logo_orange,
+        "Lid_Logo_Orange_Recess_Cutter",
+        LID_INLAY_CLEARANCE,
     )
-    for part_index, logo_part in enumerate(logo_parts, start=1):
-        cutter = duplicate_as_cutter(
-            logo_part,
-            f"Lid_Logo_Color_{part_index}_Recess_Cutter",
-            LID_INLAY_CLEARANCE,
-        )
-        cutters = (
-            separate_loose_meshes(cutter, "Lid_White_Logo_Island_Cutter")
-            if part_index == 1
-            else (cutter,)
-        )
-        for island_cutter in cutters:
-            # Both operands are closed manifolds, so Blender's manifold solver
-            # avoids the width-sensitive sliver edges that Exact can create
-            # when several shallow pockets terminate on one large lid face.
-            difference_from(lid, island_cutter, solver="MANIFOLD")
+    for island_cutter in separate_loose_meshes(
+        cutter, "Lid_Orange_Logo_Island_Cutter"
+    ):
+        difference_from(lid, island_cutter, solver="EXACT")
+    removed_lid_slivers = remove_small_disconnected_islands(lid, maximum_span=12.0)
+    if removed_lid_slivers:
+        print(f"FIELD_CASE_LID_BOOLEAN_SLIVERS_REMOVED count={removed_lid_slivers}")
 
     assign_material(lid, shell_material)
-    assign_material(logo_white, logo_white_material)
-    return (lid, *logo_parts)
+    assign_material(logo_orange, logo_orange_material)
+    return lid, logo_orange
 
 
 def create_gasket(material):
@@ -6738,8 +6877,8 @@ def add_model_settings_object(config, group) -> None:
 def project_settings_bytes() -> bytes:
     settings = {
         "bed_exclude_area": ["0x0", "18x0", "18x28", "0x28"],
-        "default_filament_colour": ["", "", "", "", "", ""],
-        "different_settings_to_system": ["", "", "", "", "", ""],
+        "default_filament_colour": ["", "", ""],
+        "different_settings_to_system": ["", "", ""],
         "enable_support": "0",
         "extruder_clearance_dist_to_rod": "33",
         "extruder_clearance_height_to_lid": "90",
@@ -6747,28 +6886,22 @@ def project_settings_bytes() -> bytes:
         "extruder_clearance_max_radius": "68",
         "filament_colour": [
             "#161616",
-            "#FFFFFF",
-            "#0057B8",
-            "#009EEA",
-            "#00D4F7",
+            "#F23809",
             "#F23809",
         ],
-        "filament_ids": ["", "", "", "", "", ""],
-        "filament_is_support": ["0", "0", "0", "0", "0", "0"],
+        "filament_ids": ["", "", ""],
+        "filament_is_support": ["0", "0", "0"],
         "filament_settings_id": [
-            BAMBU_RIGID_FILAMENT_SETTINGS_ID,
-            BAMBU_RIGID_FILAMENT_SETTINGS_ID,
-            BAMBU_RIGID_FILAMENT_SETTINGS_ID,
             BAMBU_RIGID_FILAMENT_SETTINGS_ID,
             BAMBU_RIGID_FILAMENT_SETTINGS_ID,
             BAMBU_TPU_FILAMENT_SETTINGS_ID,
         ],
-        "filament_type": ["PETG", "PETG", "PETG", "PETG", "PETG", "TPU"],
+        "filament_type": ["PETG", "PETG", "TPU"],
         "flush_multiplier": ["1"],
         "flush_volumes_matrix": [
-            "0" if row == column else "280" for row in range(6) for column in range(6)
+            "0" if row == column else "280" for row in range(3) for column in range(3)
         ],
-        "inherits_group": ["", "", "", "", "", ""],
+        "inherits_group": ["", "", ""],
         "nozzle_diameter": ["0.4"],
         "print_compatible_printers": [BAMBU_PRINTER_SETTINGS_ID],
         "print_settings_id": BAMBU_PROCESS_SETTINGS_ID,
@@ -6792,7 +6925,7 @@ def export_3mf_project(path: Path, parts) -> Path:
         ("Title", "Dual MISSION 1 Field Case AMS Project"),
         (
             "Description",
-            "Printable field-case kit with a compound five-color lid object.",
+            "Printable field-case kit with a compound two-color lid object.",
         ),
         ("License", "Repository license applies"),
     ):
@@ -6818,28 +6951,22 @@ def export_3mf_project(path: Path, parts) -> Path:
             "name": "AMS Lid - Shell and GoPro Missions Logo",
             "keys": (
                 "lid",
-                "logo_white_inlay",
-                "logo_dark_blue_inlay",
-                "logo_blue_inlay",
-                "logo_cyan_inlay",
+                "logo_orange_inlay",
             ),
             "source_files": (
                 LID_STL_NAME,
-                LOGO_WHITE_INLAY_STL_NAME,
-                LOGO_DARK_BLUE_INLAY_STL_NAME,
-                LOGO_BLUE_INLAY_STL_NAME,
-                LOGO_CYAN_INLAY_STL_NAME,
+                LOGO_ORANGE_INLAY_STL_NAME,
             ),
-            "extruders": (1, 2, 3, 4, 5),
+            "extruders": (1, 2),
             "dimensions": dimensions_xy("lid"),
             "copies": 1,
             "plate": 1,
         },
     ]
     remaining_groups = (
-        ("lower_tray", LOWER_TRAY_STL_NAME, 6, 1, 2, None),
-        ("lid_retainer", LID_RETAINER_STL_NAME, 6, 1, 3, None),
-        ("gasket", GASKET_STL_NAME, 6, 1, 4, None),
+        ("lower_tray", LOWER_TRAY_STL_NAME, 3, 1, 2, None),
+        ("lid_retainer", LID_RETAINER_STL_NAME, 3, 1, 3, None),
+        ("gasket", GASKET_STL_NAME, 3, 1, 4, None),
         (
             "latch_lever",
             LATCH_LEVER_STL_NAME,
@@ -7246,33 +7373,33 @@ def validate_3mf_project(path: Path) -> None:
     expected_groups = (
         ("2", "Base", ("1",), object_model_paths[0]),
         (
-            "8",
+            "5",
             "AMS Lid - Shell and GoPro Missions Logo",
-            ("3", "4", "5", "6", "7"),
+            ("3", "4"),
             object_model_paths[1],
         ),
-        ("10", "Field_Case_Recessed_TPU_Lower_Tray", ("9",), object_model_paths[2]),
-        ("12", "Field_Case_Recessed_TPU_Lid_Pad", ("11",), object_model_paths[3]),
-        ("14", "Field_Case_TPU_Gasket", ("13",), object_model_paths[4]),
+        ("7", "Field_Case_Recessed_TPU_Lower_Tray", ("6",), object_model_paths[2]),
+        ("9", "Field_Case_Recessed_TPU_Lid_Pad", ("8",), object_model_paths[3]),
+        ("11", "Field_Case_TPU_Gasket", ("10",), object_model_paths[4]),
         (
-            "16",
+            "13",
             "Field_Case_Pelican_Source_Lever_Print_Two",
-            ("15",),
+            ("12",),
             object_model_paths[5],
         ),
         (
-            "18",
+            "15",
             "Field_Case_Pelican_Source_Hook_Print_Two",
-            ("17",),
+            ("14",),
             object_model_paths[6],
         ),
         (
-            "20",
+            "17",
             "Field_Case_Pivoting_Handle_Bar",
-            ("19",),
+            ("16",),
             object_model_paths[7],
         ),
-        ("22", "Field_Case_Hinge_Pin", ("21",), object_model_paths[8]),
+        ("19", "Field_Case_Hinge_Pin", ("18",), object_model_paths[8]),
     )
     component_objects = model.findall(
         f"./{three_mf_tag('resources')}/{three_mf_tag('object')}"
@@ -7339,28 +7466,20 @@ def validate_3mf_project(path: Path) -> None:
         )
     lid_islands = validate_lid_bonding_payloads(
         mesh_payloads["3"],
-        (
-            mesh_payloads["4"],
-            mesh_payloads["5"],
-            mesh_payloads["6"],
-            mesh_payloads["7"],
-        ),
+        (mesh_payloads["4"],),
     )
 
     expected_parts = {
         "1": (BASE_STL_NAME, "1"),
         "3": (LID_STL_NAME, "1"),
-        "4": (LOGO_WHITE_INLAY_STL_NAME, "2"),
-        "5": (LOGO_DARK_BLUE_INLAY_STL_NAME, "3"),
-        "6": (LOGO_BLUE_INLAY_STL_NAME, "4"),
-        "7": (LOGO_CYAN_INLAY_STL_NAME, "5"),
-        "9": (LOWER_TRAY_STL_NAME, "6"),
-        "11": (LID_RETAINER_STL_NAME, "6"),
-        "13": (GASKET_STL_NAME, "6"),
-        "15": (LATCH_LEVER_STL_NAME, "1"),
-        "17": (LATCH_HOOK_STL_NAME, "1"),
-        "19": (HANDLE_BAR_STL_NAME, "1"),
-        "21": (HINGE_PIN_STL_NAME, "1"),
+        "4": (LOGO_ORANGE_INLAY_STL_NAME, "2"),
+        "6": (LOWER_TRAY_STL_NAME, "3"),
+        "8": (LID_RETAINER_STL_NAME, "3"),
+        "10": (GASKET_STL_NAME, "3"),
+        "12": (LATCH_LEVER_STL_NAME, "1"),
+        "14": (LATCH_HOOK_STL_NAME, "1"),
+        "16": (HANDLE_BAR_STL_NAME, "1"),
+        "18": (HINGE_PIN_STL_NAME, "1"),
     }
     settings_objects = model_settings.findall("object")
     settings_parts = model_settings.findall("object/part")
@@ -7368,14 +7487,14 @@ def validate_3mf_project(path: Path) -> None:
         raise ValueError("3MF model settings describe incorrect logical objects")
     expected_object_extruders = {
         "2": "1",
-        "8": "1",
-        "10": "6",
-        "12": "6",
-        "14": "6",
-        "16": "1",
-        "18": "1",
-        "20": "1",
-        "22": "1",
+        "5": "1",
+        "7": "3",
+        "9": "3",
+        "11": "3",
+        "13": "1",
+        "15": "1",
+        "17": "1",
+        "19": "1",
     }
     expected_group_names = {group[0]: group[1] for group in expected_groups}
     for settings_object in settings_objects:
@@ -7407,17 +7526,17 @@ def validate_3mf_project(path: Path) -> None:
     )
     expected_plate_instances = (
         (("2", "0"),),
-        (("8", "0"),),
-        (("10", "0"),),
-        (("12", "0"),),
-        (("14", "0"),),
+        (("5", "0"),),
+        (("7", "0"),),
+        (("9", "0"),),
+        (("11", "0"),),
         (
-            ("16", "0"),
-            ("16", "1"),
-            ("18", "0"),
-            ("18", "1"),
-            ("20", "0"),
-            ("22", "0"),
+            ("13", "0"),
+            ("13", "1"),
+            ("15", "0"),
+            ("15", "1"),
+            ("17", "0"),
+            ("19", "0"),
         ),
     )
     settings_plates = model_settings.findall("plate")
@@ -7522,17 +7641,11 @@ def validate_3mf_project(path: Path) -> None:
     expected_project_settings = {
         "filament_colour": [
             "#161616",
-            "#FFFFFF",
-            "#0057B8",
-            "#009EEA",
-            "#00D4F7",
+            "#F23809",
             "#F23809",
         ],
-        "filament_type": ["PETG", "PETG", "PETG", "PETG", "PETG", "TPU"],
+        "filament_type": ["PETG", "PETG", "TPU"],
         "filament_settings_id": [
-            BAMBU_RIGID_FILAMENT_SETTINGS_ID,
-            BAMBU_RIGID_FILAMENT_SETTINGS_ID,
-            BAMBU_RIGID_FILAMENT_SETTINGS_ID,
             BAMBU_RIGID_FILAMENT_SETTINGS_ID,
             BAMBU_RIGID_FILAMENT_SETTINGS_ID,
             BAMBU_TPU_FILAMENT_SETTINGS_ID,
@@ -7540,7 +7653,7 @@ def validate_3mf_project(path: Path) -> None:
         "printer_settings_id": BAMBU_PRINTER_SETTINGS_ID,
         "print_settings_id": BAMBU_PROCESS_SETTINGS_ID,
         "flush_volumes_matrix": [
-            "0" if row == column else "280" for row in range(6) for column in range(6)
+            "0" if row == column else "280" for row in range(3) for column in range(3)
         ],
     }
     for key, expected_value in expected_project_settings.items():
@@ -7551,7 +7664,7 @@ def validate_3mf_project(path: Path) -> None:
     print(
         "FIELD_CASE_3MF_VALID "
         f"mesh_parts={len(mesh_objects)} objects={len(component_objects)} "
-        f"lid_components=5 lid_islands={lid_islands} "
+        f"lid_components=2 lid_islands={lid_islands} "
         f"build_items={len(build_items)} extruders={','.join(sorted(extruders))}"
     )
 
@@ -7635,12 +7748,9 @@ def build_mission1_field_case():
         "Rugged_Shell_Black", (0.025, 0.03, 0.038), roughness=0.33
     )
     tpu_material = make_material("TPU_Orange", (0.95, 0.22, 0.035), roughness=0.58)
-    logo_white_material = make_material("Logo_White", (0.95, 0.97, 1.0), roughness=0.4)
-    logo_dark_blue_material = make_material(
-        "Logo_Dark_Blue", (0.0, 0.18, 0.52), roughness=0.4
+    logo_orange_material = make_material(
+        "Logo_Orange", (0.95, 0.22, 0.035), roughness=0.4
     )
-    logo_blue_material = make_material("Logo_Blue", (0.0, 0.55, 0.92), roughness=0.4)
-    logo_cyan_material = make_material("Logo_Cyan", (0.0, 0.85, 1.0), roughness=0.4)
     hardware_material = make_material(
         "Printed_Hardware", (0.16, 0.18, 0.22), roughness=0.38
     )
@@ -7663,24 +7773,12 @@ def build_mission1_field_case():
     parts["base"] = create_base(shell_material)
     parts["lower_tray"] = create_lower_tray(tpu_material)
     translate_object(parts["lower_tray"], (0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
-    (
-        lid,
-        logo_white,
-        logo_dark_blue,
-        logo_blue,
-        logo_cyan,
-    ) = create_lid(
+    lid, logo_orange = create_lid(
         shell_material,
-        logo_white_material,
-        logo_dark_blue_material,
-        logo_blue_material,
-        logo_cyan_material,
+        logo_orange_material,
     )
     parts["lid"] = lid
-    parts["logo_white_inlay"] = logo_white
-    parts["logo_dark_blue_inlay"] = logo_dark_blue
-    parts["logo_blue_inlay"] = logo_blue
-    parts["logo_cyan_inlay"] = logo_cyan
+    parts["logo_orange_inlay"] = logo_orange
     parts["gasket"] = create_gasket(tpu_material)
     parts["lid_retainer"] = create_lid_retainer(tpu_material)
     parts["latch_lever"], parts["latch_hook"] = create_pelican_latch_parts(
@@ -7715,12 +7813,9 @@ def build_mission1_field_case():
     lid_islands = validate_lid_bonding_payloads(
         evaluated_mesh_payload(parts["lid"], Vector((0.0, 0.0, 0.0))),
         (
-            evaluated_mesh_payload(parts["logo_white_inlay"], Vector((0.0, 0.0, 0.0))),
             evaluated_mesh_payload(
-                parts["logo_dark_blue_inlay"], Vector((0.0, 0.0, 0.0))
+                parts["logo_orange_inlay"], Vector((0.0, 0.0, 0.0))
             ),
-            evaluated_mesh_payload(parts["logo_blue_inlay"], Vector((0.0, 0.0, 0.0))),
-            evaluated_mesh_payload(parts["logo_cyan_inlay"], Vector((0.0, 0.0, 0.0))),
         ),
     )
     print(f"FIELD_CASE_LID_BONDED islands={lid_islands} plane_z={LID_INLAY_DEPTH:.2f}")
@@ -7736,10 +7831,7 @@ def build_mission1_field_case():
             (LATCH_HOOK_STL_NAME, parts["latch_hook"]),
             (HANDLE_BAR_STL_NAME, parts["handle_bar"]),
             (HINGE_PIN_STL_NAME, parts["hinge_pin"]),
-            (LOGO_WHITE_INLAY_STL_NAME, parts["logo_white_inlay"]),
-            (LOGO_DARK_BLUE_INLAY_STL_NAME, parts["logo_dark_blue_inlay"]),
-            (LOGO_BLUE_INLAY_STL_NAME, parts["logo_blue_inlay"]),
-            (LOGO_CYAN_INLAY_STL_NAME, parts["logo_cyan_inlay"]),
+            (LOGO_ORANGE_INLAY_STL_NAME, parts["logo_orange_inlay"]),
         )
         for filename, obj in exports:
             print_origin = (

@@ -8,7 +8,7 @@ mechanism in the user-supplied `pelican_case_blender_2.9.blend`; their processed
 mesh coordinates are embedded directly in the Python file, so generation does
 not load that `.blend` or any STL at runtime.
 
-Build all thirteen STLs and the multicolor 3MF project with:
+Build all ten STLs and the multicolor 3MF project with:
 
 ```sh
 make -C cooler-gopro mission1-field-case
@@ -53,37 +53,27 @@ scene objects, not additional STL dependencies or print outputs.
 
 ## Lid logo
 
-The only lid text is `GoPro Missions`, set in a large embedded Neuropol glyph
-subset. Four small blocks below it follow the GoPro mark: dark blue, blue,
-cyan, and white. The text and last block share one white inlay STL, while the
-other three blocks have their own color bodies.
+The only lid text is `GoPro Missions`, set as two large lines in a custom 3x5
+heavy block face. Its 8.0 mm strokes validate at 5.42 times the former 1.475 mm
+minimum. Four small blocks below it follow the familiar GoPro layout. All
+lettering and all four blocks use the same orange material and are joined into
+one inlay STL.
 
-The embedded Neuropol 3.100 glyph subset is from Ray Larabie's CC0 release. It
-keeps Blender CLI and Text Editor generation self-contained; no system font is
-needed.
-
-`mission1_field_case_ams_project.3mf` contains the lid as one aligned five-color
+`mission1_field_case_ams_project.3mf` contains the lid as one aligned two-color
 compound object:
 
 - black shell
-- white `GoPro Missions` text and white block
-- dark-blue block
-- blue block
-- cyan block
+- orange `GoPro Missions` text and four orange blocks
 
-The 3MF declares those five rigid filaments plus TPU as filament 6. Five rigid
-colors require more than one four-slot AMS, a tool-changing system, or planned
-manual color swaps. TPU remains on separate plates and should normally use an
-external spool.
+The lid therefore needs only two AMS filaments. The 3MF declares black and
+orange rigid filaments plus orange TPU as filament 3 for the separate TPU
+plates; TPU should normally use an external spool.
 
 For another slicer, import these files together without changing their relative
 positions:
 
 - `mission1_field_case_lid.stl`
-- `mission1_field_case_lid_logo_white_inlay.stl`
-- `mission1_field_case_lid_logo_dark_blue_inlay.stl`
-- `mission1_field_case_lid_logo_blue_inlay.stl`
-- `mission1_field_case_lid_logo_cyan_inlay.stl`
+- `mission1_field_case_lid_logo_orange_inlay.stl`
 
 The 0.8 mm inlays have exact shared boundaries with the shell for compound
 multicolor slicing and every island shares a verified bonding face. Standalone

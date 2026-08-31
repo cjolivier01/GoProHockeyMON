@@ -40,10 +40,7 @@ MISSION1_FIELD_CASE_STLS := \
 	mission1_field_case_pelican_latch_hook_print_two.stl \
 	mission1_field_case_pivoting_handle_bar.stl \
 	mission1_field_case_hinge_pin.stl \
-	mission1_field_case_lid_logo_white_inlay.stl \
-	mission1_field_case_lid_logo_dark_blue_inlay.stl \
-	mission1_field_case_lid_logo_blue_inlay.stl \
-	mission1_field_case_lid_logo_cyan_inlay.stl
+	mission1_field_case_lid_logo_orange_inlay.stl
 MISSION1_FIELD_CASE_3MF := mission1_field_case_ams_project.3mf
 MISSION1_FIELD_CASE_OUTPUTS := $(MISSION1_FIELD_CASE_STLS) $(MISSION1_FIELD_CASE_3MF)
 MISSION1_FIELD_CASE_OBSOLETE_STLS := \
@@ -57,7 +54,11 @@ MISSION1_FIELD_CASE_OBSOLETE_STLS := \
 	mission1_field_case_latch_link_pin_print_two.stl \
 	mission1_field_case_exact_pelican_latch_print_two.stl \
 	mission1_field_case_lid_title_inlay.stl \
-	mission1_field_case_lid_subtitle_inlay.stl
+	mission1_field_case_lid_subtitle_inlay.stl \
+	mission1_field_case_lid_logo_white_inlay.stl \
+	mission1_field_case_lid_logo_dark_blue_inlay.stl \
+	mission1_field_case_lid_logo_blue_inlay.stl \
+	mission1_field_case_lid_logo_cyan_inlay.stl
 DUAL_FAN_HOLDER_STL := gopro_dual_fan_parametric.stl
 DUAL_FAN_ADAPTER_STLS := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('dual_fan_parametric_blender.py', encoding='utf-8').read()); names={'GOPRO_ADAPTER_PRONG_COUNTS','GOPRO_ADAPTER_PRONG_COUNT','EXPORT_ADAPTER_STL_PATHS','EXPORT_ADAPTER_STL_PATH'}; values={target.id:ast.literal_eval(node.value) for node in tree.body if isinstance(node,(ast.Assign,ast.AnnAssign)) for target in ([node.target] if isinstance(node,ast.AnnAssign) else node.targets) if isinstance(target,ast.Name) and target.id in names}; legacy_count=values['GOPRO_ADAPTER_PRONG_COUNT']; counts=(legacy_count,) if legacy_count is not None else values['GOPRO_ADAPTER_PRONG_COUNTS']; paths=dict(values['EXPORT_ADAPTER_STL_PATHS']); legacy_path=values['EXPORT_ADAPTER_STL_PATH']; paths[counts[0]]=(legacy_path or 'gopro_dual_fan_adapter.stl') if legacy_count is not None else (legacy_path or paths[counts[0]]); print(' '.join(paths[count] for count in counts))")
 DUAL_FAN_KNOWN_ADAPTER_STLS := \
@@ -256,7 +257,7 @@ print_targets:
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
-		'mission1-field-case       Build thirteen-part STLs plus the complete multicolor 3MF project.' \
+		'mission1-field-case       Build ten-part STLs plus the complete two-color-lid 3MF project.' \
 		'dual-fan                  Build the fan holder and both GoPro adapter variants; optional splitter follows CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \
