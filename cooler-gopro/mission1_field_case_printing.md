@@ -35,10 +35,13 @@ grip.
 
 Two miscellaneous-storage compartments follow the open side channels in the
 supplied `lower_tray.stl` reference. The left compartment runs beside both
-opposed cameras and is 37.8 x 118.4 x 31 mm. The right compartment runs up to
-the flared lens-hood clearance and is 58 x 52.9 x 31 mm. Both leave 4 mm of TPU
-beneath their floors and at least 4 mm to the tray side walls, enlarged
-battery-door slots, enlarged battery row, and procedural camera/hood recesses.
+opposed cameras and is 37.8 x 118.4 x 31 mm. The right compartment is a
+continuous stepped pocket: its 58 x 52.9 mm lower section continues upward as
+a narrower 37.9 x 68.5 mm section beside the rear camera. The sections overlap,
+and a 2 mm inside fillet rounds the step instead of leaving a TPU tear point.
+Both compartments leave 4 mm of TPU beneath their floors and at least 4 mm to
+the tray side walls, enlarged battery-door slots, enlarged battery row, and
+procedural camera/hood recesses.
 
 The TPU lid pad has separate shutter-button reliefs. Its asymmetric perimeter
 notch mates with a rigid lid boss, so the pad seats in only the correct

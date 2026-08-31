@@ -327,18 +327,25 @@ BATTERY_DOOR_LID_HOLD_DOWN_EXTENSION = (
 
 # Two deep miscellaneous-storage pockets follow the large side channels shown
 # in the supplied lower_tray.stl reference.  The left pocket continues beside
-# both opposed cameras; the right stops below the second camera's flared lens-
-# hood relief.  Their rounded envelopes preserve 4 mm to the tray floor, outer
-# side walls, door slots, battery row, and camera/hood cutters.  The 0.1 mm
-# reductions at both outer edges preserve 4 mm after mesh polygonization, and
-# the left pocket's 0.1 mm inboard reduction makes its hood web a true 4 mm.
+# both opposed cameras.  The right pocket is one continuous stepped cavity: a
+# wide lower lobe clears the battery-door slot and the flared lens hood, while
+# a narrower upper lobe continues beside the rear camera.  A circular cutter
+# rounds the re-entrant step to avoid a TPU tear point.  Their envelopes
+# preserve 4 mm to the tray floor, outer side walls, door slots, battery row,
+# and camera/hood cutters.  The 0.1 mm reductions at both outer edges preserve
+# 4 mm after mesh polygonization, and the left pocket's 0.1 mm inboard
+# reduction makes its hood web a true 4 mm.
 MISC_COMPARTMENT_MIN_WEB = 4.0
 MISC_COMPARTMENT_FLOOR_Z = MISC_COMPARTMENT_MIN_WEB
-MISC_COMPARTMENT_BOUNDS = (
-    ((-98.9, -61.1), (-50.4, 68.0)),
-    ((40.9, 98.9), (-50.4, 2.5)),
+MISC_COMPARTMENT_LOBE_BOUNDS = (
+    (((-98.9, -61.1), (-50.4, 68.0)),),
+    (
+        ((40.9, 98.9), (-50.4, 2.5)),
+        ((61.0, 98.9), (-0.5, 68.0)),
+    ),
 )
 MISC_COMPARTMENT_CORNER_RADIUS = 3.0
+MISC_COMPARTMENT_STEP_FILLETS = ((), ((61.0, 2.5, 2.0),))
 
 LID_RETAINER_HEIGHT = 12.4
 LID_BUTTON_RELIEF_DEPTH = 4.2
@@ -3005,6 +3012,24 @@ def rectangles_overlap(a_center, a_size, b_center, b_size, gap=0.0):
     )
 
 
+def circle_rectangle_clearance(circle_center, circle_radius, rectangle_bounds):
+    """Return edge clearance from an XY circle to an axis-aligned rectangle."""
+    rectangle_min_x, rectangle_max_x, rectangle_min_y, rectangle_max_y = (
+        rectangle_bounds
+    )
+    delta_x = max(
+        rectangle_min_x - circle_center[0],
+        0.0,
+        circle_center[0] - rectangle_max_x,
+    )
+    delta_y = max(
+        rectangle_min_y - circle_center[1],
+        0.0,
+        circle_center[1] - rectangle_max_y,
+    )
+    return math.hypot(delta_x, delta_y) - circle_radius
+
+
 def validate_configuration() -> None:
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
@@ -3221,68 +3246,185 @@ def validate_configuration() -> None:
         ):
             raise ValueError("Battery-door lid hold-down exceeds the TPU lid pad")
 
-    if len(MISC_COMPARTMENT_BOUNDS) != 2:
+    if not (
+        len(MISC_COMPARTMENT_LOBE_BOUNDS) == 2
+        and len(MISC_COMPARTMENT_STEP_FILLETS) == 2
+    ):
         raise ValueError("Exactly two miscellaneous compartments are required")
     if MISC_COMPARTMENT_FLOOR_Z < MISC_COMPARTMENT_MIN_WEB:
         raise ValueError("Miscellaneous compartments need a 4 mm TPU floor")
-    misc_specs = []
-    for x_bounds, y_bounds in MISC_COMPARTMENT_BOUNDS:
-        misc_width = x_bounds[1] - x_bounds[0]
-        misc_depth = y_bounds[1] - y_bounds[0]
-        misc_center = (sum(x_bounds) / 2.0, sum(y_bounds) / 2.0)
-        misc_size = (misc_width, misc_depth)
-        misc_specs.append((misc_center, misc_size))
-        if (
-            abs(misc_center[0]) + misc_width / 2.0 + MISC_COMPARTMENT_MIN_WEB
-            > tray_width / 2.0 + 1e-6
-        ):
-            raise ValueError("Miscellaneous compartment weakens a TPU side wall")
-        for bounds in (*camera_bounds, *hood_bounds):
-            neighbor_center = (
-                (bounds[0] + bounds[1]) / 2.0,
-                (bounds[2] + bounds[3]) / 2.0,
-            )
-            neighbor_size = (bounds[1] - bounds[0], bounds[3] - bounds[2])
-            if rectangles_overlap(
-                misc_center,
-                misc_size,
-                neighbor_center,
-                neighbor_size,
-                gap=MISC_COMPARTMENT_MIN_WEB,
-            ):
-                raise ValueError(
-                    "Miscellaneous compartment needs 4 mm from camera recesses"
-                )
-        for center in BATTERY_CENTERS:
-            if rectangles_overlap(
-                misc_center,
-                misc_size,
-                center,
-                battery_size,
-                gap=MISC_COMPARTMENT_MIN_WEB,
-            ):
-                raise ValueError(
-                    "Miscellaneous compartment needs 4 mm from battery pockets"
-                )
-        for center in BATTERY_DOOR_SLOT_CENTERS:
-            if rectangles_overlap(
-                misc_center,
-                misc_size,
-                center,
-                door_slot_size,
-                gap=MISC_COMPARTMENT_MIN_WEB,
-            ):
-                raise ValueError(
-                    "Miscellaneous compartment needs 4 mm from battery-door slots"
-                )
-    if rectangles_overlap(
-        misc_specs[0][0],
-        misc_specs[0][1],
-        misc_specs[1][0],
-        misc_specs[1][1],
-        gap=MISC_COMPARTMENT_MIN_WEB,
+    misc_lobe_specs = []
+    for compartment_index, (lobe_bounds, step_fillets) in enumerate(
+        zip(MISC_COMPARTMENT_LOBE_BOUNDS, MISC_COMPARTMENT_STEP_FILLETS),
+        start=1,
     ):
-        raise ValueError("Miscellaneous compartments need a 4 mm separating web")
+        if not lobe_bounds:
+            raise ValueError("Each miscellaneous compartment needs a cavity lobe")
+        compartment_lobe_specs = []
+        for x_bounds, y_bounds in lobe_bounds:
+            misc_width = x_bounds[1] - x_bounds[0]
+            misc_depth = y_bounds[1] - y_bounds[0]
+            misc_center = (sum(x_bounds) / 2.0, sum(y_bounds) / 2.0)
+            misc_size = (misc_width, misc_depth)
+            misc_bounds = (*x_bounds, *y_bounds)
+            compartment_lobe_specs.append((misc_center, misc_size, misc_bounds))
+            if (
+                abs(misc_center[0]) + misc_width / 2.0 + MISC_COMPARTMENT_MIN_WEB
+                > tray_width / 2.0 + 1e-6
+                or abs(misc_center[1]) + misc_depth / 2.0 + MISC_COMPARTMENT_MIN_WEB
+                > tray_depth / 2.0 + 1e-6
+            ):
+                raise ValueError("Miscellaneous compartment weakens a TPU side wall")
+            for bounds in (*camera_bounds, *hood_bounds):
+                neighbor_center = (
+                    (bounds[0] + bounds[1]) / 2.0,
+                    (bounds[2] + bounds[3]) / 2.0,
+                )
+                neighbor_size = (bounds[1] - bounds[0], bounds[3] - bounds[2])
+                if rectangles_overlap(
+                    misc_center,
+                    misc_size,
+                    neighbor_center,
+                    neighbor_size,
+                    gap=MISC_COMPARTMENT_MIN_WEB,
+                ):
+                    raise ValueError(
+                        "Miscellaneous compartment needs 4 mm from camera recesses"
+                    )
+            for center in BATTERY_CENTERS:
+                if rectangles_overlap(
+                    misc_center,
+                    misc_size,
+                    center,
+                    battery_size,
+                    gap=MISC_COMPARTMENT_MIN_WEB,
+                ):
+                    raise ValueError(
+                        "Miscellaneous compartment needs 4 mm from battery pockets"
+                    )
+            for center in BATTERY_DOOR_SLOT_CENTERS:
+                if rectangles_overlap(
+                    misc_center,
+                    misc_size,
+                    center,
+                    door_slot_size,
+                    gap=MISC_COMPARTMENT_MIN_WEB,
+                ):
+                    raise ValueError(
+                        "Miscellaneous compartment needs 4 mm from battery-door slots"
+                    )
+
+        connected_lobes = {0}
+        while True:
+            newly_connected = {
+                candidate_index
+                for connected_index in connected_lobes
+                for candidate_index, candidate in enumerate(compartment_lobe_specs)
+                if candidate_index not in connected_lobes
+                and rectangles_overlap(
+                    compartment_lobe_specs[connected_index][0],
+                    compartment_lobe_specs[connected_index][1],
+                    candidate[0],
+                    candidate[1],
+                )
+            }
+            if not newly_connected:
+                break
+            connected_lobes.update(newly_connected)
+        if len(connected_lobes) != len(compartment_lobe_specs):
+            raise ValueError(
+                f"Miscellaneous compartment {compartment_index} is not continuous"
+            )
+
+        for fillet_x, fillet_y, fillet_radius in step_fillets:
+            fillet_center = (fillet_x, fillet_y)
+            if fillet_radius <= 0.0:
+                raise ValueError("Miscellaneous step fillet radius must be positive")
+            if (
+                abs(fillet_x) + fillet_radius + MISC_COMPARTMENT_MIN_WEB
+                > tray_width / 2.0 + 1e-6
+                or abs(fillet_y) + fillet_radius + MISC_COMPARTMENT_MIN_WEB
+                > tray_depth / 2.0 + 1e-6
+            ):
+                raise ValueError("Miscellaneous step fillet weakens a TPU side wall")
+            if (
+                sum(
+                    circle_rectangle_clearance(
+                        fillet_center,
+                        fillet_radius,
+                        lobe_spec[2],
+                    )
+                    <= 0.0
+                    for lobe_spec in compartment_lobe_specs
+                )
+                < 2
+            ):
+                raise ValueError(
+                    "Miscellaneous step fillet must blend two cavity lobes"
+                )
+            for bounds in (*camera_bounds, *hood_bounds):
+                if (
+                    circle_rectangle_clearance(
+                        fillet_center,
+                        fillet_radius,
+                        bounds,
+                    )
+                    < MISC_COMPARTMENT_MIN_WEB
+                ):
+                    raise ValueError(
+                        "Miscellaneous step fillet needs 4 mm from camera recesses"
+                    )
+            for center in BATTERY_CENTERS:
+                battery_bounds = (
+                    center[0] - battery_size[0] / 2.0,
+                    center[0] + battery_size[0] / 2.0,
+                    center[1] - battery_size[1] / 2.0,
+                    center[1] + battery_size[1] / 2.0,
+                )
+                if (
+                    circle_rectangle_clearance(
+                        fillet_center,
+                        fillet_radius,
+                        battery_bounds,
+                    )
+                    < MISC_COMPARTMENT_MIN_WEB
+                ):
+                    raise ValueError(
+                        "Miscellaneous step fillet needs 4 mm from battery pockets"
+                    )
+            for center in BATTERY_DOOR_SLOT_CENTERS:
+                door_bounds = (
+                    center[0] - door_slot_size[0] / 2.0,
+                    center[0] + door_slot_size[0] / 2.0,
+                    center[1] - door_slot_size[1] / 2.0,
+                    center[1] + door_slot_size[1] / 2.0,
+                )
+                if (
+                    circle_rectangle_clearance(
+                        fillet_center,
+                        fillet_radius,
+                        door_bounds,
+                    )
+                    < MISC_COMPARTMENT_MIN_WEB
+                ):
+                    raise ValueError(
+                        "Miscellaneous step fillet needs 4 mm from battery-door slots"
+                    )
+
+        misc_lobe_specs.append(compartment_lobe_specs)
+
+    for first_lobe in misc_lobe_specs[0]:
+        for second_lobe in misc_lobe_specs[1]:
+            if rectangles_overlap(
+                first_lobe[0],
+                first_lobe[1],
+                second_lobe[0],
+                second_lobe[1],
+                gap=MISC_COMPARTMENT_MIN_WEB,
+            ):
+                raise ValueError(
+                    "Miscellaneous compartments need a 4 mm separating web"
+                )
 
     camera_contact_top = BASE_FLOOR_THICKNESS + CAMERA_FLOOR_Z + mission1.BODY_HEIGHT
     battery_top = BASE_FLOOR_THICKNESS + BATTERY_FLOOR_Z + BATTERY_HEIGHT
@@ -3763,8 +3905,12 @@ def validate_configuration() -> None:
         f"{BATTERY_DOOR_SLOT_SIZE[1]:.1f}x{BATTERY_DOOR_SLOT_DEPTH:.1f} "
         f"door_pad_preload={battery_door_pad_compression:.2f} "
         f"tray_installed_z={LOWER_TRAY_INSTALLED_Z:.2f} "
-        f"misc_pockets={misc_specs[0][1][0]:.1f}x{misc_specs[0][1][1]:.1f}/"
-        f"{misc_specs[1][1][0]:.1f}x{misc_specs[1][1][1]:.1f}x"
+        f"misc_pockets={misc_lobe_specs[0][0][1][0]:.1f}x"
+        f"{misc_lobe_specs[0][0][1][1]:.1f}/right_step="
+        f"{misc_lobe_specs[1][0][1][0]:.1f}x"
+        f"{misc_lobe_specs[1][0][1][1]:.1f}+"
+        f"{misc_lobe_specs[1][1][1][0]:.1f}x"
+        f"{misc_lobe_specs[1][1][1][1]:.1f}x"
         f"{TRAY_HEIGHT - MISC_COMPARTMENT_FLOOR_Z:.1f} "
         f"misc_web={MISC_COMPARTMENT_MIN_WEB:.1f} "
         f"latch_source_scale={LATCH_SOURCE_SCALE:.2f} "
@@ -4075,22 +4221,43 @@ def create_lower_tray(material):
         )
         difference_from(tray, scoop)
 
-    for index, (x_bounds, y_bounds) in enumerate(
-        MISC_COMPARTMENT_BOUNDS,
+    for compartment_index, (lobe_bounds, step_fillets) in enumerate(
+        zip(MISC_COMPARTMENT_LOBE_BOUNDS, MISC_COMPARTMENT_STEP_FILLETS),
         start=1,
     ):
-        misc_width = x_bounds[1] - x_bounds[0]
-        misc_depth = y_bounds[1] - y_bounds[0]
-        pocket = add_rounded_prism(
-            f"Miscellaneous_Storage_Compartment_{index}",
-            misc_width,
-            misc_depth,
-            MISC_COMPARTMENT_FLOOR_Z,
-            TRAY_HEIGHT + 0.4,
-            MISC_COMPARTMENT_CORNER_RADIUS,
-            (sum(x_bounds) / 2.0, sum(y_bounds) / 2.0),
-        )
-        difference_from(tray, pocket)
+        for lobe_index, (x_bounds, y_bounds) in enumerate(lobe_bounds, start=1):
+            misc_width = x_bounds[1] - x_bounds[0]
+            misc_depth = y_bounds[1] - y_bounds[0]
+            pocket = add_rounded_prism(
+                "Miscellaneous_Storage_Compartment_"
+                f"{compartment_index}_Lobe_{lobe_index}",
+                misc_width,
+                misc_depth,
+                MISC_COMPARTMENT_FLOOR_Z,
+                TRAY_HEIGHT + 0.4,
+                MISC_COMPARTMENT_CORNER_RADIUS,
+                (sum(x_bounds) / 2.0, sum(y_bounds) / 2.0),
+            )
+            difference_from(tray, pocket)
+
+        for fillet_index, (fillet_x, fillet_y, fillet_radius) in enumerate(
+            step_fillets,
+            start=1,
+        ):
+            fillet_height = TRAY_HEIGHT + 0.4 - MISC_COMPARTMENT_FLOOR_Z
+            fillet = add_cylinder_z(
+                "Miscellaneous_Storage_Compartment_"
+                f"{compartment_index}_Step_Fillet_{fillet_index}",
+                fillet_radius,
+                fillet_height,
+                (
+                    fillet_x,
+                    fillet_y,
+                    MISC_COMPARTMENT_FLOOR_Z + fillet_height / 2.0,
+                ),
+                vertices=48,
+            )
+            difference_from(tray, fillet)
 
     assign_material(tray, material)
     return tray
