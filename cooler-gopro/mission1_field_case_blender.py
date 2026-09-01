@@ -371,7 +371,7 @@ HINGE_RIM_RELIEF_RADIAL_CLEARANCE = 0.4
 HINGE_RIM_RELIEF_AXIAL_CLEARANCE = 0.2
 HINGE_PIN_X0 = -77.0
 HINGE_PIN_X1 = 77.0
-HINGE_PIN_PATH_AXIAL_CLEARANCE = 0.2
+HINGE_ROD_PATH_AXIAL_CLEARANCE = 0.2
 HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL = 0.6
 HINGE_BORE_VALIDATION_RADIAL_CLEARANCE = 0.005
 
@@ -3228,8 +3228,8 @@ def validate_configuration() -> None:
         raise ValueError(
             "Lid hinge slot must clear the rod but remain narrower than its receiver"
         )
-    if HINGE_PIN_PATH_AXIAL_CLEARANCE < HINGE_RIM_RELIEF_AXIAL_CLEARANCE:
-        raise ValueError("Lid rim relief must cover the complete hinge pin path")
+    if HINGE_ROD_PATH_AXIAL_CLEARANCE < HINGE_RIM_RELIEF_AXIAL_CLEARANCE:
+        raise ValueError("Lid rim relief must cover the complete hinge rod path")
     hinge_gusset_run = HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y
     hinge_gusset_rise = HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z
     hinge_gusset_overhang = math.degrees(
@@ -4655,12 +4655,12 @@ def create_lid(
         if index == 1:
             relief_x0 = min(
                 relief_x0,
-                HINGE_PIN_X0 - HINGE_PIN_PATH_AXIAL_CLEARANCE,
+                HINGE_PIN_X0 - HINGE_ROD_PATH_AXIAL_CLEARANCE,
             )
         if index == len(HINGE_BASE_SEGMENTS):
             relief_x1 = max(
                 relief_x1,
-                HINGE_PIN_X1 + HINGE_PIN_PATH_AXIAL_CLEARANCE,
+                HINGE_PIN_X1 + HINGE_ROD_PATH_AXIAL_CLEARANCE,
             )
         relief = add_cylinder_x(
             f"Lid_Rear_Rim_Relief_For_Base_Knuckle_{index}",
@@ -6589,7 +6589,7 @@ def validate_built_base_hinge_gussets(base) -> None:
         bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
 
     full_path_probe = add_cylinder_x(
-        "TEMPORARY_Base_Full_Hinge_Pin_Path_Probe",
+        "TEMPORARY_Base_Full_Hinge_Rod_Path_Probe",
         HINGE_BASE_HOLE_DIAMETER / 2.0
         - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
         HINGE_PIN_X1 - HINGE_PIN_X0,
@@ -6610,7 +6610,7 @@ def validate_built_base_hinge_gussets(base) -> None:
         bpy.data.objects.remove(full_path_probe, do_unlink=True)
     if full_path_faces or full_path_overlap > 1e-6:
         raise ValueError(
-            "Base obstructs the continuous hinge pin path: "
+            "Base obstructs the continuous hinge rod path: "
             f"faces={full_path_faces} volume={full_path_overlap:.6f}"
         )
 
@@ -6633,7 +6633,7 @@ def validate_built_base_hinge_gussets(base) -> None:
         f"solid_probe_min={minimum_solid_fill:.6f} "
         f"bore_probe_diameter={bore_probe_diameter:.3f} "
         f"bore_overlap_max={bore_overlap_maximum:.6f} "
-        f"full_pin_path_overlap={full_path_overlap:.6f}"
+        f"full_rod_path_overlap={full_path_overlap:.6f}"
     )
 
 
@@ -6712,7 +6712,7 @@ def validate_built_lid_hinge_receivers(lid) -> None:
             bpy.data.objects.remove(rod_probe, do_unlink=True)
 
     full_path_probe = add_cylinder_x(
-        "TEMPORARY_Lid_Full_Hinge_Pin_Path_Probe",
+        "TEMPORARY_Lid_Full_Hinge_Rod_Path_Probe",
         HINGE_LID_RECEIVER_DIAMETER / 2.0
         - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
         HINGE_PIN_X1 - HINGE_PIN_X0,
@@ -6749,7 +6749,7 @@ def validate_built_lid_hinge_receivers(lid) -> None:
         f"insertion_samples={len(HINGE_LID_SEGMENTS) * insertion_samples} "
         f"insertion_overlap_max={insertion_overlap_maximum:.6f} "
         f"overlap_max={bore_overlap_maximum:.6f} "
-        f"full_pin_path_overlap={full_path_overlap:.6f}"
+        f"full_rod_path_overlap={full_path_overlap:.6f}"
     )
 
 

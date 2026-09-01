@@ -268,7 +268,7 @@ barrel. The web begins 0.3 mm inside the rear case wall, rises outward at 45
 degrees, and joins the 10 mm barrel at its lower-outboard tangent. This removes
 the unsupported lower circular arc and gives the barrel a much larger load path
 into the shell without changing the hinge axis, alternating axial clearances,
-or internal case dimensions. Its original pin path is enlarged only to a 4.5
+or internal case dimensions. Its original hinge path is enlarged only to a 4.5
 mm bore so the requested 4.1 mm bar can pass through all three base knuckles.
 Print the base upright as exported; the hinge webs are designed not to require
 support.
