@@ -5670,6 +5670,28 @@ def create_latch_fixed_m3_reference_hardware(
     material=None,
     seat_clearance=0.0,
 ):
+    """Build reference hardware transactionally, removing partial failures."""
+    existing_object_names = {obj.name for obj in bpy.data.objects}
+    try:
+        return _create_latch_fixed_m3_reference_hardware(
+            name,
+            latch_x,
+            material=material,
+            seat_clearance=seat_clearance,
+        )
+    except Exception:
+        for obj in list(bpy.data.objects):
+            if obj.name not in existing_object_names:
+                bpy.data.objects.remove(obj, do_unlink=True)
+        raise
+
+
+def _create_latch_fixed_m3_reference_hardware(
+    name,
+    latch_x,
+    material=None,
+    seat_clearance=0.0,
+):
     """Build a seated maximum-envelope socket-head screw and nominal nut."""
     head_face_x, nut_face_x, outer_direction = latch_fixed_m3_guard_faces(latch_x)
     head_bearing_x = head_face_x - outer_direction * (
