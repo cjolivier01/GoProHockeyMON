@@ -101,8 +101,9 @@ Print two copies of:
 
 Each latch uses:
 
-- one M3 x 35 countersunk machine screw and one standard M3 hex nut for the
-  case-side fixed pivot
+- one M3 x 35 ISO 10642 / DIN 7991 90-degree countersunk machine screw with a
+  maximum 6.0 mm head diameter, and one standard M3 hex nut for the case-side
+  fixed pivot
 - one moving-link rod cut to `LATCH_LINK_ROD_LENGTH` (20.48 mm by default)
 
 Two shaped mounting guards are part of the case base. A continuous 3.5 mm bore
@@ -110,9 +111,12 @@ through both guards and the source lever is an easy-running clearance for the
 M3 fixed-pivot screw. On each latch, the screw head is fully recessed into a
 6.4 mm-diameter, 1.45 mm-deep 90-degree countersink on the case-outside guard;
 a standard nut is fully recessed in a captive 5.8 mm-across-flats by 2.7
-mm-deep hex pocket on the guard toward the case center. At the moving pivot,
-the 4 mm rod passes through the lever's 4.4 mm running bore and is retained by
-the hook's 3.9 mm bore.
+mm-deep hex pocket on the guard toward the case center. The M3 x 35 screw fully
+engages the 2.4 mm nut thickness, reaches 5.02 mm past the nut-pocket floor,
+and projects approximately 2.32 mm beyond the inboard guard face. The captive
+pocket extends above the hex with a 45-degree printable roof. At the moving
+pivot, the 4 mm rod passes through the lever's 4.4 mm running bore and is
+retained by the hook's 3.9 mm bore.
 
 `PIVOT_MIN_WALL_THICKNESS = 2.0` is the shared configurable strength rule for
 the case mounts, latch parts, and handle. Each case ear now starts as a gradual
@@ -182,7 +186,7 @@ center finger corridor open. The horizontal catch rail is the only short
 bridge that may benefit from tuned bridging or localized support. The load
 ledge turns that bridge into an 8.6 mm-deep structural shelf tied into the lid
 wall and towers; the guard ramps themselves do not require support in the
-exported orientation.
+exported orientation, and the captive nut pockets close with 45-degree roofs.
 
 The uncompressed lid begins 0.25 mm above its hard seated position. Pressing
 the broad lever inward places its flat pad against the load ledge, draws the
@@ -255,7 +259,8 @@ front: X = 0 and Z = 36.5 mm. The 95 mm-wide folded bar occupies only the
 reserved center zone. The two exact latches retain their compatible X = ±82 mm
 centerlines; their
 moving levers remain 24.26 mm from the handle's full folded and swinging X
-envelope, while the integrated mounts retain 20.06 mm clearance. The two old
+envelope. The 6 mm integrated guards retain 18.06 mm from that envelope, and
+the installed M3 screw tips retain 15.74 mm. The two old
 front-center impact ribs are deliberately omitted so this entire access path
 stays open. When raised, the smaller 32.5 mm-drop handle leaves 28.1
 mm between the case face and the inside of the grip across the unobstructed 75
@@ -264,7 +269,8 @@ pivot profile leaves at least 2.11 mm beside its lower chord and 2.99 mm above
 the teardrop running bore.
 The generator rejects less than 25 mm of raised finger clearance, less than
 75 mm of unobstructed grip width, less than 24 mm of moving-latch finger-access
-clearance, or less than 20 mm between the handle and integrated latch mounts.
+clearance, less than 18 mm between the handle and integrated latch guards, or
+less than 15 mm between the handle and installed M3 screw tips.
 
 ## Hinge clearances
 

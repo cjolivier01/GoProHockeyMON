@@ -494,7 +494,7 @@ LATCH_FIXED_M3_COUNTERSINK_DEPTH = (
     LATCH_FIXED_M3_COUNTERSINK_DIAMETER
     - LATCH_FIXED_M3_CLEARANCE_DIAMETER
 ) / 2.0
-LATCH_FIXED_M3_NOMINAL_HEAD_DIAMETER = 5.6
+LATCH_FIXED_M3_MAX_HEAD_DIAMETER = 6.0
 LATCH_FIXED_M3_NUT_ACROSS_FLATS = 5.8
 LATCH_FIXED_M3_NOMINAL_NUT_ACROSS_FLATS = 5.5
 LATCH_FIXED_M3_NUT_DEPTH = 2.7
@@ -607,11 +607,17 @@ LATCH_CAPTURE_OUTWARD_PEEL_MIN_VOLUME = 0.02
 LID_LATCH_LOAD_LEDGE_CONTACT_Z = LID_LATCH_CAPTURE_RAIL_CENTER_Z - 0.2
 LATCH_LINK_ROD_LENGTH = LATCH_WIDTH
 LATCH_FINGER_ACCESS_CLEARANCE = 24.0
-LATCH_MOUNT_HANDLE_CLEARANCE = 20.0
+LATCH_GUARD_HANDLE_CLEARANCE = 18.0
+LATCH_HARDWARE_HANDLE_CLEARANCE = 15.0
 LATCH_PROTECTOR_BASE_WIDTH = 6.0
 LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT = (
     LATCH_PROTECTOR_BASE_WIDTH - LATCH_BASE_EAR_WIDTH
 ) / 2.0
+LATCH_PROTECTOR_MOUNT_HALF_WIDTH = (
+    LATCH_BASE_EAR_CENTER_OFFSET_X
+    + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+    + LATCH_PROTECTOR_BASE_WIDTH / 2.0
+)
 LATCH_FIXED_M3_GUARD_SPAN = (
     LATCH_WIDTH
     + 2.0 * LATCH_BASE_EAR_AXIAL_CLEARANCE
@@ -2589,6 +2595,22 @@ def regular_hexagon_loop_yz(center_y, center_z, across_flats):
     )
 
 
+def support_free_hex_nut_pocket_loop_yz(center_y, center_z, across_flats):
+    """Return a point-up hex pocket with a printable 45-degree roof."""
+    circumradius = across_flats / math.sqrt(3.0)
+    half_width = across_flats / 2.0
+    upper_side_z = center_z + circumradius / 2.0
+    lower_side_z = center_z - circumradius / 2.0
+    return (
+        (center_y + half_width, upper_side_z),
+        (center_y, upper_side_z + half_width),
+        (center_y - half_width, upper_side_z),
+        (center_y - half_width, lower_side_z),
+        (center_y, center_z - circumradius),
+        (center_y + half_width, lower_side_z),
+    )
+
+
 def extrude_loop_x(name: str, loop_yz, x0: float, x1: float):
     count = len(loop_yz)
     vertices = [(x0, y, z) for y, z in loop_yz]
@@ -3754,7 +3776,7 @@ def validate_configuration() -> None:
         raise ValueError("Latch fixed pivots need an easy-running M3 clearance")
     countersink_diametral_clearance = (
         LATCH_FIXED_M3_COUNTERSINK_DIAMETER
-        - LATCH_FIXED_M3_NOMINAL_HEAD_DIAMETER
+        - LATCH_FIXED_M3_MAX_HEAD_DIAMETER
     )
     if countersink_diametral_clearance < 0.4:
         raise ValueError("Latch M3 countersinks do not fully contain the screw heads")
@@ -3785,10 +3807,14 @@ def validate_configuration() -> None:
     nut_recess_floor = LATCH_PROTECTOR_BASE_WIDTH - LATCH_FIXED_M3_NUT_DEPTH
     if min(countersink_floor, nut_recess_floor) < LATCH_FIXED_M3_MIN_RECESS_FLOOR:
         raise ValueError("Latch guard recesses leave too little material behind them")
-    fixed_m3_thread_engagement = (
+    fixed_m3_reach_past_nut_floor = (
         LATCH_FIXED_M3_BOLT_LENGTH
         + countersink_seat_inset
         - (LATCH_FIXED_M3_GUARD_SPAN - LATCH_FIXED_M3_NUT_DEPTH)
+    )
+    fixed_m3_thread_engagement = min(
+        LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS,
+        fixed_m3_reach_past_nut_floor,
     )
     fixed_m3_tip_protrusion = (
         LATCH_FIXED_M3_BOLT_LENGTH
@@ -4050,9 +4076,7 @@ def validate_configuration() -> None:
             "Raised handle needs its specified adult-finger clearance; "
             f"computed {handle_raised_finger_gap:.2f} mm"
         )
-    latch_mount_half_width = (
-        LATCH_WIDTH / 2.0 + LATCH_BASE_EAR_AXIAL_CLEARANCE + LATCH_BASE_EAR_WIDTH
-    )
+    latch_mount_half_width = LATCH_PROTECTOR_MOUNT_HALF_WIDTH
     latch_mount_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - latch_mount_half_width
     latch_lever_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - LATCH_WIDTH / 2.0
     latch_outer_x = max(abs(x) for x in LATCH_X_CENTERS) + latch_mount_half_width
@@ -4063,11 +4087,19 @@ def validate_configuration() -> None:
             "Folded/swinging handle enters the latch finger-access zone: "
             f"computed {latch_handle_clearance:.2f} mm"
         )
-    latch_mount_handle_clearance = latch_mount_inner_x - handle_outer_x
-    if latch_mount_handle_clearance < LATCH_MOUNT_HANDLE_CLEARANCE:
+    latch_guard_handle_clearance = latch_mount_inner_x - handle_outer_x
+    if latch_guard_handle_clearance < LATCH_GUARD_HANDLE_CLEARANCE:
         raise ValueError(
-            "Handle sits too close to the integrated latch mount: "
-            f"computed {latch_mount_handle_clearance:.2f} mm"
+            "Handle sits too close to the integrated latch guard: "
+            f"computed {latch_guard_handle_clearance:.2f} mm"
+        )
+    latch_hardware_handle_clearance = (
+        latch_guard_handle_clearance - fixed_m3_tip_protrusion
+    )
+    if latch_hardware_handle_clearance < LATCH_HARDWARE_HANDLE_CLEARANCE:
+        raise ValueError(
+            "Handle sits too close to the installed latch M3 screw tip: "
+            f"computed {latch_hardware_handle_clearance:.2f} mm"
         )
     latch_case_edge_clearance = CASE_WIDTH / 2.0 - latch_outer_x
     if latch_case_edge_clearance < 4.0:
@@ -4146,6 +4178,8 @@ def validate_configuration() -> None:
         f"{LATCH_FIXED_M3_NUT_DEPTH:.2f} "
         f"latch_fixed_m3_screw=M3x{LATCH_FIXED_M3_BOLT_LENGTH:.0f} "
         f"latch_fixed_m3_engagement={fixed_m3_thread_engagement:.2f} "
+        f"latch_fixed_m3_reach_past_nut_floor="
+        f"{fixed_m3_reach_past_nut_floor:.2f} "
         f"latch_fixed_m3_tip={fixed_m3_tip_protrusion:.2f} "
         f"latch_ear_clearance={LATCH_BASE_EAR_AXIAL_CLEARANCE:.2f} "
         f"pivot_min_wall={PIVOT_MIN_WALL_THICKNESS:.2f} "
@@ -4174,7 +4208,8 @@ def validate_configuration() -> None:
         f"{abs(LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y):.2f} "
         f"lid_protector={LID_LATCH_TROUGH_SHOULDER_WIDTH:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
-        f"latch_mount_handle_clearance={latch_mount_handle_clearance:.2f} "
+        f"latch_guard_handle_clearance={latch_guard_handle_clearance:.2f} "
+        f"latch_hardware_handle_clearance={latch_hardware_handle_clearance:.2f} "
         f"handle_mode={HANDLE_HARDWARE_MODE} "
         f"handle_fork_cheek={handle_fork_cheek_thickness:.2f} "
         f"handle_pivot_chord_wall={handle_pivot_lower_chord_wall:.2f} "
@@ -4261,7 +4296,7 @@ def add_latch_fixed_m3_nut_recess(name, latch_x, across_flats=None, depth=None):
     recess_inner_x = nut_face_x + outer_direction * depth
     return extrude_loop_x(
         name,
-        regular_hexagon_loop_yz(
+        support_free_hex_nut_pocket_loop_yz(
             LATCH_BASE_PIVOT_Y,
             LATCH_BASE_PIVOT_Z,
             across_flats,
@@ -4400,7 +4435,7 @@ def create_base(material):
     # The cheeks overlap the existing pivot ears.  Their 6 mm axial thickness
     # fully contains the flush M3 head and captive nut.  Drill one continuous
     # easy-running M3 path after union, then open a 90-degree countersink on the
-    # case-outside guard and a support-free hex nut pocket on the inboard guard.
+    # case-outside guard and a short captive hex nut pocket on the inboard guard.
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
         for side in (-1.0, 1.0):
             ear_x = x + side * LATCH_BASE_EAR_CENTER_OFFSET_X
@@ -4866,7 +4901,7 @@ def create_lid(
 
     # In print orientation the lid's hinge is at -Y; flipping the finished lid
     # around X places it on the base's +Y hinge line.  Union each barrel into
-    # the complete flared rim, cut a round 4.5 mm receiver, then open that
+    # the complete flared rim, cut a round 4.8 mm receiver, then open that
     # receiver through its rear side with a 4.6 mm slot.  The installed escape
     # vector remains blocked by the unchanged base through 65 degrees.  At 70
     # degrees the lid slides diagonally up/forward off the already-installed 4.1
@@ -5626,10 +5661,10 @@ def create_latch_fixed_m3_reference_hardware(
     head_face_x, nut_face_x, outer_direction = latch_fixed_m3_guard_faces(latch_x)
     seat_inset = (
         LATCH_FIXED_M3_COUNTERSINK_DIAMETER
-        - LATCH_FIXED_M3_NOMINAL_HEAD_DIAMETER
+        - LATCH_FIXED_M3_MAX_HEAD_DIAMETER
     ) / 2.0 - seat_clearance
     head_depth = (
-        LATCH_FIXED_M3_NOMINAL_HEAD_DIAMETER
+        LATCH_FIXED_M3_MAX_HEAD_DIAMETER
         - LATCH_FIXED_M3_NOMINAL_DIAMETER
     ) / 2.0
     head_top_x = head_face_x - outer_direction * seat_inset
@@ -5637,12 +5672,12 @@ def create_latch_fixed_m3_reference_hardware(
     head = add_cone_x(
         name + "_Countersunk_Head",
         (
-            LATCH_FIXED_M3_NOMINAL_HEAD_DIAMETER / 2.0
+            LATCH_FIXED_M3_MAX_HEAD_DIAMETER / 2.0
             if outer_direction < 0.0
             else LATCH_FIXED_M3_NOMINAL_DIAMETER / 2.0
         ),
         (
-            LATCH_FIXED_M3_NOMINAL_HEAD_DIAMETER / 2.0
+            LATCH_FIXED_M3_MAX_HEAD_DIAMETER / 2.0
             if outer_direction > 0.0
             else LATCH_FIXED_M3_NOMINAL_DIAMETER / 2.0
         ),
@@ -6239,7 +6274,13 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
         bpy.data.objects.remove(lever_path_probe, do_unlink=True)
     lever_path_overlaps.append(lever_path_overlap)
 
-    floor_probe_dimensions = (0.3, 0.3, 0.3)
+    # Span the complete configured 1 mm minimum floor immediately behind each
+    # recess.  The small radial footprint sits beside the 3.5 mm through bore,
+    # at the countersink's deepest axial extent, rather than near its shallow
+    # outer rim.
+    floor_probe_dimensions = (LATCH_FIXED_M3_MIN_RECESS_FLOOR, 0.2, 0.2)
+    floor_probe_radial_offset = 2.0
+    floor_probe_axial_clearance = 0.02
     minimum_floor_fill = math.prod(floor_probe_dimensions) * 0.9
     for index, latch_x in enumerate(LATCH_X_CENTERS, start=1):
         head_face_x, nut_face_x, outer_direction = latch_fixed_m3_guard_faces(
@@ -6291,9 +6332,13 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
                 (
                     head_face_x
                     - outer_direction
-                    * (LATCH_FIXED_M3_COUNTERSINK_DEPTH + 0.25),
-                    LATCH_BASE_PIVOT_Y,
-                    LATCH_BASE_PIVOT_Z + 3.0,
+                    * (
+                        LATCH_FIXED_M3_COUNTERSINK_DEPTH
+                        + floor_probe_axial_clearance
+                        + floor_probe_dimensions[0] / 2.0
+                    ),
+                    LATCH_BASE_PIVOT_Y + floor_probe_radial_offset,
+                    LATCH_BASE_PIVOT_Z,
                 ),
                 countersink_floor_volumes,
             ),
@@ -6301,9 +6346,14 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
                 f"TEMPORARY_Latch_{index}_Nut_Recess_Floor_Solid_Probe",
                 (
                     nut_face_x
-                    + outer_direction * (LATCH_FIXED_M3_NUT_DEPTH + 0.25),
-                    LATCH_BASE_PIVOT_Y,
-                    LATCH_BASE_PIVOT_Z + 3.0,
+                    + outer_direction
+                    * (
+                        LATCH_FIXED_M3_NUT_DEPTH
+                        + floor_probe_axial_clearance
+                        + floor_probe_dimensions[0] / 2.0
+                    ),
+                    LATCH_BASE_PIVOT_Y + floor_probe_radial_offset,
+                    LATCH_BASE_PIVOT_Z,
                 ),
                 nut_floor_volumes,
             ),
@@ -6352,12 +6402,21 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
 
     countersink_seat_inset = (
         LATCH_FIXED_M3_COUNTERSINK_DIAMETER
-        - LATCH_FIXED_M3_NOMINAL_HEAD_DIAMETER
+        - LATCH_FIXED_M3_MAX_HEAD_DIAMETER
     ) / 2.0
-    thread_engagement = (
+    reach_past_nut_floor = (
         LATCH_FIXED_M3_BOLT_LENGTH
         + countersink_seat_inset
         - (LATCH_FIXED_M3_GUARD_SPAN - LATCH_FIXED_M3_NUT_DEPTH)
+    )
+    thread_engagement = min(
+        LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS,
+        reach_past_nut_floor,
+    )
+    tip_protrusion = (
+        LATCH_FIXED_M3_BOLT_LENGTH
+        + countersink_seat_inset
+        - LATCH_FIXED_M3_GUARD_SPAN
     )
     print(
         "FIELD_CASE_LATCH_FIXED_M3_VALID "
@@ -6369,10 +6428,13 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
         f"{LATCH_FIXED_M3_COUNTERSINK_DEPTH:.2f} "
         f"nut_recess={LATCH_FIXED_M3_NUT_ACROSS_FLATS:.2f}x"
         f"{LATCH_FIXED_M3_NUT_DEPTH:.2f} "
+        f"floor_probe_span={floor_probe_dimensions[0]:.2f} "
         f"countersink_floor_min={min(countersink_floor_volumes):.6f} "
         f"nut_floor_min={min(nut_floor_volumes):.6f} "
         f"screw=M3x{LATCH_FIXED_M3_BOLT_LENGTH:.0f} "
-        f"thread_engagement={thread_engagement:.2f}"
+        f"thread_engagement={thread_engagement:.2f} "
+        f"reach_past_nut_floor={reach_past_nut_floor:.2f} "
+        f"tip_protrusion={tip_protrusion:.2f}"
     )
 
 
