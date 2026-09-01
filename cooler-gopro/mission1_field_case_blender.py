@@ -7452,8 +7452,8 @@ def validate_built_lid_hinge_receivers(lid) -> None:
         finally:
             bpy.data.objects.remove(rod_probe, do_unlink=True)
 
-    full_path_probe = add_cylinder_x(
-        "TEMPORARY_Lid_Full_Hinge_Rod_Path_Probe",
+    full_receiver_path_probe = add_cylinder_x(
+        "TEMPORARY_Lid_Full_Hinge_Receiver_Path_Probe",
         HINGE_LID_RECEIVER_DIAMETER / 2.0
         - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
         HINGE_ROD_X1 - HINGE_ROD_X0,
@@ -7464,18 +7464,22 @@ def validate_built_lid_hinge_receivers(lid) -> None:
         ),
     )
     try:
-        full_path_faces, full_path_overlap = exact_transformed_intersection(
+        (
+            full_receiver_path_faces,
+            full_receiver_path_overlap,
+        ) = exact_transformed_intersection(
             lid,
-            full_path_probe,
-            second_location=full_path_probe.location.copy(),
-            second_rotation=full_path_probe.rotation_euler.copy(),
+            full_receiver_path_probe,
+            second_location=full_receiver_path_probe.location.copy(),
+            second_rotation=full_receiver_path_probe.rotation_euler.copy(),
         )
     finally:
-        bpy.data.objects.remove(full_path_probe, do_unlink=True)
-    if full_path_faces or full_path_overlap > 1e-6:
+        bpy.data.objects.remove(full_receiver_path_probe, do_unlink=True)
+    if full_receiver_path_faces or full_receiver_path_overlap > 1e-6:
         raise ValueError(
-            "Lid obstructs the continuous hinge rod path: "
-            f"faces={full_path_faces} volume={full_path_overlap:.6f}"
+            "Lid obstructs the continuous full-diameter hinge receiver path: "
+            f"faces={full_receiver_path_faces} "
+            f"volume={full_receiver_path_overlap:.6f}"
         )
 
     probe_diameter = HINGE_LID_RECEIVER_DIAMETER - 2.0 * (
@@ -7492,7 +7496,7 @@ def validate_built_lid_hinge_receivers(lid) -> None:
         f"release_samples={len(HINGE_LID_SEGMENTS) * release_samples} "
         f"release_overlap_max={release_overlap_maximum:.6f} "
         f"overlap_max={bore_overlap_maximum:.6f} "
-        f"full_rod_path_overlap={full_path_overlap:.6f}"
+        f"full_receiver_path_overlap={full_receiver_path_overlap:.6f}"
     )
 
 
