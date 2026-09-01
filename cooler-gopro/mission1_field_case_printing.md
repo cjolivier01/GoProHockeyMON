@@ -101,22 +101,24 @@ Print two copies of:
 
 Each latch uses:
 
-- one M3 x 35 DIN 7991 90-degree countersunk machine screw with a maximum
-  6.0 mm head diameter, and one standard M3 hex nut for the case-side fixed
-  pivot; do not substitute a larger-head ISO 10642 screw
+- one M3 x 30 ISO 4762 / DIN 912 Allen socket-head cap screw with a maximum
+  5.5 mm head diameter and 3.0 mm head height, plus one standard M3 hex nut
+  for the case-side fixed pivot; use a 2.5 mm Allen wrench
 - one moving-link rod cut to `LATCH_LINK_ROD_LENGTH` (20.48 mm by default)
 
 Two shaped mounting guards are part of the case base. A continuous 3.5 mm bore
 through both guards and the source lever is an easy-running clearance for the
 M3 fixed-pivot screw. On each latch, the screw head is fully recessed into a
-6.4 mm-diameter, 1.45 mm-deep 90-degree countersink on the case-outside guard;
-a standard nut is fully recessed in a captive 5.8 mm-across-flats by 2.7
-mm-deep hex pocket on the guard toward the case center. The M3 x 35 screw fully
-engages the 2.4 mm nut thickness, reaches 5.02 mm past the nut-pocket floor,
-and projects approximately 2.32 mm beyond the inboard guard face. The captive
-pocket extends above the hex with a 45-degree printable roof. At the moving
-pivot, the 4 mm rod passes through the lever's 4.4 mm running bore and is
-retained by the hook's 3.9 mm bore.
+6.0 mm-diameter, 3.2 mm-deep cylindrical counterbore on the case-outside
+guard. Its circular region clears the socket head, while a 45-degree roof
+closes the horizontal pocket for printing. The 3.0 mm-tall head sits 0.2 mm
+below the outside face. A standard nut is fully recessed in a captive 5.8
+mm-across-flats by 2.7 mm-deep hex pocket on the guard toward the case center.
+The M3 x 30 screw fully engages the 2.4 mm nut thickness, reaches 3.02 mm past
+the nut-pocket floor, and projects approximately 0.32 mm beyond the inboard
+guard face. The captive pocket extends above the hex with its own 45-degree
+printable roof. At the moving pivot, the 4 mm rod passes through the lever's
+4.4 mm running bore and is retained by the hook's 3.9 mm bore.
 
 `PIVOT_MIN_WALL_THICKNESS = 2.0` is the shared configurable strength rule for
 the case mounts, latch parts, and handle. Each case ear now starts as a gradual
@@ -214,10 +216,11 @@ To install one latch:
 
 1. Place the lever between the two integrated base ears and align the fixed
    pivot holes.
-2. From the case-outside guard, insert an M3 x 35 countersunk screw through the
-   first guard, the lever's 3.5 mm easy-running bore, and the case-center guard.
-   Seat a standard M3 nut fully in its captive inside hex recess and tighten
-   only until axial play is removed; the lever must still pivot freely.
+2. From the case-outside guard, insert an M3 x 30 ISO 4762 / DIN 912 Allen
+   socket-head cap screw through the first guard, the lever's 3.5 mm
+   easy-running bore, and the case-center guard. Seat a standard M3 nut fully
+   in its captive inside hex recess and tighten with a 2.5 mm Allen wrench only
+   until axial play is removed; the lever must still pivot freely.
 3. Nest the hook around the lever's moving end, align the link holes, and press
    the rod cut to `LATCH_LINK_ROD_LENGTH` through the hook and lever until its
    ends are flush.
@@ -260,7 +263,7 @@ reserved center zone. The two exact latches retain their compatible X = ±82 mm
 centerlines; their
 moving levers remain 24.26 mm from the handle's full folded and swinging X
 envelope. The 6 mm integrated guards retain 18.06 mm from that envelope, and
-the installed M3 screw tips retain 15.74 mm. The two old
+the installed M3 screw tips retain 17.74 mm. The two old
 front-center impact ribs are deliberately omitted so this entire access path
 stays open. When raised, the smaller 32.5 mm-drop handle leaves 28.1
 mm between the case face and the inside of the grip across the unobstructed 75
@@ -360,10 +363,10 @@ and can be regenerated without editing an STL.
    along the slot direction, then rotate it closed. The unchanged base
    blocks that same removal path through 65 degrees, while the two solid lid
    stops retain the bar axially.
-4. Install each latch with one M3 x 35 countersunk screw, one standard M3 nut,
-   and a moving-link rod cut to `LATCH_LINK_ROD_LENGTH`. Install the separate
-   handle bar with two 12 mm lengths of 4 mm rod by default or with regenerated
-   M4 hardware.
+4. Install each latch with one M3 x 30 ISO 4762 / DIN 912 Allen socket-head cap
+   screw, one standard M3 nut, and a moving-link rod cut to
+   `LATCH_LINK_ROD_LENGTH`. Install the separate handle bar with two 12 mm
+   lengths of 4 mm rod by default or with regenerated M4 hardware.
 5. Load the two opposed cameras with their soft lens hoods in the flared ends,
    then load four batteries terminal-down.
 
