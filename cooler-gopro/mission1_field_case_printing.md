@@ -276,22 +276,27 @@ Print the base upright as exported; the hinge webs are designed not to require
 support.
 
 The lid barrels are fused into the complete flared rim before their 4.5 mm
-round receivers are opened through the print-facing top by 4.3 mm slots. After
-the lid is flipped into its installed orientation, these slots face downward:
-align them over the bar and lower/slide the lid onto it. The 0.2 mm slot
-clearance lets a nominal 4.1 mm bar pass without forcing a snap fit, while the
-10 mm outside diameter leaves 2.75 mm of radial barrel wall. Generation checks
-the complete insertion path at nine positions per lid knuckle, both finished
-receivers, and the continuous 151 mm hinge path.
+round receivers are opened tangentially through the rear/outboard side by 4.3
+mm slots. Like the supplied Pelican reference, each slot is parallel to the lid
+plate instead of normal to it. The installed slots therefore face rearward and
+cannot lift off the bar while the lid is closed. At 90 degrees open they face
+downward, allowing the open lid to be lowered onto or lifted from the bar. The
+0.2 mm slot clearance lets a nominal 4.1 mm bar pass without forcing a snap
+fit, while the 10 mm outside diameter leaves 2.75 mm of radial barrel wall.
+Generation checks the complete release path at nine positions per lid knuckle,
+proves a 1 mm lift remains blocked both closed and at 75 degrees open, proves
+lift-off clear at 90 degrees, checks both finished receivers, and checks the
+continuous 151 mm hinge path.
 
 Two 6 mm-diameter by 3 mm-long solid bosses are part of the lid just outside
 the outer faces of the base's end knuckles. The straight rod is cut to 151 mm,
 placing each end 0.5 mm inside its base-knuckle face. Each lid stop begins 0.3
 mm beyond that face, leaving 0.8 mm clearance at each rod end and 1.6 mm total
-axial play. The stops therefore pass outside the rod during drop-on assembly,
-then prevent it from walking out in either direction while the lid is attached.
-Their smaller diameter clears the unchanged base rear wall; generated solid
-probes and deliberate axial-overtravel probes verify both stops and retention.
+axial play. The stops therefore pass outside the rod during 90-degree lift-on
+assembly, then prevent it from walking out in either direction while the lid
+is attached. Their smaller diameter clears the unchanged base rear wall;
+generated solid probes and deliberate axial-overtravel probes verify both
+stops and retention.
 
 ## Suggested printing
 
@@ -325,8 +330,10 @@ and can be regenerated without editing an STL.
    notch over the matching rigid boss.
 3. Feed and center the 151 mm-long, 4.1 mm bar (or headless printed D-profile
    pin) through the three base knuckles, leaving both ends about 0.5 mm inset.
-   Align the two lid receiver slots above the installed bar and lower/slide the
-   lid onto it; the two solid lid stops then retain the bar axially.
+   Hold the lid approximately 90 degrees open, where its two tangential receiver
+   slots face downward. Align the receivers above the installed bar and lower
+   the lid onto it, then rotate the lid closed; the slots now face rearward and
+   cannot lift off, while the two solid lid stops retain the bar axially.
 4. Install each latch with rods cut to `LATCH_FIXED_ROD_LENGTH` and
    `LATCH_LINK_ROD_LENGTH`, then install the separate handle bar with two 12 mm
    lengths of 4 mm rod by default or with regenerated M4 hardware.

@@ -355,15 +355,23 @@ GASKET_CHANNEL_DEPTH = 1.2
 GASKET_HEIGHT = 1.45
 GASKET_FIT_CLEARANCE = 0.2
 
-# Hinge axis is along X.  A 4.1 mm rod runs only through the base knuckles;
-# each lid knuckle has an upward-facing slot in print orientation (downward
-# when installed) so the complete lid can slide onto an already-installed rod.
+# Hinge axis is along X.  A 4.1 mm rod runs only through the base knuckles.
+# Each lid receiver opens tangentially away from the lid in print orientation,
+# parallel to the lid plate like the supplied Pelican reference.  The installed
+# slot therefore faces rearward while closed and rotates downward only when the
+# lid reaches its deliberate release angle, where the lid can lift off the rod.
 HINGE_AXIS_Y = CASE_DEPTH / 2.0 + 3.8
 HINGE_OUTER_DIAMETER = 10.0
 HINGE_ROD_DIAMETER = 4.1
 HINGE_BASE_HOLE_DIAMETER = 4.5
 HINGE_LID_RECEIVER_DIAMETER = 4.5
 HINGE_LID_SLOT_WIDTH = 4.3
+HINGE_LID_RELEASE_ANGLE_DEGREES = 90.0
+HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES = 75.0
+HINGE_LID_PRE_RELEASE_BLOCK_LIFT = 1.0
+HINGE_LID_RELEASE_PATH_SAMPLES = 9
+HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES = 110.0
+HINGE_OPEN_SWEEP_STEP_DEGREES = 10.0
 HINGE_PIN_DIAMETER = HINGE_ROD_DIAMETER
 HINGE_BASE_SEGMENTS = ((-76.0, -42.0), (-18.0, 18.0), (42.0, 76.0))
 HINGE_LID_SEGMENTS = ((-41.4, -18.6), (18.6, 41.4))
@@ -3115,6 +3123,21 @@ def validate_configuration() -> None:
         raise ValueError(
             "Lid hinge slot must clear the rod but remain narrower than its receiver"
         )
+    if not math.isclose(HINGE_LID_RELEASE_ANGLE_DEGREES, 90.0, abs_tol=1e-6):
+        raise ValueError("Tangential lid hinge slots require a 90-degree release angle")
+    if not (
+        0.0
+        < HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES
+        < HINGE_LID_RELEASE_ANGLE_DEGREES
+        <= HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES
+    ):
+        raise ValueError("Hinge block, release, and sweep angles are inconsistent")
+    if HINGE_LID_PRE_RELEASE_BLOCK_LIFT <= 0.5:
+        raise ValueError("Pre-release hinge validation needs a meaningful lift attempt")
+    if HINGE_LID_RELEASE_PATH_SAMPLES < 3:
+        raise ValueError("Hinge release validation needs at least three path samples")
+    if not 1.0 <= HINGE_OPEN_SWEEP_STEP_DEGREES <= 10.0:
+        raise ValueError("Hinge opening sweep must be sampled every 1-10 degrees")
     left_base_outer_face = HINGE_BASE_SEGMENTS[0][0]
     right_base_outer_face = HINGE_BASE_SEGMENTS[-1][1]
     left_stop_inner_face = (
@@ -4021,6 +4044,7 @@ def validate_configuration() -> None:
         f"hinge_base_bore={HINGE_BASE_HOLE_DIAMETER:.2f} "
         f"hinge_lid_receiver={HINGE_LID_RECEIVER_DIAMETER:.2f} "
         f"hinge_lid_slot={HINGE_LID_SLOT_WIDTH:.2f} "
+        f"hinge_release={HINGE_LID_RELEASE_ANGLE_DEGREES:.1f}deg "
         f"hinge_end_stop={HINGE_LID_END_STOP_DIAMETER:.2f}x"
         f"{HINGE_LID_END_STOP_LENGTH:.2f} "
         f"hinge_rod_length={HINGE_ROD_X1 - HINGE_ROD_X0:.2f} "
@@ -4611,9 +4635,10 @@ def create_lid(
     # In print orientation the lid's hinge is at -Y; flipping the finished lid
     # around X places it on the base's +Y hinge line.  Union each barrel into
     # the complete flared rim, cut a round 4.5 mm receiver, then open that
-    # receiver through the barrel's print-facing top with a 4.3 mm slot.  The
-    # slot faces downward when installed, letting the complete lid slide over
-    # an already-installed 4.1 mm base rod like the supplied Pelican reference.
+    # receiver tangentially through its rear/outboard side with a 4.3 mm slot.
+    # The slot is parallel to the lid plate like the supplied Pelican reference:
+    # it faces rearward while closed, rotates downward at 90 degrees open, and
+    # only then lets the lid lift off the already-installed 4.1 mm base rod.
     for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
         knuckle = add_cylinder_x(
             f"Lid_Hinge_Knuckle_{index}",
@@ -4630,19 +4655,19 @@ def create_lid(
             vertices=90,
         )
         difference_from(lid, receiver)
-        slot_z0 = LID_WALL_HEIGHT - 0.2
-        slot_z1 = LID_WALL_HEIGHT + HINGE_OUTER_DIAMETER / 2.0 + 0.8
+        slot_y0 = -HINGE_AXIS_Y - HINGE_OUTER_DIAMETER / 2.0 - 0.8
+        slot_y1 = -HINGE_AXIS_Y + 0.2
         slot = add_rounded_box(
-            f"Lid_Hinge_Drop_On_Slot_{index}",
+            f"Lid_Hinge_{HINGE_LID_RELEASE_ANGLE_DEGREES:.0f}deg_Release_Slot_{index}",
             (
                 x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+                slot_y1 - slot_y0,
                 HINGE_LID_SLOT_WIDTH,
-                slot_z1 - slot_z0,
             ),
             (
                 dx + (x0 + x1) / 2.0,
-                -HINGE_AXIS_Y,
-                (slot_z0 + slot_z1) / 2.0,
+                (slot_y0 + slot_y1) / 2.0,
+                LID_WALL_HEIGHT,
             ),
             bevel=0.0,
         )
@@ -6412,21 +6437,203 @@ def validate_installed_handle_mechanics(parts) -> None:
     )
 
 
+def installed_lid_pose(open_angle_degrees, lift=0.0):
+    """Return a lid transform with its receiver axis fixed on the base rod."""
+    rotation_x = math.pi - math.radians(open_angle_degrees)
+    local_axis_y = -HINGE_AXIS_Y
+    local_axis_z = LID_WALL_HEIGHT
+    rotated_axis_y = (
+        math.cos(rotation_x) * local_axis_y
+        - math.sin(rotation_x) * local_axis_z
+    )
+    rotated_axis_z = (
+        math.sin(rotation_x) * local_axis_y
+        + math.cos(rotation_x) * local_axis_z
+    )
+    return (
+        (
+            -LID_DISPLAY_OFFSET_X,
+            HINGE_AXIS_Y - rotated_axis_y,
+            BASE_HEIGHT - rotated_axis_z + lift,
+        ),
+        (rotation_x, 0.0, 0.0),
+    )
+
+
+def validate_installed_lid_hinge_release(parts) -> None:
+    """Prove closed lift is blocked and the lid lifts off only near 90 degrees."""
+    release_lift = (
+        HINGE_OUTER_DIAMETER / 2.0
+        + HINGE_ROD_DIAMETER / 2.0
+        + 0.2
+    )
+    maximum_release_overlap = 0.0
+    minimum_pre_release_block = None
+    maximum_base_lid_release_overlap = 0.0
+    blocked_angles = (
+        0.0,
+        HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES,
+    )
+
+    for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
+        rod_probe = add_cylinder_x(
+            f"TEMPORARY_Lid_Hinge_{index}_Installed_Release_Rod_Probe",
+            HINGE_ROD_DIAMETER / 2.0,
+            x1 - x0 - 0.8,
+            (0.0, 0.0, 0.0),
+            vertices=90,
+        )
+        rod_location = (
+            (x0 + x1) / 2.0,
+            HINGE_AXIS_Y,
+            BASE_HEIGHT,
+        )
+        try:
+            for blocked_angle in blocked_angles:
+                blocked_location, blocked_rotation = installed_lid_pose(
+                    blocked_angle,
+                    HINGE_LID_PRE_RELEASE_BLOCK_LIFT,
+                )
+                block_faces, block_volume = exact_transformed_intersection(
+                    parts["lid"],
+                    rod_probe,
+                    first_location=blocked_location,
+                    first_rotation=blocked_rotation,
+                    second_location=rod_location,
+                    second_rotation=rod_probe.rotation_euler.copy(),
+                )
+                if not block_faces or block_volume <= 1e-6:
+                    raise ValueError(
+                        "Lid hinge permits lift before its release angle: "
+                        f"segment={index} angle={blocked_angle:.1f} "
+                        f"lift={HINGE_LID_PRE_RELEASE_BLOCK_LIFT:.2f} "
+                        f"faces={block_faces} volume={block_volume:.6f}"
+                    )
+                minimum_pre_release_block = (
+                    block_volume
+                    if minimum_pre_release_block is None
+                    else min(minimum_pre_release_block, block_volume)
+                )
+
+            for sample_index in range(HINGE_LID_RELEASE_PATH_SAMPLES):
+                sample_lift = release_lift * sample_index / (
+                    HINGE_LID_RELEASE_PATH_SAMPLES - 1
+                )
+                lid_location, lid_rotation = installed_lid_pose(
+                    HINGE_LID_RELEASE_ANGLE_DEGREES,
+                    sample_lift,
+                )
+                release_faces, release_overlap = exact_transformed_intersection(
+                    parts["lid"],
+                    rod_probe,
+                    first_location=lid_location,
+                    first_rotation=lid_rotation,
+                    second_location=rod_location,
+                    second_rotation=rod_probe.rotation_euler.copy(),
+                )
+                if release_faces or release_overlap > 1e-6:
+                    raise ValueError(
+                        "Lid hinge obstructs lift-off at its release angle: "
+                        f"segment={index} sample={sample_index} "
+                        f"angle={HINGE_LID_RELEASE_ANGLE_DEGREES:.1f} "
+                        f"lift={sample_lift:.3f} "
+                        f"faces={release_faces} volume={release_overlap:.6f}"
+                    )
+                maximum_release_overlap = max(
+                    maximum_release_overlap,
+                    release_overlap,
+                )
+        finally:
+            bpy.data.objects.remove(rod_probe, do_unlink=True)
+
+    for sample_index in range(HINGE_LID_RELEASE_PATH_SAMPLES):
+        sample_lift = release_lift * sample_index / (
+            HINGE_LID_RELEASE_PATH_SAMPLES - 1
+        )
+        lid_location, lid_rotation = installed_lid_pose(
+            HINGE_LID_RELEASE_ANGLE_DEGREES,
+            sample_lift,
+        )
+        _faces, base_lid_overlap = exact_transformed_intersection(
+            parts["base"],
+            parts["lid"],
+            second_location=lid_location,
+            second_rotation=lid_rotation,
+        )
+        if base_lid_overlap > 1e-6:
+            raise ValueError(
+                "Base obstructs lid lift-off at the hinge release angle: "
+                f"sample={sample_index} lift={sample_lift:.3f} "
+                f"volume={base_lid_overlap:.6f}"
+            )
+        maximum_base_lid_release_overlap = max(
+            maximum_base_lid_release_overlap,
+            base_lid_overlap,
+        )
+
+    print(
+        "FIELD_CASE_LID_HINGE_RELEASE_VALID "
+        f"blocked_angles={','.join(f'{angle:.1f}' for angle in blocked_angles)} "
+        f"blocked_lift={HINGE_LID_PRE_RELEASE_BLOCK_LIFT:.2f} "
+        f"blocked_intersection_min={minimum_pre_release_block:.6f} "
+        f"release_angle={HINGE_LID_RELEASE_ANGLE_DEGREES:.1f} "
+        f"release_samples="
+        f"{len(HINGE_LID_SEGMENTS) * HINGE_LID_RELEASE_PATH_SAMPLES} "
+        f"release_lift={release_lift:.3f} "
+        f"rod_overlap_max={maximum_release_overlap:.6f} "
+        f"base_overlap_max={maximum_base_lid_release_overlap:.6f}"
+    )
+
+
+def validate_installed_case_hinge_sweep(parts) -> None:
+    """Reject positive-volume base/lid collision through the working sweep."""
+    sweep_steps = math.ceil(
+        HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES / HINGE_OPEN_SWEEP_STEP_DEGREES
+    )
+    maximum_overlap = (0.0, 0.0)
+    for sample_index in range(sweep_steps + 1):
+        open_angle = (
+            HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES
+            * sample_index
+            / sweep_steps
+        )
+        lid_location, lid_rotation = installed_lid_pose(
+            open_angle,
+            0.01 if sample_index == 0 else 0.0,
+        )
+        _faces, overlap = exact_transformed_intersection(
+            parts["base"],
+            parts["lid"],
+            second_location=lid_location,
+            second_rotation=lid_rotation,
+        )
+        if overlap > maximum_overlap[0]:
+            maximum_overlap = (overlap, open_angle)
+        if overlap > 1e-6:
+            raise ValueError(
+                "Base/lid hinge sweep collides: "
+                f"angle={open_angle:.2f} volume={overlap:.6f}"
+            )
+    print(
+        "FIELD_CASE_HINGE_SWEEP_VALID "
+        f"samples={sweep_steps + 1} "
+        f"range=0.0-{HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES:.1f}deg "
+        f"maximum_intersection={maximum_overlap[0]:.6f}@"
+        f"{maximum_overlap[1]:.2f}deg"
+    )
+
+
 def validate_installed_case_closure(parts) -> None:
     """Reject positive-volume base/lid interference at the hard hinge seat."""
     # A 0.01 mm lift avoids treating the intentionally coincident hard-stop
     # surfaces as Boolean volume while remaining far smaller than printable
     # clearance.  Any unrelieved knuckle/rim collision remains positive here.
-    near_seated_lid_location = (
-        -LID_DISPLAY_OFFSET_X,
-        0.0,
-        LATCH_LID_INSTALLED_Z + 0.01,
-    )
+    near_seated_lid_location, closed_lid_rotation = installed_lid_pose(0.0, 0.01)
     faces, volume, bounds = exact_transformed_intersection(
         parts["base"],
         parts["lid"],
         second_location=near_seated_lid_location,
-        second_rotation=(math.pi, 0.0, 0.0),
+        second_rotation=closed_lid_rotation,
         return_bounds=True,
     )
     if faces or volume > 1e-6:
@@ -6561,10 +6768,10 @@ def validate_built_base_hinge_gussets(base) -> None:
 
 
 def validate_built_lid_hinge_receivers(lid) -> None:
-    """Prove each lid receiver and its radial 4.1 mm rod path remain open."""
+    """Prove each receiver and its tangential 90-degree release path stay open."""
     bore_overlap_maximum = 0.0
-    insertion_overlap_maximum = 0.0
-    insertion_samples = 9
+    release_overlap_maximum = 0.0
+    release_samples = HINGE_LID_RELEASE_PATH_SAMPLES
     for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
         bore_probe = add_cylinder_x(
             f"TEMPORARY_Lid_Hinge_{index}_Open_Bore_Probe",
@@ -6594,42 +6801,42 @@ def validate_built_lid_hinge_receivers(lid) -> None:
         bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
 
         rod_probe = add_cylinder_x(
-            f"TEMPORARY_Lid_Hinge_{index}_4p1mm_Insertion_Probe",
+            f"TEMPORARY_Lid_Hinge_{index}_4p1mm_Release_Probe",
             HINGE_ROD_DIAMETER / 2.0,
             x1 - x0 - 0.8,
             (0.0, 0.0, 0.0),
             vertices=90,
         )
         try:
-            insertion_start_z = (
-                LID_WALL_HEIGHT
-                + HINGE_OUTER_DIAMETER / 2.0
-                + HINGE_ROD_DIAMETER / 2.0
-                + 0.2
+            release_start_y = (
+                -HINGE_AXIS_Y
+                - HINGE_OUTER_DIAMETER / 2.0
+                - HINGE_ROD_DIAMETER / 2.0
+                - 0.2
             )
-            for sample_index in range(insertion_samples):
-                sample_z = insertion_start_z + (
-                    LID_WALL_HEIGHT - insertion_start_z
-                ) * sample_index / (insertion_samples - 1)
-                insertion_faces, insertion_overlap = exact_transformed_intersection(
+            for sample_index in range(release_samples):
+                sample_y = release_start_y + (
+                    -HINGE_AXIS_Y - release_start_y
+                ) * sample_index / (release_samples - 1)
+                release_faces, release_overlap = exact_transformed_intersection(
                     lid,
                     rod_probe,
                     second_location=(
                         LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0,
-                        -HINGE_AXIS_Y,
-                        sample_z,
+                        sample_y,
+                        LID_WALL_HEIGHT,
                     ),
                     second_rotation=rod_probe.rotation_euler.copy(),
                 )
-                if insertion_faces or insertion_overlap > 1e-6:
+                if release_faces or release_overlap > 1e-6:
                     raise ValueError(
-                        "Lid hinge slot obstructs 4.1 mm rod insertion: "
+                        "Lid hinge slot obstructs 4.1 mm rod release: "
                         f"segment={index} sample={sample_index} "
-                        f"faces={insertion_faces} volume={insertion_overlap:.6f}"
+                        f"faces={release_faces} volume={release_overlap:.6f}"
                     )
-                insertion_overlap_maximum = max(
-                    insertion_overlap_maximum,
-                    insertion_overlap,
+                release_overlap_maximum = max(
+                    release_overlap_maximum,
+                    release_overlap,
                 )
         finally:
             bpy.data.objects.remove(rod_probe, do_unlink=True)
@@ -6669,8 +6876,9 @@ def validate_built_lid_hinge_receivers(lid) -> None:
         f"probe_diameter={probe_diameter:.3f} "
         f"slot_width={HINGE_LID_SLOT_WIDTH:.3f} "
         f"rod_diameter={HINGE_ROD_DIAMETER:.3f} "
-        f"insertion_samples={len(HINGE_LID_SEGMENTS) * insertion_samples} "
-        f"insertion_overlap_max={insertion_overlap_maximum:.6f} "
+        f"release_angle={HINGE_LID_RELEASE_ANGLE_DEGREES:.1f} "
+        f"release_samples={len(HINGE_LID_SEGMENTS) * release_samples} "
+        f"release_overlap_max={release_overlap_maximum:.6f} "
         f"overlap_max={bore_overlap_maximum:.6f} "
         f"full_rod_path_overlap={full_path_overlap:.6f}"
     )
@@ -8332,6 +8540,8 @@ def build_mission1_field_case():
     validate_built_base_hinge_gussets(parts["base"])
     validate_built_lid_hinge_receivers(parts["lid"])
     validate_built_lid_hinge_end_stops(parts["lid"])
+    validate_installed_lid_hinge_release(parts)
+    validate_installed_case_hinge_sweep(parts)
     validate_installed_case_closure(parts)
     validate_built_lid_capture_rails(parts["lid"])
     validate_built_latch_hook_capture(parts["latch_hook"])
