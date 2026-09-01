@@ -3785,6 +3785,8 @@ def validate_configuration() -> None:
     )
     if counterbore_depth_clearance < 0.2 - 1e-6:
         raise ValueError("Latch M3 socket heads are not fully recessed")
+    if LATCH_FIXED_M3_SOCKET_ACROSS_FLATS <= 0.0:
+        raise ValueError("Latch M3 Allen socket across-flats must be positive")
     socket_head_radial_wall = (
         LATCH_FIXED_M3_MAX_HEAD_DIAMETER
         - 2.0 * LATCH_FIXED_M3_SOCKET_ACROSS_FLATS / math.sqrt(3.0)
