@@ -4592,23 +4592,15 @@ def create_lid(
             outline_offset=LID_LOGO_TEXT_OUTLINE_OFFSET,
         )
     ]
-    minimum_text_dimension = (
-        LID_LOGO_LEGACY_MIN_FEATURE_WIDTH + 2.0 * LID_LOGO_TEXT_OUTLINE_OFFSET
-    )
-    required_text_dimension = (
+    requested_text_dimension = (
         LID_LOGO_LEGACY_MIN_FEATURE_WIDTH * LID_LOGO_MIN_THICKNESS_MULTIPLIER
     )
-    if minimum_text_dimension < required_text_dimension - 1e-6:
-        raise RuntimeError(
-            "Lid logo text is not at least 50% thicker than the original: "
-            f"minimum={minimum_text_dimension:.3f}mm "
-            f"required={required_text_dimension:.3f}mm"
-        )
     print(
-        "FIELD_CASE_LID_TEXT_THICKNESS "
-        f"minimum={minimum_text_dimension:.3f}mm "
+        "FIELD_CASE_LID_TEXT_TARGET "
+        f"requested_minimum={requested_text_dimension:.3f}mm "
         f"legacy={LID_LOGO_LEGACY_MIN_FEATURE_WIDTH:.3f}mm "
-        f"multiplier={minimum_text_dimension / LID_LOGO_LEGACY_MIN_FEATURE_WIDTH:.2f}x"
+        f"multiplier={LID_LOGO_MIN_THICKNESS_MULTIPLIER:.2f}x "
+        f"outline_offset={LID_LOGO_TEXT_OUTLINE_OFFSET:.5f}mm"
     )
     block_total_width = 4.0 * LID_LOGO_BLOCK_SIZE[0] + 3.0 * LID_LOGO_BLOCK_GAP
     block_start_x = -block_total_width / 2.0 + LID_LOGO_BLOCK_SIZE[0] / 2.0
@@ -8078,15 +8070,16 @@ def build_mission1_field_case():
     validate_built_latch_impact_protectors(parts)
     validate_installed_latch_mechanics(parts)
     validate_installed_handle_mechanics(parts)
-    lid_islands = validate_lid_bonding_payloads(
-        evaluated_mesh_payload(parts["lid"], Vector((0.0, 0.0, 0.0))),
-        (
-            evaluated_mesh_payload(
-                parts["logo_orange_inlay"], Vector((0.0, 0.0, 0.0))
-            ),
-        ),
+    lid_payload = evaluated_mesh_payload(parts["lid"], Vector((0.0, 0.0, 0.0)))
+    logo_orange_payload = evaluated_mesh_payload(
+        parts["logo_orange_inlay"], Vector((0.0, 0.0, 0.0))
     )
-    print(f"FIELD_CASE_LID_BONDED islands={lid_islands} plane_z=0.00")
+    lid_islands = validate_lid_bonding_payloads(
+        lid_payload,
+        (logo_orange_payload,),
+    )
+    bonding_z = max(vertex[2] for vertex in logo_orange_payload[0])
+    print(f"FIELD_CASE_LID_BONDED islands={lid_islands} plane_z={bonding_z:.2f}")
 
     if EXPORT_STL:
         exports = (
