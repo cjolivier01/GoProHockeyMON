@@ -81,7 +81,9 @@ positions:
 The exported STLs share one assembly print origin: the orange logo occupies the
 first 0.8 mm and the black lid begins directly above it. Import them as one
 multipart object so the slicer preserves that Z alignment. Every orange island
-has a verified bonding face against the uninterrupted black lid surface.
+has a verified bonding face against the uninterrupted black lid surface. The
+orange STL retains `_inlay` in its filename for compatibility, although this
+revision uses it as a raised logo rather than a recessed inlay.
 
 ## Pelican toggle latches
 

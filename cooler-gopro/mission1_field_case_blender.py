@@ -2286,7 +2286,7 @@ PELICAN_BLEND_LATCH_MESHES_LZMA_BASE85 = (
     b"3HhHA2hmNbf$sv`cSPibm1;L1OsqBa*_0vx$~^pd1pp1200HQo2Y|yQ_U+=ZvBYQl0ssI200dcD"
 )
 
-# Flush orange GoPro-style mark with strokes 50% wider than the original.
+# Raised orange GoPro-style mark with strokes 50% wider than the original.
 LID_LOGO_TEXT = "GoPro Missions"
 LID_LOGO_TEXT_SIZE = 18.0
 LID_LOGO_TEXT_MAX_WIDTH = 122.0
