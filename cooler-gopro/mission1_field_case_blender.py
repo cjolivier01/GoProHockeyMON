@@ -3791,6 +3791,13 @@ def validate_configuration() -> None:
     ) / 2.0
     if socket_head_radial_wall < 1.0:
         raise ValueError("Latch M3 Allen socket leaves too little head material")
+    if LATCH_FIXED_M3_SOCKET_DEPTH <= 0.0:
+        raise ValueError("Latch M3 Allen socket depth must be positive")
+    socket_head_bottom = (
+        LATCH_FIXED_M3_MAX_HEAD_HEIGHT - LATCH_FIXED_M3_SOCKET_DEPTH
+    )
+    if socket_head_bottom < 1.0:
+        raise ValueError("Latch M3 Allen socket is too deep for the screw head")
     nut_diametral_clearance = (
         LATCH_FIXED_M3_NUT_ACROSS_FLATS
         - LATCH_FIXED_M3_NOMINAL_NUT_ACROSS_FLATS
@@ -6330,20 +6337,21 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
             min(wrench_outer_x, wrench_inner_x),
             max(wrench_outer_x, wrench_inner_x),
         )
-        _faces, wrench_overlap = exact_transformed_intersection(
-            parts["base"],
-            wrench_probe,
-            second_location=wrench_probe.location.copy(),
-            second_rotation=wrench_probe.rotation_euler.copy(),
-        )
-        allen_wrench_overlaps.append(wrench_overlap)
-
-        hardware = create_latch_fixed_m3_reference_hardware(
-            f"TEMPORARY_Latch_{index}_Nominal_M3_Hardware_Envelope",
-            latch_x,
-            seat_clearance=0.05,
-        )
+        hardware = []
         try:
+            _faces, wrench_overlap = exact_transformed_intersection(
+                parts["base"],
+                wrench_probe,
+                second_location=wrench_probe.location.copy(),
+                second_rotation=wrench_probe.rotation_euler.copy(),
+            )
+            allen_wrench_overlaps.append(wrench_overlap)
+
+            hardware = create_latch_fixed_m3_reference_hardware(
+                f"TEMPORARY_Latch_{index}_Nominal_M3_Hardware_Envelope",
+                latch_x,
+                seat_clearance=0.05,
+            )
             hardware_overlaps = []
             for hardware_part in hardware:
                 _faces, overlap = exact_transformed_intersection(
