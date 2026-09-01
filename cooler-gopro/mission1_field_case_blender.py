@@ -3274,7 +3274,7 @@ def validate_configuration() -> None:
         HINGE_BASE_GUSSET_TANGENT_Z
         < BASE_HEIGHT - HINGE_BASE_HOLE_DIAMETER / 2.0
     ):
-        raise ValueError("Base hinge gusset must remain below the pin bore")
+        raise ValueError("Base hinge gusset must remain below the rod bore")
 
     retainer_width = tray_width
     retainer_depth = tray_depth
@@ -6574,7 +6574,7 @@ def validate_installed_case_closure(parts) -> None:
 
 
 def validate_built_base_hinge_gussets(base) -> None:
-    """Prove every support-free web is bonded and every pin bore stays open."""
+    """Prove every support-free web is bonded and every rod bore stays open."""
     ramp_mid_y = (HINGE_BASE_GUSSET_ROOT_Y + HINGE_BASE_GUSSET_TANGENT_Y) / 2.0
     ramp_mid_z = (HINGE_BASE_GUSSET_ROOT_Z + HINGE_BASE_GUSSET_TANGENT_Z) / 2.0
     solid_probe_size_yz = 0.3
@@ -6638,7 +6638,7 @@ def validate_built_base_hinge_gussets(base) -> None:
             bpy.data.objects.remove(bore_probe, do_unlink=True)
         if bore_faces or bore_overlap > 1e-6:
             raise ValueError(
-                "Base hinge pin bore is obstructed after gusseting: "
+                "Base hinge rod bore is obstructed after gusseting: "
                 f"segment={index} faces={bore_faces} volume={bore_overlap:.6f}"
             )
         bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
