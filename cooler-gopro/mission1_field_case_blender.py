@@ -2888,7 +2888,12 @@ def load_embedded_logo_font():
 def widen_planar_mesh_xy(obj, offset):
     """Buffer an extruded planar mesh in XY and rebuild a manifold solid."""
     try:
-        from shapely import constrained_delaunay_triangles, set_precision, union_all
+        from shapely import (
+            BufferJoinStyle,
+            constrained_delaunay_triangles,
+            set_precision,
+            union_all,
+        )
         from shapely.geometry import Polygon
     except ImportError as error:
         raise RuntimeError(
@@ -2910,7 +2915,11 @@ def widen_planar_mesh_xy(obj, offset):
     if not top_faces:
         raise RuntimeError(f"{obj.name} has no planar top faces to widen")
 
-    buffered = union_all(top_faces).buffer(offset, quad_segs=8, join_style="round")
+    buffered = union_all(top_faces).buffer(
+        offset,
+        quad_segs=8,
+        join_style=BufferJoinStyle.round,
+    )
     buffered = set_precision(buffered, grid_size=0.01).simplify(
         0.01, preserve_topology=True
     )
