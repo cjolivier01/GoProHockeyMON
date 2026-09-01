@@ -280,7 +280,16 @@ align them over the bar and lower/slide the lid onto it. The 0.2 mm slot
 clearance lets a nominal 4.1 mm bar pass without forcing a snap fit, while the
 10 mm outside diameter leaves 2.75 mm of radial barrel wall. Generation checks
 the complete insertion path at nine positions per lid knuckle, both finished
-receivers, and the continuous 154 mm hinge path.
+receivers, and the continuous 151 mm hinge path.
+
+Two 6 mm-diameter by 3 mm-long solid bosses are part of the lid just outside
+the outer faces of the base's end knuckles. The straight rod is cut to 151 mm,
+placing each end 0.5 mm inside its base-knuckle face. Each lid stop begins 0.3
+mm beyond that face, leaving 0.8 mm clearance at each rod end and 1.6 mm total
+axial play. The stops therefore pass outside the rod during drop-on assembly,
+then prevent it from walking out in either direction while the lid is attached.
+Their smaller diameter clears the unchanged base rear wall; generated solid
+probes and deliberate axial-overtravel probes verify both stops and retention.
 
 ## Suggested printing
 
@@ -298,9 +307,9 @@ receivers, and the continuous 154 mm hinge path.
   exported orientations. Their broad faces are already on the bed.
 - The case-side latch and handle mounts rise on 45-degree lower webs and do not
   require support. Do not place support inside their teardrop pivot bores.
-- Print the optional 4.1 mm hinge pin on its D-shaped flat, or cut a 4.1 mm
-  metal bar to 154 mm. Verify the actual bar against a small bore test before
-  printing the full base.
+- Print the optional headless 4.1 mm hinge pin on its D-shaped flat, or cut a
+  4.1 mm metal bar to 151 mm. Verify the actual bar against a small bore test
+  before printing the full base.
 
 Test camera, battery, latch, handle, and hinge fits before field use. Pocket,
 pivot, and press-fit dimensions are constants near the top of the Python file
@@ -312,9 +321,10 @@ and can be regenerated without editing an STL.
    doors in the shallow outer pockets if carried; each door remains 7 mm proud.
 2. Seat the TPU gasket in the lid channel. Fit the TPU pad with its asymmetric
    notch over the matching rigid boss.
-3. Feed the 4.1 mm bar (or printed D-profile pin) through the three base
-   knuckles. Align the two lid receiver slots above the installed bar and
-   lower/slide the lid onto it; the bar does not need to pass through the lid.
+3. Feed and center the 151 mm-long, 4.1 mm bar (or headless printed D-profile
+   pin) through the three base knuckles, leaving both ends about 0.5 mm inset.
+   Align the two lid receiver slots above the installed bar and lower/slide the
+   lid onto it; the two solid lid stops then retain the bar axially.
 4. Install each latch with rods cut to `LATCH_FIXED_ROD_LENGTH` and
    `LATCH_LINK_ROD_LENGTH`, then install the separate handle bar with two 12 mm
    lengths of 4 mm rod by default or with regenerated M4 hardware.

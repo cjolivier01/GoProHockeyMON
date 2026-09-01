@@ -367,10 +367,14 @@ HINGE_LID_SLOT_WIDTH = 4.3
 HINGE_PIN_DIAMETER = HINGE_ROD_DIAMETER
 HINGE_BASE_SEGMENTS = ((-76.0, -42.0), (-18.0, 18.0), (42.0, 76.0))
 HINGE_LID_SEGMENTS = ((-41.4, -18.6), (18.6, 41.4))
+HINGE_ROD_END_INSET = 0.5
+HINGE_ROD_X0 = HINGE_BASE_SEGMENTS[0][0] + HINGE_ROD_END_INSET
+HINGE_ROD_X1 = HINGE_BASE_SEGMENTS[-1][1] - HINGE_ROD_END_INSET
+HINGE_LID_END_STOP_BASE_CLEARANCE = 0.3
+HINGE_LID_END_STOP_LENGTH = 3.0
+HINGE_LID_END_STOP_DIAMETER = 6.0
 HINGE_RIM_RELIEF_RADIAL_CLEARANCE = 0.4
 HINGE_RIM_RELIEF_AXIAL_CLEARANCE = 0.2
-HINGE_PIN_X0 = -77.0
-HINGE_PIN_X1 = 77.0
 HINGE_ROD_PATH_AXIAL_CLEARANCE = 0.2
 HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL = 0.6
 HINGE_BORE_VALIDATION_RADIAL_CLEARANCE = 0.005
@@ -3228,6 +3232,29 @@ def validate_configuration() -> None:
         raise ValueError(
             "Lid hinge slot must clear the rod but remain narrower than its receiver"
         )
+    left_base_outer_face = HINGE_BASE_SEGMENTS[0][0]
+    right_base_outer_face = HINGE_BASE_SEGMENTS[-1][1]
+    left_stop_inner_face = (
+        left_base_outer_face - HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    right_stop_inner_face = (
+        right_base_outer_face + HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    rod_end_clearances = (
+        HINGE_ROD_X0 - left_stop_inner_face,
+        right_stop_inner_face - HINGE_ROD_X1,
+    )
+    if min(rod_end_clearances) < 0.5:
+        raise ValueError("Hinge rod needs at least 0.5 mm clearance from each lid stop")
+    if HINGE_LID_END_STOP_DIAMETER < HINGE_ROD_DIAMETER + 1.0:
+        raise ValueError("Lid hinge end stops need at least 0.5 mm radial rod coverage")
+    end_stop_base_wall_clearance = (
+        HINGE_AXIS_Y
+        - CASE_DEPTH / 2.0
+        - HINGE_LID_END_STOP_DIAMETER / 2.0
+    )
+    if end_stop_base_wall_clearance < 0.5:
+        raise ValueError("Lid hinge end stops sit too close to the base rear wall")
     if HINGE_ROD_PATH_AXIAL_CLEARANCE < HINGE_RIM_RELIEF_AXIAL_CLEARANCE:
         raise ValueError("Lid rim relief must cover the complete hinge rod path")
     hinge_gusset_run = HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y
@@ -4037,7 +4064,7 @@ def validate_configuration() -> None:
         ("Pelican latch lever", LATCH_LEVER_PRINT_SIZE[:2]),
         ("Pelican latch hook", LATCH_HOOK_PRINT_SIZE[:2]),
         ("pivoting handle bar", (HANDLE_BAR_OUTER_WIDTH, HANDLE_BAR_DROP + 2.0)),
-        ("hinge pin", (HINGE_PIN_X1 - HINGE_PIN_X0 + 2.1, 6.0)),
+        ("hinge pin", (HINGE_ROD_X1 - HINGE_ROD_X0, HINGE_PIN_DIAMETER)),
     ):
         if dimensions[0] > MAX_PRINT_XY or dimensions[1] > MAX_PRINT_XY:
             raise ValueError(f"{part} exceeds {MAX_PRINT_XY:.0f} mm: {dimensions}")
@@ -4110,7 +4137,11 @@ def validate_configuration() -> None:
         f"hinge_rod={HINGE_ROD_DIAMETER:.2f} "
         f"hinge_base_bore={HINGE_BASE_HOLE_DIAMETER:.2f} "
         f"hinge_lid_receiver={HINGE_LID_RECEIVER_DIAMETER:.2f} "
-        f"hinge_lid_slot={HINGE_LID_SLOT_WIDTH:.2f}"
+        f"hinge_lid_slot={HINGE_LID_SLOT_WIDTH:.2f} "
+        f"hinge_end_stop={HINGE_LID_END_STOP_DIAMETER:.2f}x"
+        f"{HINGE_LID_END_STOP_LENGTH:.2f} "
+        f"hinge_rod_length={HINGE_ROD_X1 - HINGE_ROD_X0:.2f} "
+        f"hinge_rod_axial_play={sum(rod_end_clearances):.2f}"
     )
     print(
         "FIELD_CASE_PRINT_ENVELOPES "
@@ -4655,12 +4686,12 @@ def create_lid(
         if index == 1:
             relief_x0 = min(
                 relief_x0,
-                HINGE_PIN_X0 - HINGE_ROD_PATH_AXIAL_CLEARANCE,
+                HINGE_ROD_X0 - HINGE_ROD_PATH_AXIAL_CLEARANCE,
             )
         if index == len(HINGE_BASE_SEGMENTS):
             relief_x1 = max(
                 relief_x1,
-                HINGE_PIN_X1 + HINGE_ROD_PATH_AXIAL_CLEARANCE,
+                HINGE_ROD_X1 + HINGE_ROD_PATH_AXIAL_CLEARANCE,
             )
         relief = add_cylinder_x(
             f"Lid_Rear_Rim_Relief_For_Base_Knuckle_{index}",
@@ -4733,6 +4764,37 @@ def create_lid(
             bevel=0.0,
         )
         difference_from(lid, slot)
+
+    # Two short solid bosses sit just beyond the outer faces of the base's end
+    # knuckles.  The 151 mm rod ends inside those faces, so these lid-mounted
+    # stops pass outside the rod during drop-on installation and then block
+    # axial walk-off in either direction.  Their smaller 6 mm diameter clears
+    # the unchanged base rear wall while remaining deeply bonded into the lid
+    # rim around the hinge axis.
+    for side, base_outer_face in (
+        (-1.0, HINGE_BASE_SEGMENTS[0][0]),
+        (1.0, HINGE_BASE_SEGMENTS[-1][1]),
+    ):
+        stop_inner_face = (
+            base_outer_face + side * HINGE_LID_END_STOP_BASE_CLEARANCE
+        )
+        stop_center_x = (
+            stop_inner_face + side * HINGE_LID_END_STOP_LENGTH / 2.0
+        )
+        end_stop = add_cylinder_x(
+            "Lid_Hinge_Left_Solid_Rod_End_Stop"
+            if side < 0.0
+            else "Lid_Hinge_Right_Solid_Rod_End_Stop",
+            HINGE_LID_END_STOP_DIAMETER / 2.0,
+            HINGE_LID_END_STOP_LENGTH,
+            (
+                dx + stop_center_x,
+                -HINGE_AXIS_Y,
+                LID_WALL_HEIGHT,
+            ),
+            vertices=90,
+        )
+        union_into(lid, end_stop)
 
     # The asymmetric interior boss mates with the TPU pad's open perimeter
     # notch.  A 180-degree-misrotated pad therefore cannot sit flat with its
@@ -5381,16 +5443,9 @@ def create_hinge_pin(material):
     pin = extrude_loop_x(
         "Field_Case_Hinge_Pin",
         loop,
-        HINGE_PIN_X0,
-        HINGE_PIN_X1,
+        HINGE_ROD_X0,
+        HINGE_ROD_X1,
     )
-    head = add_rounded_box(
-        "Hinge_Pin_Stop_Head",
-        (2.2, 6.0, 3.0),
-        (HINGE_PIN_X0 - 1.0, 0.0, 1.5),
-        bevel=0.7,
-    )
-    union_into(pin, head)
     translate_object(pin, (0.0, -180.0, 0.0))
     assign_material(pin, material)
     return pin
@@ -6592,9 +6647,9 @@ def validate_built_base_hinge_gussets(base) -> None:
         "TEMPORARY_Base_Full_Hinge_Rod_Path_Probe",
         HINGE_BASE_HOLE_DIAMETER / 2.0
         - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
-        HINGE_PIN_X1 - HINGE_PIN_X0,
+        HINGE_ROD_X1 - HINGE_ROD_X0,
         (
-            (HINGE_PIN_X0 + HINGE_PIN_X1) / 2.0,
+            (HINGE_ROD_X0 + HINGE_ROD_X1) / 2.0,
             HINGE_AXIS_Y,
             BASE_HEIGHT,
         ),
@@ -6715,9 +6770,9 @@ def validate_built_lid_hinge_receivers(lid) -> None:
         "TEMPORARY_Lid_Full_Hinge_Rod_Path_Probe",
         HINGE_LID_RECEIVER_DIAMETER / 2.0
         - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
-        HINGE_PIN_X1 - HINGE_PIN_X0,
+        HINGE_ROD_X1 - HINGE_ROD_X0,
         (
-            LID_DISPLAY_OFFSET_X + (HINGE_PIN_X0 + HINGE_PIN_X1) / 2.0,
+            LID_DISPLAY_OFFSET_X + (HINGE_ROD_X0 + HINGE_ROD_X1) / 2.0,
             -HINGE_AXIS_Y,
             LID_WALL_HEIGHT,
         ),
@@ -6750,6 +6805,111 @@ def validate_built_lid_hinge_receivers(lid) -> None:
         f"insertion_overlap_max={insertion_overlap_maximum:.6f} "
         f"overlap_max={bore_overlap_maximum:.6f} "
         f"full_rod_path_overlap={full_path_overlap:.6f}"
+    )
+
+
+def validate_built_lid_hinge_end_stops(lid) -> None:
+    """Prove both solid lid bosses block axial escape of the shortened rod."""
+    minimum_solid_fill = None
+    retention_volumes = []
+    solid_probe_radius = HINGE_LID_END_STOP_DIAMETER / 2.0 - 0.2
+    solid_probe_length = HINGE_LID_END_STOP_LENGTH - 0.4
+    required_solid_fill = (
+        math.pi * solid_probe_radius**2 * solid_probe_length * 0.95
+    )
+
+    end_specs = (
+        (-1.0, HINGE_BASE_SEGMENTS[0][0], HINGE_ROD_X0),
+        (1.0, HINGE_BASE_SEGMENTS[-1][1], HINGE_ROD_X1),
+    )
+    for side, base_outer_face, rod_end_x in end_specs:
+        stop_inner_face = (
+            base_outer_face + side * HINGE_LID_END_STOP_BASE_CLEARANCE
+        )
+        stop_center_x = (
+            stop_inner_face + side * HINGE_LID_END_STOP_LENGTH / 2.0
+        )
+        solid_probe = add_cylinder_x(
+            "TEMPORARY_Lid_Hinge_Solid_End_Stop_Probe",
+            solid_probe_radius,
+            solid_probe_length,
+            (
+                LID_DISPLAY_OFFSET_X + stop_center_x,
+                -HINGE_AXIS_Y,
+                LID_WALL_HEIGHT,
+            ),
+            vertices=90,
+        )
+        try:
+            _faces, solid_fill = exact_transformed_intersection(
+                lid,
+                solid_probe,
+                second_location=solid_probe.location.copy(),
+                second_rotation=solid_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(solid_probe, do_unlink=True)
+        if solid_fill < required_solid_fill:
+            raise ValueError(
+                "Lid hinge rod end stop is not solid: "
+                f"side={side:+.0f} volume={solid_fill:.6f} "
+                f"required={required_solid_fill:.6f}"
+            )
+        minimum_solid_fill = (
+            solid_fill
+            if minimum_solid_fill is None
+            else min(minimum_solid_fill, solid_fill)
+        )
+
+        rod_end_clearance = abs(stop_inner_face - rod_end_x)
+        retention_probe = add_cylinder_x(
+            "TEMPORARY_Lid_Hinge_Axial_Rod_Retention_Probe",
+            HINGE_ROD_DIAMETER / 2.0,
+            HINGE_ROD_X1 - HINGE_ROD_X0,
+            (0.0, 0.0, 0.0),
+            vertices=90,
+        )
+        try:
+            retention_faces, retention_volume = exact_transformed_intersection(
+                lid,
+                retention_probe,
+                second_location=(
+                    LID_DISPLAY_OFFSET_X + side * (rod_end_clearance + 0.1),
+                    -HINGE_AXIS_Y,
+                    LID_WALL_HEIGHT,
+                ),
+                second_rotation=retention_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(retention_probe, do_unlink=True)
+        if not retention_faces or retention_volume < 0.5:
+            raise ValueError(
+                "Lid hinge end stop does not retain axial rod travel: "
+                f"side={side:+.0f} volume={retention_volume:.6f}"
+            )
+        retention_volumes.append(retention_volume)
+
+    left_stop_inner_face = (
+        HINGE_BASE_SEGMENTS[0][0] - HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    right_stop_inner_face = (
+        HINGE_BASE_SEGMENTS[-1][1] + HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    axial_play = (
+        right_stop_inner_face
+        - left_stop_inner_face
+        - (HINGE_ROD_X1 - HINGE_ROD_X0)
+    )
+    print(
+        "FIELD_CASE_LID_HINGE_END_STOPS_VALID "
+        "count=2 "
+        f"diameter={HINGE_LID_END_STOP_DIAMETER:.3f} "
+        f"length={HINGE_LID_END_STOP_LENGTH:.3f} "
+        f"base_axial_clearance={HINGE_LID_END_STOP_BASE_CLEARANCE:.3f} "
+        f"rod_length={HINGE_ROD_X1 - HINGE_ROD_X0:.3f} "
+        f"rod_axial_play={axial_play:.3f} "
+        f"solid_probe_min={minimum_solid_fill:.6f} "
+        f"retention_probe_min={min(retention_volumes):.6f}"
     )
 
 
@@ -8299,6 +8459,7 @@ def build_mission1_field_case():
     validate_installed_lower_tray(parts)
     validate_built_base_hinge_gussets(parts["base"])
     validate_built_lid_hinge_receivers(parts["lid"])
+    validate_built_lid_hinge_end_stops(parts["lid"])
     validate_installed_case_closure(parts)
     validate_built_lid_capture_rails(parts["lid"])
     validate_built_latch_hook_capture(parts["latch_hook"])
