@@ -101,9 +101,9 @@ Print two copies of:
 
 Each latch uses:
 
-- one M3 x 35 ISO 10642 / DIN 7991 90-degree countersunk machine screw with a
-  maximum 6.0 mm head diameter, and one standard M3 hex nut for the case-side
-  fixed pivot
+- one M3 x 35 DIN 7991 90-degree countersunk machine screw with a maximum
+  6.0 mm head diameter, and one standard M3 hex nut for the case-side fixed
+  pivot; do not substitute a larger-head ISO 10642 screw
 - one moving-link rod cut to `LATCH_LINK_ROD_LENGTH` (20.48 mm by default)
 
 Two shaped mounting guards are part of the case base. A continuous 3.5 mm bore
