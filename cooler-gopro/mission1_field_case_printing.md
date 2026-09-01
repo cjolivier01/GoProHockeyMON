@@ -99,17 +99,24 @@ Print two copies of:
 - `mission1_field_case_pelican_latch_lever_print_two.stl`
 - `mission1_field_case_pelican_latch_hook_print_two.stl`
 
-Each latch uses two nominal 4 mm stainless rods:
+Each latch uses:
 
-- one fixed-pivot rod cut to `LATCH_FIXED_ROD_LENGTH` (28.88 mm by default)
+- one M3 x 35 DIN 7991 90-degree countersunk machine screw with a maximum
+  6.0 mm head diameter, and one standard M3 hex nut for the case-side fixed
+  pivot; do not substitute a larger-head ISO 10642 screw
 - one moving-link rod cut to `LATCH_LINK_ROD_LENGTH` (20.48 mm by default)
 
-Two shaped mounting ears are part of the case base. Their 3.9 mm retaining
-bores grip the fixed rod while the source lever's 4.4 mm bore turns freely on
-it. At the moving pivot, the rod passes through the lever's second 4.4 mm
-running bore and is retained by the hook's 3.9 mm bore. The exposed circular
-ends in the assembled view are the requested stainless rods, not printed latch
-features.
+Two shaped mounting guards are part of the case base. A continuous 3.5 mm bore
+through both guards and the source lever is an easy-running clearance for the
+M3 fixed-pivot screw. On each latch, the screw head is fully recessed into a
+6.4 mm-diameter, 1.45 mm-deep 90-degree countersink on the case-outside guard;
+a standard nut is fully recessed in a captive 5.8 mm-across-flats by 2.7
+mm-deep hex pocket on the guard toward the case center. The M3 x 35 screw fully
+engages the 2.4 mm nut thickness, reaches 5.02 mm past the nut-pocket floor,
+and projects approximately 2.32 mm beyond the inboard guard face. The captive
+pocket extends above the hex with a 45-degree printable roof. At the moving
+pivot, the 4 mm rod passes through the lever's 4.4 mm running bore and is
+retained by the hook's 3.9 mm bore.
 
 `PIVOT_MIN_WALL_THICKNESS = 2.0` is the shared configurable strength rule for
 the case mounts, latch parts, and handle. Each case ear now starts as a gradual
@@ -118,10 +125,11 @@ upper arc, and curves back into the case wall. There is no horizontal underside
 ledge to support. The reinforced ears retain at least 2.22 mm
 beside the lower chord and 3.14 mm above the teardrop bore roof.
 
-The lever has dedicated circular reinforcement around both 4.4 mm bores, and
+The lever has dedicated circular reinforcement around its 3.5 mm fixed bore
+and 4.4 mm moving-link bore, and
 the hook has reinforced outer cheeks around its 3.9 mm bore. These moving-part
 bosses provide 2.50 mm nominal radial wall. The closest intentional opening is
-the lever snap dimple, which still leaves 2.45 mm between the fixed bore and
+the lever snap dimple, which still leaves 2.90 mm between the fixed bore and
 air. Matching generated sweep reliefs preserve the complete source toggle path
 without thinning either link-pivot ring.
 
@@ -167,15 +175,18 @@ the hook room to move during release. At 24 degrees the pad, root, and boss all
 lift clear of the continuous ledge, so the ledge needs no weakening release
 scallop. There is no disconnected tooth or lower jaw to print.
 
-Matching 4.5 mm-thick impact cheeks are integrated into the base on both sides
+Matching 6 mm-thick impact cheeks are integrated into the base on both sides
 of each lever. They stand forward of the closed lever, join the shell on
 45-degree support-free lower ramps, and use chamfered top returns instead of
-brittle square-ended posts. Together with the lid towers, they protect the
-closed hardware from side hits and snags while leaving the full center finger
-corridor open. The horizontal catch rail is the only short bridge that may
-benefit from tuned bridging or localized support. The load ledge turns that
-bridge into an 8.6 mm-deep structural shelf tied into the lid wall and towers;
-the guard ramps themselves do not require support in the exported orientation.
+brittle square-ended posts. The added thickness fully encloses the fixed-pivot
+screw head and nut while preserving the original lever-facing surfaces and
+0.2 mm lever clearance on both sides. Together with the lid towers, they
+protect the closed hardware from side hits and snags while leaving the full
+center finger corridor open. The horizontal catch rail is the only short
+bridge that may benefit from tuned bridging or localized support. The load
+ledge turns that bridge into an 8.6 mm-deep structural shelf tied into the lid
+wall and towers; the guard ramps themselves do not require support in the
+exported orientation, and the captive nut pockets close with 45-degree roofs.
 
 The uncompressed lid begins 0.25 mm above its hard seated position. Pressing
 the broad lever inward places its flat pad against the load ledge, draws the
@@ -203,8 +214,10 @@ To install one latch:
 
 1. Place the lever between the two integrated base ears and align the fixed
    pivot holes.
-2. Support both ears and press the rod cut to `LATCH_FIXED_ROD_LENGTH` through
-   the first ear, lever, and second ear until centered.
+2. From the case-outside guard, insert an M3 x 35 countersunk screw through the
+   first guard, the lever's 3.5 mm easy-running bore, and the case-center guard.
+   Seat a standard M3 nut fully in its captive inside hex recess and tighten
+   only until axial play is removed; the lever must still pivot freely.
 3. Nest the hook around the lever's moving end, align the link holes, and press
    the rod cut to `LATCH_LINK_ROD_LENGTH` through the hook and lever until its
    ends are flush.
@@ -217,9 +230,10 @@ To install one latch:
    through the detent to unload the gasket; the linkage then lifts both pad and
    boss clear of the continuous ledge and rail so the lid can open.
 
-Deburr and lightly chamfer rod ends. Do not hammer a rod into an unsupported
-ear or hook cheek. Printer shrinkage varies, so print one lever and hook first
-and test both fits with the actual rod before committing the full shell.
+Deburr and lightly chamfer moving-link rod ends. Do not hammer a rod into an
+unsupported hook cheek. Printer shrinkage varies, so print one lever and hook
+first and test the M3 screw clearance and moving-link rod fits before
+committing the full shell.
 
 ## Separate pivoting handle
 
@@ -245,7 +259,8 @@ front: X = 0 and Z = 36.5 mm. The 95 mm-wide folded bar occupies only the
 reserved center zone. The two exact latches retain their compatible X = ±82 mm
 centerlines; their
 moving levers remain 24.26 mm from the handle's full folded and swinging X
-envelope, while the integrated mounts retain 20.06 mm clearance. The two old
+envelope. The 6 mm integrated guards retain 18.06 mm from that envelope, and
+the installed M3 screw tips retain 15.74 mm. The two old
 front-center impact ribs are deliberately omitted so this entire access path
 stays open. When raised, the smaller 32.5 mm-drop handle leaves 28.1
 mm between the case face and the inside of the grip across the unobstructed 75
@@ -254,7 +269,8 @@ pivot profile leaves at least 2.11 mm beside its lower chord and 2.99 mm above
 the teardrop running bore.
 The generator rejects less than 25 mm of raised finger clearance, less than
 75 mm of unobstructed grip width, less than 24 mm of moving-latch finger-access
-clearance, or less than 20 mm between the handle and integrated latch mounts.
+clearance, less than 18 mm between the handle and integrated latch guards, or
+less than 15 mm between the handle and installed M3 screw tips.
 
 ## Hinge clearances
 
@@ -269,17 +285,39 @@ Each of the three base knuckles now has a full-width tapered web beneath its
 barrel. The web begins 0.3 mm inside the rear case wall, rises outward at 45
 degrees, and joins the 10 mm barrel at its lower-outboard tangent. This removes
 the unsupported lower circular arc and gives the barrel a much larger load path
-into the shell without changing the hinge axis, 3.5 mm bore, alternating axial
-clearances, or internal case dimensions. Print the base upright as exported;
-the hinge webs are designed not to require support.
+into the shell without changing the hinge axis, alternating axial clearances,
+or internal case dimensions. Its original hinge path is enlarged only to a 4.5
+mm bore so the requested 4.1 mm bar can pass through all three base knuckles.
+Print the base upright as exported; the hinge webs are designed not to require
+support.
 
-The lid barrels are fused into the complete flared rim before their 3.5 mm
-bores are drilled through the combined solid. This keeps the rim from filling
-the lower half of either opening. All five horizontal hinge bores use a
-teardrop profile: the 3.5 mm circular pin clearance remains intact below a
-45-degree self-supporting roof, so the holes print without internal support.
-Generation verifies every finished bore and the complete 154 mm pin path
-through both rigid case halves with 3.49 mm cylindrical clearance probes.
+The lid barrels are fused into the complete flared rim before their 4.8 mm
+round receivers are opened through the rear/outboard side by 4.6 mm slots.
+Each slot is parallel to the lid plate. The installed slots therefore face
+rearward and cannot lift off the bar while the lid is closed. The unchanged
+base remains in the true slot-aligned escape path through 65 degrees open; at
+70 degrees the complete lid can slide diagonally up and forward from the bar.
+The 0.5 mm slot clearance gives a nominal 4.1 mm bar cleanup allowance after
+support removal, while the 10 mm outside diameter retains 2.6 mm of radial
+barrel wall.
+
+Generation checks 224 slot-aligned path positions from 0 through 65 degrees
+and verifies at least 0.687230 mm3 of blocking intersection at every sampled
+angle. At 70 degrees it checks 17 travel positions with the complete 151 mm
+rod centered and within 0.05 mm of both axial-play extremes: all 51 full-rod
+samples and all base/lid samples clear. It also checks each finished receiver,
+the continuous seated rod path, and a 1-degree base/lid rotation sweep from 0
+through 110 degrees.
+
+Two 6 mm-diameter by 3 mm-long solid bosses are part of the lid just outside
+the outer faces of the base's end knuckles. The straight rod is cut to 151 mm,
+placing each end 0.5 mm inside its base-knuckle face. Each lid stop begins 0.3
+mm beyond that face, leaving 0.8 mm clearance at each rod end and 1.6 mm total
+axial play. The stops therefore pass outside the rod during 70-degree slide-on
+assembly, then prevent it from walking out in either direction while the lid
+is attached. Their smaller diameter clears the unchanged base rear wall;
+generated solid probes and deliberate axial-overtravel probes verify both
+stops and retention.
 
 ## Suggested printing
 
@@ -297,7 +335,13 @@ through both rigid case halves with 3.49 mm cylindrical clearance probes.
   exported orientations. Their broad faces are already on the bed.
 - The case-side latch and handle mounts rise on 45-degree lower webs and do not
   require support. Do not place support inside their teardrop pivot bores.
-- Print the hinge pin on its D-shaped flat. A 3 mm metal rod can replace it.
+- The two lid hinge slots bridge the full 22.8 mm receiver widths in the broad-
+  face-down lid orientation. Add removable support in those two slots, then
+  remove it completely and verify the 4.1 mm bar slides through the 4.6 mm
+  openings without resistance before assembly.
+- Print the optional headless 4.1 mm hinge pin on its D-shaped flat, or cut a
+  4.1 mm metal bar to 151 mm. Verify the actual bar against a small bore test
+  before printing the full base.
 
 Test camera, battery, latch, handle, and hinge fits before field use. Pocket,
 pivot, and press-fit dimensions are constants near the top of the Python file
@@ -309,11 +353,17 @@ and can be regenerated without editing an STL.
    doors in the shallow outer pockets if carried; each door remains 7 mm proud.
 2. Seat the TPU gasket in the lid channel. Fit the TPU pad with its asymmetric
    notch over the matching rigid boss.
-3. Alternate the base and lid hinge knuckles, then insert the printed hinge pin
-   or a 3 mm metal rod.
-4. Install each latch with rods cut to `LATCH_FIXED_ROD_LENGTH` and
-   `LATCH_LINK_ROD_LENGTH`, then install the separate handle bar with two 12 mm
-   lengths of 4 mm rod by default or with regenerated M4 hardware.
+3. Feed and center the 151 mm-long, 4.1 mm bar (or headless printed D-profile
+   pin) through the three base knuckles, leaving both ends about 0.5 mm inset.
+   Hold the lid approximately 70 degrees open. Align both rearward-opening
+   receivers with the installed bar and slide the lid diagonally down and rear
+   along the slot direction, then rotate it closed. The unchanged base
+   blocks that same removal path through 65 degrees, while the two solid lid
+   stops retain the bar axially.
+4. Install each latch with one M3 x 35 countersunk screw, one standard M3 nut,
+   and a moving-link rod cut to `LATCH_LINK_ROD_LENGTH`. Install the separate
+   handle bar with two 12 mm lengths of 4 mm rod by default or with regenerated
+   M4 hardware.
 5. Load the two opposed cameras with their soft lens hoods in the flared ends,
    then load four batteries terminal-down.
 

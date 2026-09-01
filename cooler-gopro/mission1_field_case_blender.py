@@ -9,7 +9,8 @@ from disk.  The default kit holds:
 * two shallow flat pockets for the removable camera battery-cage doors,
 * a flush-top recessed TPU equipment tray and a one-way-keyed TPU lid pad,
 * a TPU dust/splash gasket, two source-derived two-piece Pelican latch
-  mechanisms mounted on 4 mm stainless rods, and a separate pivoting handle,
+  mechanisms mounted on M3 fixed pivots and 4 mm moving-link rods, and a
+  separate pivoting handle,
 * raised orange GoPro-style ``GoPro Missions`` lettering with four matching blocks.
 
 The case is Pelican/rugged-box inspired.  The user-supplied MakerWorld example is used as
@@ -18,7 +19,7 @@ and multicolor lid; its Standard Digital File License does not allow remixing,
 so none of its mesh geometry is consumed by this script.  The user-supplied
 ``pelican_case_blender_2.9.blend`` is a separate visual/mechanical reference.
 Its latch lever and hook surfaces are embedded below as compressed coordinate
-data, scaled to this case, re-bored for 4 mm pivot hardware, and relieved only
+data, scaled to this case, re-bored for M3/4 mm pivot hardware, and relieved only
 where the source visualization's two rigid bodies intersect through their
 working sweep.  Generation never reads that ``.blend``—or any STL—at runtime.
 
@@ -46,10 +47,10 @@ all ten printable-part STLs and ``mission1_field_case_ams_project.3mf``.
 The 3MF contains the complete six-plate project; its lid is one compound object
 with a black shell and one raised orange text-and-block body.  The standalone
 lid STLs remain available for other slicers.  Print two copies each of the
-latch lever and hook STLs.  A fixed 4 mm rod mounts each lever between
-integrated case ears, and a second 4 mm rod joins its moving hook.  The handle
-bar is a separate print and its mounting lugs are generated as part of the base
-shell.
+latch lever and hook STLs.  An M3 countersunk screw and captive nut mount each
+lever between integrated case guards, and a 4 mm rod joins its moving hook.
+The handle bar is a separate print and its mounting lugs are generated as part
+of the base shell.
 
 All dimensions are millimeters.  X is case width, Y is case depth, and Z is
 height.  Every default printable part validates below 250 x 250 mm in XY.
@@ -355,21 +356,39 @@ GASKET_CHANNEL_DEPTH = 1.2
 GASKET_HEIGHT = 1.45
 GASKET_FIT_CLEARANCE = 0.2
 
-# Hinge axis is along X.  The pin hole is generous enough for a metal rod or
-# the included flat-bottom printable D-profile pin.
+# Hinge axis is along X.  A 4.1 mm rod runs only through the base knuckles.
+# Each lid receiver opens rearward, parallel to the lid plate in print
+# orientation.  The closed case cannot lift off vertically; the unchanged base
+# remains in the actual slot escape path through 65 degrees, and the complete
+# lid slides diagonally up/forward off the rod at 70 degrees open.
 HINGE_AXIS_Y = CASE_DEPTH / 2.0 + 3.8
 HINGE_OUTER_DIAMETER = 10.0
-HINGE_HOLE_DIAMETER = 3.5
-HINGE_PIN_DIAMETER = 2.9
+HINGE_ROD_DIAMETER = 4.1
+HINGE_BASE_HOLE_DIAMETER = 4.5
+HINGE_LID_RECEIVER_DIAMETER = 4.8
+HINGE_LID_SLOT_WIDTH = 4.6
+HINGE_LID_SLOT_TILT_DEGREES = 0.0
+HINGE_LID_RELEASE_ANGLE_DEGREES = 70.0
+HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES = 65.0
+HINGE_LID_PRE_RELEASE_SWEEP_STEP_DEGREES = 5.0
+HINGE_LID_RELEASE_PATH_SAMPLES = 17
+HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES = 110.0
+HINGE_OPEN_SWEEP_STEP_DEGREES = 1.0
+HINGE_PIN_DIAMETER = HINGE_ROD_DIAMETER
 HINGE_BASE_SEGMENTS = ((-76.0, -42.0), (-18.0, 18.0), (42.0, 76.0))
 HINGE_LID_SEGMENTS = ((-41.4, -18.6), (18.6, 41.4))
+HINGE_ROD_END_INSET = 0.5
+HINGE_ROD_X0 = HINGE_BASE_SEGMENTS[0][0] + HINGE_ROD_END_INSET
+HINGE_ROD_X1 = HINGE_BASE_SEGMENTS[-1][1] - HINGE_ROD_END_INSET
+HINGE_LID_END_STOP_BASE_CLEARANCE = 0.3
+HINGE_LID_END_STOP_LENGTH = 3.0
+HINGE_LID_END_STOP_DIAMETER = 6.0
 HINGE_RIM_RELIEF_RADIAL_CLEARANCE = 0.4
 HINGE_RIM_RELIEF_AXIAL_CLEARANCE = 0.2
-HINGE_PIN_X0 = -77.0
-HINGE_PIN_X1 = 77.0
-HINGE_PIN_PATH_AXIAL_CLEARANCE = 0.2
+HINGE_ROD_PATH_AXIAL_CLEARANCE = 0.2
 HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL = 0.6
 HINGE_BORE_VALIDATION_RADIAL_CLEARANCE = 0.005
+HINGE_ROD_RELEASE_AXIAL_VALIDATION_INSET = 0.05
 
 # Each base knuckle grows from a full-width 45-degree web rather than leaving
 # the lower half of its circular barrel unsupported.  The ramp meets the
@@ -458,14 +477,33 @@ PIVOT_MOUNT_RAMP_VERTICAL_MARGIN = 0.5
 # The two-piece mechanism comes from the latch bodies in the user-supplied
 # ``pelican_case_blender_2.9.blend``.  The embedded coordinates are already
 # scaled to 80% for this shorter case.  The lever's fixed and moving bores are
-# 4.4 mm running fits.  The hook cheeks retain their moving pin in a 3.9 mm
-# press-fit bore.  Two integrated case ears retain the fixed pin the same way.
+# 4.4 mm running fit around their 4 mm moving-link rod.  The hook cheeks retain
+# that rod in a 3.9 mm press-fit bore.  The fixed lever pivot instead uses one
+# M3 countersunk screw through both integrated case guards and a 3.5 mm
+# easy-running lever bore, with a captive nut on the case-center side.
 # The source visualization contained rigid-body overlaps; only their internal
 # 0-to-80-degree relative sweep was relieved before the meshes were embedded.
 LATCH_X_CENTERS = (-82.0, 82.0)
-LATCH_ROD_DIAMETER = 4.0
+LATCH_LINK_ROD_DIAMETER = 4.0
 LATCH_PRESS_FIT_BORE_DIAMETER = 3.9
 LATCH_RUNNING_BORE_DIAMETER = 4.4
+LATCH_FIXED_M3_NOMINAL_DIAMETER = 3.0
+LATCH_FIXED_M3_CLEARANCE_DIAMETER = 3.5
+LATCH_FIXED_M3_COUNTERSINK_DIAMETER = 6.4
+LATCH_FIXED_M3_COUNTERSINK_DEPTH = (
+    LATCH_FIXED_M3_COUNTERSINK_DIAMETER
+    - LATCH_FIXED_M3_CLEARANCE_DIAMETER
+) / 2.0
+LATCH_FIXED_M3_MAX_HEAD_DIAMETER = 6.0
+LATCH_FIXED_M3_NUT_ACROSS_FLATS = 5.8
+LATCH_FIXED_M3_NOMINAL_NUT_ACROSS_FLATS = 5.5
+LATCH_FIXED_M3_NUT_DEPTH = 2.7
+LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS = 2.4
+LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL = 0.2
+LATCH_FIXED_M3_MIN_RECESS_FLOOR = 1.0
+LATCH_FIXED_M3_BOLT_LENGTH = 35.0
+LATCH_FIXED_M3_MIN_THREAD_ENGAGEMENT = LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS
+LATCH_FIXED_M3_MAX_TIP_PROTRUSION = 3.0
 LATCH_LID_INSTALLED_Z = BASE_HEIGHT + LID_WALL_HEIGHT
 LATCH_SOURCE_SCALE = 0.8
 LATCH_WIDTH = 20.48
@@ -504,11 +542,15 @@ LATCH_BASE_EAR_PROFILE_YZ = support_free_mount_profile_yz(
     PIVOT_MOUNT_OUTER_RADIUS,
 )
 LATCH_LEVER_FIXED_BOSS_RADIUS = (
+    LATCH_FIXED_M3_CLEARANCE_DIAMETER / 2.0
+    + PIVOT_MIN_WALL_THICKNESS
+    + PIVOT_REINFORCEMENT_MARGIN
+)
+LATCH_LEVER_LINK_BOSS_RADIUS = (
     LATCH_RUNNING_BORE_DIAMETER / 2.0
     + PIVOT_MIN_WALL_THICKNESS
     + PIVOT_REINFORCEMENT_MARGIN
 )
-LATCH_LEVER_LINK_BOSS_RADIUS = LATCH_LEVER_FIXED_BOSS_RADIUS
 LATCH_HOOK_LINK_BOSS_RADIUS = (
     LATCH_PRESS_FIT_BORE_DIAMETER / 2.0
     + PIVOT_MIN_WALL_THICKNESS
@@ -563,14 +605,24 @@ LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y = -82.5
 LATCH_CAPTURE_OUTWARD_PEEL_TRAVEL = 0.6
 LATCH_CAPTURE_OUTWARD_PEEL_MIN_VOLUME = 0.02
 LID_LATCH_LOAD_LEDGE_CONTACT_Z = LID_LATCH_CAPTURE_RAIL_CENTER_Z - 0.2
-LATCH_FIXED_ROD_LENGTH = (
-    LATCH_WIDTH + 2.0 * LATCH_BASE_EAR_AXIAL_CLEARANCE + 2.0 * LATCH_BASE_EAR_WIDTH
-)
 LATCH_LINK_ROD_LENGTH = LATCH_WIDTH
 LATCH_FINGER_ACCESS_CLEARANCE = 24.0
-LATCH_MOUNT_HANDLE_CLEARANCE = 20.0
-LATCH_PROTECTOR_BASE_WIDTH = 4.5
-LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT = 0.25
+LATCH_GUARD_HANDLE_CLEARANCE = 18.0
+LATCH_HARDWARE_HANDLE_CLEARANCE = 15.0
+LATCH_PROTECTOR_BASE_WIDTH = 6.0
+LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT = (
+    LATCH_PROTECTOR_BASE_WIDTH - LATCH_BASE_EAR_WIDTH
+) / 2.0
+LATCH_PROTECTOR_MOUNT_HALF_WIDTH = (
+    LATCH_BASE_EAR_CENTER_OFFSET_X
+    + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+    + LATCH_PROTECTOR_BASE_WIDTH / 2.0
+)
+LATCH_FIXED_M3_GUARD_SPAN = (
+    LATCH_WIDTH
+    + 2.0 * LATCH_BASE_EAR_AXIAL_CLEARANCE
+    + 2.0 * LATCH_PROTECTOR_BASE_WIDTH
+)
 LATCH_PROTECTOR_BODY_Y = -CASE_DEPTH / 2.0 + 0.3
 LATCH_PROTECTOR_FRONT_Y = -98.0
 LATCH_PROTECTOR_ROOT_Z = 3.0
@@ -2509,6 +2561,56 @@ def add_cylinder_x(name, radius, length, location, vertices=48):
     return obj
 
 
+def add_cone_x(
+    name,
+    negative_x_radius,
+    positive_x_radius,
+    length,
+    location,
+    vertices=64,
+):
+    bpy.ops.mesh.primitive_cone_add(
+        vertices=vertices,
+        radius1=negative_x_radius,
+        radius2=positive_x_radius,
+        depth=length,
+        location=location,
+        rotation=(0.0, math.pi / 2.0, 0.0),
+    )
+    obj = bpy.context.object
+    obj.name = name
+    obj.data.name = name + "_Mesh"
+    recalc_normals(obj)
+    return obj
+
+
+def regular_hexagon_loop_yz(center_y, center_z, across_flats):
+    circumradius = across_flats / math.sqrt(3.0)
+    return tuple(
+        (
+            center_y + circumradius * math.cos(math.radians(30.0 + 60.0 * step)),
+            center_z + circumradius * math.sin(math.radians(30.0 + 60.0 * step)),
+        )
+        for step in range(6)
+    )
+
+
+def support_free_hex_nut_pocket_loop_yz(center_y, center_z, across_flats):
+    """Return a point-up hex pocket with a printable 45-degree roof."""
+    circumradius = across_flats / math.sqrt(3.0)
+    half_width = across_flats / 2.0
+    upper_side_z = center_z + circumradius / 2.0
+    lower_side_z = center_z - circumradius / 2.0
+    return (
+        (center_y + half_width, upper_side_z),
+        (center_y, upper_side_z + half_width),
+        (center_y - half_width, upper_side_z),
+        (center_y - half_width, lower_side_z),
+        (center_y, center_z - circumradius),
+        (center_y + half_width, lower_side_z),
+    )
+
+
 def extrude_loop_x(name: str, loop_yz, x0: float, x1: float):
     count = len(loop_yz)
     vertices = [(x0, y, z) for y, z in loop_yz]
@@ -3089,16 +3191,77 @@ def validate_configuration() -> None:
         raise ValueError("Alternating hinge segments need clearance between barrels")
     if HINGE_RIM_RELIEF_RADIAL_CLEARANCE < LID_LATCH_LIP_DRAW + 0.1:
         raise ValueError("Hinge rim relief must accommodate the full lid take-up")
-    hinge_bore_probe_diameter = HINGE_HOLE_DIAMETER - 2.0 * (
+    base_hinge_bore_probe_diameter = HINGE_BASE_HOLE_DIAMETER - 2.0 * (
+        HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
+    )
+    lid_receiver_probe_diameter = HINGE_LID_RECEIVER_DIAMETER - 2.0 * (
         HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
     )
     if not (
         0.0 < HINGE_BORE_VALIDATION_RADIAL_CLEARANCE <= 0.01
-        and hinge_bore_probe_diameter > HINGE_PIN_DIAMETER
+        and base_hinge_bore_probe_diameter > HINGE_ROD_DIAMETER
+        and lid_receiver_probe_diameter > HINGE_ROD_DIAMETER
     ):
-        raise ValueError("Hinge bore validation probe must remain near-nominal")
-    if HINGE_PIN_PATH_AXIAL_CLEARANCE < HINGE_RIM_RELIEF_AXIAL_CLEARANCE:
-        raise ValueError("Lid rim relief must cover the complete hinge pin path")
+        raise ValueError("Hinge rod clearances must remain positive and near-nominal")
+    if not (
+        HINGE_ROD_DIAMETER < HINGE_LID_SLOT_WIDTH < HINGE_LID_RECEIVER_DIAMETER
+    ):
+        raise ValueError(
+            "Lid hinge slot must clear the rod but remain narrower than its receiver"
+        )
+    if not math.isclose(HINGE_LID_SLOT_TILT_DEGREES, 0.0, abs_tol=1e-6):
+        raise ValueError("Lid hinge slot must remain parallel to the lid plate")
+    if not (
+        0.0
+        < HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES
+        < HINGE_LID_RELEASE_ANGLE_DEGREES
+        <= HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES
+    ):
+        raise ValueError("Hinge block, release, and sweep angles are inconsistent")
+    blocked_escape_direction = (
+        HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES
+        - HINGE_LID_SLOT_TILT_DEGREES
+    )
+    release_escape_direction = (
+        HINGE_LID_RELEASE_ANGLE_DEGREES - HINGE_LID_SLOT_TILT_DEGREES
+    )
+    if not 60.0 <= blocked_escape_direction < release_escape_direction <= 75.0:
+        raise ValueError("Hinge slot/release angles no longer use the proven base stop")
+    if not 1.0 <= HINGE_LID_PRE_RELEASE_SWEEP_STEP_DEGREES <= 5.0:
+        raise ValueError("Pre-release hinge sweep must be sampled every 1-5 degrees")
+    if HINGE_LID_RELEASE_PATH_SAMPLES < 17:
+        raise ValueError("Hinge release validation needs at least 17 path samples")
+    if not 1.0 <= HINGE_OPEN_SWEEP_STEP_DEGREES <= 2.0:
+        raise ValueError("Hinge opening sweep must be sampled every 1-2 degrees")
+    left_base_outer_face = HINGE_BASE_SEGMENTS[0][0]
+    right_base_outer_face = HINGE_BASE_SEGMENTS[-1][1]
+    left_stop_inner_face = (
+        left_base_outer_face - HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    right_stop_inner_face = (
+        right_base_outer_face + HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    rod_end_clearances = (
+        HINGE_ROD_X0 - left_stop_inner_face,
+        right_stop_inner_face - HINGE_ROD_X1,
+    )
+    if min(rod_end_clearances) < 0.5:
+        raise ValueError("Hinge rod needs at least 0.5 mm clearance from each lid stop")
+    if not 0.0 < HINGE_ROD_RELEASE_AXIAL_VALIDATION_INSET < min(
+        rod_end_clearances
+    ):
+        raise ValueError("Hinge release axial validation inset is invalid")
+    if HINGE_LID_END_STOP_DIAMETER < HINGE_ROD_DIAMETER + 1.0:
+        raise ValueError("Lid hinge end stops need at least 0.5 mm radial rod coverage")
+    end_stop_base_wall_clearance = (
+        HINGE_AXIS_Y
+        - CASE_DEPTH / 2.0
+        - HINGE_LID_END_STOP_DIAMETER / 2.0
+    )
+    if end_stop_base_wall_clearance < 0.5:
+        raise ValueError("Lid hinge end stops sit too close to the base rear wall")
+    if HINGE_ROD_PATH_AXIAL_CLEARANCE < HINGE_RIM_RELIEF_AXIAL_CLEARANCE:
+        raise ValueError("Lid rim relief must cover the complete hinge rod path")
     hinge_gusset_run = HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y
     hinge_gusset_rise = HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z
     hinge_gusset_overhang = math.degrees(
@@ -3112,8 +3275,11 @@ def validate_configuration() -> None:
         raise ValueError("Base hinge gusset intrudes into the locked internal depth")
     if not BASE_FLOOR_THICKNESS < HINGE_BASE_GUSSET_ROOT_Z:
         raise ValueError("Base hinge gusset root must remain above the case floor")
-    if not (HINGE_BASE_GUSSET_TANGENT_Z < BASE_HEIGHT - HINGE_HOLE_DIAMETER / 2.0):
-        raise ValueError("Base hinge gusset must remain below the pin bore")
+    if not (
+        HINGE_BASE_GUSSET_TANGENT_Z
+        < BASE_HEIGHT - HINGE_BASE_HOLE_DIAMETER / 2.0
+    ):
+        raise ValueError("Base hinge gusset must remain below the rod bore")
 
     retainer_width = tray_width
     retainer_depth = tray_depth
@@ -3532,13 +3698,16 @@ def validate_configuration() -> None:
             abs_tol=1e-6,
         ):
             raise ValueError(f"{name.title()} mount ramp misses its pivot boss")
-    lever_fixed_wall = LATCH_LEVER_FIXED_BOSS_RADIUS - LATCH_RUNNING_BORE_DIAMETER / 2.0
+    lever_fixed_wall = (
+        LATCH_LEVER_FIXED_BOSS_RADIUS
+        - LATCH_FIXED_M3_CLEARANCE_DIAMETER / 2.0
+    )
     lever_link_wall = LATCH_LEVER_LINK_BOSS_RADIUS - LATCH_RUNNING_BORE_DIAMETER / 2.0
     hook_link_wall = LATCH_HOOK_LINK_BOSS_RADIUS - LATCH_PRESS_FIT_BORE_DIAMETER / 2.0
     detent_to_bore_wall = (
         math.hypot(*LATCH_DETENT_LOCAL_YZ)
         - LATCH_DETENT_DIMPLE_RADIUS
-        - LATCH_RUNNING_BORE_DIAMETER / 2.0
+        - LATCH_FIXED_M3_CLEARANCE_DIAMETER / 2.0
     )
     if (
         min(
@@ -3571,8 +3740,12 @@ def validate_configuration() -> None:
     if hook_ring_clearance_from_fixed_relief < 0.5:
         raise ValueError("Fixed-boss sweep relief weakens the hook pivot ring")
 
-    press_fit_interference = LATCH_ROD_DIAMETER - LATCH_PRESS_FIT_BORE_DIAMETER
-    running_clearance = LATCH_RUNNING_BORE_DIAMETER - LATCH_ROD_DIAMETER
+    press_fit_interference = (
+        LATCH_LINK_ROD_DIAMETER - LATCH_PRESS_FIT_BORE_DIAMETER
+    )
+    running_clearance = (
+        LATCH_RUNNING_BORE_DIAMETER - LATCH_LINK_ROD_DIAMETER
+    )
     if not 0.05 <= press_fit_interference <= 0.20:
         raise ValueError("Latch retaining bores need 0.05-0.20 mm rod interference")
     if running_clearance < 0.4:
@@ -3593,10 +3766,65 @@ def validate_configuration() -> None:
         raise ValueError("Latch detent validation needs a meaningful release bump")
     if LATCH_DETENT_RELEASE_RESIDUAL_VOLUME_LIMIT > 0.0001:
         raise ValueError("Latch detent release residual limit is too permissive")
-    if LATCH_FIXED_ROD_LENGTH < LATCH_WIDTH + 2.0 * LATCH_BASE_EAR_WIDTH:
-        raise ValueError("Latch fixed rod does not span both integrated case ears")
     if LATCH_LINK_ROD_LENGTH < LATCH_WIDTH - 0.1:
         raise ValueError("Latch link rod does not span both hook cheeks")
+    fixed_m3_clearance = (
+        LATCH_FIXED_M3_CLEARANCE_DIAMETER
+        - LATCH_FIXED_M3_NOMINAL_DIAMETER
+    )
+    if fixed_m3_clearance < 0.4:
+        raise ValueError("Latch fixed pivots need an easy-running M3 clearance")
+    countersink_diametral_clearance = (
+        LATCH_FIXED_M3_COUNTERSINK_DIAMETER
+        - LATCH_FIXED_M3_MAX_HEAD_DIAMETER
+    )
+    if countersink_diametral_clearance < 0.4:
+        raise ValueError("Latch M3 countersinks do not fully contain the screw heads")
+    expected_countersink_depth = (
+        LATCH_FIXED_M3_COUNTERSINK_DIAMETER
+        - LATCH_FIXED_M3_CLEARANCE_DIAMETER
+    ) / 2.0
+    if not math.isclose(
+        LATCH_FIXED_M3_COUNTERSINK_DEPTH,
+        expected_countersink_depth,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("Latch fixed-pivot countersink is not 90 degrees")
+    countersink_seat_inset = countersink_diametral_clearance / 2.0
+    nut_diametral_clearance = (
+        LATCH_FIXED_M3_NUT_ACROSS_FLATS
+        - LATCH_FIXED_M3_NOMINAL_NUT_ACROSS_FLATS
+    )
+    nut_depth_clearance = (
+        LATCH_FIXED_M3_NUT_DEPTH
+        - LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS
+    )
+    if nut_diametral_clearance < 0.2 or nut_depth_clearance < 0.2:
+        raise ValueError("Latch captive M3 nut recess is too tight")
+    countersink_floor = (
+        LATCH_PROTECTOR_BASE_WIDTH - LATCH_FIXED_M3_COUNTERSINK_DEPTH
+    )
+    nut_recess_floor = LATCH_PROTECTOR_BASE_WIDTH - LATCH_FIXED_M3_NUT_DEPTH
+    if min(countersink_floor, nut_recess_floor) < LATCH_FIXED_M3_MIN_RECESS_FLOOR:
+        raise ValueError("Latch guard recesses leave too little material behind them")
+    fixed_m3_reach_past_nut_floor = (
+        LATCH_FIXED_M3_BOLT_LENGTH
+        + countersink_seat_inset
+        - (LATCH_FIXED_M3_GUARD_SPAN - LATCH_FIXED_M3_NUT_DEPTH)
+    )
+    fixed_m3_thread_engagement = min(
+        LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS,
+        fixed_m3_reach_past_nut_floor,
+    )
+    fixed_m3_tip_protrusion = (
+        LATCH_FIXED_M3_BOLT_LENGTH
+        + countersink_seat_inset
+        - LATCH_FIXED_M3_GUARD_SPAN
+    )
+    if fixed_m3_thread_engagement < LATCH_FIXED_M3_MIN_THREAD_ENGAGEMENT:
+        raise ValueError("Latch fixed-pivot M3 screw does not fully engage its nut")
+    if not 0.0 <= fixed_m3_tip_protrusion <= LATCH_FIXED_M3_MAX_TIP_PROTRUSION:
+        raise ValueError("Latch fixed-pivot M3 screw protrusion is unsafe")
     link_axial_clearance = (
         2.0 * LATCH_HOOK_CHEEK_INNER_X - LATCH_LEVER_LINK_TONGUE_WIDTH
     ) / 2.0
@@ -3848,9 +4076,7 @@ def validate_configuration() -> None:
             "Raised handle needs its specified adult-finger clearance; "
             f"computed {handle_raised_finger_gap:.2f} mm"
         )
-    latch_mount_half_width = (
-        LATCH_WIDTH / 2.0 + LATCH_BASE_EAR_AXIAL_CLEARANCE + LATCH_BASE_EAR_WIDTH
-    )
+    latch_mount_half_width = LATCH_PROTECTOR_MOUNT_HALF_WIDTH
     latch_mount_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - latch_mount_half_width
     latch_lever_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - LATCH_WIDTH / 2.0
     latch_outer_x = max(abs(x) for x in LATCH_X_CENTERS) + latch_mount_half_width
@@ -3861,11 +4087,19 @@ def validate_configuration() -> None:
             "Folded/swinging handle enters the latch finger-access zone: "
             f"computed {latch_handle_clearance:.2f} mm"
         )
-    latch_mount_handle_clearance = latch_mount_inner_x - handle_outer_x
-    if latch_mount_handle_clearance < LATCH_MOUNT_HANDLE_CLEARANCE:
+    latch_guard_handle_clearance = latch_mount_inner_x - handle_outer_x
+    if latch_guard_handle_clearance < LATCH_GUARD_HANDLE_CLEARANCE:
         raise ValueError(
-            "Handle sits too close to the integrated latch mount: "
-            f"computed {latch_mount_handle_clearance:.2f} mm"
+            "Handle sits too close to the integrated latch guard: "
+            f"computed {latch_guard_handle_clearance:.2f} mm"
+        )
+    latch_hardware_handle_clearance = (
+        latch_guard_handle_clearance - fixed_m3_tip_protrusion
+    )
+    if latch_hardware_handle_clearance < LATCH_HARDWARE_HANDLE_CLEARANCE:
+        raise ValueError(
+            "Handle sits too close to the installed latch M3 screw tip: "
+            f"computed {latch_hardware_handle_clearance:.2f} mm"
         )
     latch_case_edge_clearance = CASE_WIDTH / 2.0 - latch_outer_x
     if latch_case_edge_clearance < 4.0:
@@ -3903,7 +4137,7 @@ def validate_configuration() -> None:
         ("Pelican latch lever", LATCH_LEVER_PRINT_SIZE[:2]),
         ("Pelican latch hook", LATCH_HOOK_PRINT_SIZE[:2]),
         ("pivoting handle bar", (HANDLE_BAR_OUTER_WIDTH, HANDLE_BAR_DROP + 2.0)),
-        ("hinge pin", (HINGE_PIN_X1 - HINGE_PIN_X0 + 2.1, 6.0)),
+        ("hinge pin", (HINGE_ROD_X1 - HINGE_ROD_X0, HINGE_PIN_DIAMETER)),
     ):
         if dimensions[0] > MAX_PRINT_XY or dimensions[1] > MAX_PRINT_XY:
             raise ValueError(f"{part} exceeds {MAX_PRINT_XY:.0f} mm: {dimensions}")
@@ -3934,9 +4168,19 @@ def validate_configuration() -> None:
         f"{LATCH_LEVER_PRINT_SIZE[1]:.2f}x{LATCH_LEVER_PRINT_SIZE[2]:.2f} "
         f"latch_hook={LATCH_HOOK_PRINT_SIZE[0]:.2f}x"
         f"{LATCH_HOOK_PRINT_SIZE[1]:.2f}x{LATCH_HOOK_PRINT_SIZE[2]:.2f} "
-        f"latch_rod={LATCH_ROD_DIAMETER:.2f} "
+        f"latch_link_rod={LATCH_LINK_ROD_DIAMETER:.2f} "
         f"latch_press_bore={LATCH_PRESS_FIT_BORE_DIAMETER:.2f} "
         f"latch_running_bore={LATCH_RUNNING_BORE_DIAMETER:.2f} "
+        f"latch_fixed_m3_clearance={LATCH_FIXED_M3_CLEARANCE_DIAMETER:.2f} "
+        f"latch_fixed_m3_countersink={LATCH_FIXED_M3_COUNTERSINK_DIAMETER:.2f}x"
+        f"{LATCH_FIXED_M3_COUNTERSINK_DEPTH:.2f} "
+        f"latch_fixed_m3_nut_recess={LATCH_FIXED_M3_NUT_ACROSS_FLATS:.2f}x"
+        f"{LATCH_FIXED_M3_NUT_DEPTH:.2f} "
+        f"latch_fixed_m3_screw=M3x{LATCH_FIXED_M3_BOLT_LENGTH:.0f} "
+        f"latch_fixed_m3_engagement={fixed_m3_thread_engagement:.2f} "
+        f"latch_fixed_m3_reach_past_nut_floor="
+        f"{fixed_m3_reach_past_nut_floor:.2f} "
+        f"latch_fixed_m3_tip={fixed_m3_tip_protrusion:.2f} "
         f"latch_ear_clearance={LATCH_BASE_EAR_AXIAL_CLEARANCE:.2f} "
         f"pivot_min_wall={PIVOT_MIN_WALL_THICKNESS:.2f} "
         f"mount_chord_wall={mount_lower_chord_wall:.2f} "
@@ -3964,7 +4208,8 @@ def validate_configuration() -> None:
         f"{abs(LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y):.2f} "
         f"lid_protector={LID_LATCH_TROUGH_SHOULDER_WIDTH:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
-        f"latch_mount_handle_clearance={latch_mount_handle_clearance:.2f} "
+        f"latch_guard_handle_clearance={latch_guard_handle_clearance:.2f} "
+        f"latch_hardware_handle_clearance={latch_hardware_handle_clearance:.2f} "
         f"handle_mode={HANDLE_HARDWARE_MODE} "
         f"handle_fork_cheek={handle_fork_cheek_thickness:.2f} "
         f"handle_pivot_chord_wall={handle_pivot_lower_chord_wall:.2f} "
@@ -3972,7 +4217,17 @@ def validate_configuration() -> None:
         f"handle_folded_face_gap={folded_handle_face_gap:.2f} "
         f"handle_grip_width={HANDLE_BAR_INNER_WIDTH:.2f} "
         f"handle_center_z={HANDLE_PIVOT_Z:.2f} "
-        f"handle_raised_finger_gap={handle_raised_finger_gap:.2f}"
+        f"handle_raised_finger_gap={handle_raised_finger_gap:.2f} "
+        f"hinge_rod={HINGE_ROD_DIAMETER:.2f} "
+        f"hinge_base_bore={HINGE_BASE_HOLE_DIAMETER:.2f} "
+        f"hinge_lid_receiver={HINGE_LID_RECEIVER_DIAMETER:.2f} "
+        f"hinge_lid_slot={HINGE_LID_SLOT_WIDTH:.2f} "
+        f"hinge_lid_slot_tilt={HINGE_LID_SLOT_TILT_DEGREES:.1f}deg "
+        f"hinge_release={HINGE_LID_RELEASE_ANGLE_DEGREES:.1f}deg "
+        f"hinge_end_stop={HINGE_LID_END_STOP_DIAMETER:.2f}x"
+        f"{HINGE_LID_END_STOP_LENGTH:.2f} "
+        f"hinge_rod_length={HINGE_ROD_X1 - HINGE_ROD_X0:.2f} "
+        f"hinge_rod_axial_play={sum(rod_end_clearances):.2f}"
     )
     print(
         "FIELD_CASE_PRINT_ENVELOPES "
@@ -3984,6 +4239,84 @@ def validate_configuration() -> None:
 
 # ---------------------------------------------------------------------------
 # PART BUILDERS
+
+
+def latch_fixed_m3_outer_direction(latch_x):
+    return -1.0 if latch_x < 0.0 else 1.0
+
+
+def latch_fixed_m3_guard_faces(latch_x):
+    outer_direction = latch_fixed_m3_outer_direction(latch_x)
+    half_span = LATCH_FIXED_M3_GUARD_SPAN / 2.0
+    return (
+        latch_x + outer_direction * half_span,
+        latch_x - outer_direction * half_span,
+        outer_direction,
+    )
+
+
+def add_latch_fixed_m3_countersink(name, latch_x):
+    head_face_x, _nut_face_x, outer_direction = latch_fixed_m3_guard_faces(latch_x)
+    cutter_length = (
+        LATCH_FIXED_M3_COUNTERSINK_DEPTH
+        + LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL
+    )
+    cutter_center_x = head_face_x - outer_direction * (
+        LATCH_FIXED_M3_COUNTERSINK_DEPTH
+        - LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL
+    ) / 2.0
+    small_radius = LATCH_FIXED_M3_CLEARANCE_DIAMETER / 2.0
+    # Grow the overtravel end by the same amount so the physical recess keeps
+    # its true 45-degree-per-side (90-degree included) countersink angle.
+    large_radius = (
+        LATCH_FIXED_M3_COUNTERSINK_DIAMETER / 2.0
+        + LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL
+    )
+    return add_cone_x(
+        name,
+        large_radius if outer_direction < 0.0 else small_radius,
+        large_radius if outer_direction > 0.0 else small_radius,
+        cutter_length,
+        (cutter_center_x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
+        vertices=64,
+    )
+
+
+def add_latch_fixed_m3_nut_recess(name, latch_x, across_flats=None, depth=None):
+    _head_face_x, nut_face_x, outer_direction = latch_fixed_m3_guard_faces(latch_x)
+    across_flats = (
+        LATCH_FIXED_M3_NUT_ACROSS_FLATS
+        if across_flats is None
+        else across_flats
+    )
+    depth = LATCH_FIXED_M3_NUT_DEPTH if depth is None else depth
+    recess_outer_x = nut_face_x - outer_direction * (
+        LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL
+    )
+    recess_inner_x = nut_face_x + outer_direction * depth
+    return extrude_loop_x(
+        name,
+        support_free_hex_nut_pocket_loop_yz(
+            LATCH_BASE_PIVOT_Y,
+            LATCH_BASE_PIVOT_Z,
+            across_flats,
+        ),
+        min(recess_outer_x, recess_inner_x),
+        max(recess_outer_x, recess_inner_x),
+    )
+
+
+def lid_hinge_slot_opening_local_yz():
+    radians = math.radians(HINGE_LID_SLOT_TILT_DEGREES)
+    return -math.cos(radians), -math.sin(radians)
+
+
+def lid_hinge_escape_global_yz(open_angle_degrees):
+    """Return the installed lid's unit translation along its receiver slot."""
+    effective_angle = math.radians(
+        open_angle_degrees - HINGE_LID_SLOT_TILT_DEGREES
+    )
+    return -math.cos(effective_angle), math.sin(effective_angle)
 
 
 def create_base(material):
@@ -4036,7 +4369,8 @@ def create_base(material):
         )
         difference_from(base, relief)
 
-    # Alternating hinge knuckles share one continuous 3.5 mm pin bore.  A
+    # The base knuckles share one continuous 4.5 mm path for the user's 4.1 mm
+    # rod.  This bore enlargement is the only base-side hinge change.  A
     # full-width lower web rises from the rear wall at 45 degrees and meets
     # each barrel tangentially, eliminating its unsupported lower arc while
     # adding substantially more bonded section at the shell.
@@ -4057,7 +4391,7 @@ def create_base(material):
         union_into(base, knuckle)
         hole = add_teardrop_hole_x(
             f"Base_Hinge_Hole_{index}",
-            HINGE_HOLE_DIAMETER / 2.0,
+            HINGE_BASE_HOLE_DIAMETER / 2.0,
             x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
             ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
             arc_steps=90,
@@ -4066,9 +4400,8 @@ def create_base(material):
 
     # The source lever sits between two reinforced case ears.  Each ear rises
     # from the shell on a printable lower ramp, wraps the pivot with the shared
-    # minimum wall, and curves back into the body above the bore.  The 3.9 mm
-    # retaining holes use a 45-degree roof instead of an unsupported circular
-    # ceiling; the lever's 4.4 mm bore turns freely between them.
+    # minimum wall, and curves back into the body above the bore.  Their common
+    # M3 clearance path is drilled after the thicker guards are joined below.
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
         for side in (-1.0, 1.0):
             ear_x = x + side * LATCH_BASE_EAR_CENTER_OFFSET_X
@@ -4078,13 +4411,6 @@ def create_base(material):
                 ear_x - LATCH_BASE_EAR_WIDTH / 2.0,
                 ear_x + LATCH_BASE_EAR_WIDTH / 2.0,
             )
-            hole = add_teardrop_hole_x(
-                f"Base_Latch_{index}_3p9mm_Press_Fit_Hole",
-                LATCH_PRESS_FIT_BORE_DIAMETER / 2.0,
-                LATCH_BASE_EAR_WIDTH + 0.8,
-                (ear_x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
-            )
-            difference_from(ear, hole)
             if side in LATCH_DETENT_SIDES:
                 inner_face_x = ear_x - side * LATCH_BASE_EAR_WIDTH / 2.0
                 boss_center_x = inner_face_x + side * (
@@ -4106,8 +4432,10 @@ def create_base(material):
     # on the supplied Pelican reference.  Their lower faces grow from the
     # shell on 45-degree ramps, their front edges shield the lever from snags,
     # and their chamfered tops return into the body without a brittle corner.
-    # The cheeks overlap the existing pivot ears; drill the common 4 mm-rod
-    # path again after union so this extra protection cannot refill a bore.
+    # The cheeks overlap the existing pivot ears.  Their 6 mm axial thickness
+    # fully contains the flush M3 head and captive nut.  Drill one continuous
+    # easy-running M3 path after union, then open a 90-degree countersink on the
+    # case-outside guard and a short captive hex nut pocket on the inboard guard.
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
         for side in (-1.0, 1.0):
             ear_x = x + side * LATCH_BASE_EAR_CENTER_OFFSET_X
@@ -4119,13 +4447,23 @@ def create_base(material):
                 protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0,
             )
             union_into(base, protector)
-            protected_bore = add_teardrop_hole_x(
-                f"Base_Latch_{index}_Protected_3p9mm_Press_Fit_Hole",
-                LATCH_PRESS_FIT_BORE_DIAMETER / 2.0,
-                LATCH_PROTECTOR_BASE_WIDTH + 0.8,
-                (protector_center_x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
-            )
-            difference_from(base, protected_bore)
+        protected_bore = add_teardrop_hole_x(
+            f"Base_Latch_{index}_M3_Easy_Running_Through_Hole",
+            LATCH_FIXED_M3_CLEARANCE_DIAMETER / 2.0,
+            LATCH_FIXED_M3_GUARD_SPAN + 0.8,
+            (x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
+        )
+        difference_from(base, protected_bore)
+        countersink = add_latch_fixed_m3_countersink(
+            f"Base_Latch_{index}_Outside_M3_Countersink",
+            x,
+        )
+        difference_from(base, countersink)
+        nut_recess = add_latch_fixed_m3_nut_recess(
+            f"Base_Latch_{index}_Inside_M3_Captive_Nut_Recess",
+            x,
+        )
+        difference_from(base, nut_recess)
 
     # The suitcase-handle base is part of the shell: one reinforced, ramped lug
     # per side sits inside a relieved fork in the separate handle arm.  Its
@@ -4516,12 +4854,18 @@ def create_lid(
         if index == 1:
             relief_x0 = min(
                 relief_x0,
-                HINGE_PIN_X0 - HINGE_PIN_PATH_AXIAL_CLEARANCE,
+                HINGE_ROD_X0 - HINGE_ROD_PATH_AXIAL_CLEARANCE,
+                HINGE_BASE_SEGMENTS[0][0]
+                - HINGE_LID_END_STOP_BASE_CLEARANCE
+                - HINGE_ROD_RELEASE_AXIAL_VALIDATION_INSET,
             )
         if index == len(HINGE_BASE_SEGMENTS):
             relief_x1 = max(
                 relief_x1,
-                HINGE_PIN_X1 + HINGE_PIN_PATH_AXIAL_CLEARANCE,
+                HINGE_ROD_X1 + HINGE_ROD_PATH_AXIAL_CLEARANCE,
+                HINGE_BASE_SEGMENTS[-1][1]
+                + HINGE_LID_END_STOP_BASE_CLEARANCE
+                + HINGE_ROD_RELEASE_AXIAL_VALIDATION_INSET,
             )
         relief = add_cylinder_x(
             f"Lid_Rear_Rim_Relief_For_Base_Knuckle_{index}",
@@ -4557,9 +4901,12 @@ def create_lid(
 
     # In print orientation the lid's hinge is at -Y; flipping the finished lid
     # around X places it on the base's +Y hinge line.  Union each barrel into
-    # the complete flared rim before drilling through the combined solid.  If
-    # the barrel were drilled first, the later rim union would refill the lower
-    # half of its pin bore.
+    # the complete flared rim, cut a round 4.8 mm receiver, then open that
+    # receiver through its rear side with a 4.6 mm slot.  The installed escape
+    # vector remains blocked by the unchanged base through 65 degrees.  At 70
+    # degrees the lid slides diagonally up/forward off the already-installed 4.1
+    # mm base rod.  These full-width slots need removable print support; the
+    # extra 0.5 mm width leaves cleanup allowance around the physical rod.
     for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
         knuckle = add_cylinder_x(
             f"Lid_Hinge_Knuckle_{index}",
@@ -4568,14 +4915,75 @@ def create_lid(
             (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
         )
         union_into(lid, knuckle)
-        hole = add_teardrop_hole_x(
-            f"Lid_Hinge_Hole_{index}",
-            HINGE_HOLE_DIAMETER / 2.0,
+        receiver = add_cylinder_x(
+            f"Lid_Hinge_Open_Rod_Receiver_{index}",
+            HINGE_LID_RECEIVER_DIAMETER / 2.0,
             x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
             (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
-            arc_steps=90,
+            vertices=90,
         )
-        difference_from(lid, hole)
+        difference_from(lid, receiver)
+        slot_opening_y, slot_opening_z = lid_hinge_slot_opening_local_yz()
+        slot_perpendicular_y = -slot_opening_z
+        slot_perpendicular_z = slot_opening_y
+        slot_t0 = -0.2
+        slot_t1 = HINGE_OUTER_DIAMETER / 2.0 + 0.8
+        slot_half_width = HINGE_LID_SLOT_WIDTH / 2.0
+
+        def slot_point(t, transverse):
+            return (
+                -HINGE_AXIS_Y
+                + t * slot_opening_y
+                + transverse * slot_perpendicular_y,
+                LID_WALL_HEIGHT
+                + t * slot_opening_z
+                + transverse * slot_perpendicular_z,
+            )
+
+        slot = extrude_loop_x(
+            f"Lid_Hinge_{HINGE_LID_SLOT_TILT_DEGREES:.0f}deg_"
+            f"Straight_Release_Slot_{index}",
+            (
+                slot_point(slot_t0, -slot_half_width),
+                slot_point(slot_t1, -slot_half_width),
+                slot_point(slot_t1, slot_half_width),
+                slot_point(slot_t0, slot_half_width),
+            ),
+            dx + x0 - HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+            dx + x1 + HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+        )
+        difference_from(lid, slot)
+
+    # Two short solid bosses sit just beyond the outer faces of the base's end
+    # knuckles.  The 151 mm rod ends inside those faces, so these lid-mounted
+    # stops pass outside the rod during drop-on installation and then block
+    # axial walk-off in either direction.  Their smaller 6 mm diameter clears
+    # the unchanged base rear wall while remaining deeply bonded into the lid
+    # rim around the hinge axis.
+    for side, base_outer_face in (
+        (-1.0, HINGE_BASE_SEGMENTS[0][0]),
+        (1.0, HINGE_BASE_SEGMENTS[-1][1]),
+    ):
+        stop_inner_face = (
+            base_outer_face + side * HINGE_LID_END_STOP_BASE_CLEARANCE
+        )
+        stop_center_x = (
+            stop_inner_face + side * HINGE_LID_END_STOP_LENGTH / 2.0
+        )
+        end_stop = add_cylinder_x(
+            "Lid_Hinge_Left_Solid_Rod_End_Stop"
+            if side < 0.0
+            else "Lid_Hinge_Right_Solid_Rod_End_Stop",
+            HINGE_LID_END_STOP_DIAMETER / 2.0,
+            HINGE_LID_END_STOP_LENGTH,
+            (
+                dx + stop_center_x,
+                -HINGE_AXIS_Y,
+                LID_WALL_HEIGHT,
+            ),
+            vertices=90,
+        )
+        union_into(lid, end_stop)
 
     # The asymmetric interior boss mates with the TPU pad's open perimeter
     # notch.  A 180-degree-misrotated pad therefore cannot sit flat with its
@@ -4832,8 +5240,8 @@ def create_pelican_latch_parts(material):
                 )
                 difference_from(part, hook_boss_relief)
             fixed_bore = add_cylinder_x(
-                "Pelican_Lever_4p4mm_Fixed_Running_Bore",
-                LATCH_RUNNING_BORE_DIAMETER / 2.0,
+                "Pelican_Lever_3p5mm_M3_Fixed_Running_Bore",
+                LATCH_FIXED_M3_CLEARANCE_DIAMETER / 2.0,
                 LATCH_WIDTH + 0.8,
                 (0.0, 0.0, 0.0),
                 vertices=64,
@@ -5209,16 +5617,9 @@ def create_hinge_pin(material):
     pin = extrude_loop_x(
         "Field_Case_Hinge_Pin",
         loop,
-        HINGE_PIN_X0,
-        HINGE_PIN_X1,
+        HINGE_ROD_X0,
+        HINGE_ROD_X1,
     )
-    head = add_rounded_box(
-        "Hinge_Pin_Stop_Head",
-        (2.2, 6.0, 3.0),
-        (HINGE_PIN_X0 - 1.0, 0.0, 1.5),
-        bevel=0.7,
-    )
-    union_into(pin, head)
     translate_object(pin, (0.0, -180.0, 0.0))
     assign_material(pin, material)
     return pin
@@ -5250,6 +5651,82 @@ def position_installed_latch_hook(hook, x: float) -> None:
     )
 
 
+def create_latch_fixed_m3_reference_hardware(
+    name,
+    latch_x,
+    material=None,
+    seat_clearance=0.0,
+):
+    """Build a nominal seated screw/nut pair for assembly views only."""
+    head_face_x, nut_face_x, outer_direction = latch_fixed_m3_guard_faces(latch_x)
+    seat_inset = (
+        LATCH_FIXED_M3_COUNTERSINK_DIAMETER
+        - LATCH_FIXED_M3_MAX_HEAD_DIAMETER
+    ) / 2.0 - seat_clearance
+    head_depth = (
+        LATCH_FIXED_M3_MAX_HEAD_DIAMETER
+        - LATCH_FIXED_M3_NOMINAL_DIAMETER
+    ) / 2.0
+    head_top_x = head_face_x - outer_direction * seat_inset
+    head_inner_x = head_top_x - outer_direction * head_depth
+    head = add_cone_x(
+        name + "_Countersunk_Head",
+        (
+            LATCH_FIXED_M3_MAX_HEAD_DIAMETER / 2.0
+            if outer_direction < 0.0
+            else LATCH_FIXED_M3_NOMINAL_DIAMETER / 2.0
+        ),
+        (
+            LATCH_FIXED_M3_MAX_HEAD_DIAMETER / 2.0
+            if outer_direction > 0.0
+            else LATCH_FIXED_M3_NOMINAL_DIAMETER / 2.0
+        ),
+        head_depth,
+        (
+            (head_top_x + head_inner_x) / 2.0,
+            LATCH_BASE_PIVOT_Y,
+            LATCH_BASE_PIVOT_Z,
+        ),
+        vertices=64,
+    )
+    if material is not None:
+        assign_material(head, material)
+
+    tip_x = head_top_x - outer_direction * LATCH_FIXED_M3_BOLT_LENGTH
+    shaft = add_cylinder_x(
+        name + "_Shaft",
+        LATCH_FIXED_M3_NOMINAL_DIAMETER / 2.0,
+        abs(tip_x - head_inner_x),
+        (
+            (tip_x + head_inner_x) / 2.0,
+            LATCH_BASE_PIVOT_Y,
+            LATCH_BASE_PIVOT_Z,
+        ),
+        vertices=64,
+    )
+    if material is not None:
+        assign_material(shaft, material)
+
+    nut_floor_x = nut_face_x + outer_direction * LATCH_FIXED_M3_NUT_DEPTH
+    nut_open_x = (
+        nut_floor_x
+        - outer_direction * LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS
+    )
+    nut = extrude_loop_x(
+        name + "_Captive_Nut",
+        regular_hexagon_loop_yz(
+            LATCH_BASE_PIVOT_Y,
+            LATCH_BASE_PIVOT_Z,
+            LATCH_FIXED_M3_NOMINAL_NUT_ACROSS_FLATS,
+        ),
+        min(nut_floor_x, nut_open_x),
+        max(nut_floor_x, nut_open_x),
+    )
+    if material is not None:
+        assign_material(nut, material)
+    return head, shaft, nut
+
+
 def create_latch_reference_mockups(parts, materials):
     latch_material, rod_material = materials
     objects = []
@@ -5268,18 +5745,17 @@ def create_latch_reference_mockups(parts, materials):
         )
         position_installed_latch_hook(hook, x)
         objects.append(hook)
-        fixed_pin = add_cylinder_x(
-            f"REFERENCE_ONLY_Latch_{index}_4mm_Fixed_Rod",
-            LATCH_ROD_DIAMETER / 2.0,
-            LATCH_FIXED_ROD_LENGTH,
-            (x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
-            vertices=36,
+        objects.extend(
+            create_latch_fixed_m3_reference_hardware(
+                f"REFERENCE_ONLY_Latch_{index}_M3x"
+                f"{LATCH_FIXED_M3_BOLT_LENGTH:.0f}_Fixed_Pivot",
+                x,
+                rod_material,
+            )
         )
-        assign_material(fixed_pin, rod_material)
-        objects.append(fixed_pin)
         link_pin = add_cylinder_x(
             f"REFERENCE_ONLY_Latch_{index}_4mm_Link_Rod",
-            LATCH_ROD_DIAMETER / 2.0,
+            LATCH_LINK_ROD_DIAMETER / 2.0,
             LATCH_LINK_ROD_LENGTH,
             (
                 x,
@@ -5766,6 +6242,199 @@ def validate_built_latch_impact_protectors(parts) -> None:
         f"lid_thickness={LID_LATCH_TROUGH_SHOULDER_WIDTH:.2f} "
         f"lid_solid_min={min(lid_guard_volumes):.6f} "
         f"finger_access_air_max={max(access_air_volumes):.9f}"
+    )
+
+
+def validate_built_latch_fixed_m3_hardware(parts) -> None:
+    """Prove both recessed M3 fixed pivots fit and retain guard material."""
+    base_path_overlaps = []
+    lever_path_overlaps = []
+    head_overlaps = []
+    shaft_overlaps = []
+    nut_overlaps = []
+    countersink_floor_volumes = []
+    nut_floor_volumes = []
+    path_probe_radius = LATCH_FIXED_M3_CLEARANCE_DIAMETER / 2.0 - 0.05
+
+    lever_path_probe = add_cylinder_x(
+        "TEMPORARY_Latch_Lever_M3_Easy_Running_Path_Probe",
+        path_probe_radius,
+        LATCH_WIDTH - 0.2,
+        (0.0, 0.0, 0.0),
+        vertices=64,
+    )
+    try:
+        _faces, lever_path_overlap = exact_transformed_intersection(
+            parts["latch_lever"],
+            lever_path_probe,
+            second_location=lever_path_probe.location.copy(),
+            second_rotation=lever_path_probe.rotation_euler.copy(),
+        )
+    finally:
+        bpy.data.objects.remove(lever_path_probe, do_unlink=True)
+    lever_path_overlaps.append(lever_path_overlap)
+
+    # Span the complete configured 1 mm minimum floor immediately behind each
+    # recess.  The small radial footprint sits beside the 3.5 mm through bore,
+    # at the countersink's deepest axial extent, rather than near its shallow
+    # outer rim.
+    floor_probe_dimensions = (LATCH_FIXED_M3_MIN_RECESS_FLOOR, 0.2, 0.2)
+    floor_probe_radial_offset = 2.0
+    floor_probe_axial_clearance = 0.02
+    minimum_floor_fill = math.prod(floor_probe_dimensions) * 0.9
+    for index, latch_x in enumerate(LATCH_X_CENTERS, start=1):
+        head_face_x, nut_face_x, outer_direction = latch_fixed_m3_guard_faces(
+            latch_x
+        )
+        path_probe = add_cylinder_x(
+            f"TEMPORARY_Latch_{index}_Base_M3_Easy_Running_Path_Probe",
+            path_probe_radius,
+            LATCH_FIXED_M3_GUARD_SPAN - 0.2,
+            (latch_x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
+            vertices=64,
+        )
+        try:
+            _faces, path_overlap = exact_transformed_intersection(
+                parts["base"],
+                path_probe,
+                second_location=path_probe.location.copy(),
+                second_rotation=path_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(path_probe, do_unlink=True)
+        base_path_overlaps.append(path_overlap)
+
+        hardware = create_latch_fixed_m3_reference_hardware(
+            f"TEMPORARY_Latch_{index}_Nominal_M3_Hardware_Envelope",
+            latch_x,
+            seat_clearance=0.05,
+        )
+        try:
+            hardware_overlaps = []
+            for hardware_part in hardware:
+                _faces, overlap = exact_transformed_intersection(
+                    parts["base"],
+                    hardware_part,
+                    second_location=hardware_part.location.copy(),
+                    second_rotation=hardware_part.rotation_euler.copy(),
+                )
+                hardware_overlaps.append(overlap)
+            head_overlaps.append(hardware_overlaps[0])
+            shaft_overlaps.append(hardware_overlaps[1])
+            nut_overlaps.append(hardware_overlaps[2])
+        finally:
+            for hardware_part in hardware:
+                bpy.data.objects.remove(hardware_part, do_unlink=True)
+
+        floor_specs = (
+            (
+                f"TEMPORARY_Latch_{index}_Countersink_Floor_Solid_Probe",
+                (
+                    head_face_x
+                    - outer_direction
+                    * (
+                        LATCH_FIXED_M3_COUNTERSINK_DEPTH
+                        + floor_probe_axial_clearance
+                        + floor_probe_dimensions[0] / 2.0
+                    ),
+                    LATCH_BASE_PIVOT_Y + floor_probe_radial_offset,
+                    LATCH_BASE_PIVOT_Z,
+                ),
+                countersink_floor_volumes,
+            ),
+            (
+                f"TEMPORARY_Latch_{index}_Nut_Recess_Floor_Solid_Probe",
+                (
+                    nut_face_x
+                    + outer_direction
+                    * (
+                        LATCH_FIXED_M3_NUT_DEPTH
+                        + floor_probe_axial_clearance
+                        + floor_probe_dimensions[0] / 2.0
+                    ),
+                    LATCH_BASE_PIVOT_Y + floor_probe_radial_offset,
+                    LATCH_BASE_PIVOT_Z,
+                ),
+                nut_floor_volumes,
+            ),
+        )
+        for probe_name, probe_location, output in floor_specs:
+            floor_probe = add_rounded_box(
+                probe_name,
+                floor_probe_dimensions,
+                probe_location,
+                bevel=0.0,
+            )
+            try:
+                _faces, floor_volume = exact_transformed_intersection(
+                    parts["base"],
+                    floor_probe,
+                    second_location=probe_location,
+                )
+            finally:
+                bpy.data.objects.remove(floor_probe, do_unlink=True)
+            output.append(floor_volume)
+
+    maximum_air_overlap = max(
+        *base_path_overlaps,
+        *lever_path_overlaps,
+        *head_overlaps,
+        *shaft_overlaps,
+        *nut_overlaps,
+    )
+    if maximum_air_overlap > 1e-6:
+        raise ValueError(
+            "Latch fixed-pivot M3 path or recessed hardware envelope is obstructed: "
+            f"maximum_volume={maximum_air_overlap:.6f} "
+            f"base_paths={base_path_overlaps} lever_paths={lever_path_overlaps} "
+            f"heads={head_overlaps} shafts={shaft_overlaps} nuts={nut_overlaps}"
+        )
+    if min(countersink_floor_volumes) < minimum_floor_fill:
+        raise ValueError(
+            "A latch M3 countersink breaks through its guard: "
+            f"volumes={countersink_floor_volumes} required={minimum_floor_fill}"
+        )
+    if min(nut_floor_volumes) < minimum_floor_fill:
+        raise ValueError(
+            "A latch captive M3 nut recess breaks through its guard: "
+            f"volumes={nut_floor_volumes} required={minimum_floor_fill}"
+        )
+
+    countersink_seat_inset = (
+        LATCH_FIXED_M3_COUNTERSINK_DIAMETER
+        - LATCH_FIXED_M3_MAX_HEAD_DIAMETER
+    ) / 2.0
+    reach_past_nut_floor = (
+        LATCH_FIXED_M3_BOLT_LENGTH
+        + countersink_seat_inset
+        - (LATCH_FIXED_M3_GUARD_SPAN - LATCH_FIXED_M3_NUT_DEPTH)
+    )
+    thread_engagement = min(
+        LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS,
+        reach_past_nut_floor,
+    )
+    tip_protrusion = (
+        LATCH_FIXED_M3_BOLT_LENGTH
+        + countersink_seat_inset
+        - LATCH_FIXED_M3_GUARD_SPAN
+    )
+    print(
+        "FIELD_CASE_LATCH_FIXED_M3_VALID "
+        f"latches={len(LATCH_X_CENTERS)} "
+        f"through_bore={LATCH_FIXED_M3_CLEARANCE_DIAMETER:.2f} "
+        f"path_probe={2.0 * path_probe_radius:.2f} "
+        f"air_overlap_max={maximum_air_overlap:.6f} "
+        f"countersink={LATCH_FIXED_M3_COUNTERSINK_DIAMETER:.2f}x"
+        f"{LATCH_FIXED_M3_COUNTERSINK_DEPTH:.2f} "
+        f"nut_recess={LATCH_FIXED_M3_NUT_ACROSS_FLATS:.2f}x"
+        f"{LATCH_FIXED_M3_NUT_DEPTH:.2f} "
+        f"floor_probe_span={floor_probe_dimensions[0]:.2f} "
+        f"countersink_floor_min={min(countersink_floor_volumes):.6f} "
+        f"nut_floor_min={min(nut_floor_volumes):.6f} "
+        f"screw=M3x{LATCH_FIXED_M3_BOLT_LENGTH:.0f} "
+        f"thread_engagement={thread_engagement:.2f} "
+        f"reach_past_nut_floor={reach_past_nut_floor:.2f} "
+        f"tip_protrusion={tip_protrusion:.2f}"
     )
 
 
@@ -6317,21 +6986,265 @@ def validate_installed_handle_mechanics(parts) -> None:
     )
 
 
+def installed_lid_pose(open_angle_degrees, lift=0.0):
+    """Return a lid transform with its receiver axis fixed on the base rod."""
+    rotation_x = math.pi - math.radians(open_angle_degrees)
+    local_axis_y = -HINGE_AXIS_Y
+    local_axis_z = LID_WALL_HEIGHT
+    rotated_axis_y = (
+        math.cos(rotation_x) * local_axis_y
+        - math.sin(rotation_x) * local_axis_z
+    )
+    rotated_axis_z = (
+        math.sin(rotation_x) * local_axis_y
+        + math.cos(rotation_x) * local_axis_z
+    )
+    return (
+        (
+            -LID_DISPLAY_OFFSET_X,
+            HINGE_AXIS_Y - rotated_axis_y,
+            BASE_HEIGHT - rotated_axis_z + lift,
+        ),
+        (rotation_x, 0.0, 0.0),
+    )
+
+
+def validate_installed_lid_hinge_release(parts) -> None:
+    """Prove the actual slot path stays blocked until deliberate release."""
+    release_travel = (
+        HINGE_OUTER_DIAMETER / 2.0
+        + HINGE_ROD_DIAMETER / 2.0
+        + 0.2
+    )
+    maximum_release_overlap = 0.0
+    maximum_seated_axial_contact = 0.0
+    minimum_pre_release_block = None
+    maximum_base_lid_release_overlap = 0.0
+    blocked_steps = math.ceil(
+        HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES
+        / HINGE_LID_PRE_RELEASE_SWEEP_STEP_DEGREES
+    )
+    blocked_angles = tuple(
+        HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES
+        * step
+        / blocked_steps
+        for step in range(blocked_steps + 1)
+    )
+    left_stop_inner_face = (
+        HINGE_BASE_SEGMENTS[0][0] - HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    right_stop_inner_face = (
+        HINGE_BASE_SEGMENTS[-1][1] + HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    rod_axial_offsets = (
+        -(
+            HINGE_ROD_X0
+            - left_stop_inner_face
+            - HINGE_ROD_RELEASE_AXIAL_VALIDATION_INSET
+        ),
+        0.0,
+        right_stop_inner_face
+        - HINGE_ROD_X1
+        - HINGE_ROD_RELEASE_AXIAL_VALIDATION_INSET,
+    )
+    rod_probe = add_cylinder_x(
+        "TEMPORARY_Installed_Full_151mm_Hinge_Rod_Probe",
+        HINGE_ROD_DIAMETER / 2.0,
+        HINGE_ROD_X1 - HINGE_ROD_X0,
+        (0.0, 0.0, 0.0),
+        vertices=90,
+    )
+    centered_rod_location = (
+        (HINGE_ROD_X0 + HINGE_ROD_X1) / 2.0,
+        HINGE_AXIS_Y,
+        BASE_HEIGHT,
+    )
+    try:
+        for blocked_angle in blocked_angles:
+            seated_location, blocked_rotation = installed_lid_pose(blocked_angle)
+            escape_y, escape_z = lid_hinge_escape_global_yz(blocked_angle)
+            maximum_path_block = 0.0
+            for sample_index in range(1, HINGE_LID_RELEASE_PATH_SAMPLES):
+                sample_travel = release_travel * sample_index / (
+                    HINGE_LID_RELEASE_PATH_SAMPLES - 1
+                )
+                blocked_location = (
+                    seated_location[0],
+                    seated_location[1] + escape_y * sample_travel,
+                    seated_location[2] + escape_z * sample_travel,
+                )
+                _rod_faces, rod_block = exact_transformed_intersection(
+                    parts["lid"],
+                    rod_probe,
+                    first_location=blocked_location,
+                    first_rotation=blocked_rotation,
+                    second_location=centered_rod_location,
+                    second_rotation=rod_probe.rotation_euler.copy(),
+                )
+                _base_faces, base_block = exact_transformed_intersection(
+                    parts["base"],
+                    parts["lid"],
+                    second_location=blocked_location,
+                    second_rotation=blocked_rotation,
+                )
+                maximum_path_block = max(
+                    maximum_path_block,
+                    rod_block,
+                    base_block,
+                )
+            if maximum_path_block <= 1e-6:
+                raise ValueError(
+                    "Lid can escape along its slot before the release angle: "
+                    f"angle={blocked_angle:.2f} travel={release_travel:.3f}"
+                )
+            minimum_pre_release_block = (
+                maximum_path_block
+                if minimum_pre_release_block is None
+                else min(minimum_pre_release_block, maximum_path_block)
+            )
+
+        release_location, release_rotation = installed_lid_pose(
+            HINGE_LID_RELEASE_ANGLE_DEGREES
+        )
+        escape_y, escape_z = lid_hinge_escape_global_yz(
+            HINGE_LID_RELEASE_ANGLE_DEGREES
+        )
+        for axial_offset in rod_axial_offsets:
+            rod_location = (
+                centered_rod_location[0] + axial_offset,
+                centered_rod_location[1],
+                centered_rod_location[2],
+            )
+            for sample_index in range(HINGE_LID_RELEASE_PATH_SAMPLES):
+                sample_travel = release_travel * sample_index / (
+                    HINGE_LID_RELEASE_PATH_SAMPLES - 1
+                )
+                lid_location = (
+                    release_location[0],
+                    release_location[1] + escape_y * sample_travel,
+                    release_location[2] + escape_z * sample_travel,
+                )
+                _release_faces, release_overlap = exact_transformed_intersection(
+                    parts["lid"],
+                    rod_probe,
+                    first_location=lid_location,
+                    first_rotation=release_rotation,
+                    second_location=rod_location,
+                    second_rotation=rod_probe.rotation_euler.copy(),
+                )
+                if sample_index == 0:
+                    maximum_seated_axial_contact = max(
+                        maximum_seated_axial_contact,
+                        release_overlap,
+                    )
+                elif release_overlap > 1e-6:
+                    raise ValueError(
+                        "Lid hinge obstructs its full-rod release path: "
+                        f"axial={axial_offset:+.3f} sample={sample_index} "
+                        f"angle={HINGE_LID_RELEASE_ANGLE_DEGREES:.1f} "
+                        f"travel={sample_travel:.3f} "
+                        f"volume={release_overlap:.6f}"
+                    )
+                if sample_index > 0:
+                    maximum_release_overlap = max(
+                        maximum_release_overlap,
+                        release_overlap,
+                    )
+        for sample_index in range(HINGE_LID_RELEASE_PATH_SAMPLES):
+            sample_travel = release_travel * sample_index / (
+                HINGE_LID_RELEASE_PATH_SAMPLES - 1
+            )
+            lid_location = (
+                release_location[0],
+                release_location[1] + escape_y * sample_travel,
+                release_location[2] + escape_z * sample_travel,
+            )
+            _faces, base_lid_overlap = exact_transformed_intersection(
+                parts["base"],
+                parts["lid"],
+                second_location=lid_location,
+                second_rotation=release_rotation,
+            )
+            if base_lid_overlap > 1e-6:
+                raise ValueError(
+                    "Base obstructs lid travel at the hinge release angle: "
+                    f"sample={sample_index} travel={sample_travel:.3f} "
+                    f"volume={base_lid_overlap:.6f}"
+                )
+            maximum_base_lid_release_overlap = max(
+                maximum_base_lid_release_overlap,
+                base_lid_overlap,
+            )
+    finally:
+        bpy.data.objects.remove(rod_probe, do_unlink=True)
+
+    print(
+        "FIELD_CASE_LID_HINGE_RELEASE_VALID "
+        f"blocked_angles=0.0-{blocked_angles[-1]:.1f} "
+        f"blocked_angle_samples={len(blocked_angles)} "
+        f"blocked_path_samples="
+        f"{len(blocked_angles) * (HINGE_LID_RELEASE_PATH_SAMPLES - 1)} "
+        f"blocked_intersection_min={minimum_pre_release_block:.6f} "
+        f"release_angle={HINGE_LID_RELEASE_ANGLE_DEGREES:.1f} "
+        f"release_full_rod_samples="
+        f"{len(rod_axial_offsets) * HINGE_LID_RELEASE_PATH_SAMPLES} "
+        f"rod_axial_offsets={','.join(f'{value:+.2f}' for value in rod_axial_offsets)} "
+        f"release_travel={release_travel:.3f} "
+        f"seated_axial_contact_max={maximum_seated_axial_contact:.6f} "
+        f"rod_overlap_max={maximum_release_overlap:.6f} "
+        f"base_overlap_max={maximum_base_lid_release_overlap:.6f}"
+    )
+
+
+def validate_installed_case_hinge_sweep(parts) -> None:
+    """Reject positive-volume base/lid collision through the working sweep."""
+    sweep_steps = math.ceil(
+        HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES / HINGE_OPEN_SWEEP_STEP_DEGREES
+    )
+    maximum_overlap = (0.0, 0.0)
+    for sample_index in range(sweep_steps + 1):
+        open_angle = (
+            HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES
+            * sample_index
+            / sweep_steps
+        )
+        lid_location, lid_rotation = installed_lid_pose(
+            open_angle,
+            0.01 if sample_index == 0 else 0.0,
+        )
+        _faces, overlap = exact_transformed_intersection(
+            parts["base"],
+            parts["lid"],
+            second_location=lid_location,
+            second_rotation=lid_rotation,
+        )
+        if overlap > maximum_overlap[0]:
+            maximum_overlap = (overlap, open_angle)
+        if overlap > 1e-6:
+            raise ValueError(
+                "Base/lid hinge sweep collides: "
+                f"angle={open_angle:.2f} volume={overlap:.6f}"
+            )
+    print(
+        "FIELD_CASE_HINGE_SWEEP_VALID "
+        f"samples={sweep_steps + 1} "
+        f"range=0.0-{HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES:.1f}deg "
+        f"maximum_intersection={maximum_overlap[0]:.6f}@"
+        f"{maximum_overlap[1]:.2f}deg"
+    )
+
+
 def validate_installed_case_closure(parts) -> None:
     """Reject positive-volume base/lid interference at the hard hinge seat."""
     # A 0.01 mm lift avoids treating the intentionally coincident hard-stop
     # surfaces as Boolean volume while remaining far smaller than printable
     # clearance.  Any unrelieved knuckle/rim collision remains positive here.
-    near_seated_lid_location = (
-        -LID_DISPLAY_OFFSET_X,
-        0.0,
-        LATCH_LID_INSTALLED_Z + 0.01,
-    )
+    near_seated_lid_location, closed_lid_rotation = installed_lid_pose(0.0, 0.01)
     faces, volume, bounds = exact_transformed_intersection(
         parts["base"],
         parts["lid"],
         second_location=near_seated_lid_location,
-        second_rotation=(math.pi, 0.0, 0.0),
+        second_rotation=closed_lid_rotation,
         return_bounds=True,
     )
     if faces or volume > 1e-6:
@@ -6347,7 +7260,7 @@ def validate_installed_case_closure(parts) -> None:
 
 
 def validate_built_base_hinge_gussets(base) -> None:
-    """Prove every support-free web is bonded and every pin bore stays open."""
+    """Prove every support-free web is bonded and every rod bore stays open."""
     ramp_mid_y = (HINGE_BASE_GUSSET_ROOT_Y + HINGE_BASE_GUSSET_TANGENT_Y) / 2.0
     ramp_mid_z = (HINGE_BASE_GUSSET_ROOT_Z + HINGE_BASE_GUSSET_TANGENT_Z) / 2.0
     solid_probe_size_yz = 0.3
@@ -6395,7 +7308,8 @@ def validate_built_base_hinge_gussets(base) -> None:
 
         bore_probe = add_cylinder_x(
             f"TEMPORARY_Base_Hinge_{index}_Open_Bore_Probe",
-            HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+            HINGE_BASE_HOLE_DIAMETER / 2.0
+            - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
             x1 - x0 - 0.8,
             ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
         )
@@ -6410,17 +7324,18 @@ def validate_built_base_hinge_gussets(base) -> None:
             bpy.data.objects.remove(bore_probe, do_unlink=True)
         if bore_faces or bore_overlap > 1e-6:
             raise ValueError(
-                "Base hinge pin bore is obstructed after gusseting: "
+                "Base hinge rod bore is obstructed after gusseting: "
                 f"segment={index} faces={bore_faces} volume={bore_overlap:.6f}"
             )
         bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
 
     full_path_probe = add_cylinder_x(
-        "TEMPORARY_Base_Full_Hinge_Pin_Path_Probe",
-        HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
-        HINGE_PIN_X1 - HINGE_PIN_X0,
+        "TEMPORARY_Base_Full_Hinge_Rod_Path_Probe",
+        HINGE_BASE_HOLE_DIAMETER / 2.0
+        - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+        HINGE_ROD_X1 - HINGE_ROD_X0,
         (
-            (HINGE_PIN_X0 + HINGE_PIN_X1) / 2.0,
+            (HINGE_ROD_X0 + HINGE_ROD_X1) / 2.0,
             HINGE_AXIS_Y,
             BASE_HEIGHT,
         ),
@@ -6436,7 +7351,7 @@ def validate_built_base_hinge_gussets(base) -> None:
         bpy.data.objects.remove(full_path_probe, do_unlink=True)
     if full_path_faces or full_path_overlap > 1e-6:
         raise ValueError(
-            "Base obstructs the continuous hinge pin path: "
+            "Base obstructs the continuous hinge rod path: "
             f"faces={full_path_faces} volume={full_path_overlap:.6f}"
         )
 
@@ -6446,7 +7361,7 @@ def validate_built_base_hinge_gussets(base) -> None:
             HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z,
         )
     )
-    bore_probe_diameter = HINGE_HOLE_DIAMETER - 2.0 * (
+    bore_probe_diameter = HINGE_BASE_HOLE_DIAMETER - 2.0 * (
         HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
     )
     print(
@@ -6459,17 +7374,20 @@ def validate_built_base_hinge_gussets(base) -> None:
         f"solid_probe_min={minimum_solid_fill:.6f} "
         f"bore_probe_diameter={bore_probe_diameter:.3f} "
         f"bore_overlap_max={bore_overlap_maximum:.6f} "
-        f"full_pin_path_overlap={full_path_overlap:.6f}"
+        f"full_rod_path_overlap={full_path_overlap:.6f}"
     )
 
 
-def validate_built_lid_hinge_bores(lid) -> None:
-    """Reject any rim material left inside either completed lid pin bore."""
+def validate_built_lid_hinge_receivers(lid) -> None:
+    """Prove each receiver and its angled release path stay open."""
     bore_overlap_maximum = 0.0
+    release_overlap_maximum = 0.0
+    release_samples = HINGE_LID_RELEASE_PATH_SAMPLES
     for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
         bore_probe = add_cylinder_x(
             f"TEMPORARY_Lid_Hinge_{index}_Open_Bore_Probe",
-            HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+            HINGE_LID_RECEIVER_DIAMETER / 2.0
+            - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
             x1 - x0 - 0.8,
             (
                 LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0,
@@ -6488,45 +7406,202 @@ def validate_built_lid_hinge_bores(lid) -> None:
             bpy.data.objects.remove(bore_probe, do_unlink=True)
         if bore_faces or bore_overlap > 1e-6:
             raise ValueError(
-                "Lid hinge pin bore is obstructed by the completed rim: "
+                "Lid hinge rod receiver is obstructed by the completed rim: "
                 f"segment={index} faces={bore_faces} volume={bore_overlap:.6f}"
             )
         bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
 
-    full_path_probe = add_cylinder_x(
-        "TEMPORARY_Lid_Full_Hinge_Pin_Path_Probe",
-        HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
-        HINGE_PIN_X1 - HINGE_PIN_X0,
+        rod_probe = add_cylinder_x(
+            f"TEMPORARY_Lid_Hinge_{index}_4p1mm_Release_Probe",
+            HINGE_ROD_DIAMETER / 2.0,
+            x1 - x0 - 0.8,
+            (0.0, 0.0, 0.0),
+            vertices=90,
+        )
+        try:
+            slot_opening_y, slot_opening_z = lid_hinge_slot_opening_local_yz()
+            release_travel = (
+                HINGE_OUTER_DIAMETER / 2.0
+                + HINGE_ROD_DIAMETER / 2.0
+                + 0.2
+            )
+            for sample_index in range(release_samples):
+                sample_travel = release_travel * sample_index / (
+                    release_samples - 1
+                )
+                release_faces, release_overlap = exact_transformed_intersection(
+                    lid,
+                    rod_probe,
+                    second_location=(
+                        LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0,
+                        -HINGE_AXIS_Y + slot_opening_y * sample_travel,
+                        LID_WALL_HEIGHT + slot_opening_z * sample_travel,
+                    ),
+                    second_rotation=rod_probe.rotation_euler.copy(),
+                )
+                if release_faces or release_overlap > 1e-6:
+                    raise ValueError(
+                        "Lid hinge slot obstructs 4.1 mm rod release: "
+                        f"segment={index} sample={sample_index} "
+                        f"faces={release_faces} volume={release_overlap:.6f}"
+                    )
+                release_overlap_maximum = max(
+                    release_overlap_maximum,
+                    release_overlap,
+                )
+        finally:
+            bpy.data.objects.remove(rod_probe, do_unlink=True)
+
+    full_receiver_path_probe = add_cylinder_x(
+        "TEMPORARY_Lid_Full_Hinge_Receiver_Path_Probe",
+        HINGE_LID_RECEIVER_DIAMETER / 2.0
+        - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+        HINGE_ROD_X1 - HINGE_ROD_X0,
         (
-            LID_DISPLAY_OFFSET_X + (HINGE_PIN_X0 + HINGE_PIN_X1) / 2.0,
+            LID_DISPLAY_OFFSET_X + (HINGE_ROD_X0 + HINGE_ROD_X1) / 2.0,
             -HINGE_AXIS_Y,
             LID_WALL_HEIGHT,
         ),
     )
     try:
-        full_path_faces, full_path_overlap = exact_transformed_intersection(
+        (
+            full_receiver_path_faces,
+            full_receiver_path_overlap,
+        ) = exact_transformed_intersection(
             lid,
-            full_path_probe,
-            second_location=full_path_probe.location.copy(),
-            second_rotation=full_path_probe.rotation_euler.copy(),
+            full_receiver_path_probe,
+            second_location=full_receiver_path_probe.location.copy(),
+            second_rotation=full_receiver_path_probe.rotation_euler.copy(),
         )
     finally:
-        bpy.data.objects.remove(full_path_probe, do_unlink=True)
-    if full_path_faces or full_path_overlap > 1e-6:
+        bpy.data.objects.remove(full_receiver_path_probe, do_unlink=True)
+    if full_receiver_path_faces or full_receiver_path_overlap > 1e-6:
         raise ValueError(
-            "Lid obstructs the continuous hinge pin path: "
-            f"faces={full_path_faces} volume={full_path_overlap:.6f}"
+            "Lid obstructs the continuous full-diameter hinge receiver path: "
+            f"faces={full_receiver_path_faces} "
+            f"volume={full_receiver_path_overlap:.6f}"
         )
 
-    probe_diameter = HINGE_HOLE_DIAMETER - 2.0 * (
+    probe_diameter = HINGE_LID_RECEIVER_DIAMETER - 2.0 * (
         HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
     )
     print(
-        "FIELD_CASE_LID_HINGE_BORES_VALID "
+        "FIELD_CASE_LID_HINGE_RECEIVERS_VALID "
         f"count={len(HINGE_LID_SEGMENTS)} "
         f"probe_diameter={probe_diameter:.3f} "
+        f"slot_width={HINGE_LID_SLOT_WIDTH:.3f} "
+        f"slot_tilt={HINGE_LID_SLOT_TILT_DEGREES:.1f}deg "
+        f"rod_diameter={HINGE_ROD_DIAMETER:.3f} "
+        f"release_angle={HINGE_LID_RELEASE_ANGLE_DEGREES:.1f} "
+        f"release_samples={len(HINGE_LID_SEGMENTS) * release_samples} "
+        f"release_overlap_max={release_overlap_maximum:.6f} "
         f"overlap_max={bore_overlap_maximum:.6f} "
-        f"full_pin_path_overlap={full_path_overlap:.6f}"
+        f"full_receiver_path_overlap={full_receiver_path_overlap:.6f}"
+    )
+
+
+def validate_built_lid_hinge_end_stops(lid) -> None:
+    """Prove both solid lid bosses block axial escape of the shortened rod."""
+    minimum_solid_fill = None
+    retention_volumes = []
+    solid_probe_radius = HINGE_LID_END_STOP_DIAMETER / 2.0 - 0.2
+    solid_probe_length = HINGE_LID_END_STOP_LENGTH - 0.4
+    required_solid_fill = (
+        math.pi * solid_probe_radius**2 * solid_probe_length * 0.95
+    )
+
+    end_specs = (
+        (-1.0, HINGE_BASE_SEGMENTS[0][0], HINGE_ROD_X0),
+        (1.0, HINGE_BASE_SEGMENTS[-1][1], HINGE_ROD_X1),
+    )
+    for side, base_outer_face, rod_end_x in end_specs:
+        stop_inner_face = (
+            base_outer_face + side * HINGE_LID_END_STOP_BASE_CLEARANCE
+        )
+        stop_center_x = (
+            stop_inner_face + side * HINGE_LID_END_STOP_LENGTH / 2.0
+        )
+        solid_probe = add_cylinder_x(
+            "TEMPORARY_Lid_Hinge_Solid_End_Stop_Probe",
+            solid_probe_radius,
+            solid_probe_length,
+            (
+                LID_DISPLAY_OFFSET_X + stop_center_x,
+                -HINGE_AXIS_Y,
+                LID_WALL_HEIGHT,
+            ),
+            vertices=90,
+        )
+        try:
+            _faces, solid_fill = exact_transformed_intersection(
+                lid,
+                solid_probe,
+                second_location=solid_probe.location.copy(),
+                second_rotation=solid_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(solid_probe, do_unlink=True)
+        if solid_fill < required_solid_fill:
+            raise ValueError(
+                "Lid hinge rod end stop is not solid: "
+                f"side={side:+.0f} volume={solid_fill:.6f} "
+                f"required={required_solid_fill:.6f}"
+            )
+        minimum_solid_fill = (
+            solid_fill
+            if minimum_solid_fill is None
+            else min(minimum_solid_fill, solid_fill)
+        )
+
+        rod_end_clearance = abs(stop_inner_face - rod_end_x)
+        retention_probe = add_cylinder_x(
+            "TEMPORARY_Lid_Hinge_Axial_Rod_Retention_Probe",
+            HINGE_ROD_DIAMETER / 2.0,
+            HINGE_ROD_X1 - HINGE_ROD_X0,
+            (0.0, 0.0, 0.0),
+            vertices=90,
+        )
+        try:
+            retention_faces, retention_volume = exact_transformed_intersection(
+                lid,
+                retention_probe,
+                second_location=(
+                    LID_DISPLAY_OFFSET_X + side * (rod_end_clearance + 0.1),
+                    -HINGE_AXIS_Y,
+                    LID_WALL_HEIGHT,
+                ),
+                second_rotation=retention_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(retention_probe, do_unlink=True)
+        if not retention_faces or retention_volume < 0.5:
+            raise ValueError(
+                "Lid hinge end stop does not retain axial rod travel: "
+                f"side={side:+.0f} volume={retention_volume:.6f}"
+            )
+        retention_volumes.append(retention_volume)
+
+    left_stop_inner_face = (
+        HINGE_BASE_SEGMENTS[0][0] - HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    right_stop_inner_face = (
+        HINGE_BASE_SEGMENTS[-1][1] + HINGE_LID_END_STOP_BASE_CLEARANCE
+    )
+    axial_play = (
+        right_stop_inner_face
+        - left_stop_inner_face
+        - (HINGE_ROD_X1 - HINGE_ROD_X0)
+    )
+    print(
+        "FIELD_CASE_LID_HINGE_END_STOPS_VALID "
+        "count=2 "
+        f"diameter={HINGE_LID_END_STOP_DIAMETER:.3f} "
+        f"length={HINGE_LID_END_STOP_LENGTH:.3f} "
+        f"base_axial_clearance={HINGE_LID_END_STOP_BASE_CLEARANCE:.3f} "
+        f"rod_length={HINGE_ROD_X1 - HINGE_ROD_X0:.3f} "
+        f"rod_axial_play={axial_play:.3f} "
+        f"solid_probe_min={minimum_solid_fill:.6f} "
+        f"retention_probe_min={min(retention_volumes):.6f}"
     )
 
 
@@ -8079,11 +9154,15 @@ def build_mission1_field_case():
         validate_built_part(name, obj)
     validate_installed_lower_tray(parts)
     validate_built_base_hinge_gussets(parts["base"])
-    validate_built_lid_hinge_bores(parts["lid"])
+    validate_built_lid_hinge_receivers(parts["lid"])
+    validate_built_lid_hinge_end_stops(parts["lid"])
+    validate_installed_lid_hinge_release(parts)
+    validate_installed_case_hinge_sweep(parts)
     validate_installed_case_closure(parts)
     validate_built_lid_capture_rails(parts["lid"])
     validate_built_latch_hook_capture(parts["latch_hook"])
     validate_built_latch_impact_protectors(parts)
+    validate_built_latch_fixed_m3_hardware(parts)
     validate_installed_latch_mechanics(parts)
     validate_installed_handle_mechanics(parts)
     lid_payload = evaluated_mesh_payload(parts["lid"], Vector((0.0, 0.0, 0.0)))
