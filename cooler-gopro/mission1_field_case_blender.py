@@ -355,12 +355,16 @@ GASKET_CHANNEL_DEPTH = 1.2
 GASKET_HEIGHT = 1.45
 GASKET_FIT_CLEARANCE = 0.2
 
-# Hinge axis is along X.  The pin hole is generous enough for a metal rod or
-# the included flat-bottom printable D-profile pin.
+# Hinge axis is along X.  A 4.1 mm rod runs only through the base knuckles;
+# each lid knuckle has an upward-facing slot in print orientation (downward
+# when installed) so the complete lid can slide onto an already-installed rod.
 HINGE_AXIS_Y = CASE_DEPTH / 2.0 + 3.8
 HINGE_OUTER_DIAMETER = 10.0
-HINGE_HOLE_DIAMETER = 3.5
-HINGE_PIN_DIAMETER = 2.9
+HINGE_ROD_DIAMETER = 4.1
+HINGE_BASE_HOLE_DIAMETER = 4.5
+HINGE_LID_RECEIVER_DIAMETER = 4.5
+HINGE_LID_SLOT_WIDTH = 4.3
+HINGE_PIN_DIAMETER = HINGE_ROD_DIAMETER
 HINGE_BASE_SEGMENTS = ((-76.0, -42.0), (-18.0, 18.0), (42.0, 76.0))
 HINGE_LID_SEGMENTS = ((-41.4, -18.6), (18.6, 41.4))
 HINGE_RIM_RELIEF_RADIAL_CLEARANCE = 0.4
@@ -3206,14 +3210,24 @@ def validate_configuration() -> None:
         raise ValueError("Alternating hinge segments need clearance between barrels")
     if HINGE_RIM_RELIEF_RADIAL_CLEARANCE < LID_LATCH_LIP_DRAW + 0.1:
         raise ValueError("Hinge rim relief must accommodate the full lid take-up")
-    hinge_bore_probe_diameter = HINGE_HOLE_DIAMETER - 2.0 * (
+    base_hinge_bore_probe_diameter = HINGE_BASE_HOLE_DIAMETER - 2.0 * (
+        HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
+    )
+    lid_receiver_probe_diameter = HINGE_LID_RECEIVER_DIAMETER - 2.0 * (
         HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
     )
     if not (
         0.0 < HINGE_BORE_VALIDATION_RADIAL_CLEARANCE <= 0.01
-        and hinge_bore_probe_diameter > HINGE_PIN_DIAMETER
+        and base_hinge_bore_probe_diameter > HINGE_ROD_DIAMETER
+        and lid_receiver_probe_diameter > HINGE_ROD_DIAMETER
     ):
-        raise ValueError("Hinge bore validation probe must remain near-nominal")
+        raise ValueError("Hinge rod clearances must remain positive and near-nominal")
+    if not (
+        HINGE_ROD_DIAMETER < HINGE_LID_SLOT_WIDTH < HINGE_LID_RECEIVER_DIAMETER
+    ):
+        raise ValueError(
+            "Lid hinge slot must clear the rod but remain narrower than its receiver"
+        )
     if HINGE_PIN_PATH_AXIAL_CLEARANCE < HINGE_RIM_RELIEF_AXIAL_CLEARANCE:
         raise ValueError("Lid rim relief must cover the complete hinge pin path")
     hinge_gusset_run = HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y
@@ -3229,7 +3243,10 @@ def validate_configuration() -> None:
         raise ValueError("Base hinge gusset intrudes into the locked internal depth")
     if not BASE_FLOOR_THICKNESS < HINGE_BASE_GUSSET_ROOT_Z:
         raise ValueError("Base hinge gusset root must remain above the case floor")
-    if not (HINGE_BASE_GUSSET_TANGENT_Z < BASE_HEIGHT - HINGE_HOLE_DIAMETER / 2.0):
+    if not (
+        HINGE_BASE_GUSSET_TANGENT_Z
+        < BASE_HEIGHT - HINGE_BASE_HOLE_DIAMETER / 2.0
+    ):
         raise ValueError("Base hinge gusset must remain below the pin bore")
 
     retainer_width = tray_width
@@ -4089,7 +4106,11 @@ def validate_configuration() -> None:
         f"handle_folded_face_gap={folded_handle_face_gap:.2f} "
         f"handle_grip_width={HANDLE_BAR_INNER_WIDTH:.2f} "
         f"handle_center_z={HANDLE_PIVOT_Z:.2f} "
-        f"handle_raised_finger_gap={handle_raised_finger_gap:.2f}"
+        f"handle_raised_finger_gap={handle_raised_finger_gap:.2f} "
+        f"hinge_rod={HINGE_ROD_DIAMETER:.2f} "
+        f"hinge_base_bore={HINGE_BASE_HOLE_DIAMETER:.2f} "
+        f"hinge_lid_receiver={HINGE_LID_RECEIVER_DIAMETER:.2f} "
+        f"hinge_lid_slot={HINGE_LID_SLOT_WIDTH:.2f}"
     )
     print(
         "FIELD_CASE_PRINT_ENVELOPES "
@@ -4153,7 +4174,8 @@ def create_base(material):
         )
         difference_from(base, relief)
 
-    # Alternating hinge knuckles share one continuous 3.5 mm pin bore.  A
+    # The base knuckles share one continuous 4.5 mm path for the user's 4.1 mm
+    # rod.  This bore enlargement is the only base-side hinge change.  A
     # full-width lower web rises from the rear wall at 45 degrees and meets
     # each barrel tangentially, eliminating its unsupported lower arc while
     # adding substantially more bonded section at the shell.
@@ -4174,7 +4196,7 @@ def create_base(material):
         union_into(base, knuckle)
         hole = add_teardrop_hole_x(
             f"Base_Hinge_Hole_{index}",
-            HINGE_HOLE_DIAMETER / 2.0,
+            HINGE_BASE_HOLE_DIAMETER / 2.0,
             x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
             ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
             arc_steps=90,
@@ -4674,9 +4696,10 @@ def create_lid(
 
     # In print orientation the lid's hinge is at -Y; flipping the finished lid
     # around X places it on the base's +Y hinge line.  Union each barrel into
-    # the complete flared rim before drilling through the combined solid.  If
-    # the barrel were drilled first, the later rim union would refill the lower
-    # half of its pin bore.
+    # the complete flared rim, cut a round 4.5 mm receiver, then open that
+    # receiver through the barrel's print-facing top with a 4.3 mm slot.  The
+    # slot faces downward when installed, letting the complete lid slide over
+    # an already-installed 4.1 mm base rod like the supplied Pelican reference.
     for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
         knuckle = add_cylinder_x(
             f"Lid_Hinge_Knuckle_{index}",
@@ -4685,14 +4708,31 @@ def create_lid(
             (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
         )
         union_into(lid, knuckle)
-        hole = add_teardrop_hole_x(
-            f"Lid_Hinge_Hole_{index}",
-            HINGE_HOLE_DIAMETER / 2.0,
+        receiver = add_cylinder_x(
+            f"Lid_Hinge_Open_Rod_Receiver_{index}",
+            HINGE_LID_RECEIVER_DIAMETER / 2.0,
             x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
             (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
-            arc_steps=90,
+            vertices=90,
         )
-        difference_from(lid, hole)
+        difference_from(lid, receiver)
+        slot_z0 = LID_WALL_HEIGHT - 0.2
+        slot_z1 = LID_WALL_HEIGHT + HINGE_OUTER_DIAMETER / 2.0 + 0.8
+        slot = add_rounded_box(
+            f"Lid_Hinge_Drop_On_Slot_{index}",
+            (
+                x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+                HINGE_LID_SLOT_WIDTH,
+                slot_z1 - slot_z0,
+            ),
+            (
+                dx + (x0 + x1) / 2.0,
+                -HINGE_AXIS_Y,
+                (slot_z0 + slot_z1) / 2.0,
+            ),
+            bevel=0.0,
+        )
+        difference_from(lid, slot)
 
     # The asymmetric interior boss mates with the TPU pad's open perimeter
     # notch.  A 180-degree-misrotated pad therefore cannot sit flat with its
@@ -6527,7 +6567,8 @@ def validate_built_base_hinge_gussets(base) -> None:
 
         bore_probe = add_cylinder_x(
             f"TEMPORARY_Base_Hinge_{index}_Open_Bore_Probe",
-            HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+            HINGE_BASE_HOLE_DIAMETER / 2.0
+            - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
             x1 - x0 - 0.8,
             ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
         )
@@ -6549,7 +6590,8 @@ def validate_built_base_hinge_gussets(base) -> None:
 
     full_path_probe = add_cylinder_x(
         "TEMPORARY_Base_Full_Hinge_Pin_Path_Probe",
-        HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+        HINGE_BASE_HOLE_DIAMETER / 2.0
+        - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
         HINGE_PIN_X1 - HINGE_PIN_X0,
         (
             (HINGE_PIN_X0 + HINGE_PIN_X1) / 2.0,
@@ -6578,7 +6620,7 @@ def validate_built_base_hinge_gussets(base) -> None:
             HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z,
         )
     )
-    bore_probe_diameter = HINGE_HOLE_DIAMETER - 2.0 * (
+    bore_probe_diameter = HINGE_BASE_HOLE_DIAMETER - 2.0 * (
         HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
     )
     print(
@@ -6595,13 +6637,16 @@ def validate_built_base_hinge_gussets(base) -> None:
     )
 
 
-def validate_built_lid_hinge_bores(lid) -> None:
-    """Reject any rim material left inside either completed lid pin bore."""
+def validate_built_lid_hinge_receivers(lid) -> None:
+    """Prove each lid receiver and its radial 4.1 mm rod path remain open."""
     bore_overlap_maximum = 0.0
+    insertion_overlap_maximum = 0.0
+    insertion_samples = 9
     for index, (x0, x1) in enumerate(HINGE_LID_SEGMENTS, start=1):
         bore_probe = add_cylinder_x(
             f"TEMPORARY_Lid_Hinge_{index}_Open_Bore_Probe",
-            HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+            HINGE_LID_RECEIVER_DIAMETER / 2.0
+            - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
             x1 - x0 - 0.8,
             (
                 LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0,
@@ -6620,14 +6665,56 @@ def validate_built_lid_hinge_bores(lid) -> None:
             bpy.data.objects.remove(bore_probe, do_unlink=True)
         if bore_faces or bore_overlap > 1e-6:
             raise ValueError(
-                "Lid hinge pin bore is obstructed by the completed rim: "
+                "Lid hinge rod receiver is obstructed by the completed rim: "
                 f"segment={index} faces={bore_faces} volume={bore_overlap:.6f}"
             )
         bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
 
+        rod_probe = add_cylinder_x(
+            f"TEMPORARY_Lid_Hinge_{index}_4p1mm_Insertion_Probe",
+            HINGE_ROD_DIAMETER / 2.0,
+            x1 - x0 - 0.8,
+            (0.0, 0.0, 0.0),
+            vertices=90,
+        )
+        try:
+            insertion_start_z = (
+                LID_WALL_HEIGHT
+                + HINGE_OUTER_DIAMETER / 2.0
+                + HINGE_ROD_DIAMETER / 2.0
+                + 0.2
+            )
+            for sample_index in range(insertion_samples):
+                sample_z = insertion_start_z + (
+                    LID_WALL_HEIGHT - insertion_start_z
+                ) * sample_index / (insertion_samples - 1)
+                insertion_faces, insertion_overlap = exact_transformed_intersection(
+                    lid,
+                    rod_probe,
+                    second_location=(
+                        LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0,
+                        -HINGE_AXIS_Y,
+                        sample_z,
+                    ),
+                    second_rotation=rod_probe.rotation_euler.copy(),
+                )
+                if insertion_faces or insertion_overlap > 1e-6:
+                    raise ValueError(
+                        "Lid hinge slot obstructs 4.1 mm rod insertion: "
+                        f"segment={index} sample={sample_index} "
+                        f"faces={insertion_faces} volume={insertion_overlap:.6f}"
+                    )
+                insertion_overlap_maximum = max(
+                    insertion_overlap_maximum,
+                    insertion_overlap,
+                )
+        finally:
+            bpy.data.objects.remove(rod_probe, do_unlink=True)
+
     full_path_probe = add_cylinder_x(
         "TEMPORARY_Lid_Full_Hinge_Pin_Path_Probe",
-        HINGE_HOLE_DIAMETER / 2.0 - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
+        HINGE_LID_RECEIVER_DIAMETER / 2.0
+        - HINGE_BORE_VALIDATION_RADIAL_CLEARANCE,
         HINGE_PIN_X1 - HINGE_PIN_X0,
         (
             LID_DISPLAY_OFFSET_X + (HINGE_PIN_X0 + HINGE_PIN_X1) / 2.0,
@@ -6646,17 +6733,21 @@ def validate_built_lid_hinge_bores(lid) -> None:
         bpy.data.objects.remove(full_path_probe, do_unlink=True)
     if full_path_faces or full_path_overlap > 1e-6:
         raise ValueError(
-            "Lid obstructs the continuous hinge pin path: "
+            "Lid obstructs the continuous hinge rod path: "
             f"faces={full_path_faces} volume={full_path_overlap:.6f}"
         )
 
-    probe_diameter = HINGE_HOLE_DIAMETER - 2.0 * (
+    probe_diameter = HINGE_LID_RECEIVER_DIAMETER - 2.0 * (
         HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
     )
     print(
-        "FIELD_CASE_LID_HINGE_BORES_VALID "
+        "FIELD_CASE_LID_HINGE_RECEIVERS_VALID "
         f"count={len(HINGE_LID_SEGMENTS)} "
         f"probe_diameter={probe_diameter:.3f} "
+        f"slot_width={HINGE_LID_SLOT_WIDTH:.3f} "
+        f"rod_diameter={HINGE_ROD_DIAMETER:.3f} "
+        f"insertion_samples={len(HINGE_LID_SEGMENTS) * insertion_samples} "
+        f"insertion_overlap_max={insertion_overlap_maximum:.6f} "
         f"overlap_max={bore_overlap_maximum:.6f} "
         f"full_pin_path_overlap={full_path_overlap:.6f}"
     )
@@ -8207,7 +8298,7 @@ def build_mission1_field_case():
         validate_built_part(name, obj)
     validate_installed_lower_tray(parts)
     validate_built_base_hinge_gussets(parts["base"])
-    validate_built_lid_hinge_bores(parts["lid"])
+    validate_built_lid_hinge_receivers(parts["lid"])
     validate_installed_case_closure(parts)
     validate_built_lid_capture_rails(parts["lid"])
     validate_built_latch_hook_capture(parts["latch_hook"])

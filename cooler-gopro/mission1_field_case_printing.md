@@ -267,17 +267,20 @@ Each of the three base knuckles now has a full-width tapered web beneath its
 barrel. The web begins 0.3 mm inside the rear case wall, rises outward at 45
 degrees, and joins the 10 mm barrel at its lower-outboard tangent. This removes
 the unsupported lower circular arc and gives the barrel a much larger load path
-into the shell without changing the hinge axis, 3.5 mm bore, alternating axial
-clearances, or internal case dimensions. Print the base upright as exported;
-the hinge webs are designed not to require support.
+into the shell without changing the hinge axis, alternating axial clearances,
+or internal case dimensions. Its original pin path is enlarged only to a 4.5
+mm bore so the requested 4.1 mm bar can pass through all three base knuckles.
+Print the base upright as exported; the hinge webs are designed not to require
+support.
 
-The lid barrels are fused into the complete flared rim before their 3.5 mm
-bores are drilled through the combined solid. This keeps the rim from filling
-the lower half of either opening. All five horizontal hinge bores use a
-teardrop profile: the 3.5 mm circular pin clearance remains intact below a
-45-degree self-supporting roof, so the holes print without internal support.
-Generation verifies every finished bore and the complete 154 mm pin path
-through both rigid case halves with 3.49 mm cylindrical clearance probes.
+The lid barrels are fused into the complete flared rim before their 4.5 mm
+round receivers are opened through the print-facing top by 4.3 mm slots. After
+the lid is flipped into its installed orientation, these slots face downward:
+align them over the bar and lower/slide the lid onto it. The 0.2 mm slot
+clearance lets a nominal 4.1 mm bar pass without forcing a snap fit, while the
+10 mm outside diameter leaves 2.75 mm of radial barrel wall. Generation checks
+the complete insertion path at nine positions per lid knuckle, both finished
+receivers, and the continuous 154 mm hinge path.
 
 ## Suggested printing
 
@@ -295,7 +298,9 @@ through both rigid case halves with 3.49 mm cylindrical clearance probes.
   exported orientations. Their broad faces are already on the bed.
 - The case-side latch and handle mounts rise on 45-degree lower webs and do not
   require support. Do not place support inside their teardrop pivot bores.
-- Print the hinge pin on its D-shaped flat. A 3 mm metal rod can replace it.
+- Print the optional 4.1 mm hinge pin on its D-shaped flat, or cut a 4.1 mm
+  metal bar to 154 mm. Verify the actual bar against a small bore test before
+  printing the full base.
 
 Test camera, battery, latch, handle, and hinge fits before field use. Pocket,
 pivot, and press-fit dimensions are constants near the top of the Python file
@@ -307,8 +312,9 @@ and can be regenerated without editing an STL.
    doors in the shallow outer pockets if carried; each door remains 7 mm proud.
 2. Seat the TPU gasket in the lid channel. Fit the TPU pad with its asymmetric
    notch over the matching rigid boss.
-3. Alternate the base and lid hinge knuckles, then insert the printed hinge pin
-   or a 3 mm metal rod.
+3. Feed the 4.1 mm bar (or printed D-profile pin) through the three base
+   knuckles. Align the two lid receiver slots above the installed bar and
+   lower/slide the lid onto it; the bar does not need to pass through the lid.
 4. Install each latch with rods cut to `LATCH_FIXED_ROD_LENGTH` and
    `LATCH_LINK_ROD_LENGTH`, then install the separate handle bar with two 12 mm
    lengths of 4 mm rod by default or with regenerated M4 hardware.
