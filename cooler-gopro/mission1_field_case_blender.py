@@ -47,8 +47,8 @@ all ten printable-part STLs and ``mission1_field_case_ams_project.3mf``.
 The 3MF contains the complete six-plate project; its lid is one compound object
 with a black shell and one raised orange text-and-block body.  The standalone
 lid STLs remain available for other slicers.  Print two copies each of the
-latch lever and hook STLs.  An M3 countersunk screw and captive nut mount each
-lever between integrated case guards, and a 4 mm rod joins its moving hook.
+latch lever and hook STLs.  An M3 Allen socket-head screw and captive nut mount
+each lever between integrated case guards, and a 4 mm rod joins its moving hook.
 The handle bar is a separate print and its mounting lugs are generated as part
 of the base shell.
 
@@ -479,7 +479,7 @@ PIVOT_MOUNT_RAMP_VERTICAL_MARGIN = 0.5
 # scaled to 80% for this shorter case.  The lever's fixed and moving bores are
 # 4.4 mm running fit around their 4 mm moving-link rod.  The hook cheeks retain
 # that rod in a 3.9 mm press-fit bore.  The fixed lever pivot instead uses one
-# M3 countersunk screw through both integrated case guards and a 3.5 mm
+# M3 Allen socket-head screw through both integrated case guards and a 3.5 mm
 # easy-running lever bore, with a captive nut on the case-center side.
 # The source visualization contained rigid-body overlaps; only their internal
 # 0-to-80-degree relative sweep was relieved before the meshes were embedded.
@@ -489,19 +489,19 @@ LATCH_PRESS_FIT_BORE_DIAMETER = 3.9
 LATCH_RUNNING_BORE_DIAMETER = 4.4
 LATCH_FIXED_M3_NOMINAL_DIAMETER = 3.0
 LATCH_FIXED_M3_CLEARANCE_DIAMETER = 3.5
-LATCH_FIXED_M3_COUNTERSINK_DIAMETER = 6.4
-LATCH_FIXED_M3_COUNTERSINK_DEPTH = (
-    LATCH_FIXED_M3_COUNTERSINK_DIAMETER
-    - LATCH_FIXED_M3_CLEARANCE_DIAMETER
-) / 2.0
-LATCH_FIXED_M3_MAX_HEAD_DIAMETER = 6.0
+LATCH_FIXED_M3_COUNTERBORE_DIAMETER = 6.0
+LATCH_FIXED_M3_COUNTERBORE_DEPTH = 3.2
+LATCH_FIXED_M3_MAX_HEAD_DIAMETER = 5.5
+LATCH_FIXED_M3_MAX_HEAD_HEIGHT = 3.0
+LATCH_FIXED_M3_SOCKET_ACROSS_FLATS = 2.5
+LATCH_FIXED_M3_SOCKET_DEPTH = 1.5
 LATCH_FIXED_M3_NUT_ACROSS_FLATS = 5.8
 LATCH_FIXED_M3_NOMINAL_NUT_ACROSS_FLATS = 5.5
 LATCH_FIXED_M3_NUT_DEPTH = 2.7
 LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS = 2.4
 LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL = 0.2
 LATCH_FIXED_M3_MIN_RECESS_FLOOR = 1.0
-LATCH_FIXED_M3_BOLT_LENGTH = 35.0
+LATCH_FIXED_M3_BOLT_LENGTH = 30.0
 LATCH_FIXED_M3_MIN_THREAD_ENGAGEMENT = LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS
 LATCH_FIXED_M3_MAX_TIP_PROTRUSION = 3.0
 LATCH_LID_INSTALLED_Z = BASE_HEIGHT + LID_WALL_HEIGHT
@@ -3774,23 +3774,32 @@ def validate_configuration() -> None:
     )
     if fixed_m3_clearance < 0.4:
         raise ValueError("Latch fixed pivots need an easy-running M3 clearance")
-    countersink_diametral_clearance = (
-        LATCH_FIXED_M3_COUNTERSINK_DIAMETER
+    counterbore_diametral_clearance = (
+        LATCH_FIXED_M3_COUNTERBORE_DIAMETER
         - LATCH_FIXED_M3_MAX_HEAD_DIAMETER
     )
-    if countersink_diametral_clearance < 0.4:
-        raise ValueError("Latch M3 countersinks do not fully contain the screw heads")
-    expected_countersink_depth = (
-        LATCH_FIXED_M3_COUNTERSINK_DIAMETER
-        - LATCH_FIXED_M3_CLEARANCE_DIAMETER
+    if counterbore_diametral_clearance < 0.4:
+        raise ValueError("Latch M3 counterbores do not clear the socket heads")
+    counterbore_depth_clearance = (
+        LATCH_FIXED_M3_COUNTERBORE_DEPTH - LATCH_FIXED_M3_MAX_HEAD_HEIGHT
+    )
+    if counterbore_depth_clearance < 0.2 - 1e-6:
+        raise ValueError("Latch M3 socket heads are not fully recessed")
+    if LATCH_FIXED_M3_SOCKET_ACROSS_FLATS <= 0.0:
+        raise ValueError("Latch M3 Allen socket across-flats must be positive")
+    socket_head_radial_wall = (
+        LATCH_FIXED_M3_MAX_HEAD_DIAMETER
+        - 2.0 * LATCH_FIXED_M3_SOCKET_ACROSS_FLATS / math.sqrt(3.0)
     ) / 2.0
-    if not math.isclose(
-        LATCH_FIXED_M3_COUNTERSINK_DEPTH,
-        expected_countersink_depth,
-        abs_tol=1e-6,
-    ):
-        raise ValueError("Latch fixed-pivot countersink is not 90 degrees")
-    countersink_seat_inset = countersink_diametral_clearance / 2.0
+    if socket_head_radial_wall < 1.0:
+        raise ValueError("Latch M3 Allen socket leaves too little head material")
+    if LATCH_FIXED_M3_SOCKET_DEPTH <= 0.0:
+        raise ValueError("Latch M3 Allen socket depth must be positive")
+    socket_head_bottom = (
+        LATCH_FIXED_M3_MAX_HEAD_HEIGHT - LATCH_FIXED_M3_SOCKET_DEPTH
+    )
+    if socket_head_bottom < 1.0:
+        raise ValueError("Latch M3 Allen socket is too deep for the screw head")
     nut_diametral_clearance = (
         LATCH_FIXED_M3_NUT_ACROSS_FLATS
         - LATCH_FIXED_M3_NOMINAL_NUT_ACROSS_FLATS
@@ -3801,15 +3810,18 @@ def validate_configuration() -> None:
     )
     if nut_diametral_clearance < 0.2 or nut_depth_clearance < 0.2:
         raise ValueError("Latch captive M3 nut recess is too tight")
-    countersink_floor = (
-        LATCH_PROTECTOR_BASE_WIDTH - LATCH_FIXED_M3_COUNTERSINK_DEPTH
+    counterbore_floor = (
+        LATCH_PROTECTOR_BASE_WIDTH - LATCH_FIXED_M3_COUNTERBORE_DEPTH
     )
     nut_recess_floor = LATCH_PROTECTOR_BASE_WIDTH - LATCH_FIXED_M3_NUT_DEPTH
-    if min(countersink_floor, nut_recess_floor) < LATCH_FIXED_M3_MIN_RECESS_FLOOR:
+    if (
+        min(counterbore_floor, nut_recess_floor)
+        < LATCH_FIXED_M3_MIN_RECESS_FLOOR
+    ):
         raise ValueError("Latch guard recesses leave too little material behind them")
     fixed_m3_reach_past_nut_floor = (
         LATCH_FIXED_M3_BOLT_LENGTH
-        + countersink_seat_inset
+        + LATCH_FIXED_M3_COUNTERBORE_DEPTH
         - (LATCH_FIXED_M3_GUARD_SPAN - LATCH_FIXED_M3_NUT_DEPTH)
     )
     fixed_m3_thread_engagement = min(
@@ -3818,7 +3830,7 @@ def validate_configuration() -> None:
     )
     fixed_m3_tip_protrusion = (
         LATCH_FIXED_M3_BOLT_LENGTH
-        + countersink_seat_inset
+        + LATCH_FIXED_M3_COUNTERBORE_DEPTH
         - LATCH_FIXED_M3_GUARD_SPAN
     )
     if fixed_m3_thread_engagement < LATCH_FIXED_M3_MIN_THREAD_ENGAGEMENT:
@@ -4172,8 +4184,11 @@ def validate_configuration() -> None:
         f"latch_press_bore={LATCH_PRESS_FIT_BORE_DIAMETER:.2f} "
         f"latch_running_bore={LATCH_RUNNING_BORE_DIAMETER:.2f} "
         f"latch_fixed_m3_clearance={LATCH_FIXED_M3_CLEARANCE_DIAMETER:.2f} "
-        f"latch_fixed_m3_countersink={LATCH_FIXED_M3_COUNTERSINK_DIAMETER:.2f}x"
-        f"{LATCH_FIXED_M3_COUNTERSINK_DEPTH:.2f} "
+        f"latch_fixed_m3_counterbore={LATCH_FIXED_M3_COUNTERBORE_DIAMETER:.2f}x"
+        f"{LATCH_FIXED_M3_COUNTERBORE_DEPTH:.2f} "
+        f"latch_fixed_m3_head={LATCH_FIXED_M3_MAX_HEAD_DIAMETER:.2f}x"
+        f"{LATCH_FIXED_M3_MAX_HEAD_HEIGHT:.2f} "
+        f"latch_fixed_m3_socket={LATCH_FIXED_M3_SOCKET_ACROSS_FLATS:.2f}AF "
         f"latch_fixed_m3_nut_recess={LATCH_FIXED_M3_NUT_ACROSS_FLATS:.2f}x"
         f"{LATCH_FIXED_M3_NUT_DEPTH:.2f} "
         f"latch_fixed_m3_screw=M3x{LATCH_FIXED_M3_BOLT_LENGTH:.0f} "
@@ -4255,30 +4270,29 @@ def latch_fixed_m3_guard_faces(latch_x):
     )
 
 
-def add_latch_fixed_m3_countersink(name, latch_x):
+def add_latch_fixed_m3_counterbore(name, latch_x):
     head_face_x, _nut_face_x, outer_direction = latch_fixed_m3_guard_faces(latch_x)
     cutter_length = (
-        LATCH_FIXED_M3_COUNTERSINK_DEPTH
+        LATCH_FIXED_M3_COUNTERBORE_DEPTH
         + LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL
     )
     cutter_center_x = head_face_x - outer_direction * (
-        LATCH_FIXED_M3_COUNTERSINK_DEPTH
+        LATCH_FIXED_M3_COUNTERBORE_DEPTH
         - LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL
     ) / 2.0
-    small_radius = LATCH_FIXED_M3_CLEARANCE_DIAMETER / 2.0
-    # Grow the overtravel end by the same amount so the physical recess keeps
-    # its true 45-degree-per-side (90-degree included) countersink angle.
-    large_radius = (
-        LATCH_FIXED_M3_COUNTERSINK_DIAMETER / 2.0
-        + LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL
-    )
-    return add_cone_x(
+    # The circular region clears the cylindrical socket head, while the
+    # teardrop extension closes the horizontal pocket with a printable 45-degree
+    # roof in the base's exported orientation.
+    return add_teardrop_hole_x(
         name,
-        large_radius if outer_direction < 0.0 else small_radius,
-        large_radius if outer_direction > 0.0 else small_radius,
+        LATCH_FIXED_M3_COUNTERBORE_DIAMETER / 2.0,
         cutter_length,
-        (cutter_center_x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
-        vertices=64,
+        (
+            cutter_center_x,
+            LATCH_BASE_PIVOT_Y,
+            LATCH_BASE_PIVOT_Z,
+        ),
+        arc_steps=64,
     )
 
 
@@ -4434,8 +4448,9 @@ def create_base(material):
     # and their chamfered tops return into the body without a brittle corner.
     # The cheeks overlap the existing pivot ears.  Their 6 mm axial thickness
     # fully contains the flush M3 head and captive nut.  Drill one continuous
-    # easy-running M3 path after union, then open a 90-degree countersink on the
-    # case-outside guard and a short captive hex nut pocket on the inboard guard.
+    # easy-running M3 path after union, then open a socket-head counterbore with
+    # a printable roof on the case-outside guard and a short captive hex nut
+    # pocket on the inboard guard.
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
         for side in (-1.0, 1.0):
             ear_x = x + side * LATCH_BASE_EAR_CENTER_OFFSET_X
@@ -4454,11 +4469,11 @@ def create_base(material):
             (x, LATCH_BASE_PIVOT_Y, LATCH_BASE_PIVOT_Z),
         )
         difference_from(base, protected_bore)
-        countersink = add_latch_fixed_m3_countersink(
-            f"Base_Latch_{index}_Outside_M3_Countersink",
+        counterbore = add_latch_fixed_m3_counterbore(
+            f"Base_Latch_{index}_Outside_M3_Socket_Head_Counterbore",
             x,
         )
-        difference_from(base, countersink)
+        difference_from(base, counterbore)
         nut_recess = add_latch_fixed_m3_nut_recess(
             f"Base_Latch_{index}_Inside_M3_Captive_Nut_Recess",
             x,
@@ -5657,48 +5672,70 @@ def create_latch_fixed_m3_reference_hardware(
     material=None,
     seat_clearance=0.0,
 ):
-    """Build a nominal seated screw/nut pair for assembly views only."""
+    """Build reference hardware transactionally, removing partial failures."""
+    existing_object_names = {obj.name for obj in bpy.data.objects}
+    try:
+        return _create_latch_fixed_m3_reference_hardware(
+            name,
+            latch_x,
+            material=material,
+            seat_clearance=seat_clearance,
+        )
+    except Exception:
+        for obj in list(bpy.data.objects):
+            if obj.name not in existing_object_names:
+                bpy.data.objects.remove(obj, do_unlink=True)
+        raise
+
+
+def _create_latch_fixed_m3_reference_hardware(
+    name,
+    latch_x,
+    material=None,
+    seat_clearance=0.0,
+):
+    """Build a seated maximum-envelope socket-head screw and nominal nut."""
     head_face_x, nut_face_x, outer_direction = latch_fixed_m3_guard_faces(latch_x)
-    seat_inset = (
-        LATCH_FIXED_M3_COUNTERSINK_DIAMETER
-        - LATCH_FIXED_M3_MAX_HEAD_DIAMETER
-    ) / 2.0 - seat_clearance
-    head_depth = (
-        LATCH_FIXED_M3_MAX_HEAD_DIAMETER
-        - LATCH_FIXED_M3_NOMINAL_DIAMETER
-    ) / 2.0
-    head_top_x = head_face_x - outer_direction * seat_inset
-    head_inner_x = head_top_x - outer_direction * head_depth
-    head = add_cone_x(
-        name + "_Countersunk_Head",
+    head_bearing_x = head_face_x - outer_direction * (
+        LATCH_FIXED_M3_COUNTERBORE_DEPTH - seat_clearance
+    )
+    head_top_x = (
+        head_bearing_x + outer_direction * LATCH_FIXED_M3_MAX_HEAD_HEIGHT
+    )
+    head = add_cylinder_x(
+        name + "_Allen_Socket_Head",
+        LATCH_FIXED_M3_MAX_HEAD_DIAMETER / 2.0,
+        LATCH_FIXED_M3_MAX_HEAD_HEIGHT,
         (
-            LATCH_FIXED_M3_MAX_HEAD_DIAMETER / 2.0
-            if outer_direction < 0.0
-            else LATCH_FIXED_M3_NOMINAL_DIAMETER / 2.0
-        ),
-        (
-            LATCH_FIXED_M3_MAX_HEAD_DIAMETER / 2.0
-            if outer_direction > 0.0
-            else LATCH_FIXED_M3_NOMINAL_DIAMETER / 2.0
-        ),
-        head_depth,
-        (
-            (head_top_x + head_inner_x) / 2.0,
+            (head_top_x + head_bearing_x) / 2.0,
             LATCH_BASE_PIVOT_Y,
             LATCH_BASE_PIVOT_Z,
         ),
         vertices=64,
     )
+    socket_outer_x = head_top_x + outer_direction * 0.1
+    socket_inner_x = head_top_x - outer_direction * LATCH_FIXED_M3_SOCKET_DEPTH
+    socket = extrude_loop_x(
+        name + "_Allen_Socket",
+        regular_hexagon_loop_yz(
+            LATCH_BASE_PIVOT_Y,
+            LATCH_BASE_PIVOT_Z,
+            LATCH_FIXED_M3_SOCKET_ACROSS_FLATS,
+        ),
+        min(socket_outer_x, socket_inner_x),
+        max(socket_outer_x, socket_inner_x),
+    )
+    difference_from(head, socket)
     if material is not None:
         assign_material(head, material)
 
-    tip_x = head_top_x - outer_direction * LATCH_FIXED_M3_BOLT_LENGTH
+    tip_x = head_bearing_x - outer_direction * LATCH_FIXED_M3_BOLT_LENGTH
     shaft = add_cylinder_x(
         name + "_Shaft",
         LATCH_FIXED_M3_NOMINAL_DIAMETER / 2.0,
-        abs(tip_x - head_inner_x),
+        abs(tip_x - head_bearing_x),
         (
-            (tip_x + head_inner_x) / 2.0,
+            (tip_x + head_bearing_x) / 2.0,
             LATCH_BASE_PIVOT_Y,
             LATCH_BASE_PIVOT_Z,
         ),
@@ -6252,7 +6289,9 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
     head_overlaps = []
     shaft_overlaps = []
     nut_overlaps = []
-    countersink_floor_volumes = []
+    allen_wrench_overlaps = []
+    allen_socket_overlaps = []
+    counterbore_floor_volumes = []
     nut_floor_volumes = []
     path_probe_radius = LATCH_FIXED_M3_CLEARANCE_DIAMETER / 2.0 - 0.05
 
@@ -6276,8 +6315,7 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
 
     # Span the complete configured 1 mm minimum floor immediately behind each
     # recess.  The small radial footprint sits beside the 3.5 mm through bore,
-    # at the countersink's deepest axial extent, rather than near its shallow
-    # outer rim.
+    # inside the socket-head counterbore's full-depth circular region.
     floor_probe_dimensions = (LATCH_FIXED_M3_MIN_RECESS_FLOOR, 0.2, 0.2)
     floor_probe_radial_offset = 2.0
     floor_probe_axial_clearance = 0.02
@@ -6304,12 +6342,40 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
             bpy.data.objects.remove(path_probe, do_unlink=True)
         base_path_overlaps.append(path_overlap)
 
-        hardware = create_latch_fixed_m3_reference_hardware(
-            f"TEMPORARY_Latch_{index}_Nominal_M3_Hardware_Envelope",
-            latch_x,
-            seat_clearance=0.05,
+        wrench_inner_depth = (
+            LATCH_FIXED_M3_COUNTERBORE_DEPTH
+            - LATCH_FIXED_M3_MAX_HEAD_HEIGHT
+            + LATCH_FIXED_M3_SOCKET_DEPTH
+            - 0.1
         )
+        wrench_outer_overtravel = 0.5
+        wrench_outer_x = head_face_x + outer_direction * wrench_outer_overtravel
+        wrench_inner_x = head_face_x - outer_direction * wrench_inner_depth
+        wrench_probe = extrude_loop_x(
+            f"TEMPORARY_Latch_{index}_2p5mm_Allen_Wrench_Access_Probe",
+            regular_hexagon_loop_yz(
+                LATCH_BASE_PIVOT_Y,
+                LATCH_BASE_PIVOT_Z,
+                LATCH_FIXED_M3_SOCKET_ACROSS_FLATS,
+            ),
+            min(wrench_outer_x, wrench_inner_x),
+            max(wrench_outer_x, wrench_inner_x),
+        )
+        hardware = []
         try:
+            _faces, wrench_overlap = exact_transformed_intersection(
+                parts["base"],
+                wrench_probe,
+                second_location=wrench_probe.location.copy(),
+                second_rotation=wrench_probe.rotation_euler.copy(),
+            )
+            allen_wrench_overlaps.append(wrench_overlap)
+
+            hardware = create_latch_fixed_m3_reference_hardware(
+                f"TEMPORARY_Latch_{index}_Nominal_M3_Hardware_Envelope",
+                latch_x,
+                seat_clearance=0.05,
+            )
             hardware_overlaps = []
             for hardware_part in hardware:
                 _faces, overlap = exact_transformed_intersection(
@@ -6322,25 +6388,33 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
             head_overlaps.append(hardware_overlaps[0])
             shaft_overlaps.append(hardware_overlaps[1])
             nut_overlaps.append(hardware_overlaps[2])
+            _faces, socket_overlap = exact_transformed_intersection(
+                hardware[0],
+                wrench_probe,
+                second_location=wrench_probe.location.copy(),
+                second_rotation=wrench_probe.rotation_euler.copy(),
+            )
+            allen_socket_overlaps.append(socket_overlap)
         finally:
             for hardware_part in hardware:
                 bpy.data.objects.remove(hardware_part, do_unlink=True)
+            bpy.data.objects.remove(wrench_probe, do_unlink=True)
 
         floor_specs = (
             (
-                f"TEMPORARY_Latch_{index}_Countersink_Floor_Solid_Probe",
+                f"TEMPORARY_Latch_{index}_Counterbore_Floor_Solid_Probe",
                 (
                     head_face_x
                     - outer_direction
                     * (
-                        LATCH_FIXED_M3_COUNTERSINK_DEPTH
+                        LATCH_FIXED_M3_COUNTERBORE_DEPTH
                         + floor_probe_axial_clearance
                         + floor_probe_dimensions[0] / 2.0
                     ),
                     LATCH_BASE_PIVOT_Y + floor_probe_radial_offset,
                     LATCH_BASE_PIVOT_Z,
                 ),
-                countersink_floor_volumes,
+                counterbore_floor_volumes,
             ),
             (
                 f"TEMPORARY_Latch_{index}_Nut_Recess_Floor_Solid_Probe",
@@ -6381,18 +6455,22 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
         *head_overlaps,
         *shaft_overlaps,
         *nut_overlaps,
+        *allen_wrench_overlaps,
+        *allen_socket_overlaps,
     )
     if maximum_air_overlap > 1e-6:
         raise ValueError(
-            "Latch fixed-pivot M3 path or recessed hardware envelope is obstructed: "
+            "Latch fixed-pivot path, Allen access, or hardware is obstructed: "
             f"maximum_volume={maximum_air_overlap:.6f} "
             f"base_paths={base_path_overlaps} lever_paths={lever_path_overlaps} "
-            f"heads={head_overlaps} shafts={shaft_overlaps} nuts={nut_overlaps}"
+            f"wrenches={allen_wrench_overlaps} heads={head_overlaps} "
+            f"sockets={allen_socket_overlaps} shafts={shaft_overlaps} "
+            f"nuts={nut_overlaps}"
         )
-    if min(countersink_floor_volumes) < minimum_floor_fill:
+    if min(counterbore_floor_volumes) < minimum_floor_fill:
         raise ValueError(
-            "A latch M3 countersink breaks through its guard: "
-            f"volumes={countersink_floor_volumes} required={minimum_floor_fill}"
+            "A latch M3 socket-head counterbore breaks through its guard: "
+            f"volumes={counterbore_floor_volumes} required={minimum_floor_fill}"
         )
     if min(nut_floor_volumes) < minimum_floor_fill:
         raise ValueError(
@@ -6400,13 +6478,9 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
             f"volumes={nut_floor_volumes} required={minimum_floor_fill}"
         )
 
-    countersink_seat_inset = (
-        LATCH_FIXED_M3_COUNTERSINK_DIAMETER
-        - LATCH_FIXED_M3_MAX_HEAD_DIAMETER
-    ) / 2.0
     reach_past_nut_floor = (
         LATCH_FIXED_M3_BOLT_LENGTH
-        + countersink_seat_inset
+        + LATCH_FIXED_M3_COUNTERBORE_DEPTH
         - (LATCH_FIXED_M3_GUARD_SPAN - LATCH_FIXED_M3_NUT_DEPTH)
     )
     thread_engagement = min(
@@ -6415,7 +6489,7 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
     )
     tip_protrusion = (
         LATCH_FIXED_M3_BOLT_LENGTH
-        + countersink_seat_inset
+        + LATCH_FIXED_M3_COUNTERBORE_DEPTH
         - LATCH_FIXED_M3_GUARD_SPAN
     )
     print(
@@ -6423,13 +6497,19 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
         f"latches={len(LATCH_X_CENTERS)} "
         f"through_bore={LATCH_FIXED_M3_CLEARANCE_DIAMETER:.2f} "
         f"path_probe={2.0 * path_probe_radius:.2f} "
+        f"allen_wrench={LATCH_FIXED_M3_SOCKET_ACROSS_FLATS:.2f}AF "
+        f"wrench_overlap_max={max(allen_wrench_overlaps):.6f} "
+        f"socket_overlap_max={max(allen_socket_overlaps):.6f} "
         f"air_overlap_max={maximum_air_overlap:.6f} "
-        f"countersink={LATCH_FIXED_M3_COUNTERSINK_DIAMETER:.2f}x"
-        f"{LATCH_FIXED_M3_COUNTERSINK_DEPTH:.2f} "
+        f"counterbore={LATCH_FIXED_M3_COUNTERBORE_DIAMETER:.2f}x"
+        f"{LATCH_FIXED_M3_COUNTERBORE_DEPTH:.2f} "
+        f"head={LATCH_FIXED_M3_MAX_HEAD_DIAMETER:.2f}x"
+        f"{LATCH_FIXED_M3_MAX_HEAD_HEIGHT:.2f} "
+        f"socket={LATCH_FIXED_M3_SOCKET_ACROSS_FLATS:.2f}AF "
         f"nut_recess={LATCH_FIXED_M3_NUT_ACROSS_FLATS:.2f}x"
         f"{LATCH_FIXED_M3_NUT_DEPTH:.2f} "
         f"floor_probe_span={floor_probe_dimensions[0]:.2f} "
-        f"countersink_floor_min={min(countersink_floor_volumes):.6f} "
+        f"counterbore_floor_min={min(counterbore_floor_volumes):.6f} "
         f"nut_floor_min={min(nut_floor_volumes):.6f} "
         f"screw=M3x{LATCH_FIXED_M3_BOLT_LENGTH:.0f} "
         f"thread_engagement={thread_engagement:.2f} "
