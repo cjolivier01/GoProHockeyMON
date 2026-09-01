@@ -2887,8 +2887,15 @@ def load_embedded_logo_font():
 
 def widen_planar_mesh_xy(obj, offset):
     """Buffer an extruded planar mesh in XY and rebuild a manifold solid."""
-    from shapely import constrained_delaunay_triangles, set_precision, union_all
-    from shapely.geometry import Polygon
+    try:
+        from shapely import constrained_delaunay_triangles, set_precision, union_all
+        from shapely.geometry import Polygon
+    except ImportError as error:
+        raise RuntimeError(
+            "Widening the Mission 1 lid lettering requires Shapely 2.1 or newer "
+            "in Blender's Python environment. Install or upgrade Shapely there, "
+            "or set LID_LOGO_TEXT_OUTLINE_OFFSET to 0.0 to disable widening."
+        ) from error
 
     z_values = [vertex.co.z for vertex in obj.data.vertices]
     z0 = min(z_values)
