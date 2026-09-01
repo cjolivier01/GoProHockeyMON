@@ -10,7 +10,7 @@ from disk.  The default kit holds:
 * a flush-top recessed TPU equipment tray and a one-way-keyed TPU lid pad,
 * a TPU dust/splash gasket, two source-derived two-piece Pelican latch
   mechanisms mounted on 4 mm stainless rods, and a separate pivoting handle,
-* flush orange heavy-block ``GoPro Missions`` lettering with four matching blocks.
+* raised orange GoPro-style ``GoPro Missions`` lettering with four matching blocks.
 
 The case is Pelican/rugged-box inspired.  The user-supplied MakerWorld example is used as
 a functional precedent for recessed upper/lower inserts, gasket, case shell,
@@ -44,7 +44,7 @@ Set ``EXPORT_STL = True`` below, or use
 ``make -C cooler-gopro mission1-field-case`` from the repository root, to emit
 all ten printable-part STLs and ``mission1_field_case_ams_project.3mf``.
 The 3MF contains the complete six-plate project; its lid is one compound object
-with a black shell and one orange text-and-block inlay body.  The standalone
+with a black shell and one raised orange text-and-block body.  The standalone
 lid STLs remain available for other slicers.  Print two copies each of the
 latch lever and hook STLs.  A fixed 4 mm rod mounts each lever between
 integrated case ears, and a second 4 mm rod joins its moving hook.  The handle
@@ -2286,21 +2286,24 @@ PELICAN_BLEND_LATCH_MESHES_LZMA_BASE85 = (
     b"3HhHA2hmNbf$sv`cSPibm1;L1OsqBa*_0vx$~^pd1pp1200HQo2Y|yQ_U+=ZvBYQl0ssI200dcD"
 )
 
-# Flush orange GoPro-style mark with deliberately heavy printable strokes.
-LID_LOGO_TEXT_LINES = ("GoPro", "Missions")
-LID_LOGO_TEXT_LINE_CENTER_Y = (-42.0, 4.0)
-LID_LOGO_TEXT_CELL_SIZE = 8.0
-LID_LOGO_TEXT_CHARACTER_GAP = 1.0
+# Flush orange GoPro-style mark with strokes 50% wider than the original.
+LID_LOGO_TEXT = "GoPro Missions"
+LID_LOGO_TEXT_SIZE = 18.0
+LID_LOGO_TEXT_MAX_WIDTH = 122.0
+LID_LOGO_TEXT_CENTER_Y = -7.0
 LID_LOGO_LEGACY_MIN_FEATURE_WIDTH = 1.475
-LID_LOGO_MIN_THICKNESS_MULTIPLIER = 5.0
+LID_LOGO_MIN_THICKNESS_MULTIPLIER = 1.5
+LID_LOGO_TEXT_OUTLINE_OFFSET = (
+    LID_LOGO_LEGACY_MIN_FEATURE_WIDTH
+    * (LID_LOGO_MIN_THICKNESS_MULTIPLIER - 1.0)
+    / 2.0
+)
 LID_LOGO_BLOCK_SIZE = (14.0, 5.0)
 LID_LOGO_BLOCK_GAP = 2.0
-LID_LOGO_BLOCK_CENTER_Y = 35.0
+LID_LOGO_BLOCK_CENTER_Y = 18.0
 LID_INLAY_DEPTH = 0.8
-LID_INLAY_CLEARANCE = 0.0
 
-# Legacy embedded CC0 Neuropol 3.100 subset retained for compatibility with
-# older generated scenes; the current 5x-thickness lid uses PIXEL_TEXT_3X5.
+# Embedded CC0 Neuropol 3.100 glyph subset used for the GoPro-style lettering.
 NEUROPOL_GOPRO_MISSIONS_OTF_GZIP_BASE64 = (
     "H4sICB2mkWoCA05ldXJvcG9sLUdvUHJvLU1pc3Npb25zLm90ZgC9F2lwE+f1rVbatbRC2DWi5VjtgjGnkYQxBDANlMM0DNiObSgE"
     "KJKttaxYh1nJB0wytATGnZqZBMKQtsM1ntLhMKFuqUlgmk6BZkppeiYdmClJj2mHSQo1bem3Zk3Vt59WRjJJ21/dnW/3vfe963vv"
@@ -2882,6 +2885,68 @@ def load_embedded_logo_font():
     return _embedded_logo_font
 
 
+def widen_planar_mesh_xy(obj, offset):
+    """Buffer an extruded planar mesh in XY and rebuild a manifold solid."""
+    from shapely import constrained_delaunay_triangles, set_precision, union_all
+    from shapely.geometry import Polygon
+
+    z_values = [vertex.co.z for vertex in obj.data.vertices]
+    z0 = min(z_values)
+    z1 = max(z_values)
+    top_faces = []
+    for face in obj.data.polygons:
+        coordinates = [obj.data.vertices[index].co for index in face.vertices]
+        if all(math.isclose(coordinate.z, z1, abs_tol=1e-6) for coordinate in coordinates):
+            polygon = Polygon([(coordinate.x, coordinate.y) for coordinate in coordinates])
+            if polygon.is_valid and polygon.area > 1e-9:
+                top_faces.append(polygon)
+    if not top_faces:
+        raise RuntimeError(f"{obj.name} has no planar top faces to widen")
+
+    buffered = union_all(top_faces).buffer(offset, quad_segs=8, join_style="round")
+    buffered = set_precision(buffered, grid_size=0.01).simplify(
+        0.01, preserve_topology=True
+    )
+    polygons = list(buffered.geoms) if buffered.geom_type == "MultiPolygon" else [buffered]
+    vertices = []
+    vertex_indices = {}
+    faces = []
+
+    def vertex_index(x, y, z):
+        key = (round(x, 8), round(y, 8), round(z, 8))
+        if key not in vertex_indices:
+            vertex_indices[key] = len(vertices)
+            vertices.append((x, y, z))
+        return vertex_indices[key]
+
+    for polygon in polygons:
+        for triangle in constrained_delaunay_triangles(polygon).geoms:
+            coordinates = list(triangle.exterior.coords)[:-1]
+            bottom = [vertex_index(x, y, z0) for x, y in coordinates]
+            top = [vertex_index(x, y, z1) for x, y in coordinates]
+            faces.append(tuple(reversed(bottom)))
+            faces.append(tuple(top))
+        for ring in (polygon.exterior, *polygon.interiors):
+            coordinates = list(ring.coords)[:-1]
+            for index, (x0, y0) in enumerate(coordinates):
+                x1, y1 = coordinates[(index + 1) % len(coordinates)]
+                faces.append(
+                    (
+                        vertex_index(x0, y0, z0),
+                        vertex_index(x1, y1, z0),
+                        vertex_index(x1, y1, z1),
+                        vertex_index(x0, y0, z1),
+                    )
+                )
+
+    obj.data.clear_geometry()
+    obj.data.from_pydata(vertices, [], faces)
+    obj.data.update()
+    cleanup_mesh(obj)
+    recalc_normals(obj)
+    return obj
+
+
 def add_text_mesh(
     name,
     body,
@@ -2891,6 +2956,7 @@ def add_text_mesh(
     depth,
     mirror_y=False,
     font=None,
+    outline_offset=0.0,
 ):
     bpy.ops.object.text_add(location=center)
     text_obj = bpy.context.object
@@ -2930,208 +2996,9 @@ def add_text_mesh(
     minimum, _maximum = object_world_bounds(text_obj)
     text_obj.location.z += target_z0 - minimum.z
     bpy.context.view_layer.update()
+    if outline_offset > 0.0:
+        widen_planar_mesh_xy(text_obj, outline_offset)
     return text_obj
-
-
-PIXEL_TEXT_3X5 = {
-    "G": ("111", "100", "101", "101", "111"),
-    "I": ("111", "010", "010", "010", "111"),
-    "M": ("101", "111", "111", "101", "101"),
-    "N": ("101", "111", "111", "111", "101"),
-    "O": ("111", "101", "101", "101", "111"),
-    "P": ("111", "101", "111", "100", "100"),
-    "R": ("111", "101", "111", "101", "101"),
-    "S": ("111", "100", "111", "001", "111"),
-}
-
-
-def add_heavy_pixel_text_mesh(name, body, center, depth, mirror_y=False):
-    """Build a manifold 3x5 block face with an 8 mm printable stroke."""
-    cell = LID_LOGO_TEXT_CELL_SIZE
-    advance = 3.0 * cell + LID_LOGO_TEXT_CHARACTER_GAP
-    total_width = len(body) * 3.0 * cell + (len(body) - 1) * (
-        LID_LOGO_TEXT_CHARACTER_GAP
-    )
-    vertices = []
-    vertex_indices = {}
-    faces = []
-
-    def vertex_index(coordinate):
-        key = tuple(round(value, 8) for value in coordinate)
-        if key not in vertex_indices:
-            vertex_indices[key] = len(vertices)
-            vertices.append(coordinate)
-        return vertex_indices[key]
-
-    def add_face(coordinates):
-        faces.append(tuple(vertex_index(coordinate) for coordinate in coordinates))
-
-    for character_index, character in enumerate(body.upper()):
-        pattern = PIXEL_TEXT_3X5.get(character)
-        if pattern is None:
-            raise ValueError(f"Unsupported heavy lid-text character: {character!r}")
-        character_center_x = (
-            center[0] - total_width / 2.0 + 1.5 * cell + character_index * advance
-        )
-        occupied = {
-            (row, column)
-            for row, values in enumerate(pattern)
-            for column, value in enumerate(values)
-            if value == "1"
-        }
-        for row, values in enumerate(pattern):
-            for column, value in enumerate(values):
-                if value != "1":
-                    continue
-                y_offset = (2.0 - row) * cell
-                if mirror_y:
-                    y_offset = -y_offset
-                cell_center_x = character_center_x + (column - 1.0) * cell
-                cell_center_y = center[1] + y_offset
-                x0 = cell_center_x - cell / 2.0
-                x1 = cell_center_x + cell / 2.0
-                y0 = cell_center_y - cell / 2.0
-                y1 = cell_center_y + cell / 2.0
-                z0 = center[2]
-                z1 = center[2] + depth
-                add_face(((x0, y1, z0), (x1, y1, z0), (x1, y0, z0), (x0, y0, z0)))
-                add_face(((x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)))
-                if (row, column - 1) not in occupied:
-                    add_face(((x0, y0, z0), (x0, y0, z1), (x0, y1, z1), (x0, y1, z0)))
-                if (row, column + 1) not in occupied:
-                    add_face(((x1, y1, z0), (x1, y1, z1), (x1, y0, z1), (x1, y0, z0)))
-                previous_row = row + (1 if mirror_y else -1)
-                next_row = row + (-1 if mirror_y else 1)
-                if (previous_row, column) not in occupied:
-                    add_face(((x0, y1, z0), (x0, y1, z1), (x1, y1, z1), (x1, y1, z0)))
-                if (next_row, column) not in occupied:
-                    add_face(((x1, y0, z0), (x1, y0, z1), (x0, y0, z1), (x0, y0, z0)))
-    if not faces:
-        raise RuntimeError("Heavy lid text produced no printable cells")
-    text_obj = create_mesh_object(name, vertices, faces)
-    cleanup_mesh(text_obj)
-    bm = bmesh.new()
-    bm.from_mesh(text_obj.data)
-    bmesh.ops.dissolve_limit(
-        bm,
-        angle_limit=math.radians(0.1),
-        verts=list(bm.verts),
-        edges=list(bm.edges),
-        delimit=set(),
-        use_dissolve_boundaries=True,
-    )
-    bm.to_mesh(text_obj.data)
-    bm.free()
-    text_obj.data.update()
-    recalc_normals(text_obj)
-    return text_obj
-
-
-def duplicate_as_cutter(source, name, clearance):
-    _source_minimum, source_maximum = object_world_bounds(source)
-    cutter = source.copy()
-    cutter.data = source.data.copy()
-    cutter.name = name
-    cutter.data.name = name + "_Mesh"
-    bpy.context.collection.objects.link(cutter)
-
-    # Grow each disconnected glyph around its own center. Scaling the complete
-    # word would mostly move the outer letters and leave interior glyphs with
-    # almost no fit clearance.
-    bm = bmesh.new()
-    bm.from_mesh(cutter.data)
-    for island in mesh_vertex_islands(bm):
-        min_x = min(vertex.co.x for vertex in island)
-        max_x = max(vertex.co.x for vertex in island)
-        min_y = min(vertex.co.y for vertex in island)
-        max_y = max(vertex.co.y for vertex in island)
-        center_x = (min_x + max_x) / 2.0
-        center_y = (min_y + max_y) / 2.0
-        width = max_x - min_x
-        height = max_y - min_y
-        scale_x = (width + 2.0 * clearance) / width
-        scale_y = (height + 2.0 * clearance) / height
-        for vertex in island:
-            vertex.co.x = center_x + (vertex.co.x - center_x) * scale_x
-            vertex.co.y = center_y + (vertex.co.y - center_y) * scale_y
-    bm.to_mesh(cutter.data)
-    bm.free()
-    cutter.data.update()
-
-    # Cut 0.1 mm through the build-facing surface, but stop at the inlay's top
-    # plane.  The shared horizontal face bonds AMS-printed text to the lid;
-    # leaving overcut above the inlay would produce physically loose glyphs.
-    dims = object_world_dimensions(cutter)
-    cutter.scale.z *= (dims.z + 0.1) / dims.z
-    select_only(cutter)
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    _minimum, maximum = object_world_bounds(cutter)
-    cutter.location.z += source_maximum.z - maximum.z
-    bpy.context.view_layer.update()
-    _minimum, maximum = object_world_bounds(cutter)
-    if not math.isclose(maximum.z, source_maximum.z, abs_tol=1e-6):
-        raise RuntimeError(f"{name} does not preserve the inlay bonding plane")
-    return cutter
-
-
-def separate_loose_meshes(obj, name_prefix):
-    """Split disconnected cutter islands so Boolean solvers cannot skip glyphs."""
-    before = set(bpy.data.objects)
-    select_only(obj)
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.mesh.separate(type="LOOSE")
-    bpy.ops.object.mode_set(mode="OBJECT")
-    pieces = [obj, *sorted(set(bpy.data.objects) - before, key=lambda item: item.name)]
-    for index, piece in enumerate(pieces, start=1):
-        piece.name = f"{name_prefix}_{index}"
-        cleanup_mesh(piece)
-    return pieces
-
-
-def remove_small_disconnected_islands(obj, maximum_span: float) -> int:
-    """Remove only bounded Boolean slivers while preserving the main solid."""
-    bm = bmesh.new()
-    bm.from_mesh(obj.data)
-    islands = mesh_vertex_islands(bm)
-    if len(islands) <= 1:
-        bm.free()
-        return 0
-    main_island = max(islands, key=len)
-    removable = [island for island in islands if island is not main_island]
-    for island in removable:
-        spans = [
-            max(vertex.co[axis] for vertex in island)
-            - min(vertex.co[axis] for vertex in island)
-            for axis in range(3)
-        ]
-        if max(spans) > maximum_span:
-            bm.free()
-            raise RuntimeError(
-                f"{obj.name} Boolean created an oversized disconnected island: "
-                f"spans={tuple(round(span, 3) for span in spans)}"
-            )
-    bmesh.ops.delete(
-        bm,
-        geom=[vertex for island in removable for vertex in island],
-        context="VERTS",
-    )
-    bm.to_mesh(obj.data)
-    bm.free()
-    obj.data.update()
-    cleanup_mesh(obj)
-    return len(removable)
-
-
-def triangulate_mesh_faces(obj) -> None:
-    """Triangulate a known-manifold mesh before a complex shallow Boolean."""
-    bm = bmesh.new()
-    bm.from_mesh(obj.data)
-    bmesh.ops.triangulate(bm, faces=list(bm.faces))
-    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
-    bm.to_mesh(obj.data)
-    bm.free()
-    obj.data.update()
 
 
 # ---------------------------------------------------------------------------
@@ -4710,28 +4577,30 @@ def create_lid(
     union_into(lid, key_boss)
 
     # Pre-mirroring Y makes the logo read normally after the lid is installed.
-    # Two lines let the custom heavy-block face preserve readable spacing while
-    # every printed component remains at least five times thicker than before.
-    logo_text_objects = []
-    for line_index, (body, center_y) in enumerate(
-        zip(LID_LOGO_TEXT_LINES, LID_LOGO_TEXT_LINE_CENTER_Y), start=1
-    ):
-        logo_text_objects.append(
-            add_heavy_pixel_text_mesh(
-                f"Lid_GoPro_Missions_Orange_Line_{line_index}_Inlay",
-                body,
-                (dx, center_y, 0.0),
-                LID_INLAY_DEPTH,
-                mirror_y=True,
-            )
+    # A small curve offset widens every stroke by 50% without replacing the
+    # compact GoPro-style face or enlarging the original lettering footprint.
+    logo_text_objects = [
+        add_text_mesh(
+            "Lid_GoPro_Missions_Orange_Inlay",
+            LID_LOGO_TEXT,
+            LID_LOGO_TEXT_SIZE,
+            LID_LOGO_TEXT_MAX_WIDTH,
+            (dx, LID_LOGO_TEXT_CENTER_Y, 0.0),
+            LID_INLAY_DEPTH,
+            mirror_y=True,
+            font=load_embedded_logo_font(),
+            outline_offset=LID_LOGO_TEXT_OUTLINE_OFFSET,
         )
-    minimum_text_dimension = LID_LOGO_TEXT_CELL_SIZE
+    ]
+    minimum_text_dimension = (
+        LID_LOGO_LEGACY_MIN_FEATURE_WIDTH + 2.0 * LID_LOGO_TEXT_OUTLINE_OFFSET
+    )
     required_text_dimension = (
         LID_LOGO_LEGACY_MIN_FEATURE_WIDTH * LID_LOGO_MIN_THICKNESS_MULTIPLIER
     )
     if minimum_text_dimension < required_text_dimension - 1e-6:
         raise RuntimeError(
-            "Lid logo text is not at least five times thicker: "
+            "Lid logo text is not at least 50% thicker than the original: "
             f"minimum={minimum_text_dimension:.3f}mm "
             f"required={required_text_dimension:.3f}mm"
         )
@@ -4773,19 +4642,10 @@ def create_lid(
     bpy.context.view_layer.objects.active = logo_orange
     bpy.ops.object.join()
     logo_orange.name = "Lid_GoPro_Missions_And_Blocks_Orange_Inlay"
-    triangulate_mesh_faces(lid)
-    cutter = duplicate_as_cutter(
-        logo_orange,
-        "Lid_Logo_Orange_Recess_Cutter",
-        LID_INLAY_CLEARANCE,
-    )
-    for island_cutter in separate_loose_meshes(
-        cutter, "Lid_Orange_Logo_Island_Cutter"
-    ):
-        difference_from(lid, island_cutter, solver="EXACT")
-    removed_lid_slivers = remove_small_disconnected_islands(lid, maximum_span=12.0)
-    if removed_lid_slivers:
-        print(f"FIELD_CASE_LID_BOOLEAN_SLIVERS_REMOVED count={removed_lid_slivers}")
+    # Keep the curved orange mark as a shallow raised face. Its top bonds to
+    # the lid's uninterrupted build-facing plane without fragile font booleans.
+    logo_orange.location.z -= LID_INLAY_DEPTH
+    bpy.context.view_layer.update()
 
     assign_material(lid, shell_material)
     assign_material(logo_orange, logo_orange_material)
@@ -6809,14 +6669,15 @@ def export_path(name: str) -> Path:
     return directory / name
 
 
-def export_stl(path: Path, obj, print_origin=None) -> Path:
+def export_stl(path: Path, obj, print_origin=None, expected_minimum_z=0.0) -> Path:
     if print_origin is None:
         print_origin = Vector((0.0, 0.0, 0.0))
     payload = evaluated_mesh_payload(obj, print_origin)
     minimum_print_z = min(vertex[2] for vertex in payload[0])
-    if not math.isclose(minimum_print_z, 0.0, abs_tol=1e-5):
+    if not math.isclose(minimum_print_z, expected_minimum_z, abs_tol=1e-5):
         raise ValueError(
-            f"STL print origin leaves {obj.name} at Z={minimum_print_z:.6f}"
+            f"STL print origin leaves {obj.name} at Z={minimum_print_z:.6f}; "
+            f"expected {expected_minimum_z:.6f}"
         )
     write_binary_stl(path, obj.name, payload)
     print(f"FIELD_CASE_EXPORTED {path}")
@@ -7424,7 +7285,10 @@ def export_3mf_project(path: Path, parts) -> Path:
         submodel = new_3mf_model()
         add_3mf_metadata(submodel, "BambuStudio:3mfVersion", "1")
         subresources = ET.SubElement(submodel, three_mf_tag("resources"))
-        origin = object_world_bounds(parts[group["keys"][0]])[0]
+        group_minimums = [object_world_bounds(parts[key])[0] for key in group["keys"]]
+        origin = Vector(
+            tuple(min(minimum[axis] for minimum in group_minimums) for axis in range(3))
+        )
         group["mesh_ids"] = []
         group["face_counts"] = []
         group["part_names"] = []
@@ -8222,7 +8086,7 @@ def build_mission1_field_case():
             ),
         ),
     )
-    print(f"FIELD_CASE_LID_BONDED islands={lid_islands} plane_z={LID_INLAY_DEPTH:.2f}")
+    print(f"FIELD_CASE_LID_BONDED islands={lid_islands} plane_z=0.00")
 
     if EXPORT_STL:
         exports = (
@@ -8238,12 +8102,20 @@ def build_mission1_field_case():
             (LOGO_ORANGE_INLAY_STL_NAME, parts["logo_orange_inlay"]),
         )
         for filename, obj in exports:
-            print_origin = (
-                Vector((0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
-                if obj is parts["lower_tray"]
-                else None
+            print_origin = None
+            expected_minimum_z = 0.0
+            if obj is parts["lower_tray"]:
+                print_origin = Vector((0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
+            elif obj is parts["lid"] or obj is parts["logo_orange_inlay"]:
+                print_origin = Vector((0.0, 0.0, -LID_INLAY_DEPTH))
+                if obj is parts["lid"]:
+                    expected_minimum_z = LID_INLAY_DEPTH
+            export_stl(
+                export_path(filename),
+                obj,
+                print_origin,
+                expected_minimum_z,
             )
-            export_stl(export_path(filename), obj, print_origin)
         project_path = export_3mf_project(export_path(PROJECT_3MF_NAME), parts)
         validate_3mf_project(project_path)
 
