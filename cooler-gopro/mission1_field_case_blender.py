@@ -8,7 +8,8 @@ from disk.  The default kit holds:
 * four MISSION 1 Enduro 2 / HERO13-format batteries, terminal end downward,
 * two shallow flat pockets for the removable camera battery-cage doors,
 * a flush-top recessed TPU equipment tray and a one-way-keyed TPU lid pad,
-* a TPU dust/splash gasket, two source-derived two-piece Pelican latch
+* a hollow TPU dust/splash gasket that prints into the lid by default, two
+  source-derived two-piece Pelican latch
   mechanisms mounted on M3 fixed pivots and 4 mm moving-link rods, and a
   separate pivoting handle mounted with two M3 socket-head pivots,
 * flush orange GoPro-style ``GoPro Missions`` lettering with four matching blocks.
@@ -44,9 +45,10 @@ Run inside Blender::
 Set ``EXPORT_STL = True`` below, or use
 ``make -C cooler-gopro mission1-field-case`` from the repository root, to emit
 all ten printable-part STLs and ``mission1_field_case_ams_project.3mf``.
-The 3MF contains the complete six-plate project; its lid is one compound object
-with a black shell and one flush orange text-and-block body.  The standalone
-lid STLs remain available for other slicers.  Print two copies each of the
+The 3MF contains the complete project; by default its lid is one compound object
+with a black shell, one flush orange text-and-block body, and one hollow TPU
+gasket joined through slicer-generated beam interlocking.  The standalone lid
+STLs remain available for other slicers.  Print two copies each of the
 latch lever and hook STLs.  An M3 Allen socket-head screw and captive nut mount
 each lever between integrated case guards, and a 4 mm rod joins its moving hook.
 The handle bar is a separate print and its unchanged mounting lugs are generated
@@ -175,6 +177,11 @@ EXPORT_STL = False
 EXPORT_DIRECTORY = ""
 SAVE_BLEND = False
 BLEND_PATH = "mission1_field_case.blend"
+
+# Keep the hollow TPU gasket aligned as the third compound-lid material and
+# enable slicer-generated beam interlocking at its rigid-shell interface.  Set
+# this False before generation to restore a separate hollow-gasket print plate.
+PRINT_TPU_GASKET_WITH_LID = True
 
 BASE_STL_NAME = "mission1_field_case_base.stl"
 LID_STL_NAME = "mission1_field_case_lid.stl"
@@ -349,13 +356,25 @@ LID_PAD_KEY_CENTER = (-42.0, -69.0)
 LID_PAD_KEY_NOTCH_SIZE = (14.0, 8.0)
 LID_PAD_KEY_BOSS_SIZE = (12.0, 6.0, 4.0)
 
-# A shallow lid channel retains a slightly proud TPU gasket.  It is intended
-# as dust/splash protection, not as a certified waterproof seal.
+# A shallow lid channel retains a slightly proud, closed hollow TPU gasket.  A
+# 0.6 mm floor leaves three 0.2 mm layers below the slicer's two-layer beam
+# interlock, while the 1.1 x 0.45 mm internal air channel makes hard TPU more
+# compliant.  It is dust/splash protection, not a certified waterproof seal.
 GASKET_CHANNEL_WIDTH = 2.6
 GASKET_WIDTH = 2.2
 GASKET_CHANNEL_DEPTH = 1.2
 GASKET_HEIGHT = 1.45
 GASKET_FIT_CLEARANCE = 0.2
+GASKET_HOLLOW_SIDE_WALL = 0.55
+GASKET_HOLLOW_BOTTOM_WALL = 0.60
+GASKET_HOLLOW_TOP_WALL = 0.40
+GASKET_INSTALLED_Z = LID_WALL_HEIGHT - GASKET_CHANNEL_DEPTH
+GASKET_INTERLOCK_BEAM_WIDTH = 0.8
+GASKET_INTERLOCK_BEAM_LAYER_COUNT = 2
+GASKET_INTERLOCK_REFERENCE_LAYER_HEIGHT = 0.2
+GASKET_INTERLOCK_DEPTH = 2
+GASKET_INTERLOCK_ORIENTATION = 22.5
+GASKET_INTERLOCK_BOUNDARY_AVOIDANCE = 0
 
 # Hinge axis is along X.  A 4.1 mm rod runs only through the base knuckles.
 # Each lid receiver opens rearward, parallel to the lid plate in print
@@ -3893,6 +3912,37 @@ def validate_configuration() -> None:
     if lever_lower_z < 2.0 or lever_upper_z > BASE_HEIGHT - 5.0:
         raise ValueError("Closed source latch lever no longer fits the base front")
 
+    if not isinstance(PRINT_TPU_GASKET_WITH_LID, bool):
+        raise ValueError("PRINT_TPU_GASKET_WITH_LID must be True or False")
+    gasket_hollow_width = GASKET_WIDTH - 2.0 * GASKET_HOLLOW_SIDE_WALL
+    gasket_hollow_height = (
+        GASKET_HEIGHT
+        - GASKET_HOLLOW_BOTTOM_WALL
+        - GASKET_HOLLOW_TOP_WALL
+    )
+    if gasket_hollow_width < 0.8 or gasket_hollow_height < 0.4:
+        raise ValueError("Hard-TPU gasket needs a useful continuous hollow channel")
+    if min(
+        GASKET_HOLLOW_SIDE_WALL,
+        GASKET_HOLLOW_TOP_WALL,
+        GASKET_HOLLOW_BOTTOM_WALL,
+    ) < 0.4:
+        raise ValueError("Hollow gasket walls must remain printable with a 0.4 mm nozzle")
+    interlock_height = (
+        GASKET_INTERLOCK_BEAM_LAYER_COUNT
+        * GASKET_INTERLOCK_REFERENCE_LAYER_HEIGHT
+    )
+    if GASKET_HOLLOW_BOTTOM_WALL < interlock_height + 0.2 - 1e-6:
+        raise ValueError("Hollow gasket floor is too thin for its beam interlock")
+    if GASKET_INTERLOCK_BEAM_WIDTH < 0.8:
+        raise ValueError("Gasket interlocking beams need at least 0.8 mm width")
+    if GASKET_INTERLOCK_BEAM_LAYER_COUNT < 1 or GASKET_INTERLOCK_DEPTH < 1:
+        raise ValueError("Gasket beam interlock layer count and depth must be positive")
+    if not 0.0 <= GASKET_INTERLOCK_ORIENTATION < 180.0:
+        raise ValueError("Gasket beam interlock orientation must be 0-180 degrees")
+    if GASKET_INTERLOCK_BOUNDARY_AVOIDANCE < 0:
+        raise ValueError("Gasket beam boundary avoidance cannot be negative")
+
     if not 0.15 <= LID_LATCH_LIP_DRAW <= 0.40:
         raise ValueError("Lid lip needs 0.15-0.40 mm of over-center draw")
     if not math.isclose(
@@ -4327,6 +4377,11 @@ def validate_configuration() -> None:
         f"handle_grip_width={HANDLE_BAR_INNER_WIDTH:.2f} "
         f"handle_center_z={HANDLE_PIVOT_Z:.2f} "
         f"handle_raised_finger_gap={handle_raised_finger_gap:.2f} "
+        f"gasket_with_lid={str(PRINT_TPU_GASKET_WITH_LID).lower()} "
+        f"gasket_hollow={gasket_hollow_width:.2f}x{gasket_hollow_height:.2f} "
+        f"gasket_interlock={GASKET_INTERLOCK_BEAM_WIDTH:.2f}x"
+        f"{GASKET_INTERLOCK_BEAM_LAYER_COUNT}layers/"
+        f"{GASKET_INTERLOCK_DEPTH}deep "
         f"hinge_rod={HINGE_ROD_DIAMETER:.2f} "
         f"hinge_base_bore={HINGE_BASE_HOLE_DIAMETER:.2f} "
         f"hinge_lid_receiver={HINGE_LID_RECEIVER_DIAMETER:.2f} "
@@ -5250,7 +5305,8 @@ def create_lid(
     return lid, logo_orange
 
 
-def create_gasket(material):
+def gasket_ring_dimensions():
+    """Return the channel-fit outer/inner and hollow outer/inner sizes."""
     groove_outer = (CASE_WIDTH - 3.6, CASE_DEPTH - 3.6)
     gasket_outer = (
         groove_outer[0] - GASKET_FIT_CLEARANCE,
@@ -5260,16 +5316,90 @@ def create_gasket(material):
         gasket_outer[0] - 2.0 * GASKET_WIDTH,
         gasket_outer[1] - 2.0 * GASKET_WIDTH,
     )
+    hollow_outer = tuple(
+        value - 2.0 * GASKET_HOLLOW_SIDE_WALL for value in gasket_outer
+    )
+    hollow_inner = tuple(
+        value + 2.0 * GASKET_HOLLOW_SIDE_WALL for value in gasket_inner
+    )
+    return gasket_outer, gasket_inner, hollow_outer, hollow_inner
+
+
+def create_gasket_hollow_cavity(name, center, gasket_z0):
+    _gasket_outer, _gasket_inner, hollow_outer, hollow_inner = (
+        gasket_ring_dimensions()
+    )
+    outer_radius = CASE_CORNER_RADIUS - 1.9
+    inner_radius = outer_radius - GASKET_WIDTH
+    cavity_z0 = gasket_z0 + GASKET_HOLLOW_BOTTOM_WALL
+    cavity_z1 = gasket_z0 + GASKET_HEIGHT - GASKET_HOLLOW_TOP_WALL
+    return rounded_ring(
+        name,
+        hollow_outer,
+        hollow_inner,
+        cavity_z0,
+        cavity_z1,
+        outer_radius - GASKET_HOLLOW_SIDE_WALL,
+        inner_radius + GASKET_HOLLOW_SIDE_WALL,
+        center,
+    )
+
+
+def orient_hollow_gasket_cavity(gasket, gasket_z0) -> None:
+    """Wind the sealed inner shell inward so slicers preserve it as air."""
+    mesh = bmesh.new()
+    try:
+        mesh.from_mesh(gasket.data)
+        islands = mesh_vertex_islands(mesh)
+        if len(islands) != 2:
+            raise ValueError(
+                "Hollow gasket must contain exterior and air-channel surfaces"
+            )
+        cavity_islands = [
+            island
+            for island in islands
+            if min(vertex.co.z for vertex in island)
+            > gasket_z0 + GASKET_HOLLOW_BOTTOM_WALL - 1e-6
+        ]
+        if len(cavity_islands) != 1:
+            raise ValueError("Cannot identify the hollow gasket air-channel surface")
+        cavity_faces = {
+            face for vertex in cavity_islands[0] for face in vertex.link_faces
+        }
+        bmesh.ops.reverse_faces(mesh, faces=list(cavity_faces))
+        mesh.to_mesh(gasket.data)
+    finally:
+        mesh.free()
+    gasket.data.update()
+
+
+def create_gasket(material):
+    gasket_outer, gasket_inner, _hollow_outer, _hollow_inner = (
+        gasket_ring_dimensions()
+    )
+    if PRINT_TPU_GASKET_WITH_LID:
+        center = (LID_DISPLAY_OFFSET_X, 0.0)
+        gasket_z0 = GASKET_INSTALLED_Z
+    else:
+        center = (0.0, 225.0)
+        gasket_z0 = 0.0
     gasket = rounded_ring(
-        "Field_Case_TPU_Gasket",
+        "Field_Case_Hollow_TPU_Gasket",
         gasket_outer,
         gasket_inner,
-        0.0,
-        GASKET_HEIGHT,
+        gasket_z0,
+        gasket_z0 + GASKET_HEIGHT,
         CASE_CORNER_RADIUS - 1.9,
         CASE_CORNER_RADIUS - 1.9 - GASKET_WIDTH,
+        center,
     )
-    translate_object(gasket, (0.0, 225.0, 0.0))
+    cavity = create_gasket_hollow_cavity(
+        "Field_Case_Hollow_TPU_Gasket_Air_Channel",
+        center,
+        gasket_z0,
+    )
+    difference_from(gasket, cavity)
+    orient_hollow_gasket_cavity(gasket, gasket_z0)
     assign_material(gasket, material)
     return gasket
 
@@ -8929,6 +9059,18 @@ def project_settings_bytes() -> bytes:
             "0" if row == column else "280" for row in range(3) for column in range(3)
         ],
         "inherits_group": ["", "", ""],
+        "interlocking_beam": "1" if PRINT_TPU_GASKET_WITH_LID else "0",
+        "interlocking_beam_layer_count": str(GASKET_INTERLOCK_BEAM_LAYER_COUNT),
+        "interlocking_beam_width": format_3mf_number(
+            GASKET_INTERLOCK_BEAM_WIDTH
+        ),
+        "interlocking_boundary_avoidance": str(
+            GASKET_INTERLOCK_BOUNDARY_AVOIDANCE
+        ),
+        "interlocking_depth": str(GASKET_INTERLOCK_DEPTH),
+        "interlocking_orientation": format_3mf_number(
+            GASKET_INTERLOCK_ORIENTATION
+        ),
         "nozzle_diameter": ["0.4"],
         "print_compatible_printers": [BAMBU_PRINTER_SETTINGS_ID],
         "print_settings_id": BAMBU_PROCESS_SETTINGS_ID,
@@ -8952,7 +9094,12 @@ def export_3mf_project(path: Path, parts) -> Path:
         ("Title", "Dual MISSION 1 Field Case AMS Project"),
         (
             "Description",
-            "Printable field-case kit with a compound two-color lid object.",
+            (
+                "Printable field-case kit with a compound three-material lid "
+                "and hollow beam-interlocked TPU gasket."
+                if PRINT_TPU_GASKET_WITH_LID
+                else "Printable field-case kit with a compound two-color lid object."
+            ),
         ),
         ("License", "Repository license applies"),
     ):
@@ -8963,6 +9110,16 @@ def export_3mf_project(path: Path, parts) -> Path:
     def dimensions_xy(key):
         dimensions = object_world_dimensions(parts[key])
         return float(dimensions.x), float(dimensions.y)
+
+    lid_group_name = "AMS Lid - Shell and GoPro Missions Logo"
+    lid_keys = ("lid", "logo_orange_inlay")
+    lid_source_files = (LID_STL_NAME, LOGO_ORANGE_INLAY_STL_NAME)
+    lid_extruders = (1, 2)
+    if PRINT_TPU_GASKET_WITH_LID:
+        lid_group_name += " and Hollow TPU Gasket"
+        lid_keys += ("gasket",)
+        lid_source_files += (GASKET_STL_NAME,)
+        lid_extruders += (3,)
 
     groups = [
         {
@@ -8975,31 +9132,30 @@ def export_3mf_project(path: Path, parts) -> Path:
             "plate": 0,
         },
         {
-            "name": "AMS Lid - Shell and GoPro Missions Logo",
-            "keys": (
-                "lid",
-                "logo_orange_inlay",
-            ),
-            "source_files": (
-                LID_STL_NAME,
-                LOGO_ORANGE_INLAY_STL_NAME,
-            ),
-            "extruders": (1, 2),
+            "name": lid_group_name,
+            "keys": lid_keys,
+            "source_files": lid_source_files,
+            "extruders": lid_extruders,
             "dimensions": dimensions_xy("lid"),
             "copies": 1,
             "plate": 1,
         },
     ]
-    remaining_groups = (
+    remaining_groups = [
         ("lower_tray", LOWER_TRAY_STL_NAME, 3, 1, 2, None),
         ("lid_retainer", LID_RETAINER_STL_NAME, 3, 1, 3, None),
-        ("gasket", GASKET_STL_NAME, 3, 1, 4, None),
+    ]
+    if not PRINT_TPU_GASKET_WITH_LID:
+        remaining_groups.append(("gasket", GASKET_STL_NAME, 3, 1, 4, None))
+    hardware_plate = 4 if PRINT_TPU_GASKET_WITH_LID else 5
+    remaining_groups.extend(
+        [
         (
             "latch_lever",
             LATCH_LEVER_STL_NAME,
             1,
             2,
-            5,
+            hardware_plate,
             ((30.0, 30.0), (85.0, 30.0)),
         ),
         (
@@ -9007,7 +9163,7 @@ def export_3mf_project(path: Path, parts) -> Path:
             LATCH_HOOK_STL_NAME,
             1,
             2,
-            5,
+            hardware_plate,
             ((30.0, 80.0), (75.0, 80.0)),
         ),
         (
@@ -9015,10 +9171,18 @@ def export_3mf_project(path: Path, parts) -> Path:
             HANDLE_BAR_STL_NAME,
             1,
             1,
-            5,
+            hardware_plate,
             ((145.0, 100.0),),
         ),
-        ("hinge_pin", HINGE_PIN_STL_NAME, 1, 1, 5, ((45.0, 190.0),)),
+        (
+            "hinge_pin",
+            HINGE_PIN_STL_NAME,
+            1,
+            1,
+            hardware_plate,
+            ((45.0, 190.0),),
+        ),
+        ]
     )
     for (
         key,
@@ -9185,14 +9349,23 @@ def export_3mf_project(path: Path, parts) -> Path:
     for group in groups:
         add_model_settings_object(model_settings, group)
     instance_counts = {}
-    plate_names = (
-        "Shell Base",
-        "AMS Lid",
-        "TPU Lower Tray",
-        "TPU Lid Pad",
-        "TPU Gasket",
-        "Printed Hardware",
-    )
+    if PRINT_TPU_GASKET_WITH_LID:
+        plate_names = (
+            "Shell Base",
+            "AMS Lid + Hollow TPU Gasket",
+            "TPU Lower Tray",
+            "TPU Lid Pad",
+            "Printed Hardware",
+        )
+    else:
+        plate_names = (
+            "Shell Base",
+            "AMS Lid",
+            "TPU Lower Tray",
+            "TPU Lid Pad",
+            "TPU Gasket",
+            "Printed Hardware",
+        )
     identify_id = 1
     for plate_index, plate_name in enumerate(plate_names):
         plate = ET.SubElement(model_settings, "plate")
@@ -9318,7 +9491,10 @@ def validate_relationships(root, expected_targets) -> None:
 
 
 def validate_3mf_project(path: Path) -> None:
-    object_model_paths = [f"3D/Objects/object_{index}.model" for index in range(1, 10)]
+    object_count = 8 if PRINT_TPU_GASKET_WITH_LID else 9
+    object_model_paths = [
+        f"3D/Objects/object_{index}.model" for index in range(1, object_count + 1)
+    ]
     required_members = {
         "[Content_Types].xml",
         "_rels/.rels",
@@ -9400,37 +9576,89 @@ def validate_3mf_project(path: Path) -> None:
     expected_relationship_targets = [f"/{path}" for path in object_model_paths]
     validate_relationships(model_relationships, expected_relationship_targets)
 
-    expected_groups = (
-        ("2", "Base", ("1",), object_model_paths[0]),
-        (
-            "5",
-            "AMS Lid - Shell and GoPro Missions Logo",
-            ("3", "4"),
-            object_model_paths[1],
-        ),
-        ("7", "Field_Case_Recessed_TPU_Lower_Tray", ("6",), object_model_paths[2]),
-        ("9", "Field_Case_Recessed_TPU_Lid_Pad", ("8",), object_model_paths[3]),
-        ("11", "Field_Case_TPU_Gasket", ("10",), object_model_paths[4]),
-        (
-            "13",
-            "Field_Case_Pelican_Source_Lever_Print_Two",
-            ("12",),
-            object_model_paths[5],
-        ),
-        (
-            "15",
-            "Field_Case_Pelican_Source_Hook_Print_Two",
-            ("14",),
-            object_model_paths[6],
-        ),
-        (
-            "17",
-            "Field_Case_Pivoting_Handle_Bar",
-            ("16",),
-            object_model_paths[7],
-        ),
-        ("19", "Field_Case_Hinge_Pin", ("18",), object_model_paths[8]),
-    )
+    if PRINT_TPU_GASKET_WITH_LID:
+        expected_groups = (
+            ("2", "Base", ("1",), object_model_paths[0]),
+            (
+                "6",
+                "AMS Lid - Shell and GoPro Missions Logo and Hollow TPU Gasket",
+                ("3", "4", "5"),
+                object_model_paths[1],
+            ),
+            (
+                "8",
+                "Field_Case_Recessed_TPU_Lower_Tray",
+                ("7",),
+                object_model_paths[2],
+            ),
+            (
+                "10",
+                "Field_Case_Recessed_TPU_Lid_Pad",
+                ("9",),
+                object_model_paths[3],
+            ),
+            (
+                "12",
+                "Field_Case_Pelican_Source_Lever_Print_Two",
+                ("11",),
+                object_model_paths[4],
+            ),
+            (
+                "14",
+                "Field_Case_Pelican_Source_Hook_Print_Two",
+                ("13",),
+                object_model_paths[5],
+            ),
+            (
+                "16",
+                "Field_Case_Pivoting_Handle_Bar",
+                ("15",),
+                object_model_paths[6],
+            ),
+            ("18", "Field_Case_Hinge_Pin", ("17",), object_model_paths[7]),
+        )
+    else:
+        expected_groups = (
+            ("2", "Base", ("1",), object_model_paths[0]),
+            (
+                "5",
+                "AMS Lid - Shell and GoPro Missions Logo",
+                ("3", "4"),
+                object_model_paths[1],
+            ),
+            (
+                "7",
+                "Field_Case_Recessed_TPU_Lower_Tray",
+                ("6",),
+                object_model_paths[2],
+            ),
+            (
+                "9",
+                "Field_Case_Recessed_TPU_Lid_Pad",
+                ("8",),
+                object_model_paths[3],
+            ),
+            ("11", "Field_Case_Hollow_TPU_Gasket", ("10",), object_model_paths[4]),
+            (
+                "13",
+                "Field_Case_Pelican_Source_Lever_Print_Two",
+                ("12",),
+                object_model_paths[5],
+            ),
+            (
+                "15",
+                "Field_Case_Pelican_Source_Hook_Print_Two",
+                ("14",),
+                object_model_paths[6],
+            ),
+            (
+                "17",
+                "Field_Case_Pivoting_Handle_Bar",
+                ("16",),
+                object_model_paths[7],
+            ),
+            ("19", "Field_Case_Hinge_Pin", ("18",), object_model_paths[8]),
+        )
     component_objects = model.findall(
         f"./{three_mf_tag('resources')}/{three_mf_tag('object')}"
     )
@@ -9511,34 +9739,79 @@ def validate_3mf_project(path: Path) -> None:
         mesh_payloads["3"],
         (mesh_payloads["4"],),
     )
+    gasket_mesh_id = "5" if PRINT_TPU_GASKET_WITH_LID else "10"
+    gasket_vertices, gasket_triangles = mesh_payloads[gasket_mesh_id]
+    expected_gasket_z0 = GASKET_INSTALLED_Z if PRINT_TPU_GASKET_WITH_LID else 0.0
+    gasket_minimum_z = min(vertex[2] for vertex in gasket_vertices)
+    gasket_maximum_z = max(vertex[2] for vertex in gasket_vertices)
+    if not math.isclose(
+        gasket_minimum_z,
+        expected_gasket_z0,
+        abs_tol=1e-6,
+    ) or not math.isclose(
+        gasket_maximum_z,
+        expected_gasket_z0 + GASKET_HEIGHT,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("3MF hollow TPU gasket has an incorrect Z alignment")
+    if len(triangle_components(gasket_triangles)) != 2:
+        raise ValueError(
+            "3MF hollow TPU gasket must have exterior and air-channel shells"
+        )
 
-    expected_parts = {
-        "1": (BASE_STL_NAME, "1"),
-        "3": (LID_STL_NAME, "1"),
-        "4": (LOGO_ORANGE_INLAY_STL_NAME, "2"),
-        "6": (LOWER_TRAY_STL_NAME, "3"),
-        "8": (LID_RETAINER_STL_NAME, "3"),
-        "10": (GASKET_STL_NAME, "3"),
-        "12": (LATCH_LEVER_STL_NAME, "1"),
-        "14": (LATCH_HOOK_STL_NAME, "1"),
-        "16": (HANDLE_BAR_STL_NAME, "1"),
-        "18": (HINGE_PIN_STL_NAME, "1"),
-    }
+    if PRINT_TPU_GASKET_WITH_LID:
+        expected_parts = {
+            "1": (BASE_STL_NAME, "1"),
+            "3": (LID_STL_NAME, "1"),
+            "4": (LOGO_ORANGE_INLAY_STL_NAME, "2"),
+            "5": (GASKET_STL_NAME, "3"),
+            "7": (LOWER_TRAY_STL_NAME, "3"),
+            "9": (LID_RETAINER_STL_NAME, "3"),
+            "11": (LATCH_LEVER_STL_NAME, "1"),
+            "13": (LATCH_HOOK_STL_NAME, "1"),
+            "15": (HANDLE_BAR_STL_NAME, "1"),
+            "17": (HINGE_PIN_STL_NAME, "1"),
+        }
+    else:
+        expected_parts = {
+            "1": (BASE_STL_NAME, "1"),
+            "3": (LID_STL_NAME, "1"),
+            "4": (LOGO_ORANGE_INLAY_STL_NAME, "2"),
+            "6": (LOWER_TRAY_STL_NAME, "3"),
+            "8": (LID_RETAINER_STL_NAME, "3"),
+            "10": (GASKET_STL_NAME, "3"),
+            "12": (LATCH_LEVER_STL_NAME, "1"),
+            "14": (LATCH_HOOK_STL_NAME, "1"),
+            "16": (HANDLE_BAR_STL_NAME, "1"),
+            "18": (HINGE_PIN_STL_NAME, "1"),
+        }
     settings_objects = model_settings.findall("object")
     settings_parts = model_settings.findall("object/part")
     if {node.get("id") for node in settings_objects} != set(components_by_id):
         raise ValueError("3MF model settings describe incorrect logical objects")
-    expected_object_extruders = {
-        "2": "1",
-        "5": "1",
-        "7": "3",
-        "9": "3",
-        "11": "3",
-        "13": "1",
-        "15": "1",
-        "17": "1",
-        "19": "1",
-    }
+    if PRINT_TPU_GASKET_WITH_LID:
+        expected_object_extruders = {
+            "2": "1",
+            "6": "1",
+            "8": "3",
+            "10": "3",
+            "12": "1",
+            "14": "1",
+            "16": "1",
+            "18": "1",
+        }
+    else:
+        expected_object_extruders = {
+            "2": "1",
+            "5": "1",
+            "7": "3",
+            "9": "3",
+            "11": "3",
+            "13": "1",
+            "15": "1",
+            "17": "1",
+            "19": "1",
+        }
     expected_group_names = {group[0]: group[1] for group in expected_groups}
     for settings_object in settings_objects:
         object_id = settings_object.get("id")
@@ -9559,29 +9832,52 @@ def validate_3mf_project(path: Path) -> None:
         if metadata.get("extruder") != extruder:
             raise ValueError(f"3MF part {part.get('id')} has an incorrect extruder")
 
-    plate_names = (
-        "Shell Base",
-        "AMS Lid",
-        "TPU Lower Tray",
-        "TPU Lid Pad",
-        "TPU Gasket",
-        "Printed Hardware",
-    )
-    expected_plate_instances = (
-        (("2", "0"),),
-        (("5", "0"),),
-        (("7", "0"),),
-        (("9", "0"),),
-        (("11", "0"),),
-        (
-            ("13", "0"),
-            ("13", "1"),
-            ("15", "0"),
-            ("15", "1"),
-            ("17", "0"),
-            ("19", "0"),
-        ),
-    )
+    if PRINT_TPU_GASKET_WITH_LID:
+        plate_names = (
+            "Shell Base",
+            "AMS Lid + Hollow TPU Gasket",
+            "TPU Lower Tray",
+            "TPU Lid Pad",
+            "Printed Hardware",
+        )
+        expected_plate_instances = (
+            (("2", "0"),),
+            (("6", "0"),),
+            (("8", "0"),),
+            (("10", "0"),),
+            (
+                ("12", "0"),
+                ("12", "1"),
+                ("14", "0"),
+                ("14", "1"),
+                ("16", "0"),
+                ("18", "0"),
+            ),
+        )
+    else:
+        plate_names = (
+            "Shell Base",
+            "AMS Lid",
+            "TPU Lower Tray",
+            "TPU Lid Pad",
+            "TPU Gasket",
+            "Printed Hardware",
+        )
+        expected_plate_instances = (
+            (("2", "0"),),
+            (("5", "0"),),
+            (("7", "0"),),
+            (("9", "0"),),
+            (("11", "0"),),
+            (
+                ("13", "0"),
+                ("13", "1"),
+                ("15", "0"),
+                ("15", "1"),
+                ("17", "0"),
+                ("19", "0"),
+            ),
+        )
     settings_plates = model_settings.findall("plate")
     if len(settings_plates) != len(plate_names):
         raise ValueError("3MF project has an unexpected plate count")
@@ -9601,7 +9897,8 @@ def validate_3mf_project(path: Path) -> None:
             identify_ids.append(values.get("identify_id"))
         if tuple(actual_instances) != expected_plate_instances[plate_index]:
             raise ValueError(f"3MF plate {plate_index + 1} has incorrect instances")
-    if identify_ids != [str(index) for index in range(1, 12)]:
+    expected_identify_ids = sum(len(instances) for instances in expected_plate_instances)
+    if identify_ids != [str(index) for index in range(1, expected_identify_ids + 1)]:
         raise ValueError("3MF instance identify IDs are not unique and sequential")
 
     build_items = model.findall(f"./{three_mf_tag('build')}/{three_mf_tag('item')}")
@@ -9698,6 +9995,18 @@ def validate_3mf_project(path: Path) -> None:
         "flush_volumes_matrix": [
             "0" if row == column else "280" for row in range(3) for column in range(3)
         ],
+        "interlocking_beam": "1" if PRINT_TPU_GASKET_WITH_LID else "0",
+        "interlocking_beam_layer_count": str(GASKET_INTERLOCK_BEAM_LAYER_COUNT),
+        "interlocking_beam_width": format_3mf_number(
+            GASKET_INTERLOCK_BEAM_WIDTH
+        ),
+        "interlocking_boundary_avoidance": str(
+            GASKET_INTERLOCK_BOUNDARY_AVOIDANCE
+        ),
+        "interlocking_depth": str(GASKET_INTERLOCK_DEPTH),
+        "interlocking_orientation": format_3mf_number(
+            GASKET_INTERLOCK_ORIENTATION
+        ),
     }
     for key, expected_value in expected_project_settings.items():
         if project_settings.get(key) != expected_value:
@@ -9707,7 +10016,10 @@ def validate_3mf_project(path: Path) -> None:
     print(
         "FIELD_CASE_3MF_VALID "
         f"mesh_parts={len(mesh_objects)} objects={len(component_objects)} "
-        f"lid_components=2 lid_islands={lid_islands} "
+        f"lid_components={3 if PRINT_TPU_GASKET_WITH_LID else 2} "
+        f"lid_islands={lid_islands} "
+        f"gasket_with_lid={str(PRINT_TPU_GASKET_WITH_LID).lower()} "
+        f"beam_interlock={project_settings['interlocking_beam']} "
         f"build_items={len(build_items)} extruders={','.join(sorted(extruders))}"
     )
 
@@ -9768,7 +10080,7 @@ def validate_built_part(name: str, obj) -> None:
         )
     if volume < 0.001:
         raise ValueError(f"Built {name} has near-zero volume: {volume:.6f} mm^3")
-    expected_components = 1
+    expected_components = 2 if name == "gasket" else 1
     if not name.startswith("logo_") and connected_components != expected_components:
         raise ValueError(
             f"Built {name} contains {connected_components} disconnected islands; "
@@ -9778,6 +10090,102 @@ def validate_built_part(name: str, obj) -> None:
         "FIELD_CASE_PART "
         f"{name}={dimensions.x:.2f}x{dimensions.y:.2f}x{dimensions.z:.2f} "
         "manifold=yes"
+    )
+
+
+def mesh_object_volume(obj) -> float:
+    mesh = bmesh.new()
+    try:
+        mesh.from_mesh(obj.data)
+        return abs(mesh.calc_volume(signed=True))
+    finally:
+        mesh.free()
+
+
+def validate_built_hollow_gasket(parts) -> None:
+    gasket = parts["gasket"]
+    minimum, maximum = object_world_bounds(gasket)
+    expected_z0 = GASKET_INSTALLED_Z if PRINT_TPU_GASKET_WITH_LID else 0.0
+    expected_z1 = expected_z0 + GASKET_HEIGHT
+    if not math.isclose(minimum.z, expected_z0, abs_tol=1e-6) or not math.isclose(
+        maximum.z,
+        expected_z1,
+        abs_tol=1e-6,
+    ):
+        raise ValueError(
+            "Hollow TPU gasket has an incorrect print/assembly height: "
+            f"Z={minimum.z:.6f}-{maximum.z:.6f}"
+        )
+
+    center = (
+        (LID_DISPLAY_OFFSET_X, 0.0)
+        if PRINT_TPU_GASKET_WITH_LID
+        else (0.0, 225.0)
+    )
+    cavity = create_gasket_hollow_cavity(
+        "TEMPORARY_Hollow_TPU_Gasket_Air_Channel_Probe",
+        center,
+        expected_z0,
+    )
+    try:
+        cavity_volume = mesh_object_volume(cavity)
+        _faces, cavity_fill = exact_transformed_intersection(gasket, cavity)
+    finally:
+        bpy.data.objects.remove(cavity, do_unlink=True)
+    if cavity_volume < 100.0 or cavity_fill > 1e-6:
+        raise ValueError(
+            "TPU gasket air channel is absent or obstructed: "
+            f"air={cavity_volume:.6f} filled={cavity_fill:.6f}"
+        )
+
+    interface_lid_volume = 0.0
+    interface_gasket_volume = 0.0
+    seated_overlap = 0.0
+    if PRINT_TPU_GASKET_WITH_LID:
+        gasket_outer, gasket_inner, _hollow_outer, _hollow_inner = (
+            gasket_ring_dimensions()
+        )
+        interface_probe_depth = 0.04
+        interface_probe = rounded_ring(
+            "TEMPORARY_Gasket_Lid_Interface_Probe",
+            gasket_outer,
+            gasket_inner,
+            GASKET_INSTALLED_Z - interface_probe_depth,
+            GASKET_INSTALLED_Z + interface_probe_depth,
+            CASE_CORNER_RADIUS - 1.9,
+            CASE_CORNER_RADIUS - 1.9 - GASKET_WIDTH,
+            center,
+        )
+        try:
+            _faces, interface_lid_volume = exact_transformed_intersection(
+                parts["lid"],
+                interface_probe,
+            )
+            _faces, interface_gasket_volume = exact_transformed_intersection(
+                gasket,
+                interface_probe,
+            )
+        finally:
+            bpy.data.objects.remove(interface_probe, do_unlink=True)
+        _faces, seated_overlap = exact_transformed_intersection(parts["lid"], gasket)
+        if min(interface_lid_volume, interface_gasket_volume) < 40.0:
+            raise ValueError(
+                "Integrated gasket lacks a continuous lid interface for beam interlock"
+            )
+        if seated_overlap > 1e-6:
+            raise ValueError(
+                "Integrated gasket and lid occupy the same volume before slicing: "
+                f"overlap={seated_overlap:.6f}"
+            )
+
+    print(
+        "FIELD_CASE_HOLLOW_GASKET_VALID "
+        f"with_lid={str(PRINT_TPU_GASKET_WITH_LID).lower()} "
+        f"z={minimum.z:.2f}-{maximum.z:.2f} "
+        f"air={cavity_volume:.3f} filled={cavity_fill:.6f} "
+        f"interface_lid={interface_lid_volume:.3f} "
+        f"interface_tpu={interface_gasket_volume:.3f} "
+        f"seated_overlap={seated_overlap:.6f}"
     )
 
 
@@ -9870,6 +10278,7 @@ def build_mission1_field_case():
 
     for name, obj in parts.items():
         validate_built_part(name, obj)
+    validate_built_hollow_gasket(parts)
     validate_built_flush_lid_inlay(parts)
     validate_installed_lower_tray(parts)
     validate_built_base_hinge_gussets(parts["base"])
@@ -9924,6 +10333,8 @@ def build_mission1_field_case():
             expected_minimum_z = 0.0
             if obj is parts["lower_tray"]:
                 print_origin = Vector((0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
+            elif obj is parts["gasket"] and PRINT_TPU_GASKET_WITH_LID:
+                expected_minimum_z = GASKET_INSTALLED_Z
             export_stl(
                 export_path(filename),
                 obj,

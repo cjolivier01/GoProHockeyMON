@@ -62,31 +62,58 @@ exactly 50% thicker than the original. Four small blocks below it follow the
 familiar GoPro layout. All lettering and all four blocks use the same orange
 material and are joined into one shallow 0.8 mm flush-inlay STL.
 
-`mission1_field_case_ams_project.3mf` contains the lid as one aligned two-color
-compound object:
+With the default `PRINT_TPU_GASKET_WITH_LID = True`,
+`mission1_field_case_ams_project.3mf` contains the lid as one aligned
+three-material compound object:
 
 - black shell
 - orange `GoPro Missions` text and four orange blocks
+- hollow hard-TPU lid gasket
 
-The lid therefore needs only two AMS filaments. The 3MF declares black and
-orange rigid filaments plus orange TPU as filament 3 for the separate TPU
-plates; TPU should normally use an external spool.
+The 3MF declares black and orange rigid filaments plus hard TPU as filament 3.
+Use an AMS-compatible hard TPU, a TPU-capable multimaterial system, or the
+printer's supported external-spool/manual-change workflow. Do not feed ordinary
+soft TPU through an AMS that does not support it.
 
 For another slicer, import these files together without changing their relative
 positions:
 
 - `mission1_field_case_lid.stl`
 - `mission1_field_case_lid_logo_orange_inlay.stl`
+- `mission1_field_case_gasket_tpu.stl`
 
-The exported STLs share one assembly print origin and both begin at Z = 0. The
-black lid surrounds matching 0.8 mm-deep pockets while the orange body fills
-them, so black and orange jointly form one continuous build-facing first layer.
-Import them as one multipart object so the slicer preserves that alignment.
-The generator verifies that every orange island touches the build plate, bonds
-to the pocket ceiling, does not overlap the shell, and combines with the black
-shell to cover the lid's complete first-layer footprint. This avoids placing
-the entire black lid 0.8 mm above isolated orange letters, which would otherwise
-make a slicer bridge that layer or generate broad support beneath it.
+The shell and orange STL both begin at Z = 0. The integrated gasket remains at
+its assembled Z = 9.8-11.25 mm so all three files share the lid coordinate
+system. Import them as one multipart object. The black lid surrounds matching
+0.8 mm-deep logo pockets while the orange body fills them, so black and orange
+jointly form one continuous build-facing first layer. The generator verifies
+that every orange island touches the build plate, bonds to the pocket ceiling,
+does not overlap the shell, and combines with the black shell to cover the
+lid's complete first-layer footprint. This avoids placing the entire black lid
+0.8 mm above isolated orange letters, which would otherwise make a slicer
+bridge that layer or generate broad support beneath it.
+
+## Hollow TPU lid gasket
+
+The default integrated gasket is a closed hollow tube rather than a solid hard-
+TPU ring. Its 2.2 x 1.45 mm section contains a continuous 1.1 x 0.45 mm air
+channel, with 0.55 mm side walls, a 0.60 mm floor, and a 0.40 mm roof. The
+internal void removes 344.695 mm3 of TPU and lets a relatively hard material
+compress more readily while preserving the existing 0.25 mm proud seal height.
+The short 1.1 mm internal bridge needs no generated support.
+
+The generated 3MF enables the slicer's native `Use beam interlocking` option
+for the compound lid. It uses 0.8 mm beams, two beam layers, two cells of
+interlocking depth, a 22.5-degree orientation, and zero boundary avoidance so
+the narrow gasket-to-lid interface is not skipped. The 0.60 mm gasket floor
+leaves three nominal 0.20 mm TPU layers at that interface. Geometry validation
+proves a continuous matching shell/TPU interface and zero overlapping volume
+before the slicer generates its alternating-material beams.
+
+Set `PRINT_TPU_GASKET_WITH_LID = False` before generation to restore a separate
+Z = 0 hollow-gasket STL and its own TPU plate. That mode removes the gasket from
+the compound lid and disables project beam interlocking; seat the separately
+printed gasket in the unchanged lid channel during assembly.
 
 ## Pelican toggle latches
 
@@ -344,11 +371,16 @@ stops and retention.
   your printer handles reliably, at least five walls, and high infill around
   the flat bearing pad, round retention boss, and link-pivot end. Soft 95A
   tray-style settings are not recommended for this load-bearing part.
-- Lower tray, lid pad, and gasket: TPU 95A, two or three walls, and 15-20%
-  infill. The gasket is for dust and splash resistance, not certified
+- Lower tray and lid pad: TPU 95A, two or three walls, and 15-20% infill.
+- Gasket: relatively hard TPU with a 0.4 mm nozzle and 0.20 mm layers. The air
+  channel is modeled into the STL, so do not enable support or gap filling in
+  that closed void. The gasket is for dust and splash resistance, not certified
   waterproofing.
-- Print the base, lid, tray, lid pad, gasket, latches, and handle bar in their
-  exported orientations. Their broad faces are already on the bed.
+- Print the base, compound lid, tray, lid pad, latches, and handle bar in their
+  exported orientations. Their broad faces are already on the bed. With the
+  default option, the gasket is already positioned inside the compound lid;
+  the standalone gasket STL is an aligned multipart component, not a separate
+  Z = 0 print.
 - The case-side latch and handle mounts rise on 45-degree lower webs and do not
   require support. Do not place support inside their teardrop pivot bores.
 - The two lid hinge slots bridge the full 22.8 mm receiver widths in the broad-
@@ -367,8 +399,10 @@ and can be regenerated without editing an STL.
 
 1. Press the lower TPU tray into the base and lay the two removable battery
    doors in the shallow outer pockets if carried; each door remains 7 mm proud.
-2. Seat the TPU gasket in the lid channel. Fit the TPU pad with its asymmetric
-   notch over the matching rigid boss.
+2. With the default integrated print, inspect the beam-interlocked TPU gasket
+   for a continuous bond to the lid channel. If the separate-gasket option was
+   used, seat the hollow TPU ring in the channel. Fit the TPU pad with its
+   asymmetric notch over the matching rigid boss.
 3. Feed and center the 151 mm-long, 4.1 mm bar (or headless printed D-profile
    pin) through the three base knuckles, leaving both ends about 0.5 mm inset.
    Hold the lid approximately 70 degrees open. Align both rearward-opening
