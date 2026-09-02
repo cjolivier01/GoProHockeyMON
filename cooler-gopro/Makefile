@@ -389,7 +389,7 @@ $(MISSION1_FIELD_CASE_OUTPUTS) &: mission1_field_case_blender.py \
 $(PELICAN_CASE_OUTPUTS) &: generate_pelican_case.py
 	$(RM) $(PELICAN_CASE_OUTPUTS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python $<
-	$(PDF_PYTHON) -c "from pathlib import Path; import zipfile; paths=[Path(name) for name in '$(PELICAN_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; bad_files=[]; [bad_files.append((str(path), archive.testzip())) if (archive := zipfile.ZipFile(path)).testzip() else archive.close() for path in paths]; assert not bad_files, f'Corrupt 3MF files: {bad_files}'"
+	$(PDF_PYTHON) -c "from pathlib import Path; import zipfile; paths=[Path(name) for name in '$(PELICAN_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; stl_path=paths[0]; stl_data=stl_path.read_bytes(); assert len(stl_data) >= 84 and len(stl_data) == 84 + 50 * int.from_bytes(stl_data[80:84], 'little'), f'Invalid binary STL: {stl_path}'; bad_files=[]; [bad_files.append((str(path), bad_member)) if (archive := zipfile.ZipFile(path), bad_member := archive.testzip(), archive.close())[1] else None for path in paths[1:]]; assert not bad_files, f'Corrupt 3MF files: {bad_files}'"
 
 $(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py fan_size_presets.py
 	$(RM) $(DUAL_FAN_ALL_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
@@ -465,7 +465,7 @@ clean-mission1-field-case:
 	$(RM) $(MISSION1_FIELD_CASE_OUTPUTS) $(MISSION1_FIELD_CASE_OBSOLETE_STLS)
 
 clean-pelican-case:
-	$(RM) $(PELICAN_CASE_OUTPUTS)
+	$(RM) $(PELICAN_CASE_OUTPUTS) pelican_case_parametric.blend pelican_case_parametric.blend1
 
 clean-dual-fan:
 	$(RM) $(DUAL_FAN_ALL_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)

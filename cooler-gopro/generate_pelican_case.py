@@ -19,10 +19,19 @@ bpy.ops.object.delete()
 # PARAMETERS (based on analyzed pelican-case.stl)
 # ============================================================================
 
-# Scale factor to fit within 250mm x 250mm x 220mm build volume
-# Original: 346.71 x 153.06 x 345.54 mm
-# Scaled: 220.74 x 97.45 x 220.00 mm (fits within limits)
-SCALE_FACTOR = 0.6367
+# Target build volume constraints
+BUILD_VOLUME_X = 250.0  # mm
+BUILD_VOLUME_Y = 250.0  # mm
+BUILD_VOLUME_Z = 220.0  # mm
+
+# Calculate scale factor to fit within build volume
+# Original dimensions: 346.71 x 153.06 x 345.54 mm
+# The height (Z) is the limiting dimension
+SCALE_FACTOR_X = BUILD_VOLUME_X / 346.71  # 0.7211
+SCALE_FACTOR_Y = BUILD_VOLUME_Y / 153.06  # 1.6333 (not limiting)
+SCALE_FACTOR_Z = BUILD_VOLUME_Z / 345.54  # 0.6369
+SCALE_FACTOR = min(SCALE_FACTOR_X, SCALE_FACTOR_Y, SCALE_FACTOR_Z)
+# Scaled dimensions: 220.83 x 97.49 x 220.00 mm (fits within limits)
 
 # Overall case dimensions (mm) - these are the original full-size dimensions
 # Actual output will be scaled by SCALE_FACTOR
@@ -465,6 +474,13 @@ for obj in all_objects:
 # EXPORT 3MF FILES
 # ============================================================================
 
+def validate_export(filepath, min_size=100):
+    """Validate that export file was created successfully."""
+    if not os.path.exists(filepath):
+        raise RuntimeError(f"Export failed: file not created: {filepath}")
+    if os.path.getsize(filepath) < min_size:
+        raise RuntimeError(f"Export failed: file too small (possibly corrupt): {filepath}")
+
 print("\nExporting 3MF files for 3D printing...")
 
 output_dir = os.path.dirname(bpy.data.filepath) or os.getcwd()
@@ -475,6 +491,7 @@ case_base.select_set(True)
 lid.select_set(True)
 export_path = os.path.join(output_dir, "pelican_case_body_PLA_PETG.3mf")
 bpy.ops.export_mesh.threemf(filepath=export_path, use_selection=True)
+validate_export(export_path)
 print(f"  Exported: pelican_case_body_PLA_PETG.3mf")
 
 # Export PETG-HF parts (hardware)
@@ -483,6 +500,7 @@ for obj in latches + hinges + [handle]:
     obj.select_set(True)
 export_path = os.path.join(output_dir, "pelican_case_hardware_PETG_HF.3mf")
 bpy.ops.export_mesh.threemf(filepath=export_path, use_selection=True)
+validate_export(export_path)
 print(f"  Exported: pelican_case_hardware_PETG_HF.3mf")
 
 # Export TPU parts (seal)
@@ -490,18 +508,21 @@ bpy.ops.object.select_all(action='DESELECT')
 seal.select_set(True)
 export_path = os.path.join(output_dir, "pelican_case_seal_TPU.3mf")
 bpy.ops.export_mesh.threemf(filepath=export_path, use_selection=True)
+validate_export(export_path)
 print(f"  Exported: pelican_case_seal_TPU.3mf")
 
 # Export complete assembly (3MF)
 bpy.ops.object.select_all(action='SELECT')
 export_path = os.path.join(output_dir, "pelican_case_complete_assembly.3mf")
 bpy.ops.export_mesh.threemf(filepath=export_path, use_selection=True)
+validate_export(export_path)
 print(f"  Exported: pelican_case_complete_assembly.3mf")
 
 # Export complete assembly (STL)
 bpy.ops.object.select_all(action='SELECT')
 export_path = os.path.join(output_dir, "pelican_case_complete_assembly.stl")
 bpy.ops.export_mesh.stl(filepath=export_path, use_selection=True)
+validate_export(export_path)
 print(f"  Exported: pelican_case_complete_assembly.stl")
 
 # Save blend file
