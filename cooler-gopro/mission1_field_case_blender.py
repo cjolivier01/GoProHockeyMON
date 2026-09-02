@@ -8961,7 +8961,16 @@ def validate_3mf_project(path: Path) -> None:
                 != f"/{object_path}"
             ):
                 raise ValueError(f"3MF object {object_id} references an incorrect path")
-            parse_3mf_transform(component.get("transform"))
+            component_translation = parse_3mf_transform(component.get("transform"))
+            if any(
+                not math.isclose(value, 0.0, abs_tol=1e-6)
+                for value in component_translation
+            ):
+                raise ValueError(
+                    f"3MF object {object_id} component "
+                    f"{component.get('objectid')} has an unexpected translation: "
+                    f"{component.get('transform')}"
+                )
             component_uuid = component.get(three_mf_production_attribute("UUID"))
             if not component_uuid or component_uuid in all_component_uuids:
                 raise ValueError("3MF component UUIDs must be unique and nonempty")
