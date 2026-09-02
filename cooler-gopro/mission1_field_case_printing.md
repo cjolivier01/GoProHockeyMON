@@ -60,7 +60,7 @@ The only lid text is `GoPro Missions`, set in the compact embedded Neuropol
 GoPro-style face. Its minimum stroke is widened from 1.475 mm to 2.2125 mm,
 exactly 50% thicker than the original. Four small blocks below it follow the
 familiar GoPro layout. All lettering and all four blocks use the same orange
-material and are joined into one shallow 0.8 mm raised logo STL.
+material and are joined into one shallow 0.8 mm flush-inlay STL.
 
 `mission1_field_case_ams_project.3mf` contains the lid as one aligned two-color
 compound object:
@@ -78,12 +78,15 @@ positions:
 - `mission1_field_case_lid.stl`
 - `mission1_field_case_lid_logo_orange_inlay.stl`
 
-The exported STLs share one assembly print origin: the orange logo occupies the
-first 0.8 mm and the black lid begins directly above it. Import them as one
-multipart object so the slicer preserves that Z alignment. Every orange island
-has a verified bonding face against the uninterrupted black lid surface. The
-orange STL retains `_inlay` in its filename for compatibility, although this
-revision uses it as a raised logo rather than a recessed inlay.
+The exported STLs share one assembly print origin and both begin at Z = 0. The
+black lid surrounds matching 0.8 mm-deep pockets while the orange body fills
+them, so black and orange jointly form one continuous build-facing first layer.
+Import them as one multipart object so the slicer preserves that alignment.
+The generator verifies that every orange island touches the build plate, bonds
+to the pocket ceiling, does not overlap the shell, and combines with the black
+shell to cover the lid's complete first-layer footprint. This avoids placing
+the entire black lid 0.8 mm above isolated orange letters, which would otherwise
+make a slicer bridge that layer or generate broad support beneath it.
 
 ## Pelican toggle latches
 

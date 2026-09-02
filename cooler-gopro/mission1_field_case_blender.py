@@ -11,7 +11,7 @@ from disk.  The default kit holds:
 * a TPU dust/splash gasket, two source-derived two-piece Pelican latch
   mechanisms mounted on M3 fixed pivots and 4 mm moving-link rods, and a
   separate pivoting handle mounted with two M3 socket-head pivots,
-* raised orange GoPro-style ``GoPro Missions`` lettering with four matching blocks.
+* flush orange GoPro-style ``GoPro Missions`` lettering with four matching blocks.
 
 The case is Pelican/rugged-box inspired.  The user-supplied MakerWorld example is used as
 a functional precedent for recessed upper/lower inserts, gasket, case shell,
@@ -45,7 +45,7 @@ Set ``EXPORT_STL = True`` below, or use
 ``make -C cooler-gopro mission1-field-case`` from the repository root, to emit
 all ten printable-part STLs and ``mission1_field_case_ams_project.3mf``.
 The 3MF contains the complete six-plate project; its lid is one compound object
-with a black shell and one raised orange text-and-block body.  The standalone
+with a black shell and one flush orange text-and-block body.  The standalone
 lid STLs remain available for other slicers.  Print two copies each of the
 latch lever and hook STLs.  An M3 Allen socket-head screw and captive nut mount
 each lever between integrated case guards, and a 4 mm rod joins its moving hook.
@@ -2371,7 +2371,7 @@ PELICAN_BLEND_LATCH_MESHES_LZMA_BASE85 = (
     b"3HhHA2hmNbf$sv`cSPibm1;L1OsqBa*_0vx$~^pd1pp1200HQo2Y|yQ_U+=ZvBYQl0ssI200dcD"
 )
 
-# Raised orange GoPro-style mark with strokes 50% wider than the original.
+# Flush orange GoPro-style inlay with strokes 50% wider than the original.
 LID_LOGO_TEXT = "GoPro Missions"
 LID_LOGO_TEXT_SIZE = 18.0
 LID_LOGO_TEXT_MAX_WIDTH = 122.0
@@ -2387,6 +2387,7 @@ LID_LOGO_BLOCK_SIZE = (14.0, 5.0)
 LID_LOGO_BLOCK_GAP = 2.0
 LID_LOGO_BLOCK_CENTER_Y = 18.0
 LID_INLAY_DEPTH = 0.8
+LID_INLAY_CUTTER_OVERTRAVEL = 0.2
 
 # Embedded CC0 Neuropol 3.100 glyph subset used for the GoPro-style lettering.
 NEUROPOL_GOPRO_MISSIONS_OTF_GZIP_BASE64 = (
@@ -5218,9 +5219,30 @@ def create_lid(
     bpy.context.view_layer.objects.active = logo_orange
     bpy.ops.object.join()
     logo_orange.name = "Lid_GoPro_Missions_And_Blocks_Orange_Inlay"
-    # Keep the curved orange mark as a shallow raised face. Its top bonds to
-    # the lid's uninterrupted build-facing plane without fragile font booleans.
-    logo_orange.location.z -= LID_INLAY_DEPTH
+
+    # Bake the joined islands, duplicate them as one Boolean tool, and extend
+    # only the tool's bottom through the lid's build-facing plane.  The orange
+    # body itself remains at Z=0..0.8 while the matching black pockets occupy
+    # that same depth.  Black and orange therefore share the complete first
+    # layer instead of suspending the full black lid 0.8 mm over isolated text.
+    select_only(logo_orange)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    inlay_pocket_cutter = logo_orange.copy()
+    inlay_pocket_cutter.data = logo_orange.data.copy()
+    inlay_pocket_cutter.name = "Lid_Flush_Orange_Inlay_Pocket_Cutter"
+    bpy.context.collection.objects.link(inlay_pocket_cutter)
+    cutter_mesh = bmesh.new()
+    try:
+        cutter_mesh.from_mesh(inlay_pocket_cutter.data)
+        minimum_cutter_z = min(vertex.co.z for vertex in cutter_mesh.verts)
+        for vertex in cutter_mesh.verts:
+            if math.isclose(vertex.co.z, minimum_cutter_z, abs_tol=1e-6):
+                vertex.co.z -= LID_INLAY_CUTTER_OVERTRAVEL
+        cutter_mesh.to_mesh(inlay_pocket_cutter.data)
+    finally:
+        cutter_mesh.free()
+    inlay_pocket_cutter.data.update()
+    difference_from(lid, inlay_pocket_cutter)
     bpy.context.view_layer.update()
 
     assign_material(lid, shell_material)
@@ -8577,6 +8599,82 @@ def point_in_triangle_xy(point, triangle, epsilon=1e-7) -> bool:
     )
 
 
+def horizontal_payload_area(payload, plane_z) -> float:
+    vertices, triangles = payload
+    area = 0.0
+    for triangle in triangles:
+        points = [vertices[index] for index in triangle]
+        if not all(math.isclose(point[2], plane_z, abs_tol=1e-6) for point in points):
+            continue
+        first, second, third = points
+        area += abs(
+            (second[0] - first[0]) * (third[1] - first[1])
+            - (second[1] - first[1]) * (third[0] - first[0])
+        ) / 2.0
+    return area
+
+
+def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
+    """Prove black and orange jointly cover one support-free first layer."""
+    lid_vertices, _lid_triangles = lid_payload
+    lid_minimum_z = min(vertex[2] for vertex in lid_vertices)
+    if not math.isclose(lid_minimum_z, 0.0, abs_tol=1e-6):
+        raise ValueError(f"Lid shell starts above the print bed: Z={lid_minimum_z:.6f}")
+
+    inlay_first_layer_area = 0.0
+    for inlay_index, (vertices, triangles) in enumerate(inlay_payloads, start=1):
+        minimum_z = min(vertex[2] for vertex in vertices)
+        maximum_z = max(vertex[2] for vertex in vertices)
+        if not math.isclose(minimum_z, 0.0, abs_tol=1e-6):
+            raise ValueError(
+                f"Lid inlay {inlay_index} does not start on the print bed: "
+                f"Z={minimum_z:.6f}"
+            )
+        if not math.isclose(maximum_z, LID_INLAY_DEPTH, abs_tol=1e-6):
+            raise ValueError(
+                f"Lid inlay {inlay_index} has incorrect flush depth: "
+                f"Z={maximum_z:.6f}"
+            )
+        components = triangle_components(triangles)
+        first_layer_faces = {
+            face_index
+            for face_index, triangle in enumerate(triangles)
+            if all(
+                math.isclose(vertices[index][2], 0.0, abs_tol=1e-6)
+                for index in triangle
+            )
+        }
+        if any(not component.intersection(first_layer_faces) for component in components):
+            raise ValueError("A flush orange logo island does not touch the print bed")
+        inlay_first_layer_area += horizontal_payload_area(
+            (vertices, triangles),
+            0.0,
+        )
+
+    lid_first_layer_area = horizontal_payload_area(lid_payload, 0.0)
+    outline = rounded_rectangle_loop(CASE_WIDTH, CASE_DEPTH, CASE_CORNER_RADIUS)
+    expected_first_layer_area = abs(
+        sum(
+            start[0] * end[1] - end[0] * start[1]
+            for start, end in pairwise((*outline, outline[0]))
+        )
+    ) / 2.0
+    combined_first_layer_area = lid_first_layer_area + inlay_first_layer_area
+    if not math.isclose(
+        combined_first_layer_area,
+        expected_first_layer_area,
+        abs_tol=0.05,
+    ):
+        raise ValueError(
+            "Black shell and orange inlay do not cover the complete lid first layer: "
+            f"black={lid_first_layer_area:.6f} "
+            f"orange={inlay_first_layer_area:.6f} "
+            f"combined={combined_first_layer_area:.6f} "
+            f"expected={expected_first_layer_area:.6f}"
+        )
+    return lid_first_layer_area, inlay_first_layer_area, combined_first_layer_area
+
+
 def validate_lid_bonding_payloads(lid_payload, inlay_payloads) -> int:
     lid_vertices, lid_triangles = lid_payload
     inlay_tops = [
@@ -9364,7 +9462,16 @@ def validate_3mf_project(path: Path) -> None:
                 != f"/{object_path}"
             ):
                 raise ValueError(f"3MF object {object_id} references an incorrect path")
-            parse_3mf_transform(component.get("transform"))
+            component_translation = parse_3mf_transform(component.get("transform"))
+            if any(
+                not math.isclose(value, 0.0, abs_tol=1e-6)
+                for value in component_translation
+            ):
+                raise ValueError(
+                    f"3MF object {object_id} component "
+                    f"{component.get('objectid')} has an unexpected translation: "
+                    f"{component.get('transform')}"
+                )
             component_uuid = component.get(three_mf_production_attribute("UUID"))
             if not component_uuid or component_uuid in all_component_uuids:
                 raise ValueError("3MF component UUIDs must be unique and nonempty")
@@ -9397,6 +9504,10 @@ def validate_3mf_project(path: Path) -> None:
             f"expected {len(PRINTABLE_STL_NAMES)}"
         )
     lid_islands = validate_lid_bonding_payloads(
+        mesh_payloads["3"],
+        (mesh_payloads["4"],),
+    )
+    validate_flush_lid_first_layer_payloads(
         mesh_payloads["3"],
         (mesh_payloads["4"],),
     )
@@ -9670,6 +9781,32 @@ def validate_built_part(name: str, obj) -> None:
     )
 
 
+def validate_built_flush_lid_inlay(parts) -> None:
+    lid_minimum, _lid_maximum = object_world_bounds(parts["lid"])
+    inlay_minimum, inlay_maximum = object_world_bounds(parts["logo_orange_inlay"])
+    if not math.isclose(lid_minimum.z, 0.0, abs_tol=1e-6):
+        raise ValueError("Black lid shell does not begin on the build plate")
+    if not math.isclose(inlay_minimum.z, 0.0, abs_tol=1e-6):
+        raise ValueError("Orange lid inlay does not begin on the build plate")
+    if not math.isclose(inlay_maximum.z, LID_INLAY_DEPTH, abs_tol=1e-6):
+        raise ValueError("Orange lid inlay does not fill the configured pocket depth")
+    _faces, overlap_volume = exact_transformed_intersection(
+        parts["lid"],
+        parts["logo_orange_inlay"],
+    )
+    if overlap_volume > 1e-6:
+        raise ValueError(
+            "Flush lid shell and orange inlay overlap: "
+            f"volume={overlap_volume:.6f}"
+        )
+    print(
+        "FIELD_CASE_LID_FLUSH_INLAY_GEOMETRY_VALID "
+        f"shell_min_z={lid_minimum.z:.2f} "
+        f"inlay_z={inlay_minimum.z:.2f}-{inlay_maximum.z:.2f} "
+        f"overlap={overlap_volume:.6f}"
+    )
+
+
 def build_mission1_field_case():
     validate_configuration()
     if CLEAR_SCENE:
@@ -9733,6 +9870,7 @@ def build_mission1_field_case():
 
     for name, obj in parts.items():
         validate_built_part(name, obj)
+    validate_built_flush_lid_inlay(parts)
     validate_installed_lower_tray(parts)
     validate_built_base_hinge_gussets(parts["base"])
     validate_built_lid_hinge_receivers(parts["lid"])
@@ -9755,8 +9893,18 @@ def build_mission1_field_case():
         lid_payload,
         (logo_orange_payload,),
     )
+    first_layer_areas = validate_flush_lid_first_layer_payloads(
+        lid_payload,
+        (logo_orange_payload,),
+    )
     bonding_z = max(vertex[2] for vertex in logo_orange_payload[0])
-    print(f"FIELD_CASE_LID_BONDED islands={lid_islands} plane_z={bonding_z:.2f}")
+    print(
+        "FIELD_CASE_LID_BONDED "
+        f"islands={lid_islands} plane_z={bonding_z:.2f} "
+        f"first_layer_black={first_layer_areas[0]:.3f} "
+        f"first_layer_orange={first_layer_areas[1]:.3f} "
+        f"first_layer_total={first_layer_areas[2]:.3f}"
+    )
 
     if EXPORT_STL:
         exports = (
@@ -9776,10 +9924,6 @@ def build_mission1_field_case():
             expected_minimum_z = 0.0
             if obj is parts["lower_tray"]:
                 print_origin = Vector((0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
-            elif obj is parts["lid"] or obj is parts["logo_orange_inlay"]:
-                print_origin = Vector((0.0, 0.0, -LID_INLAY_DEPTH))
-                if obj is parts["lid"]:
-                    expected_minimum_z = LID_INLAY_DEPTH
             export_stl(
                 export_path(filename),
                 obj,
