@@ -10,7 +10,7 @@ from disk.  The default kit holds:
 * a flush-top recessed TPU equipment tray and a one-way-keyed TPU lid pad,
 * a TPU dust/splash gasket, two source-derived two-piece Pelican latch
   mechanisms mounted on M3 fixed pivots and 4 mm moving-link rods, and a
-  separate pivoting handle,
+  separate pivoting handle mounted with two M3 socket-head pivots,
 * raised orange GoPro-style ``GoPro Missions`` lettering with four matching blocks.
 
 The case is Pelican/rugged-box inspired.  The user-supplied MakerWorld example is used as
@@ -49,8 +49,9 @@ with a black shell and one raised orange text-and-block body.  The standalone
 lid STLs remain available for other slicers.  Print two copies each of the
 latch lever and hook STLs.  An M3 Allen socket-head screw and captive nut mount
 each lever between integrated case guards, and a 4 mm rod joins its moving hook.
-The handle bar is a separate print and its mounting lugs are generated as part
-of the base shell.
+The handle bar is a separate print and its unchanged mounting lugs are generated
+as part of the base shell.  One recessed M3 socket-head screw and captive nut in
+each handle fork retain it on those lugs.
 
 All dimensions are millimeters.  X is case width, Y is case depth, and Z is
 height.  Every default printable part validates below 250 x 250 mm in XY.
@@ -606,8 +607,8 @@ LATCH_CAPTURE_OUTWARD_PEEL_TRAVEL = 0.6
 LATCH_CAPTURE_OUTWARD_PEEL_MIN_VOLUME = 0.02
 LID_LATCH_LOAD_LEDGE_CONTACT_Z = LID_LATCH_CAPTURE_RAIL_CENTER_Z - 0.2
 LATCH_LINK_ROD_LENGTH = LATCH_WIDTH
-LATCH_FINGER_ACCESS_CLEARANCE = 24.0
-LATCH_GUARD_HANDLE_CLEARANCE = 18.0
+LATCH_FINGER_ACCESS_CLEARANCE = 22.0
+LATCH_GUARD_HANDLE_CLEARANCE = 15.5
 LATCH_HARDWARE_HANDLE_CLEARANCE = 15.0
 LATCH_PROTECTOR_BASE_WIDTH = 6.0
 LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT = (
@@ -794,18 +795,39 @@ def hook_local_yz_in_installed(lever_angle: float, local_y: float, local_z: floa
 
 
 # Separate reference-shaped U handle.  The base lugs are unioned into the case
-# shell; only the bar is a separate print.  ROD uses a retaining fit in the
-# fixed lugs.  M4 regenerates 4.4 mm clearance bores for M4 x 20 hardware.
-HANDLE_HARDWARE_MODE = "ROD"
-HANDLE_ROD_DIAMETER = 4.0
-HANDLE_PRESS_FIT_BORE_DIAMETER = 3.9
-HANDLE_RUNNING_BORE_DIAMETER = 4.4
+# shell and retain their existing 3.9 mm bores.  Only the separate handle is
+# changed for its two M3 x 12 socket-head pivots: each fork has a 3.5 mm
+# easy-running path, an outside counterbore, and an inside captive-nut pocket.
+HANDLE_BASE_LUG_BORE_DIAMETER = 3.9
+HANDLE_M3_NOMINAL_DIAMETER = 3.0
+HANDLE_M3_CLEARANCE_DIAMETER = 3.5
+HANDLE_M3_COUNTERBORE_DIAMETER = 6.0
+HANDLE_M3_COUNTERBORE_DEPTH = 3.2
+HANDLE_M3_MAX_HEAD_DIAMETER = 5.5
+HANDLE_M3_MAX_HEAD_HEIGHT = 3.0
+HANDLE_M3_SOCKET_ACROSS_FLATS = 2.5
+HANDLE_M3_SOCKET_DEPTH = 1.5
+HANDLE_M3_NUT_ACROSS_FLATS = 5.8
+HANDLE_M3_NOMINAL_NUT_ACROSS_FLATS = 5.5
+HANDLE_M3_NUT_DEPTH = 2.7
+HANDLE_M3_NOMINAL_NUT_THICKNESS = 2.4
+HANDLE_M3_RECESS_BOOLEAN_OVERTRAVEL = 0.2
+HANDLE_M3_MIN_RECESS_FLOOR = 1.0
+HANDLE_M3_BOLT_LENGTH = 12.0
+HANDLE_M3_MIN_THREAD_ENGAGEMENT = HANDLE_M3_NOMINAL_NUT_THICKNESS
+HANDLE_M3_MAX_TIP_PROTRUSION = 3.0
 HANDLE_PIVOT_X = 42.5
 HANDLE_BASE_LUG_X = HANDLE_PIVOT_X
 HANDLE_PIVOT_RADIUS_MARGIN = 0.16
 HANDLE_PIVOT_BOSS_RADIUS = (
     PIVOT_REFERENCE_MAX_BORE_RADIUS + PIVOT_MIN_WALL_THICKNESS
 ) * math.sqrt(2.0) + HANDLE_PIVOT_RADIUS_MARGIN
+# The separate handle keeps its existing radial envelope so its folded and
+# moving boss cannot enter the unchanged case.  The deep recesses are confined
+# to the axially thickened fork ends and retain a checked 1.25 mm minimum at
+# the support-free lower chord; the central M3 shaft path retains over 2 mm.
+HANDLE_M3_PIVOT_BOSS_RADIUS = HANDLE_PIVOT_BOSS_RADIUS
+HANDLE_M3_MIN_RECESS_RADIAL_WALL = 1.25
 HANDLE_FOLDED_FACE_CLEARANCE = 0.5
 HANDLE_PIVOT_Y = (
     -CASE_DEPTH / 2.0 - HANDLE_PIVOT_BOSS_RADIUS - HANDLE_FOLDED_FACE_CLEARANCE
@@ -816,11 +838,22 @@ HANDLE_BAR_INNER_WIDTH = 75.0
 HANDLE_BAR_DROP = 32.5
 HANDLE_BAR_DEPTH = 11.0
 HANDLE_BAR_THICKNESS = 2.0 * HANDLE_PIVOT_BOSS_RADIUS
+HANDLE_LOCAL_PIVOT_Z = HANDLE_BAR_THICKNESS / 2.0
 HANDLE_GRIP_HOLE_DIAMETER = 7.0
 HANDLE_GRIP_HOLE_COUNT = 5
 HANDLE_GRIP_HOLE_PITCH = 12.0
 HANDLE_BASE_LUG_WIDTH = 5.0
 HANDLE_AXIAL_CLEARANCE = 0.4
+HANDLE_FORK_RELIEF_WIDTH = HANDLE_BASE_LUG_WIDTH + 2.0 * HANDLE_AXIAL_CLEARANCE
+HANDLE_M3_HEAD_CHEEK_THICKNESS = (
+    HANDLE_M3_COUNTERBORE_DEPTH + HANDLE_M3_MIN_RECESS_FLOOR
+)
+HANDLE_M3_NUT_CHEEK_THICKNESS = HANDLE_M3_NUT_DEPTH + HANDLE_M3_MIN_RECESS_FLOOR
+HANDLE_M3_PIVOT_BOSS_SPAN = (
+    HANDLE_FORK_RELIEF_WIDTH
+    + HANDLE_M3_HEAD_CHEEK_THICKNESS
+    + HANDLE_M3_NUT_CHEEK_THICKNESS
+)
 HANDLE_MIN_USABLE_GRIP_WIDTH = 75.0
 HANDLE_RAISED_FINGER_CLEARANCE = 25.0
 HANDLE_SWEEP_STEP_DEGREES = 2.0
@@ -3647,8 +3680,8 @@ def validate_configuration() -> None:
         max(
             LATCH_PRESS_FIT_BORE_DIAMETER,
             LATCH_RUNNING_BORE_DIAMETER,
-            HANDLE_PRESS_FIT_BORE_DIAMETER,
-            HANDLE_RUNNING_BORE_DIAMETER,
+            HANDLE_BASE_LUG_BORE_DIAMETER,
+            HANDLE_M3_CLEARANCE_DIAMETER,
         )
         / 2.0
     )
@@ -4018,9 +4051,6 @@ def validate_configuration() -> None:
     if LATCH_PROTECTOR_FRONT_Y > lever_front_y - 1.0:
         raise ValueError("Base latch protectors do not stand proud of the lever")
 
-    if HANDLE_HARDWARE_MODE not in {"ROD", "M4"}:
-        raise ValueError("HANDLE_HARDWARE_MODE must be ROD or M4")
-    handle_arm_width = (HANDLE_BAR_OUTER_WIDTH - HANDLE_BAR_INNER_WIDTH) / 2.0
     handle_arm_inner_edge = HANDLE_BAR_INNER_WIDTH / 2.0
     handle_arm_outer_edge = HANDLE_BAR_OUTER_WIDTH / 2.0
     handle_lug_inner_edge = HANDLE_BASE_LUG_X - HANDLE_BASE_LUG_WIDTH / 2.0
@@ -4032,11 +4062,60 @@ def validate_configuration() -> None:
         or handle_lug_outer_edge > handle_arm_outer_edge
     ):
         raise ValueError("Handle fixed lugs must remain inside the forked arms")
-    handle_fork_cheek_thickness = (
-        handle_arm_width - HANDLE_BASE_LUG_WIDTH - 2.0 * HANDLE_AXIAL_CLEARANCE
+    if not math.isclose(HANDLE_BASE_LUG_BORE_DIAMETER, 3.9, abs_tol=1e-6):
+        raise ValueError("Handle M3 revision must leave the case's 3.9 mm lug bores unchanged")
+    handle_clearance = HANDLE_M3_CLEARANCE_DIAMETER - HANDLE_M3_NOMINAL_DIAMETER
+    if handle_clearance < 0.4:
+        raise ValueError("Handle pivot holes need easy-running M3 clearance")
+    if HANDLE_BASE_LUG_BORE_DIAMETER < HANDLE_M3_CLEARANCE_DIAMETER:
+        raise ValueError("Unchanged base lug bores do not clear the handle M3 screws")
+    counterbore_clearance = (
+        HANDLE_M3_COUNTERBORE_DIAMETER - HANDLE_M3_MAX_HEAD_DIAMETER
+    )
+    if counterbore_clearance < 0.4:
+        raise ValueError("Handle M3 counterbores do not clear the socket heads")
+    if HANDLE_M3_COUNTERBORE_DEPTH - HANDLE_M3_MAX_HEAD_HEIGHT < 0.2 - 1e-6:
+        raise ValueError("Handle M3 socket heads are not fully recessed")
+    if HANDLE_M3_SOCKET_ACROSS_FLATS <= 0.0:
+        raise ValueError("Handle M3 Allen socket across-flats must be positive")
+    socket_head_radial_wall = (
+        HANDLE_M3_MAX_HEAD_DIAMETER
+        - 2.0 * HANDLE_M3_SOCKET_ACROSS_FLATS / math.sqrt(3.0)
     ) / 2.0
-    if handle_fork_cheek_thickness < PIVOT_MIN_WALL_THICKNESS:
-        raise ValueError("Handle pivot forks violate the configured pivot minimum wall")
+    if socket_head_radial_wall < 1.0:
+        raise ValueError("Handle M3 Allen socket leaves too little head material")
+    if HANDLE_M3_SOCKET_DEPTH <= 0.0:
+        raise ValueError("Handle M3 Allen socket depth must be positive")
+    if HANDLE_M3_MAX_HEAD_HEIGHT - HANDLE_M3_SOCKET_DEPTH < 1.0:
+        raise ValueError("Handle M3 Allen socket is too deep for the screw head")
+    nut_width_clearance = (
+        HANDLE_M3_NUT_ACROSS_FLATS - HANDLE_M3_NOMINAL_NUT_ACROSS_FLATS
+    )
+    nut_depth_clearance = HANDLE_M3_NUT_DEPTH - HANDLE_M3_NOMINAL_NUT_THICKNESS
+    if nut_width_clearance < 0.2 or nut_depth_clearance < 0.2:
+        raise ValueError("Handle captive M3 nut recess is too tight")
+    handle_head_floor = HANDLE_M3_HEAD_CHEEK_THICKNESS - HANDLE_M3_COUNTERBORE_DEPTH
+    handle_nut_floor = HANDLE_M3_NUT_CHEEK_THICKNESS - HANDLE_M3_NUT_DEPTH
+    if min(handle_head_floor, handle_nut_floor) < HANDLE_M3_MIN_RECESS_FLOOR:
+        raise ValueError("Handle M3 recesses need a complete floor toward the fork")
+    handle_m3_reach_past_nut_floor = (
+        HANDLE_M3_BOLT_LENGTH
+        + HANDLE_M3_COUNTERBORE_DEPTH
+        - (HANDLE_M3_PIVOT_BOSS_SPAN - HANDLE_M3_NUT_DEPTH)
+    )
+    handle_m3_thread_engagement = min(
+        HANDLE_M3_NOMINAL_NUT_THICKNESS,
+        handle_m3_reach_past_nut_floor,
+    )
+    handle_m3_tip_protrusion = (
+        HANDLE_M3_BOLT_LENGTH
+        + HANDLE_M3_COUNTERBORE_DEPTH
+        - HANDLE_M3_PIVOT_BOSS_SPAN
+    )
+    if handle_m3_thread_engagement < HANDLE_M3_MIN_THREAD_ENGAGEMENT:
+        raise ValueError("Handle M3 screw does not fully engage its captive nut")
+    if not 0.0 <= handle_m3_tip_protrusion <= HANDLE_M3_MAX_TIP_PROTRUSION:
+        raise ValueError("Handle M3 screw protrusion is unsafe")
     if HANDLE_BAR_INNER_WIDTH < HANDLE_MIN_USABLE_GRIP_WIDTH:
         raise ValueError("Handle needs its specified unobstructed adult-hand width")
     handle_ear_sweep_radius = max(
@@ -4045,24 +4124,25 @@ def validate_configuration() -> None:
     )
     if HANDLE_FORK_RELIEF_LENGTH / 2.0 < handle_ear_sweep_radius + 0.5:
         raise ValueError("Handle fork relief does not clear the fixed ear sweep")
-    if HANDLE_HARDWARE_MODE == "ROD":
-        handle_interference = HANDLE_ROD_DIAMETER - HANDLE_PRESS_FIT_BORE_DIAMETER
-        if not 0.05 <= handle_interference <= 0.20:
-            raise ValueError("Handle fixed lugs need 0.05-0.20 mm rod interference")
-    handle_running_clearance = HANDLE_RUNNING_BORE_DIAMETER - HANDLE_ROD_DIAMETER
-    if handle_running_clearance < 0.4:
-        raise ValueError("Handle bar needs at least 0.4 mm running clearance")
     handle_pivot_lower_chord_wall = (
-        HANDLE_PIVOT_BOSS_RADIUS / math.sqrt(2.0) - HANDLE_RUNNING_BORE_DIAMETER / 2.0
+        HANDLE_M3_PIVOT_BOSS_RADIUS / math.sqrt(2.0)
+        - HANDLE_M3_COUNTERBORE_DIAMETER / 2.0
     )
     handle_pivot_roof_wall = (
-        HANDLE_PIVOT_BOSS_RADIUS - math.sqrt(2.0) * HANDLE_RUNNING_BORE_DIAMETER / 2.0
+        HANDLE_M3_PIVOT_BOSS_RADIUS
+        - math.sqrt(2.0) * HANDLE_M3_COUNTERBORE_DIAMETER / 2.0
     )
     if (
         min(handle_pivot_lower_chord_wall, handle_pivot_roof_wall)
-        < PIVOT_MIN_WALL_THICKNESS
+        < HANDLE_M3_MIN_RECESS_RADIAL_WALL
     ):
-        raise ValueError("Handle bar pivot violates the configured minimum wall")
+        raise ValueError("Handle M3 recess violates its checked minimum radial wall")
+    handle_m3_shaft_chord_wall = (
+        HANDLE_M3_PIVOT_BOSS_RADIUS / math.sqrt(2.0)
+        - HANDLE_M3_CLEARANCE_DIAMETER / 2.0
+    )
+    if handle_m3_shaft_chord_wall < PIVOT_MIN_WALL_THICKNESS:
+        raise ValueError("Handle M3 shaft path violates the shared pivot minimum wall")
     assembled_front_center_z = LATCH_LID_INSTALLED_Z / 2.0
     if not math.isclose(HANDLE_PIVOT_Z, assembled_front_center_z, abs_tol=1e-6):
         raise ValueError("Handle pivot must stay vertically centered on the case front")
@@ -4092,7 +4172,10 @@ def validate_configuration() -> None:
     latch_mount_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - latch_mount_half_width
     latch_lever_inner_x = min(abs(x) for x in LATCH_X_CENTERS) - LATCH_WIDTH / 2.0
     latch_outer_x = max(abs(x) for x in LATCH_X_CENTERS) + latch_mount_half_width
-    handle_outer_x = HANDLE_BAR_OUTER_WIDTH / 2.0
+    handle_outer_x = max(
+        HANDLE_BAR_OUTER_WIDTH / 2.0,
+        max(abs(face) for side in (-1.0, 1.0) for face in handle_m3_pivot_faces(side)[:2]),
+    )
     latch_handle_clearance = latch_lever_inner_x - handle_outer_x
     if latch_handle_clearance < LATCH_FINGER_ACCESS_CLEARANCE:
         raise ValueError(
@@ -4148,7 +4231,7 @@ def validate_configuration() -> None:
         ("gasket", (CASE_WIDTH - 3.8, CASE_DEPTH - 3.8)),
         ("Pelican latch lever", LATCH_LEVER_PRINT_SIZE[:2]),
         ("Pelican latch hook", LATCH_HOOK_PRINT_SIZE[:2]),
-        ("pivoting handle bar", (HANDLE_BAR_OUTER_WIDTH, HANDLE_BAR_DROP + 2.0)),
+        ("pivoting handle bar", (2.0 * handle_outer_x, HANDLE_BAR_DROP + 2.0)),
         ("hinge pin", (HINGE_ROD_X1 - HINGE_ROD_X0, HINGE_PIN_DIAMETER)),
     ):
         if dimensions[0] > MAX_PRINT_XY or dimensions[1] > MAX_PRINT_XY:
@@ -4225,10 +4308,20 @@ def validate_configuration() -> None:
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
         f"latch_guard_handle_clearance={latch_guard_handle_clearance:.2f} "
         f"latch_hardware_handle_clearance={latch_hardware_handle_clearance:.2f} "
-        f"handle_mode={HANDLE_HARDWARE_MODE} "
-        f"handle_fork_cheek={handle_fork_cheek_thickness:.2f} "
+        f"handle_base_bore_unchanged={HANDLE_BASE_LUG_BORE_DIAMETER:.2f} "
+        f"handle_m3_clearance={HANDLE_M3_CLEARANCE_DIAMETER:.2f} "
+        f"handle_m3_counterbore={HANDLE_M3_COUNTERBORE_DIAMETER:.2f}x"
+        f"{HANDLE_M3_COUNTERBORE_DEPTH:.2f} "
+        f"handle_m3_nut_recess={HANDLE_M3_NUT_ACROSS_FLATS:.2f}x"
+        f"{HANDLE_M3_NUT_DEPTH:.2f} "
+        f"handle_m3_screw=M3x{HANDLE_M3_BOLT_LENGTH:.0f} "
+        f"handle_m3_engagement={handle_m3_thread_engagement:.2f} "
+        f"handle_m3_tip={handle_m3_tip_protrusion:.2f} "
+        f"handle_m3_head_floor={handle_head_floor:.2f} "
+        f"handle_m3_nut_floor={handle_nut_floor:.2f} "
         f"handle_pivot_chord_wall={handle_pivot_lower_chord_wall:.2f} "
         f"handle_pivot_roof_wall={handle_pivot_roof_wall:.2f} "
+        f"handle_m3_shaft_chord_wall={handle_m3_shaft_chord_wall:.2f} "
         f"handle_folded_face_gap={folded_handle_face_gap:.2f} "
         f"handle_grip_width={HANDLE_BAR_INNER_WIDTH:.2f} "
         f"handle_center_z={HANDLE_PIVOT_Z:.2f} "
@@ -4313,6 +4406,63 @@ def add_latch_fixed_m3_nut_recess(name, latch_x, across_flats=None, depth=None):
         support_free_hex_nut_pocket_loop_yz(
             LATCH_BASE_PIVOT_Y,
             LATCH_BASE_PIVOT_Z,
+            across_flats,
+        ),
+        min(recess_outer_x, recess_inner_x),
+        max(recess_outer_x, recess_inner_x),
+    )
+
+
+def handle_m3_pivot_faces(side):
+    """Return the outside head face, inside nut face, and outside direction."""
+    pivot_x = side * HANDLE_PIVOT_X
+    half_relief = HANDLE_FORK_RELIEF_WIDTH / 2.0
+    head_face_x = pivot_x + side * (
+        half_relief + HANDLE_M3_HEAD_CHEEK_THICKNESS
+    )
+    nut_face_x = pivot_x - side * (
+        half_relief + HANDLE_M3_NUT_CHEEK_THICKNESS
+    )
+    return head_face_x, nut_face_x, side
+
+
+def add_handle_m3_counterbore(name, side, pivot_y, pivot_z):
+    head_face_x, _nut_face_x, outer_direction = handle_m3_pivot_faces(side)
+    cutter_length = HANDLE_M3_COUNTERBORE_DEPTH + HANDLE_M3_RECESS_BOOLEAN_OVERTRAVEL
+    cutter_center_x = head_face_x - outer_direction * (
+        HANDLE_M3_COUNTERBORE_DEPTH - HANDLE_M3_RECESS_BOOLEAN_OVERTRAVEL
+    ) / 2.0
+    # Retain a full circular socket-head envelope and close the horizontal
+    # counterbore with the same printable 45-degree roof used by the latches.
+    return add_teardrop_hole_x(
+        name,
+        HANDLE_M3_COUNTERBORE_DIAMETER / 2.0,
+        cutter_length,
+        (cutter_center_x, pivot_y, pivot_z),
+        arc_steps=64,
+    )
+
+
+def add_handle_m3_nut_recess(
+    name,
+    side,
+    pivot_y,
+    pivot_z,
+    across_flats=None,
+    depth=None,
+):
+    _head_face_x, nut_face_x, outer_direction = handle_m3_pivot_faces(side)
+    across_flats = (
+        HANDLE_M3_NUT_ACROSS_FLATS if across_flats is None else across_flats
+    )
+    depth = HANDLE_M3_NUT_DEPTH if depth is None else depth
+    recess_outer_x = nut_face_x - outer_direction * HANDLE_M3_RECESS_BOOLEAN_OVERTRAVEL
+    recess_inner_x = nut_face_x + outer_direction * depth
+    return extrude_loop_x(
+        name,
+        support_free_hex_nut_pocket_loop_yz(
+            pivot_y,
+            pivot_z,
             across_flats,
         ),
         min(recess_outer_x, recess_inner_x),
@@ -4485,11 +4635,6 @@ def create_base(material):
     # upper edge curves back into the case body, and its horizontal bore has a
     # printable 45-degree roof.  Keeping both lugs outside the 75 mm grip
     # opening preserves the full raised finger gap.
-    handle_base_bore = (
-        HANDLE_PRESS_FIT_BORE_DIAMETER
-        if HANDLE_HARDWARE_MODE == "ROD"
-        else HANDLE_RUNNING_BORE_DIAMETER
-    )
     for side in (-1.0, 1.0):
         lug_x = side * HANDLE_BASE_LUG_X
         lug = extrude_loop_x(
@@ -4500,7 +4645,7 @@ def create_base(material):
         )
         hole = add_teardrop_hole_x(
             "Base_Integrated_Handle_Pivot_Hole",
-            handle_base_bore / 2.0,
+            HANDLE_BASE_LUG_BORE_DIAMETER / 2.0,
             HANDLE_BASE_LUG_WIDTH + 0.8,
             (lug_x, HANDLE_PIVOT_Y, HANDLE_PIVOT_Z),
         )
@@ -5542,18 +5687,19 @@ def create_pivoting_handle_bar(material):
     handle = add_rounded_box(
         "Field_Case_Pivoting_Handle_Bar",
         (HANDLE_BAR_OUTER_WIDTH, HANDLE_BAR_DEPTH, HANDLE_BAR_THICKNESS),
-        (0.0, grip_center_y, HANDLE_BAR_THICKNESS / 2.0),
+        (0.0, grip_center_y, HANDLE_LOCAL_PIVOT_Z),
         bevel=3.2,
     )
     arm_length = HANDLE_BAR_DROP - HANDLE_BAR_DEPTH + 3.0
     for side in (-1.0, 1.0):
+        head_face_x, nut_face_x, _outer_direction = handle_m3_pivot_faces(side)
         arm = add_rounded_box(
             "Pivoting_Handle_Arm",
             (arm_width, arm_length, HANDLE_BAR_THICKNESS),
             (
                 side * arm_center_x,
                 -arm_length / 2.0 + 1.5,
-                HANDLE_BAR_THICKNESS / 2.0,
+                HANDLE_LOCAL_PIVOT_Z,
             ),
             bevel=2.6,
         )
@@ -5562,35 +5708,49 @@ def create_pivoting_handle_bar(material):
             "Pivoting_Handle_Reinforced_Support_Free_Pivot_Boss",
             support_free_pivot_boss_loop_yz(
                 0.0,
-                HANDLE_BAR_THICKNESS / 2.0,
-                HANDLE_PIVOT_BOSS_RADIUS,
+                HANDLE_LOCAL_PIVOT_Z,
+                HANDLE_M3_PIVOT_BOSS_RADIUS,
             ),
-            side * HANDLE_PIVOT_X - arm_width / 2.0,
-            side * HANDLE_PIVOT_X + arm_width / 2.0,
+            min(head_face_x, nut_face_x),
+            max(head_face_x, nut_face_x),
         )
         union_into(handle, pivot_barrel)
         pivot_hole = add_teardrop_hole_x(
-            "Pivoting_Handle_4p4mm_Running_Hole",
-            HANDLE_RUNNING_BORE_DIAMETER / 2.0,
-            arm_width + 0.8,
-            (side * HANDLE_PIVOT_X, 0.0, HANDLE_BAR_THICKNESS / 2.0),
+            "Pivoting_Handle_M3_Easy_Running_Through_Hole",
+            HANDLE_M3_CLEARANCE_DIAMETER / 2.0,
+            HANDLE_M3_PIVOT_BOSS_SPAN + 0.8,
+            (side * HANDLE_PIVOT_X, 0.0, HANDLE_LOCAL_PIVOT_Z),
         )
         difference_from(handle, pivot_hole)
         fork_relief = add_rounded_box(
             "Pivoting_Handle_Fixed_Lug_Sweep_Relief",
             (
-                HANDLE_BASE_LUG_WIDTH + 2.0 * HANDLE_AXIAL_CLEARANCE,
+                HANDLE_FORK_RELIEF_WIDTH,
                 HANDLE_FORK_RELIEF_LENGTH,
                 HANDLE_BAR_THICKNESS + 1.0,
             ),
             (
                 side * HANDLE_PIVOT_X,
                 0.0,
-                HANDLE_BAR_THICKNESS / 2.0,
+                HANDLE_LOCAL_PIVOT_Z,
             ),
             bevel=0.0,
         )
         difference_from(handle, fork_relief)
+        counterbore = add_handle_m3_counterbore(
+            "Pivoting_Handle_Outside_M3_Socket_Head_Counterbore",
+            side,
+            0.0,
+            HANDLE_LOCAL_PIVOT_Z,
+        )
+        difference_from(handle, counterbore)
+        nut_recess = add_handle_m3_nut_recess(
+            "Pivoting_Handle_Inside_M3_Captive_Nut_Recess",
+            side,
+            0.0,
+            HANDLE_LOCAL_PIVOT_Z,
+        )
+        difference_from(handle, nut_recess)
 
     for hole_index in range(HANDLE_GRIP_HOLE_COUNT):
         hole_x = (
@@ -5600,7 +5760,7 @@ def create_pivoting_handle_bar(material):
             "Pivoting_Handle_Grip_Hole",
             HANDLE_GRIP_HOLE_DIAMETER / 2.0,
             HANDLE_BAR_THICKNESS + 1.0,
-            (hole_x, grip_center_y, HANDLE_BAR_THICKNESS / 2.0),
+            (hole_x, grip_center_y, HANDLE_LOCAL_PIVOT_Z),
             vertices=36,
         )
         difference_from(handle, grip_hole)
@@ -5755,6 +5915,97 @@ def _create_latch_fixed_m3_reference_hardware(
             LATCH_BASE_PIVOT_Y,
             LATCH_BASE_PIVOT_Z,
             LATCH_FIXED_M3_NOMINAL_NUT_ACROSS_FLATS,
+        ),
+        min(nut_floor_x, nut_open_x),
+        max(nut_floor_x, nut_open_x),
+    )
+    if material is not None:
+        assign_material(nut, material)
+    return head, shaft, nut
+
+
+def create_handle_m3_reference_hardware(
+    name,
+    side,
+    pivot_y,
+    pivot_z,
+    material=None,
+    seat_clearance=0.0,
+):
+    """Build one handle pivot's reference hardware without leaking failures."""
+    existing_object_names = {obj.name for obj in bpy.data.objects}
+    try:
+        return _create_handle_m3_reference_hardware(
+            name,
+            side,
+            pivot_y,
+            pivot_z,
+            material=material,
+            seat_clearance=seat_clearance,
+        )
+    except Exception:
+        for obj in list(bpy.data.objects):
+            if obj.name not in existing_object_names:
+                bpy.data.objects.remove(obj, do_unlink=True)
+        raise
+
+
+def _create_handle_m3_reference_hardware(
+    name,
+    side,
+    pivot_y,
+    pivot_z,
+    material=None,
+    seat_clearance=0.0,
+):
+    """Build a seated M3 x 12 socket-head screw and nominal captive nut."""
+    head_face_x, nut_face_x, outer_direction = handle_m3_pivot_faces(side)
+    head_bearing_x = head_face_x - outer_direction * (
+        HANDLE_M3_COUNTERBORE_DEPTH - seat_clearance
+    )
+    head_top_x = head_bearing_x + outer_direction * HANDLE_M3_MAX_HEAD_HEIGHT
+    head = add_cylinder_x(
+        name + "_Allen_Socket_Head",
+        HANDLE_M3_MAX_HEAD_DIAMETER / 2.0,
+        HANDLE_M3_MAX_HEAD_HEIGHT,
+        ((head_top_x + head_bearing_x) / 2.0, pivot_y, pivot_z),
+        vertices=64,
+    )
+    socket_outer_x = head_top_x + outer_direction * 0.1
+    socket_inner_x = head_top_x - outer_direction * HANDLE_M3_SOCKET_DEPTH
+    socket = extrude_loop_x(
+        name + "_Allen_Socket",
+        regular_hexagon_loop_yz(
+            pivot_y,
+            pivot_z,
+            HANDLE_M3_SOCKET_ACROSS_FLATS,
+        ),
+        min(socket_outer_x, socket_inner_x),
+        max(socket_outer_x, socket_inner_x),
+    )
+    difference_from(head, socket)
+    if material is not None:
+        assign_material(head, material)
+
+    tip_x = head_bearing_x - outer_direction * HANDLE_M3_BOLT_LENGTH
+    shaft = add_cylinder_x(
+        name + "_Shaft",
+        HANDLE_M3_NOMINAL_DIAMETER / 2.0,
+        abs(tip_x - head_bearing_x),
+        ((tip_x + head_bearing_x) / 2.0, pivot_y, pivot_z),
+        vertices=64,
+    )
+    if material is not None:
+        assign_material(shaft, material)
+
+    nut_floor_x = nut_face_x + outer_direction * HANDLE_M3_NUT_DEPTH
+    nut_open_x = nut_floor_x - outer_direction * HANDLE_M3_NOMINAL_NUT_THICKNESS
+    nut = extrude_loop_x(
+        name + "_Captive_Nut",
+        regular_hexagon_loop_yz(
+            pivot_y,
+            pivot_z,
+            HANDLE_M3_NOMINAL_NUT_ACROSS_FLATS,
         ),
         min(nut_floor_x, nut_open_x),
         max(nut_floor_x, nut_open_x),
@@ -7031,11 +7282,252 @@ def validate_installed_latch_mechanics(parts) -> None:
     )
 
 
+def validate_built_handle_m3_hardware(parts) -> None:
+    """Prove both handle-only M3 pivots fit and retain complete recess floors."""
+    handle_path_overlaps = []
+    base_path_overlaps = []
+    head_overlaps = []
+    shaft_overlaps = []
+    base_shaft_overlaps = []
+    nut_overlaps = []
+    allen_wrench_overlaps = []
+    allen_socket_overlaps = []
+    counterbore_floor_volumes = []
+    nut_floor_volumes = []
+    path_probe_radius = HANDLE_M3_CLEARANCE_DIAMETER / 2.0 - 0.05
+    floor_axial_clearance = 0.02
+    floor_probe_dimensions = (
+        HANDLE_M3_MIN_RECESS_FLOOR - 2.0 * floor_axial_clearance,
+        0.2,
+        0.2,
+    )
+    floor_probe_radial_offset = 2.0
+    minimum_floor_fill = math.prod(floor_probe_dimensions) * 0.9
+
+    for index, side in enumerate((-1.0, 1.0), start=1):
+        pivot_x = side * HANDLE_PIVOT_X
+        head_face_x, nut_face_x, outer_direction = handle_m3_pivot_faces(side)
+        handle_path_probe = add_cylinder_x(
+            f"TEMPORARY_Handle_{index}_M3_Easy_Running_Path_Probe",
+            path_probe_radius,
+            HANDLE_M3_PIVOT_BOSS_SPAN - 0.2,
+            (pivot_x, 0.0, HANDLE_LOCAL_PIVOT_Z),
+            vertices=64,
+        )
+        try:
+            _faces, path_overlap = exact_transformed_intersection(
+                parts["handle_bar"],
+                handle_path_probe,
+                second_location=handle_path_probe.location.copy(),
+                second_rotation=handle_path_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(handle_path_probe, do_unlink=True)
+        handle_path_overlaps.append(path_overlap)
+
+        base_path_probe = add_cylinder_x(
+            f"TEMPORARY_Handle_{index}_Unchanged_Base_Lug_M3_Path_Probe",
+            path_probe_radius,
+            HANDLE_BASE_LUG_WIDTH - 0.2,
+            (pivot_x, HANDLE_PIVOT_Y, HANDLE_PIVOT_Z),
+            vertices=64,
+        )
+        try:
+            _faces, base_path_overlap = exact_transformed_intersection(
+                parts["base"],
+                base_path_probe,
+                second_location=base_path_probe.location.copy(),
+                second_rotation=base_path_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(base_path_probe, do_unlink=True)
+        base_path_overlaps.append(base_path_overlap)
+
+        wrench_inner_depth = (
+            HANDLE_M3_COUNTERBORE_DEPTH
+            - HANDLE_M3_MAX_HEAD_HEIGHT
+            + HANDLE_M3_SOCKET_DEPTH
+            - 0.1
+        )
+        wrench_outer_x = head_face_x + outer_direction * 0.5
+        wrench_inner_x = head_face_x - outer_direction * wrench_inner_depth
+        wrench_probe = extrude_loop_x(
+            f"TEMPORARY_Handle_{index}_2p5mm_Allen_Wrench_Access_Probe",
+            regular_hexagon_loop_yz(
+                0.0,
+                HANDLE_LOCAL_PIVOT_Z,
+                HANDLE_M3_SOCKET_ACROSS_FLATS,
+            ),
+            min(wrench_outer_x, wrench_inner_x),
+            max(wrench_outer_x, wrench_inner_x),
+        )
+        hardware = []
+        try:
+            _faces, wrench_overlap = exact_transformed_intersection(
+                parts["handle_bar"],
+                wrench_probe,
+                second_location=wrench_probe.location.copy(),
+                second_rotation=wrench_probe.rotation_euler.copy(),
+            )
+            allen_wrench_overlaps.append(wrench_overlap)
+
+            hardware = create_handle_m3_reference_hardware(
+                f"TEMPORARY_Handle_{index}_Nominal_M3_Hardware_Envelope",
+                side,
+                0.0,
+                HANDLE_LOCAL_PIVOT_Z,
+                seat_clearance=0.05,
+            )
+            hardware_overlaps = []
+            for hardware_part in hardware:
+                _faces, overlap = exact_transformed_intersection(
+                    parts["handle_bar"],
+                    hardware_part,
+                    second_location=hardware_part.location.copy(),
+                    second_rotation=hardware_part.rotation_euler.copy(),
+                )
+                hardware_overlaps.append(overlap)
+            head_overlaps.append(hardware_overlaps[0])
+            shaft_overlaps.append(hardware_overlaps[1])
+            nut_overlaps.append(hardware_overlaps[2])
+
+            shaft = hardware[1]
+            _faces, base_shaft_overlap = exact_transformed_intersection(
+                parts["base"],
+                shaft,
+                second_location=(shaft.location.x, HANDLE_PIVOT_Y, HANDLE_PIVOT_Z),
+                second_rotation=shaft.rotation_euler.copy(),
+            )
+            base_shaft_overlaps.append(base_shaft_overlap)
+            _faces, socket_overlap = exact_transformed_intersection(
+                hardware[0],
+                wrench_probe,
+                first_location=hardware[0].location.copy(),
+                first_rotation=hardware[0].rotation_euler.copy(),
+                second_location=wrench_probe.location.copy(),
+                second_rotation=wrench_probe.rotation_euler.copy(),
+            )
+            allen_socket_overlaps.append(socket_overlap)
+        finally:
+            for hardware_part in hardware:
+                bpy.data.objects.remove(hardware_part, do_unlink=True)
+            bpy.data.objects.remove(wrench_probe, do_unlink=True)
+
+        floor_specs = (
+            (
+                f"TEMPORARY_Handle_{index}_Counterbore_Floor_Solid_Probe",
+                (
+                    head_face_x
+                    - outer_direction
+                    * (
+                        HANDLE_M3_COUNTERBORE_DEPTH
+                        + floor_axial_clearance
+                        + floor_probe_dimensions[0] / 2.0
+                    ),
+                    floor_probe_radial_offset,
+                    HANDLE_LOCAL_PIVOT_Z,
+                ),
+                counterbore_floor_volumes,
+            ),
+            (
+                f"TEMPORARY_Handle_{index}_Nut_Recess_Floor_Solid_Probe",
+                (
+                    nut_face_x
+                    + outer_direction
+                    * (
+                        HANDLE_M3_NUT_DEPTH
+                        + floor_axial_clearance
+                        + floor_probe_dimensions[0] / 2.0
+                    ),
+                    floor_probe_radial_offset,
+                    HANDLE_LOCAL_PIVOT_Z,
+                ),
+                nut_floor_volumes,
+            ),
+        )
+        for probe_name, probe_location, output in floor_specs:
+            floor_probe = add_rounded_box(
+                probe_name,
+                floor_probe_dimensions,
+                probe_location,
+                bevel=0.0,
+            )
+            try:
+                _faces, floor_volume = exact_transformed_intersection(
+                    parts["handle_bar"],
+                    floor_probe,
+                    second_location=probe_location,
+                )
+            finally:
+                bpy.data.objects.remove(floor_probe, do_unlink=True)
+            output.append(floor_volume)
+
+    maximum_air_overlap = max(
+        *handle_path_overlaps,
+        *base_path_overlaps,
+        *head_overlaps,
+        *shaft_overlaps,
+        *base_shaft_overlaps,
+        *nut_overlaps,
+        *allen_wrench_overlaps,
+        *allen_socket_overlaps,
+    )
+    if maximum_air_overlap > 1e-6:
+        raise ValueError(
+            "Handle M3 path, Allen access, or hardware is obstructed: "
+            f"maximum_volume={maximum_air_overlap:.6f} "
+            f"handle_paths={handle_path_overlaps} base_paths={base_path_overlaps} "
+            f"wrenches={allen_wrench_overlaps} heads={head_overlaps} "
+            f"sockets={allen_socket_overlaps} shafts={shaft_overlaps} "
+            f"base_shafts={base_shaft_overlaps} nuts={nut_overlaps}"
+        )
+    if min(counterbore_floor_volumes) < minimum_floor_fill:
+        raise ValueError(
+            "A handle M3 socket-head counterbore breaks into its fork: "
+            f"volumes={counterbore_floor_volumes} required={minimum_floor_fill}"
+        )
+    if min(nut_floor_volumes) < minimum_floor_fill:
+        raise ValueError(
+            "A handle captive M3 nut recess breaks into its fork: "
+            f"volumes={nut_floor_volumes} required={minimum_floor_fill}"
+        )
+
+    reach_past_nut_floor = (
+        HANDLE_M3_BOLT_LENGTH
+        + HANDLE_M3_COUNTERBORE_DEPTH
+        - (HANDLE_M3_PIVOT_BOSS_SPAN - HANDLE_M3_NUT_DEPTH)
+    )
+    thread_engagement = min(HANDLE_M3_NOMINAL_NUT_THICKNESS, reach_past_nut_floor)
+    tip_protrusion = (
+        HANDLE_M3_BOLT_LENGTH
+        + HANDLE_M3_COUNTERBORE_DEPTH
+        - HANDLE_M3_PIVOT_BOSS_SPAN
+    )
+    print(
+        "FIELD_CASE_HANDLE_M3_VALID "
+        f"pivots=2 base_geometry=unchanged "
+        f"base_bore={HANDLE_BASE_LUG_BORE_DIAMETER:.2f} "
+        f"handle_bore={HANDLE_M3_CLEARANCE_DIAMETER:.2f} "
+        f"counterbore={HANDLE_M3_COUNTERBORE_DIAMETER:.2f}x"
+        f"{HANDLE_M3_COUNTERBORE_DEPTH:.2f} "
+        f"nut_recess={HANDLE_M3_NUT_ACROSS_FLATS:.2f}x{HANDLE_M3_NUT_DEPTH:.2f} "
+        f"allen_wrench={HANDLE_M3_SOCKET_ACROSS_FLATS:.2f}AF "
+        f"air_overlap_max={maximum_air_overlap:.6f} "
+        f"floor_probe_span={floor_probe_dimensions[0]:.2f} "
+        f"counterbore_floor_min={min(counterbore_floor_volumes):.6f} "
+        f"nut_floor_min={min(nut_floor_volumes):.6f} "
+        f"screw=M3x{HANDLE_M3_BOLT_LENGTH:.0f} "
+        f"thread_engagement={thread_engagement:.2f} "
+        f"reach_past_nut_floor={reach_past_nut_floor:.2f} "
+        f"tip_protrusion={tip_protrusion:.2f}"
+    )
+
+
 def validate_installed_handle_mechanics(parts) -> None:
     """Sweep the reinforced moving handle through its complete working arc."""
     sweep_steps = max(1, math.ceil(90.0 / HANDLE_SWEEP_STEP_DEGREES))
     maximum_overlap = (0.0, 0.0, 0)
-    local_pivot_z = HANDLE_BAR_THICKNESS / 2.0
+    local_pivot_z = HANDLE_LOCAL_PIVOT_Z
     for sample_index in range(sweep_steps + 1):
         angle = 90.0 * sample_index / sweep_steps
         radians = math.radians(angle)
@@ -7806,10 +8298,19 @@ def create_reference_mockups(materials, parts):
     handle.rotation_euler.x = math.radians(90.0)
     handle.location = (
         0.0,
-        HANDLE_PIVOT_Y + HANDLE_BAR_THICKNESS / 2.0,
+        HANDLE_PIVOT_Y + HANDLE_LOCAL_PIVOT_Z,
         HANDLE_PIVOT_Z,
     )
     objects.append(handle)
+    for index, side in enumerate((-1.0, 1.0), start=1):
+        hardware = create_handle_m3_reference_hardware(
+            f"REFERENCE_ONLY_Handle_{index}_M3x{HANDLE_M3_BOLT_LENGTH:.0f}_Pivot",
+            side,
+            HANDLE_PIVOT_Y,
+            HANDLE_PIVOT_Z,
+            latch_rod_material,
+        )
+        objects.extend(hardware)
     for obj in objects:
         obj.display_type = "SOLID"
         obj.hide_render = False
@@ -9244,6 +9745,7 @@ def build_mission1_field_case():
     validate_built_latch_impact_protectors(parts)
     validate_built_latch_fixed_m3_hardware(parts)
     validate_installed_latch_mechanics(parts)
+    validate_built_handle_m3_hardware(parts)
     validate_installed_handle_mechanics(parts)
     lid_payload = evaluated_mesh_payload(parts["lid"], Vector((0.0, 0.0, 0.0)))
     logo_orange_payload = evaluated_mesh_payload(
