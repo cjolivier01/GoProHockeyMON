@@ -2,7 +2,7 @@
 """
 Generate a Pelican/Storm case model parametrically in Blender.
 Creates a complete hard case with lid, base, latches, hinges, and handle.
-Outputs 3MF files for 3D printing with appropriate material assignments.
+Outputs STL files for 3D printing with separate files for different materials.
 """
 
 import bpy
@@ -471,7 +471,7 @@ for obj in all_objects:
     bpy.ops.object.transform_apply(scale=True)
 
 # ============================================================================
-# EXPORT 3MF FILES
+# EXPORT STL FILES
 # ============================================================================
 
 def validate_export(filepath, min_size=100):
@@ -481,7 +481,7 @@ def validate_export(filepath, min_size=100):
     if os.path.getsize(filepath) < min_size:
         raise RuntimeError(f"Export failed: file too small (possibly corrupt): {filepath}")
 
-print("\nExporting 3MF files for 3D printing...")
+print("\nExporting STL files for 3D printing...")
 
 output_dir = os.path.dirname(bpy.data.filepath) or os.getcwd()
 
@@ -489,36 +489,29 @@ output_dir = os.path.dirname(bpy.data.filepath) or os.getcwd()
 bpy.ops.object.select_all(action='DESELECT')
 case_base.select_set(True)
 lid.select_set(True)
-export_path = os.path.join(output_dir, "pelican_case_body_PLA_PETG.3mf")
-bpy.ops.export_mesh.threemf(filepath=export_path, use_selection=True)
+export_path = os.path.join(output_dir, "pelican_case_body_PLA_PETG.stl")
+bpy.ops.export_mesh.stl(filepath=export_path, use_selection=True)
 validate_export(export_path)
-print(f"  Exported: pelican_case_body_PLA_PETG.3mf")
+print(f"  Exported: pelican_case_body_PLA_PETG.stl")
 
 # Export PETG-HF parts (hardware)
 bpy.ops.object.select_all(action='DESELECT')
 for obj in latches + hinges + [handle]:
     obj.select_set(True)
-export_path = os.path.join(output_dir, "pelican_case_hardware_PETG_HF.3mf")
-bpy.ops.export_mesh.threemf(filepath=export_path, use_selection=True)
+export_path = os.path.join(output_dir, "pelican_case_hardware_PETG_HF.stl")
+bpy.ops.export_mesh.stl(filepath=export_path, use_selection=True)
 validate_export(export_path)
-print(f"  Exported: pelican_case_hardware_PETG_HF.3mf")
+print(f"  Exported: pelican_case_hardware_PETG_HF.stl")
 
 # Export TPU parts (seal)
 bpy.ops.object.select_all(action='DESELECT')
 seal.select_set(True)
-export_path = os.path.join(output_dir, "pelican_case_seal_TPU.3mf")
-bpy.ops.export_mesh.threemf(filepath=export_path, use_selection=True)
+export_path = os.path.join(output_dir, "pelican_case_seal_TPU.stl")
+bpy.ops.export_mesh.stl(filepath=export_path, use_selection=True)
 validate_export(export_path)
-print(f"  Exported: pelican_case_seal_TPU.3mf")
+print(f"  Exported: pelican_case_seal_TPU.stl")
 
-# Export complete assembly (3MF)
-bpy.ops.object.select_all(action='SELECT')
-export_path = os.path.join(output_dir, "pelican_case_complete_assembly.3mf")
-bpy.ops.export_mesh.threemf(filepath=export_path, use_selection=True)
-validate_export(export_path)
-print(f"  Exported: pelican_case_complete_assembly.3mf")
-
-# Export complete assembly (STL)
+# Export complete assembly
 bpy.ops.object.select_all(action='SELECT')
 export_path = os.path.join(output_dir, "pelican_case_complete_assembly.stl")
 bpy.ops.export_mesh.stl(filepath=export_path, use_selection=True)
@@ -534,10 +527,9 @@ print("\n" + "="*60)
 print("PELICAN CASE GENERATION COMPLETE!")
 print("="*60)
 print(f"\nFiles created:")
-print(f"  - pelican_case_body_PLA_PETG.3mf (Main case body - print with PLA or PETG)")
-print(f"  - pelican_case_hardware_PETG_HF.3mf (Latches, hinges, handle - print with PETG-HF)")
-print(f"  - pelican_case_seal_TPU.3mf (Gasket seal - print with TPU)")
-print(f"  - pelican_case_complete_assembly.3mf (Complete assembly for reference - 3MF)")
-print(f"  - pelican_case_complete_assembly.stl (Complete assembly for reference - STL)")
+print(f"  - pelican_case_body_PLA_PETG.stl (Main case body - print with PLA or PETG)")
+print(f"  - pelican_case_hardware_PETG_HF.stl (Latches, hinges, handle - print with PETG-HF)")
+print(f"  - pelican_case_seal_TPU.stl (Gasket seal - print with TPU)")
+print(f"  - pelican_case_complete_assembly.stl (Complete assembly for reference)")
 print(f"  - pelican_case_parametric.blend (Editable Blender file)")
 print("\n" + "="*60 + "\n")

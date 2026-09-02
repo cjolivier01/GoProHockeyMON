@@ -59,13 +59,12 @@ MISSION1_FIELD_CASE_OBSOLETE_STLS := \
 	mission1_field_case_lid_logo_dark_blue_inlay.stl \
 	mission1_field_case_lid_logo_blue_inlay.stl \
 	mission1_field_case_lid_logo_cyan_inlay.stl
-PELICAN_CASE_STLS := pelican_case_complete_assembly.stl
-PELICAN_CASE_3MF := \
-	pelican_case_body_PLA_PETG.3mf \
-	pelican_case_hardware_PETG_HF.3mf \
-	pelican_case_seal_TPU.3mf \
-	pelican_case_complete_assembly.3mf
-PELICAN_CASE_OUTPUTS := $(PELICAN_CASE_STLS) $(PELICAN_CASE_3MF)
+PELICAN_CASE_STLS := \
+	pelican_case_body_PLA_PETG.stl \
+	pelican_case_hardware_PETG_HF.stl \
+	pelican_case_seal_TPU.stl \
+	pelican_case_complete_assembly.stl
+PELICAN_CASE_OUTPUTS := $(PELICAN_CASE_STLS)
 DUAL_FAN_HOLDER_STL := gopro_dual_fan_parametric.stl
 DUAL_FAN_ADAPTER_STLS := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('dual_fan_parametric_blender.py', encoding='utf-8').read()); names={'GOPRO_ADAPTER_PRONG_COUNTS','GOPRO_ADAPTER_PRONG_COUNT','EXPORT_ADAPTER_STL_PATHS','EXPORT_ADAPTER_STL_PATH'}; values={target.id:ast.literal_eval(node.value) for node in tree.body if isinstance(node,(ast.Assign,ast.AnnAssign)) for target in ([node.target] if isinstance(node,ast.AnnAssign) else node.targets) if isinstance(target,ast.Name) and target.id in names}; legacy_count=values['GOPRO_ADAPTER_PRONG_COUNT']; counts=(legacy_count,) if legacy_count is not None else values['GOPRO_ADAPTER_PRONG_COUNTS']; paths=dict(values['EXPORT_ADAPTER_STL_PATHS']); legacy_path=values['EXPORT_ADAPTER_STL_PATH']; paths[counts[0]]=(legacy_path or 'gopro_dual_fan_adapter.stl') if legacy_count is not None else (legacy_path or paths[counts[0]]); print(' '.join(paths[count] for count in counts))")
 DUAL_FAN_KNOWN_ADAPTER_STLS := \
@@ -266,7 +265,7 @@ print_targets:
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
 		'mission1-field-case       Build ten-part STLs plus the complete two-color-lid 3MF project.' \
-		'pelican-case              Build parametric Pelican/Storm case 3MF files (body, hardware, seal, assembly).' \
+		'pelican-case              Build parametric Pelican/Storm case STL files (body, hardware, seal, assembly).' \
 		'dual-fan                  Build the fan holder and both GoPro adapter variants; optional splitter follows CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \
@@ -295,7 +294,7 @@ print_targets:
 		'clean-horn                Remove the parametric horn STL.' \
 		'clean-mission1-dummy      Remove the Mission 1 dummy STL.' \
 		'clean-mission1-field-case Remove all dual Mission 1 field-case print outputs.' \
-		'clean-pelican-case        Remove all Pelican case 3MF outputs.' \
+		'clean-pelican-case        Remove all Pelican case STL outputs.' \
 		'clean-dual-fan            Remove the dual-fan holder and adapter STLs.' \
 		'clean-fan-silencer        Remove fan-silencer STLs and generated render images.' \
 		'clean-fan-case            Remove all fan-case STLs.' \
@@ -383,13 +382,13 @@ $(MISSION1_FIELD_CASE_OUTPUTS) &: mission1_field_case_blender.py \
 		"import os; p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']=os.getcwd(); ns['BUILD_REFERENCE_MOCKUPS']=False; ns['build_mission1_field_case']()"
 	$(PDF_PYTHON) -c "from pathlib import Path; import zipfile; paths=[Path(name) for name in '$(MISSION1_FIELD_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; stl_payloads=[(path, path.read_bytes()) for path in paths[:-1]]; invalid_stls=[str(path) for path, data in stl_payloads if len(data) < 84 or len(data) != 84 + 50 * int.from_bytes(data[80:84], 'little')]; assert not invalid_stls, f'Invalid binary STL outputs: {invalid_stls}'; archive=zipfile.ZipFile(paths[-1]); bad_member=archive.testzip(); archive.close(); assert bad_member is None, f'Corrupt 3MF member: {bad_member}'"
 
-# One generator emits all Pelican case 3MF files (body, hardware, seal, and complete assembly).
+# One generator emits all Pelican case STL files (body, hardware, seal, and complete assembly).
 # The grouped rule records that one invocation updates all outputs while retaining normal
 # timestamp-based incremental builds.
 $(PELICAN_CASE_OUTPUTS) &: generate_pelican_case.py
 	$(RM) $(PELICAN_CASE_OUTPUTS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python $<
-	$(PDF_PYTHON) -c "from pathlib import Path; import zipfile; paths=[Path(name) for name in '$(PELICAN_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; stl_path=paths[0]; stl_data=stl_path.read_bytes(); assert len(stl_data) >= 84 and len(stl_data) == 84 + 50 * int.from_bytes(stl_data[80:84], 'little'), f'Invalid binary STL: {stl_path}'; bad_files=[]; [bad_files.append((str(path), bad_member)) if (archive := zipfile.ZipFile(path), bad_member := archive.testzip(), archive.close())[1] else None for path in paths[1:]]; assert not bad_files, f'Corrupt 3MF files: {bad_files}'"
+	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(PELICAN_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; stl_payloads=[(path, path.read_bytes()) for path in paths]; invalid_stls=[str(path) for path, data in stl_payloads if len(data) < 84 or len(data) != 84 + 50 * int.from_bytes(data[80:84], 'little')]; assert not invalid_stls, f'Invalid binary STL outputs: {invalid_stls}'"
 
 $(DUAL_FAN_STLS) &: dual_fan_parametric_blender.py fan_size_presets.py
 	$(RM) $(DUAL_FAN_ALL_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
