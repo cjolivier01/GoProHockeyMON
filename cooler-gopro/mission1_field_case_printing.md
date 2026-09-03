@@ -174,7 +174,12 @@ tower. The 2.6 mm-diameter horizontal capture rail is embedded through the
 outer edge of this ledge rather than hanging as a stand-alone cylinder. Its
 exposed upper half remains the retention bead. The 4.5 mm-thick side towers
 carry both ends, keep the 20.48 mm-wide hook from walking sideways off the
-catch, and stand proud of it to deflect impacts.
+catch, and stand proud of it to deflect impacts. Each tower now continues
+inward to the lid's flat outer-top plane as a narrow slat. Its last 5 mm follows
+an eight-segment quadratic blend with a 1 mm top-face toe, so the transition is
+curved instead of ending in a sharp exposed edge. The blend remains entirely
+above the original Z = 0 print plane and inside the existing lid envelope, so
+the lid still prints flat on its outer top.
 
 The source model's obsolete lower jaw has been removed. The moving hook now
 has a full-width 3.2 mm reinforced upper arm and a true cylindrical central
@@ -223,17 +228,18 @@ exported orientation, and the captive nut pockets close with 45-degree roofs.
 The uncompressed lid begins 0.25 mm above its hard seated position. Pressing
 the broad lever inward places its flat pad against the load ledge, draws the
 lid down onto the gasket, and passes the linkage over center. The generated
-geometry verifies zero hard-seated hook/lid intersection, 1.246471 mm3 minimum
-total capture and 0.228854 mm3 of flat-pad capture during an attempted 0.15 mm
-lid lift, 6.656732 mm3 total preload and 2.516820 mm3 of isolated flat-pad
-preload at the full 0.25 mm uncompressed gasket position, and 31.467644 mm3
+geometry verifies zero hard-seated hook/lid intersection, 1.553371 mm3 minimum
+total capture and 0.228876 mm3 of flat-pad capture during an attempted 0.15 mm
+lid lift, 8.018261 mm3 total preload and 2.517885 mm3 of isolated flat-pad
+preload at the full 0.25 mm uncompressed gasket position, and 29.709899 mm3
 minimum engagement during a 0.60 mm outward-peel attempt. It also verifies
-1.399353 mm3 minimum capture at 12 degrees open and complete rail/ledge release
+3.514865 mm3 minimum capture at 12 degrees open and complete rail/ledge release
 at 24 degrees. The complete coupled opening path has zero hook/base, hook/lid,
 and lever/hook collision.
 
-The source toggle's natural over-center travel is retained. Opposed hidden
-spherical snap detents in both base ears center the lever and prevent normal
+The source toggle architecture is retained, with its moving pivot adjusted
+for the deeper over-center travel. Opposed hidden spherical snap detents in
+both base ears center the lever and prevent normal
 pivot play from bypassing the snap. The ear spacing leaves 0.2 mm axial
 clearance per side, while the larger opposed dimples clear both worst-case
 axial positions at the fully seated pose. A dedicated quarter-degree exact
@@ -241,6 +247,18 @@ sweep at -0.2, 0, and +0.2 mm verifies zero closed contact, at least 0.0560 mm3
 of peak release engagement everywhere in that range, and complete release by
 22 degrees open. Pushing the lever in the wrong direction is stopped by the
 base across the same axial range.
+
+`LATCH_HOOK_OVERALL_LENGTH` directly configures the finished moving hook's
+overall length about its unchanged link-pivot boss. The functional body keeps
+the requested 1.5 mm fit reduction from the 50.241260 mm source hook. Its
+nonfunctional crown is shortened locally by another 1.6 mm, producing the
+47.141260 mm default without pulling the load-bearing pad toward the lid. In
+the installed closed pose the crown remains 0.257 mm below the protector slats.
+The moving pivot is also positioned for 0.10 mm of true over-center travel:
+hook draw peaks at dead center, then relaxes by that small amount when the lever
+seats fully. The toggle therefore resists reopening mechanically; the spherical
+detents add a second release bump instead of being the only feature holding the
+lever shut.
 
 To install one latch:
 
