@@ -1744,15 +1744,12 @@ FAN_GASKET_COLOR = (0.12, 0.12, 0.12, 1.0)
 # then catch its top face.  Measure the actual post, nut, and printer before
 # production; inch hardware varies by standard and coating.
 BOTTOM_MOUNT_HOLE_ENABLED = True
-# BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.50
-BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.55
-BOTTOM_MOUNT_HOLE_LATERAL_TARGET = 0.0
+BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.50
+# The mounting axis must remain on the exact left/right centerline.  Collision
+# avoidance may move it fore/aft, but never laterally.
 BOTTOM_MOUNT_HOLE_DIAMETER = 6.8
 BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE = 3.0
 BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE = 2.0
-BOTTOM_MOUNT_HOLE_AUTO_LATERAL = True
-BOTTOM_MOUNT_HOLE_SEARCH_RANGE = 80.0
-BOTTOM_MOUNT_HOLE_SEARCH_STEP = 2.0
 # The preferred fraction remains authoritative when it fits.  When the camera
 # envelopes occupy that whole cross-section, this optional search chooses the
 # closest safe fore/aft station and prints the resolved fraction.
@@ -1766,7 +1763,7 @@ BOTTOM_MOUNT_POST_DIAMETER = 31.75
 BOTTOM_MOUNT_POST_RECESS_DIAMETER_CLEARANCE = 0.5
 BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN = 1.0
 BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS = 4.0
-BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS = 4.5
+BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS = 3.0
 BOTTOM_MOUNT_NUT_HOLDER_ENABLED = True
 BOTTOM_MOUNT_NUT_THREAD_DIAMETER = 6.35
 BOTTOM_MOUNT_NUT_ACROSS_FLATS = 11.11
@@ -4547,8 +4544,6 @@ def validate_config() -> None:
         "BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE": (
             BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
         ),
-        "BOTTOM_MOUNT_HOLE_SEARCH_RANGE": BOTTOM_MOUNT_HOLE_SEARCH_RANGE,
-        "BOTTOM_MOUNT_HOLE_SEARCH_STEP": BOTTOM_MOUNT_HOLE_SEARCH_STEP,
         "BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_RANGE": (
             BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_RANGE
         ),
@@ -15086,17 +15081,6 @@ def resolve_bottom_mount_hole_position(
     all_bracket_posts = [
         position for pair in bracket_position_pairs for position in pair
     ]
-    steps = int(
-        math.ceil(
-            BOTTOM_MOUNT_HOLE_SEARCH_RANGE
-            / BOTTOM_MOUNT_HOLE_SEARCH_STEP
-        )
-    )
-    offsets = [index * BOTTOM_MOUNT_HOLE_SEARCH_STEP for index in range(-steps, steps + 1)]
-    offsets.sort(key=lambda value: (abs(value), value))
-    if not BOTTOM_MOUNT_HOLE_AUTO_LATERAL:
-        offsets = [0.0]
-
     fraction_offsets = [0.0]
     if BOTTOM_MOUNT_HOLE_AUTO_FRONT_TO_BACK:
         fraction_steps = int(
@@ -15121,60 +15105,61 @@ def resolve_bottom_mount_hole_position(
 
     for fraction in fractions:
         x = front_x + fraction * (rear_x - front_x)
-        for offset in offsets:
-            position = (x, BOTTOM_MOUNT_HOLE_LATERAL_TARGET + offset)
-            if not point_in_polygon(position, bottom_loop):
-                continue
-            if polygon_boundary_distance(position, bottom_loop) < (
-                feature_radius + BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE
-            ):
-                continue
-            camera_clearance = (
-                feature_radius + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
+        # Left/right centering is a mount invariant, not an auto-placement
+        # preference.  Only the front/back coordinate may be searched.
+        position = (x, 0.0)
+        if not point_in_polygon(position, bottom_loop):
+            continue
+        if polygon_boundary_distance(position, bottom_loop) < (
+            feature_radius + BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE
+        ):
+            continue
+        camera_clearance = (
+            feature_radius + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
+        )
+        if any(
+            point_inside_camera_keepout(position, camera, camera_clearance)
+            for camera in cameras
+        ):
+            continue
+        if any(
+            circular_feature_intersects_camera_installation_sweep(
+                position,
+                camera,
+                feature_radius,
+                BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE,
             )
-            if any(
-                point_inside_camera_keepout(position, camera, camera_clearance)
-                for camera in cameras
-            ):
-                continue
-            if any(
-                circular_feature_intersects_camera_installation_sweep(
-                    position,
-                    camera,
-                    feature_radius,
-                    BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE,
-                )
-                for camera in cameras
-            ):
-                continue
-            if any(
-                math.dist(position, post) < (
-                    feature_radius
-                    + FASTENER_POST_DIAMETER / 2.0
-                    + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
-                )
-                for post in lid_post_positions
-            ):
-                continue
-            if any(
-                math.dist(position, post) < (
-                    feature_radius
-                    + CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0
-                    + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
-                )
-                for post in all_bracket_posts
-            ):
-                continue
-            print(
-                "BOTTOM_MOUNT_HOLE_POSITION "
-                f"requested_fraction="
-                f"{BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION:.3f} "
-                f"resolved_fraction={fraction:.3f} "
-                f"xy=({position[0]:.2f}, {position[1]:.2f}) "
-                f"feature_radius={feature_radius:.2f} "
-                f"hole_radius={hole_radius:.2f}"
+            for camera in cameras
+        ):
+            continue
+        if any(
+            math.dist(position, post) < (
+                feature_radius
+                + FASTENER_POST_DIAMETER / 2.0
+                + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
             )
-            return position
+            for post in lid_post_positions
+        ):
+            continue
+        if any(
+            math.dist(position, post) < (
+                feature_radius
+                + CAMERA_BRACKET_POST_BASE_DIAMETER / 2.0
+                + BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE
+            )
+            for post in all_bracket_posts
+        ):
+            continue
+        print(
+            "BOTTOM_MOUNT_HOLE_POSITION "
+            f"requested_fraction="
+            f"{BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION:.3f} "
+            f"resolved_fraction={fraction:.3f} "
+            f"xy=({position[0]:.2f}, {position[1]:.2f}) "
+            f"feature_radius={feature_radius:.2f} "
+            f"hole_radius={hole_radius:.2f}"
+        )
+        return position
     raise ValueError(
         "No bottom mounting-hole location satisfies the configured "
         "fraction search and camera/post/wall keepouts"
@@ -32942,42 +32927,40 @@ def validate_final_bottom_mount_nut_holder(base, position):
                     point_inside_closed_bvh(record[0], record[1] @ point)
                 )
 
-        support_axial_fractions = (0.15, 0.40, 0.65, 0.90)
+        support_axial_fractions = (0.25, 0.50, 0.75, 0.90, 0.97)
         support_ring_sample_count = 36
-        support_sample_count = (
-            len(support_axial_fractions) * support_ring_sample_count
-        )
+        support_sample_count = 0
         support_solid_samples = 0
-        support_floor_radius = bottom_mount_recess_support_floor_radius()
-        support_top_radius = bottom_mount_recess_support_radius()
         support_top_axis = bottom_mount_recess_support_top_axis()
-        bottom_center = Vector((position[0], position[1], 0.0))
-        top_center = Vector(
-            bottom_mount_frame_point(position, 0.0, 0.0, support_top_axis)
+        support_probe_radius = (
+            bottom_mount_post_access_radius()
+            + BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS / 2.0
         )
-        for index in range(support_ring_sample_count):
-            angle = 2.0 * math.pi * index / support_ring_sample_count
-            bottom_outer = Vector(
-                (
-                    position[0] + support_floor_radius * math.cos(angle),
-                    position[1] + support_floor_radius * math.sin(angle),
-                    0.0,
+        for axial_fraction in support_axial_fractions:
+            axial = support_top_axis * axial_fraction
+            for index in range(support_ring_sample_count):
+                # Sample between radial mesh edges, through the middle of the
+                # configured wall, in planes normal to the tilted mount axis.
+                angle = (
+                    2.0
+                    * math.pi
+                    * (index + 0.25)
+                    / support_ring_sample_count
                 )
-            )
-            top_outer = Vector(
-                bottom_mount_frame_point(
-                    position,
-                    support_top_radius * math.cos(angle),
-                    support_top_radius * math.sin(angle),
-                    support_top_axis,
+                point = Vector(
+                    bottom_mount_frame_point(
+                        position,
+                        support_probe_radius * math.cos(angle),
+                        support_probe_radius * math.sin(angle),
+                        axial,
+                    )
                 )
-            )
-            for axial_fraction in support_axial_fractions:
-                local_center = bottom_center.lerp(top_center, axial_fraction)
-                local_outer = bottom_outer.lerp(top_outer, axial_fraction)
-                inward = local_center - local_outer
-                inward.normalize()
-                point = local_outer + inward
+                # Below this height, the main floor—not the raised plinth—is
+                # the expected load path and is already covered by min-Z and
+                # manifold validation.
+                if point.z <= BOTTOM_THICKNESS + 0.10:
+                    continue
+                support_sample_count += 1
                 support_solid_samples += int(
                     point_inside_closed_bvh(record[0], record[1] @ point)
                 )

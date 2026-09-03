@@ -3288,17 +3288,17 @@ def page_acoustic(pdf):
 
 def page_nut(pdf):
     fig=new_sheet(13,"RECESSED ANGLED BOTTOM CAPTIVE-NUT MOUNT",
-                  "The full pole enters the flat case bottom; a continuous 4.5 mm floor-rooted plinth supports the tilted backing roof and captive-nut boss")
+                  "The full pole enters the flat case bottom; a continuous 3 mm floor-rooted plinth supports the tilted backing roof and captive-nut boss")
     ax=panel(fig,[0.065,0.43,0.47,0.44],"AUTO-RESOLVED FLOOR LOCATION","BOTTOM / PLAN")
     depth=float(val("BODY_DEPTH",233.661)); width=float(val("BODY_WIDTH",180)); frac=float(val("BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION",0.5))
     outline=soft_triangle(depth,width,0.75,0.55)
     ax.add_patch(Polygon(outline,closed=True,facecolor="#edf4f7",edgecolor=BLUE,lw=1.3))
-    x=-depth/2+frac*depth; y=float(val("BOTTOM_MOUNT_HOLE_LATERAL_TARGET",0))
+    x=-depth/2+frac*depth; y=0.0
     od=float(val("BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER",24)); hole=float(val("BOTTOM_MOUNT_HOLE_DIAMETER",6.8))
     tilt=float(val("BOTTOM_MOUNT_FORWARD_TILT_DEG",20)); tilt_rad=math.radians(tilt)
     post_d=float(val("BOTTOM_MOUNT_POST_DIAMETER",31.75)); post_clearance=float(val("BOTTOM_MOUNT_POST_RECESS_DIAMETER_CLEARANCE",0.5)); seat_margin=float(val("BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN",1.0)); seat_r=post_d/2+seat_margin
     access_r=(post_d+post_clearance)/2; seat_axis=seat_r*math.tan(abs(tilt_rad)); seat_center_x=x+seat_axis*math.sin(tilt_rad)
-    backing=float(val("BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS",4.0)); support_wall=float(val("BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS",4.5)); support_r=access_r+support_wall; support_floor_r=access_r/math.cos(abs(tilt_rad))+support_wall; support_top_axis=seat_axis+backing; support_center_x=x+support_top_axis*math.sin(tilt_rad)
+    backing=float(val("BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS",4.0)); support_wall=float(val("BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS",3.0)); support_r=access_r+support_wall; support_floor_r=access_r/math.cos(abs(tilt_rad))+support_wall; support_top_axis=seat_axis+backing; support_center_x=x+support_top_axis*math.sin(tilt_rad)
     ax.add_patch(Circle((x,y),support_floor_r,facecolor="#dcebdd",edgecolor=GREEN,lw=1.0))
     support_plan=[(support_center_x+support_r*math.cos(tilt_rad)*math.cos(a),y+support_r*math.sin(a)) for a in [2*math.pi*i/72 for i in range(72)]]
     ax.add_patch(Polygon(support_plan,closed=True,facecolor="#ccebd7",edgecolor=GREEN,lw=1.3))
@@ -3310,7 +3310,7 @@ def page_nut(pdf):
     ax.add_patch(Circle((x,y),hole/2,facecolor=WHITE,edgecolor=INK,lw=1.0))
     centerline(ax,(-depth/2-8,0),(depth/2+8,0))
     dim_h(ax,-depth/2,x,-width/2-18,-width/2,"BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION")
-    dim_v(ax,0,y+0.01,x+25,x,"BOTTOM_MOUNT_HOLE_LATERAL_TARGET")
+    leader(ax,(x,y),(x+25,y+28),"Y = 0: exact left/right centerline",BLUE,"left")
     leader(ax,(seat_center_x+seat_r*math.cos(tilt_rad),y),(132,48),
            "BOTTOM_MOUNT_POST_DIAMETER\n+ 2 x BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN",GREEN,"right")
     leader(ax,(x+hole/2,y),(132,18),
@@ -3344,14 +3344,14 @@ def page_nut(pdf):
     ax2.add_patch(Arc((0,0),18,18,theta1=90-abs(tilt),theta2=90,edgecolor=ORANGE,lw=1.1))
     leader(ax2,p(0,holder_top),(25,27),"BOTTOM_MOUNT_FORWARD_TILT_DEG",ORANGE,"right")
     leader(ax2,seat_left,(-39,-13),"recessed seat OD = post diameter + 2 x edge margin",GREEN,"right")
-    leader(ax2,support_right,(29,6),"continuous floor-rooted 4.5 mm support wall",GREEN,"right")
+    leader(ax2,support_right,(29,6),"continuous floor-rooted 3 mm support wall",GREEN,"right")
     leader(ax2,p(nut_af/2,nut_seat+nut_t/2),(27,17),"press-fit nut + six snap lips",ORANGE,"right")
     leader(ax2,p(0,seat_axis-12),(-39,-34),"nominal 1.25-inch vertical post",GRAY,"right")
     setup(ax2,-43,45,-43,33)
 
     note_box(fig,[0.065,0.18,0.285,0.17],"ANGLE + PLACEMENT",
-             ["BOTTOM_MOUNT_HOLE_AUTO_LATERAL enables lateral search",
-              "BOTTOM_MOUNT_HOLE_AUTO_FRONT_TO_BACK enables station search",
+             ["Mount axis is fixed on the exact left/right centerline",
+              "BOTTOM_MOUNT_HOLE_AUTO_FRONT_TO_BACK enables fore/aft search",
               f"forward case tilt on vertical post = {deg('BOTTOM_MOUNT_FORWARD_TILT_DEG',20)}",
               f"edge clearance = {mm('BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE',3)}",
               "The exterior bottom remains on the flat Z=0 print plane."],BLUE)
@@ -3364,7 +3364,7 @@ def page_nut(pdf):
     note_box(fig,[0.655,0.18,0.28,0.17],"CAPTIVE NUT + RETENTION",
              [f"pocket interference = {mm('BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE',0.15,2)}",
               f"recess backing = {mm('BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS',4)}",
-              f"support wall = {mm('BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS',4.5)}",
+              f"support wall = {mm('BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS',3.0)}",
               f"minimum holder wall = {mm('BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL',4)}",
               f"retention clearance = {mm('BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE',0.35,2)}"],ORANGE)
     pdf.savefig(fig); plt.close(fig)
