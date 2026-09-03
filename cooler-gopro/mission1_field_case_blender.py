@@ -244,7 +244,15 @@ LID_LATCH_LOAD_LEDGE_RAIL_EMBED = 0.2
 LID_LATCH_LOAD_LEDGE_BACK_OVERLAP = 1.0
 LID_LATCH_LOAD_LEDGE_AXIAL_OVERLAP = 0.4
 LID_LATCH_CAPTURE_TOWER_OUTSET = 0.7
-LID_LATCH_PROTECTOR_TOP_CAP_RISE = 0.0
+# Continue each base latch protector straight through the lid as one broad
+# rectangular wall.  The lid wall uses the base protector's full 21 mm radial
+# projection and 6 mm axial footprint; only its exposed print-plane/front
+# corner receives a small radius.
+LID_LATCH_PROTECTOR_PLATE_PROJECTION = 21.0
+LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP = 0.5
+LID_LATCH_PROTECTOR_PLATE_HEIGHT = 16.0
+LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS = 1.0
+LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS = 8
 LID_DISPLAY_OFFSET_X = 215.0
 
 # The lower TPU insert is a continuous recessed tray.  All cavity walls point
@@ -527,15 +535,44 @@ LATCH_FIXED_M3_MAX_TIP_PROTRUSION = 3.0
 LATCH_LID_INSTALLED_Z = BASE_HEIGHT + LID_WALL_HEIGHT
 LATCH_SOURCE_SCALE = 0.8
 LATCH_WIDTH = 20.48
+# The narrow source crown fin is removed before overall length is considered.
+# The reinforced link-pivot boss fixes the pivot-end extent; uniformly scale
+# only the remaining source-derived arm about that pivot so this value is the
+# finished crownless print's true overall Y length.  The default is 1.5 mm
+# shorter than the crownless reference body.
+LATCH_HOOK_REFERENCE_OVERALL_LENGTH = 50.241260
+LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH = 46.703189
+LATCH_HOOK_DEFAULT_SHORTENING = 1.5
+LATCH_HOOK_OVERALL_LENGTH = (
+    LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH - LATCH_HOOK_DEFAULT_SHORTENING
+)
+LATCH_HOOK_CROWN_FIN_HALF_WIDTH = 4.6
+LATCH_HOOK_CROWN_FIN_CUT_CLEARANCE = 0.1
+LATCH_HOOK_CROWN_FIN_RECESS = 2.75
+LATCH_HOOK_PROTECTOR_TOP_CLEARANCE = 0.25
 LATCH_LEVER_PRINT_SIZE = (43.113704, 18.100159, LATCH_WIDTH)
-LATCH_HOOK_PRINT_SIZE = (16.732555, 50.241260, LATCH_WIDTH)
-LATCH_LINK_PIVOT_LOCAL_YZ = (0.733023, -10.648121)
+LATCH_HOOK_PRINT_SIZE = (16.732555, LATCH_HOOK_OVERALL_LENGTH, LATCH_WIDTH)
+# A toggle holds itself shut only after its moving pivot crosses dead center.
+# Set the link-pivot Y offset from the requested post-peak travel so the lever
+# first reaches maximum hook draw, then settles by this small amount at its
+# fully closed pose.  This is the load-relieving snap, while the opposed ear
+# detents remain secondary protection against an accidental opening bump.
+LATCH_OVER_CENTER_TRAVEL = 0.10
+LATCH_LINK_PIVOT_LOCAL_Z = -10.648121
+LATCH_LINK_PIVOT_LOCAL_Y = math.sqrt(
+    (abs(LATCH_LINK_PIVOT_LOCAL_Z) + LATCH_OVER_CENTER_TRAVEL) ** 2
+    - LATCH_LINK_PIVOT_LOCAL_Z**2
+)
+LATCH_LINK_PIVOT_LOCAL_YZ = (
+    LATCH_LINK_PIVOT_LOCAL_Y,
+    LATCH_LINK_PIVOT_LOCAL_Z,
+)
 LATCH_BASE_PIVOT_Y = -85.0
 LATCH_BASE_PIVOT_Z = 41.65
 LATCH_LEVER_CLOSED_ANGLE = 0.0
 LATCH_LEVER_OPEN_ANGLE = -80.0
 LATCH_HOOK_CLOSED_ANGLE = -80.0
-LATCH_HOOK_CAM_ROTATION_DEGREES = -12.0
+LATCH_HOOK_CAM_ROTATION_DEGREES = -10.0
 LATCH_HOOK_CAM_GUARD_ROTATION_DEGREES = -5.0
 LATCH_HOOK_POST_RELEASE_FOLLOW_RATIO = 0.2
 LATCH_SWEEP_STEP_DEGREES = 2.0
@@ -585,6 +622,14 @@ LATCH_HOOK_CHEEK_WIDTH = LATCH_HOOK_CHEEK_OUTER_X - LATCH_HOOK_CHEEK_INNER_X
 LATCH_REINFORCEMENT_RUNNING_CLEARANCE = 0.30
 LATCH_REINFORCEMENT_AXIAL_CLEARANCE = 0.10
 LATCH_REINFORCEMENT_RELIEF_STEP_DEGREES = 10.0
+# The source lever frame flares beyond its circular reinforced fixed boss only
+# across the central link-tongue band.  Give that narrow band its own sweep
+# radius so a shortened hook and deeper toggle do not rub it, without thinning
+# the hook's two outer pivot cheeks.
+LATCH_LEVER_FIXED_FRAME_SWEEP_RADIUS = 7.5
+LATCH_LEVER_FIXED_FRAME_SWEEP_WIDTH = (
+    LATCH_LEVER_LINK_TONGUE_WIDTH + 2.0 * LATCH_REINFORCEMENT_AXIAL_CLEARANCE
+)
 LATCH_DETENT_SIDES = (-1.0, 1.0)
 LATCH_DETENT_LOCAL_YZ = (5.0, -4.0)
 LATCH_DETENT_BOSS_RADIUS = 1.5
@@ -757,6 +802,16 @@ def latch_hook_global_angle_degrees(lever_angle: float) -> float:
         max(LATCH_HOOK_CAM_ROTATION_DEGREES, cam_rotation),
     )
     return LATCH_HOOK_CLOSED_ANGLE + cam_rotation
+
+
+def latch_hook_source_y(source_y: float) -> float:
+    """Scale the crownless source arm to its configured true overall length."""
+    reference_tip_y = (
+        LATCH_HOOK_LINK_BOSS_RADIUS
+        - LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH
+    )
+    configured_tip_y = LATCH_HOOK_LINK_BOSS_RADIUS - LATCH_HOOK_OVERALL_LENGTH
+    return source_y * configured_tip_y / reference_tip_y
 
 
 def latch_hook_origin_yz(lever_angle: float):
@@ -3821,6 +3876,52 @@ def validate_configuration() -> None:
         raise ValueError("Latch detent release residual limit is too permissive")
     if LATCH_LINK_ROD_LENGTH < LATCH_WIDTH - 0.1:
         raise ValueError("Latch link rod does not span both hook cheeks")
+    if not (
+        LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH - 5.0
+        <= LATCH_HOOK_OVERALL_LENGTH
+        <= LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH
+    ):
+        raise ValueError(
+            "Latch hook overall length must remain within 5 mm of its crownless "
+            "reference length"
+        )
+    if (
+        LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH
+        >= LATCH_HOOK_REFERENCE_OVERALL_LENGTH
+    ):
+        raise ValueError("Crownless hook reference must be shorter than the source fin")
+    if not math.isclose(
+        LATCH_HOOK_CROWN_FIN_HALF_WIDTH,
+        LATCH_HOOK_CHEEK_INNER_X,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("Hook crown-fin cut must end at the structural side cheeks")
+    if not 0.05 <= LATCH_HOOK_CROWN_FIN_CUT_CLEARANCE <= 0.2:
+        raise ValueError("Hook crown-fin cutter clearance is out of range")
+    if not 1.0 <= LATCH_HOOK_CROWN_FIN_RECESS <= 4.0:
+        raise ValueError("Hook crown-fin recess is out of range")
+    if not 0.08 <= LATCH_OVER_CENTER_TRAVEL <= 0.25:
+        raise ValueError(
+            "Latch over-center travel must provide a positive but modest load relief"
+        )
+    if not 0.1 <= LATCH_HOOK_PROTECTOR_TOP_CLEARANCE <= 0.6:
+        raise ValueError(
+            "Closed hook needs modest clearance below the lid protector walls"
+        )
+    reinforced_fixed_sweep_radius = (
+        LATCH_LEVER_FIXED_BOSS_RADIUS + LATCH_REINFORCEMENT_RUNNING_CLEARANCE
+    )
+    if LATCH_LEVER_FIXED_FRAME_SWEEP_RADIUS <= reinforced_fixed_sweep_radius:
+        raise ValueError("Latch source-frame sweep relief does not clear its flare")
+    if not (
+        LATCH_LEVER_LINK_TONGUE_WIDTH
+        <= LATCH_LEVER_FIXED_FRAME_SWEEP_WIDTH
+        < 2.0 * LATCH_HOOK_CHEEK_INNER_X
+    ):
+        raise ValueError(
+            "Latch source-frame sweep relief must clear the central lever tongue "
+            "without entering the hook pivot cheeks"
+        )
     fixed_m3_clearance = (
         LATCH_FIXED_M3_CLEARANCE_DIAMETER
         - LATCH_FIXED_M3_NOMINAL_DIAMETER
@@ -3964,6 +4065,39 @@ def validate_configuration() -> None:
         raise ValueError("Latch trough needs 0.35-0.8 mm clearance per hook side")
     if LID_LATCH_TROUGH_SHOULDER_RISE < 0.8:
         raise ValueError("Latch trough shoulders are too low to retain the hook")
+    protector_plate_root_y = CASE_DEPTH / 2.0
+    protector_plate_front_y = (
+        CASE_DEPTH / 2.0 + LID_LATCH_PROTECTOR_PLATE_PROJECTION
+    )
+    if protector_plate_front_y <= protector_plate_root_y:
+        raise ValueError("Rectangular lid latch protector has no outward projection")
+    if not math.isclose(
+        protector_plate_front_y,
+        -LATCH_PROTECTOR_FRONT_Y,
+        abs_tol=1e-6,
+    ):
+        raise ValueError(
+            "Lid latch protector must project exactly as far as the base protector"
+        )
+    if not math.isclose(
+        LID_LATCH_PROTECTOR_PLATE_PROJECTION,
+        abs(LATCH_PROTECTOR_FRONT_Y) - CASE_DEPTH / 2.0,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("Lid and base latch protectors have different radial spans")
+    if not 0.2 <= LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP <= 1.0:
+        raise ValueError("Lid latch protector needs a modest bonded root overlap")
+    if LID_LATCH_PROTECTOR_PLATE_HEIGHT < LID_WALL_HEIGHT:
+        raise ValueError("Rectangular lid latch protector is too short")
+    if not 0.5 <= LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS <= 1.5:
+        raise ValueError("Lid latch protector corner radius must remain modest")
+    if LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS >= min(
+        LID_LATCH_PROTECTOR_PLATE_PROJECTION,
+        LID_LATCH_PROTECTOR_PLATE_HEIGHT,
+    ):
+        raise ValueError("Lid latch protector corner radius exceeds its plate")
+    if LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS < 3:
+        raise ValueError("Lid latch protector corner is sampled too coarsely")
     if LID_LATCH_RECESS_BACK_WALL < 4.0:
         raise ValueError("Latch recess leaves too little skirt behind the lip")
     if LID_LATCH_RECESS_BACK_WALL >= skirt_radial_tip:
@@ -4267,11 +4401,7 @@ def validate_configuration() -> None:
     hinge_back = HINGE_AXIS_Y + HINGE_OUTER_DIAMETER / 2.0
     base_print_depth = hinge_back - mount_front
     lid_print_width = CASE_WIDTH + 2.0 * LID_FLANGE_OUTSET
-    lid_front = (
-        LID_LATCH_CAPTURE_RAIL_CENTER_Y
-        + LID_LATCH_CAPTURE_RAIL_RADIUS
-        + LID_LATCH_CAPTURE_TOWER_OUTSET
-    )
+    lid_front = CASE_DEPTH / 2.0 + LID_LATCH_PROTECTOR_PLATE_PROJECTION
     lid_back = -HINGE_AXIS_Y - HINGE_OUTER_DIAMETER / 2.0
     lid_print_depth = lid_front - lid_back
     for part, dimensions in (
@@ -4314,6 +4444,7 @@ def validate_configuration() -> None:
         f"{LATCH_LEVER_PRINT_SIZE[1]:.2f}x{LATCH_LEVER_PRINT_SIZE[2]:.2f} "
         f"latch_hook={LATCH_HOOK_PRINT_SIZE[0]:.2f}x"
         f"{LATCH_HOOK_PRINT_SIZE[1]:.2f}x{LATCH_HOOK_PRINT_SIZE[2]:.2f} "
+        f"latch_over_center={LATCH_OVER_CENTER_TRAVEL:.2f} "
         f"latch_link_rod={LATCH_LINK_ROD_DIAMETER:.2f} "
         f"latch_press_bore={LATCH_PRESS_FIT_BORE_DIAMETER:.2f} "
         f"latch_running_bore={LATCH_RUNNING_BORE_DIAMETER:.2f} "
@@ -4355,7 +4486,9 @@ def validate_configuration() -> None:
         f"{LATCH_CAPTURE_FLAT_PAD_AXIAL_WIDTH:.2f} "
         f"latch_protector={LATCH_PROTECTOR_BASE_WIDTH:.2f}x"
         f"{abs(LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y):.2f} "
-        f"lid_protector={LID_LATCH_TROUGH_SHOULDER_WIDTH:.2f} "
+        f"lid_protector={LATCH_PROTECTOR_BASE_WIDTH:.2f}x"
+        f"{LID_LATCH_PROTECTOR_PLATE_PROJECTION:.2f}x"
+        f"{LID_LATCH_PROTECTOR_PLATE_HEIGHT:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
         f"latch_guard_handle_clearance={latch_guard_handle_clearance:.2f} "
         f"latch_hardware_handle_clearance={latch_hardware_handle_clearance:.2f} "
@@ -4916,21 +5049,37 @@ def create_lid(
     )
     side_web_z1 = LID_LATCH_CAPTURE_RAIL_CENTER_Z + LID_LATCH_CAPTURE_RAIL_RADIUS - 0.1
     side_web_z0 = side_web_z1 - LID_LATCH_CAPTURE_WEB_THICKNESS
-    tower_back_y = recess_back_y - 0.2
-    tower_slope_start_y = rim_front_y - 1.0
-    tower_base_z = LID_FLANGE_EDGE_START_Z - LID_LATCH_TROUGH_SHOULDER_RISE
-    tower_outer_y = rail_outer_y + LID_LATCH_CAPTURE_TOWER_OUTSET
-    tower_slope_top_z = tower_base_z + tower_outer_y - tower_slope_start_y
-    tower_top_z = max(
-        LID_LATCH_CAPTURE_RAIL_CENTER_Z + LID_LATCH_CAPTURE_RAIL_RADIUS + 0.2,
-        tower_slope_top_z + LID_LATCH_PROTECTOR_TOP_CAP_RISE,
+    tower_plate_root_y = CASE_DEPTH / 2.0
+    tower_plate_bond_root_y = (
+        CASE_DEPTH / 2.0 - LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP
+    )
+    tower_plate_front_y = (
+        CASE_DEPTH / 2.0 + LID_LATCH_PROTECTOR_PLATE_PROJECTION
+    )
+    corner_radius = LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS
+    corner_center_y = tower_plate_front_y - corner_radius
+    corner_center_z = corner_radius
+    rounded_plate_corner = tuple(
+        (
+            corner_center_y + corner_radius * math.cos(angle),
+            corner_center_z + corner_radius * math.sin(angle),
+        )
+        for angle in (
+            -math.pi / 2.0
+            + step
+            * math.pi
+            / 2.0
+            / LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS
+            for step in range(LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS + 1)
+        )
     )
     tower_profile_yz = (
-        (tower_back_y, tower_base_z),
-        (tower_slope_start_y, tower_base_z),
-        (tower_outer_y, tower_slope_top_z),
-        (tower_outer_y, tower_top_z),
-        (tower_back_y, tower_top_z),
+        (tower_plate_bond_root_y, 0.0),
+        *rounded_plate_corner,
+        (tower_plate_front_y, LID_LATCH_PROTECTOR_PLATE_HEIGHT),
+        (tower_plate_root_y, LID_LATCH_PROTECTOR_PLATE_HEIGHT),
+        (tower_plate_root_y, LID_PLATE_THICKNESS),
+        (tower_plate_bond_root_y, LID_PLATE_THICKNESS),
     )
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
         bay = extrude_loop_x(
@@ -5051,13 +5200,15 @@ def create_lid(
         )
         union_into(lid, load_ledge_back_riser)
         for side in (-1.0, 1.0):
-            inner_x = dx + x + side * LID_LATCH_TROUGH_WIDTH / 2.0
-            outer_x = inner_x + side * LID_LATCH_TROUGH_SHOULDER_WIDTH
+            protector_center_x = dx + x + side * (
+                LATCH_BASE_EAR_CENTER_OFFSET_X
+                + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+            )
             tower = extrude_loop_x(
-                f"Lid_Latch_{index}_Capture_Rail_Side_Tower",
+                f"Lid_Latch_{index}_Rectangular_Base_Matched_Protector",
                 tower_profile_yz,
-                min(inner_x, outer_x),
-                max(inner_x, outer_x),
+                protector_center_x - LATCH_PROTECTOR_BASE_WIDTH / 2.0,
+                protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0,
             )
             union_into(lid, tower)
 
@@ -5512,6 +5663,10 @@ def create_pelican_latch_parts(material):
     for part_index, ((vertices, faces), (object_name, mesh_name)) in enumerate(
         zip(payloads, specifications)
     ):
+        if part_index == 1:
+            vertices = tuple(
+                (x, latch_hook_source_y(y), z) for x, y, z in vertices
+            )
         mesh = bpy.data.meshes.new(mesh_name)
         mesh.from_pydata(vertices, (), faces)
         mesh.update(calc_edges=True)
@@ -5604,6 +5759,32 @@ def create_pelican_latch_parts(material):
                 vertices=64,
             )
             difference_from(part, hook_bore)
+            # The source hook ends in a narrow, nonfunctional central crown
+            # fin.  Remove that complete strip instead of leaving a snagging
+            # "mohawk" above the broad side cheeks.  A small axial overcut
+            # clears the fin's coincident boundary without touching either
+            # structural cheek.
+            crown_fin_half_cut = (
+                LATCH_HOOK_CROWN_FIN_HALF_WIDTH
+                + LATCH_HOOK_CROWN_FIN_CUT_CLEARANCE
+            )
+            configured_crownless_tip_y = (
+                LATCH_HOOK_LINK_BOSS_RADIUS - LATCH_HOOK_OVERALL_LENGTH
+            )
+            crown_fin_cut_back_y = (
+                configured_crownless_tip_y + LATCH_HOOK_CROWN_FIN_RECESS
+            )
+            crown_fin_cutter = add_rounded_box(
+                "Pelican_Hook_Remove_Nonfunctional_Central_Crown_Fin",
+                (
+                    2.0 * crown_fin_half_cut,
+                    20.0,
+                    60.0,
+                ),
+                (0.0, crown_fin_cut_back_y - 10.0, 0.0),
+                bevel=0.0,
+            )
+            difference_from(part, crown_fin_cutter)
             # The source hook's rounded lower tooth made the latch look as if
             # it were balancing on, or biting around, the lid rail.  Remove
             # that lower jaw.  The replacement follows the requested Pelican
@@ -5821,6 +6002,14 @@ def create_pelican_latch_parts(material):
                     vertices=64,
                 )
                 difference_from(part, fixed_boss_relief)
+                fixed_frame_relief = add_cylinder_x(
+                    "Pelican_Hook_Clearance_For_Source_Lever_Central_Frame",
+                    LATCH_LEVER_FIXED_FRAME_SWEEP_RADIUS,
+                    LATCH_LEVER_FIXED_FRAME_SWEEP_WIDTH,
+                    (0.0, fixed_y_in_hook, fixed_z_in_hook),
+                    vertices=64,
+                )
+                difference_from(part, fixed_frame_relief)
         # A broad source side is the support-free print face.  Keep the mesh
         # data itself in its installed coordinate frame so reference copies can
         # be positioned by simply clearing this object transform.
@@ -6473,6 +6662,18 @@ def validate_built_latch_hook_capture(hook) -> None:
             bpy.data.objects.remove(probe, do_unlink=True)
         return volume
 
+    def overlap_with_box(name, dimensions, location):
+        probe = add_rounded_box(name, dimensions, location, bevel=0.0)
+        try:
+            _faces, volume = exact_transformed_intersection(
+                hook,
+                probe,
+                second_location=location,
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        return volume
+
     arm_probe_z = (upper_arm_front_z + upper_arm_back_z) / 2.0
     arm_probe_y = (upper_arm_inner_y + upper_arm_outer_y) / 2.0
     arm_volumes = [
@@ -6548,6 +6749,20 @@ def validate_built_latch_hook_capture(hook) -> None:
         (0.0, lower_jaw_local_y, lower_jaw_local_z),
         radius=0.25,
     )
+    configured_tip_y = LATCH_HOOK_LINK_BOSS_RADIUS - LATCH_HOOK_OVERALL_LENGTH
+    crown_probe_y0 = configured_tip_y - 9.0
+    crown_probe_y1 = (
+        configured_tip_y + LATCH_HOOK_CROWN_FIN_RECESS - 0.1
+    )
+    crown_fin_volume = overlap_with_box(
+        "TEMPORARY_Latch_Central_Crown_Fin_Air_Probe",
+        (
+            2.0 * LATCH_HOOK_CROWN_FIN_HALF_WIDTH,
+            crown_probe_y1 - crown_probe_y0,
+            40.0,
+        ),
+        (0.0, (crown_probe_y0 + crown_probe_y1) / 2.0, 0.0),
+    )
     minimum_arm_probe_volume = 4.0 / 3.0 * math.pi * 0.18**3 * 0.9
     if min(arm_volumes) < minimum_arm_probe_volume:
         raise ValueError(
@@ -6571,6 +6786,21 @@ def validate_built_latch_hook_capture(hook) -> None:
         raise ValueError("Latch flat downward-bearing pad is hollow or sweep-carved")
     if lower_jaw_volume > 1e-7:
         raise ValueError("Obsolete lower latch jaw remains below the lid rail")
+    if crown_fin_volume > 1e-7:
+        raise ValueError("Nonfunctional central latch-hook crown fin remains")
+    actual_overall_length = max(vertex.co.y for vertex in hook.data.vertices) - min(
+        vertex.co.y for vertex in hook.data.vertices
+    )
+    if not math.isclose(
+        actual_overall_length,
+        LATCH_HOOK_OVERALL_LENGTH,
+        abs_tol=0.001,
+    ):
+        raise ValueError(
+            "Built crownless latch hook misses its configured overall length: "
+            f"actual={actual_overall_length:.6f} "
+            f"configured={LATCH_HOOK_OVERALL_LENGTH:.6f}"
+        )
     print(
         "FIELD_CASE_LATCH_HOOK_CAPTURE_VALID "
         f"upper_arm_thickness={LATCH_CAPTURE_UPPER_ARM_THICKNESS:.2f} "
@@ -6582,7 +6812,9 @@ def validate_built_latch_hook_capture(hook) -> None:
         f"root_core={root_core_volume:.6f}/{expected_root_core_volume:.6f} "
         f"neck_core={neck_core_volume:.6f}/{expected_neck_core_volume:.6f} "
         f"flat_pad_core={pad_core_volume:.6f}/{expected_pad_core_volume:.6f} "
-        f"lower_jaw_air={lower_jaw_volume:.9f}"
+        f"overall_length={actual_overall_length:.6f} "
+        f"lower_jaw_air={lower_jaw_volume:.9f} "
+        f"crown_fin_air={crown_fin_volume:.9f}"
     )
 
 
@@ -6607,8 +6839,13 @@ def validate_built_latch_impact_protectors(parts) -> None:
     base_bond_volumes = []
     access_air_volumes = []
     lid_guard_volumes = []
+    lid_rectangular_corner_volumes = []
     lid_probe_dimensions = (0.8, 0.4, 0.4)
     lid_minimum_fill = math.prod(lid_probe_dimensions) * 0.9
+    lid_top_extension_probe_dimensions = (0.8, 0.3, 0.2)
+    lid_top_extension_minimum_fill = (
+        math.prod(lid_top_extension_probe_dimensions) * 0.9
+    )
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
         access_air_volumes.append(
             overlap_at(
@@ -6638,34 +6875,49 @@ def validate_built_latch_impact_protectors(parts) -> None:
                     base_probe_dimensions,
                 )
             )
-            lid_tower_center_x = (
+            lid_protector_center_x = (
                 LID_DISPLAY_OFFSET_X
                 + x
                 + side
-                * (LID_LATCH_TROUGH_WIDTH / 2.0 + LID_LATCH_TROUGH_SHOULDER_WIDTH / 2.0)
+                * (
+                    LATCH_BASE_EAR_CENTER_OFFSET_X
+                    + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+                )
             )
-            lid_tower_outer_y = (
-                LID_LATCH_CAPTURE_RAIL_CENTER_Y
-                + LID_LATCH_CAPTURE_RAIL_RADIUS
-                + LID_LATCH_CAPTURE_TOWER_OUTSET
-            )
-            lid_tower_slope_start_y = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET - 1.0
-            lid_tower_base_z = LID_FLANGE_EDGE_START_Z - LID_LATCH_TROUGH_SHOULDER_RISE
-            lid_tower_slope_top_z = (
-                lid_tower_base_z + lid_tower_outer_y - lid_tower_slope_start_y
+            lid_plate_root_y = CASE_DEPTH / 2.0
+            lid_plate_front_y = (
+                CASE_DEPTH / 2.0 + LID_LATCH_PROTECTOR_PLATE_PROJECTION
             )
             lid_guard_volumes.append(
                 overlap_at(
                     parts["lid"],
                     f"TEMPORARY_Latch_{index}_Lid_Protector_Solid_Probe",
                     (
-                        lid_tower_center_x,
-                        lid_tower_outer_y - 0.5,
-                        lid_tower_slope_top_z - 0.25,
+                        lid_protector_center_x,
+                        lid_plate_front_y - 0.5,
+                        LID_LATCH_PROTECTOR_PLATE_HEIGHT / 2.0,
                     ),
                     lid_probe_dimensions,
                 )
             )
+            for probe_index, (probe_y, probe_z) in enumerate(
+                (
+                    (lid_plate_root_y + 0.5, 0.1),
+                    (lid_plate_root_y + 0.5, LID_LATCH_PROTECTOR_PLATE_HEIGHT - 0.5),
+                    (lid_plate_front_y - 0.5, 0.5),
+                    (lid_plate_front_y - 0.5, LID_LATCH_PROTECTOR_PLATE_HEIGHT - 0.5),
+                ),
+                start=1,
+            ):
+                lid_rectangular_corner_volumes.append(
+                    overlap_at(
+                        parts["lid"],
+                        f"TEMPORARY_Latch_{index}_Lid_Rectangular_Protector_"
+                        f"Corner_Probe_{probe_index}",
+                        (lid_protector_center_x, probe_y, probe_z),
+                        lid_top_extension_probe_dimensions,
+                    )
+                )
     if min(base_guard_volumes) < base_minimum_fill:
         raise ValueError("A base latch impact protector is hollow")
     if min(base_bond_volumes) < base_minimum_fill:
@@ -6674,13 +6926,19 @@ def validate_built_latch_impact_protectors(parts) -> None:
         raise ValueError("Base latch protectors obstruct lever finger access")
     if min(lid_guard_volumes) < lid_minimum_fill:
         raise ValueError("A lid latch impact protector is hollow")
+    if min(lid_rectangular_corner_volumes) < lid_top_extension_minimum_fill:
+        raise ValueError(
+            "A lid latch impact protector is not a solid rectangular wall"
+        )
     print(
         "FIELD_CASE_LATCH_PROTECTORS_VALID "
         f"base_thickness={LATCH_PROTECTOR_BASE_WIDTH:.2f} "
         f"base_solid_min={min(base_guard_volumes):.6f} "
         f"base_bond_min={min(base_bond_volumes):.6f} "
-        f"lid_thickness={LID_LATCH_TROUGH_SHOULDER_WIDTH:.2f} "
+        f"lid_thickness={LATCH_PROTECTOR_BASE_WIDTH:.2f} "
+        f"lid_projection={LID_LATCH_PROTECTOR_PLATE_PROJECTION:.2f} "
         f"lid_solid_min={min(lid_guard_volumes):.6f} "
+        f"lid_rectangular_corner_min={min(lid_rectangular_corner_volumes):.6f} "
         f"finger_access_air_max={max(access_air_volumes):.9f}"
     )
 
@@ -7038,13 +7296,14 @@ def validate_installed_latch_mechanics(parts) -> None:
                     f"volume={detent_volume:.6f}"
                 )
 
-            link_faces, link_volume = exact_transformed_intersection(
+            link_faces, link_volume, link_bounds = exact_transformed_intersection(
                 parts["latch_lever"],
                 parts["latch_hook"],
                 first_location=lever_location,
                 first_rotation=lever_rotation,
                 second_location=hook_location,
                 second_rotation=hook_rotation,
+                return_bounds=True,
             )
             if link_volume > maximum_link_overlap[0]:
                 maximum_link_overlap = (
@@ -7057,7 +7316,8 @@ def validate_installed_latch_mechanics(parts) -> None:
                 raise ValueError(
                     "Coupled latch sweep relief blocks the moving hook: "
                     f"lever_angle={lever_angle:.2f} axial={axial_offset:+.2f} "
-                    f"faces={link_faces} volume={link_volume:.6f}"
+                    f"faces={link_faces} volume={link_volume:.6f} "
+                    f"bounds={link_bounds}"
                 )
 
             hook_base_faces, hook_base_volume = exact_transformed_intersection(
@@ -7391,8 +7651,32 @@ def validate_installed_latch_mechanics(parts) -> None:
     over_center_depth = closed_offset_z - toggle_offset_z
     if not LATCH_LEVER_OPEN_ANGLE < toggle_angle < LATCH_LEVER_CLOSED_ANGLE:
         raise ValueError("Latch moving pivot no longer crosses an over-center position")
-    if over_center_depth < 0.02:
+    if over_center_depth < 0.08:
         raise ValueError("Latch over-center travel is too shallow to retain closure")
+    if not math.isclose(
+        over_center_depth,
+        LATCH_OVER_CENTER_TRAVEL,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("Latch over-center travel does not match its configuration")
+    _closed_hook_origin_y, closed_hook_origin_z = latch_hook_origin_yz(
+        LATCH_LEVER_CLOSED_ANGLE
+    )
+    closed_hook_radians = math.radians(
+        latch_hook_global_angle_degrees(LATCH_LEVER_CLOSED_ANGLE)
+    )
+    closed_hook_top_z = max(
+        closed_hook_origin_z
+        + math.sin(closed_hook_radians) * vertex.co.y
+        + math.cos(closed_hook_radians) * vertex.co.z
+        for vertex in parts["latch_hook"].data.vertices
+    )
+    hook_protector_top_clearance = LATCH_LID_INSTALLED_Z - closed_hook_top_z
+    if hook_protector_top_clearance < LATCH_HOOK_PROTECTOR_TOP_CLEARANCE:
+        raise ValueError(
+            "Closed hook protrudes above the lid latch protector walls: "
+            f"clearance={hook_protector_top_clearance:.3f} mm"
+        )
     minimum_detent_peak = min(
         (result[0][0], axial_offset, result[0][1])
         for axial_offset, result in detent_results.items()
@@ -7429,7 +7713,8 @@ def validate_installed_latch_mechanics(parts) -> None:
         f"{max(released_capture_volumes):.6f} "
         f"seated_intersection_max={max(seated_volumes.values()):.6f} "
         f"over_center_angle={toggle_angle:.2f} "
-        f"over_center_depth={over_center_depth:.3f}"
+        f"over_center_depth={over_center_depth:.3f} "
+        f"hook_protector_top_clearance={hook_protector_top_clearance:.3f}"
         f" wrong_way_stop_min={min(wrong_way_volumes):.6f}"
     )
 
@@ -8746,6 +9031,64 @@ def horizontal_payload_area(payload, plane_z) -> float:
 
 def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
     """Prove black and orange jointly cover one support-free first layer."""
+
+    def polygon_area_xy(points):
+        if len(points) < 3:
+            return 0.0
+        return abs(
+            sum(
+                start[0] * end[1] - end[0] * start[1]
+                for start, end in pairwise((*points, points[0]))
+            )
+        ) / 2.0
+
+    def clip_polygon(points, inside, intersection):
+        if not points:
+            return []
+        clipped = []
+        previous = points[-1]
+        previous_inside = inside(previous)
+        for current in points:
+            current_inside = inside(current)
+            if current_inside != previous_inside:
+                clipped.append(intersection(previous, current))
+            if current_inside:
+                clipped.append(current)
+            previous = current
+            previous_inside = current_inside
+        return clipped
+
+    def clip_polygon_to_rectangle(points, x0, x1, y0, y1):
+        def intersect_x(first, second, x):
+            ratio = (x - first[0]) / (second[0] - first[0])
+            return (x, first[1] + ratio * (second[1] - first[1]))
+
+        def intersect_y(first, second, y):
+            ratio = (y - first[1]) / (second[1] - first[1])
+            return (first[0] + ratio * (second[0] - first[0]), y)
+
+        result = list(points)
+        result = clip_polygon(
+            result,
+            lambda point: point[0] >= x0,
+            lambda first, second: intersect_x(first, second, x0),
+        )
+        result = clip_polygon(
+            result,
+            lambda point: point[0] <= x1,
+            lambda first, second: intersect_x(first, second, x1),
+        )
+        result = clip_polygon(
+            result,
+            lambda point: point[1] >= y0,
+            lambda first, second: intersect_y(first, second, y0),
+        )
+        return clip_polygon(
+            result,
+            lambda point: point[1] <= y1,
+            lambda first, second: intersect_y(first, second, y1),
+        )
+
     lid_vertices, _lid_triangles = lid_payload
     lid_minimum_z = min(vertex[2] for vertex in lid_vertices)
     if not math.isclose(lid_minimum_z, 0.0, abs_tol=1e-6):
@@ -8783,12 +9126,31 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
 
     lid_first_layer_area = horizontal_payload_area(lid_payload, 0.0)
     outline = rounded_rectangle_loop(CASE_WIDTH, CASE_DEPTH, CASE_CORNER_RADIUS)
-    expected_first_layer_area = abs(
-        sum(
-            start[0] * end[1] - end[0] * start[1]
-            for start, end in pairwise((*outline, outline[0]))
-        )
-    ) / 2.0
+    expected_first_layer_area = polygon_area_xy(outline)
+    plate_root_y = CASE_DEPTH / 2.0 - LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP
+    plate_front_y = CASE_DEPTH / 2.0 + LID_LATCH_PROTECTOR_PLATE_PROJECTION
+    plate_bottom_outer_y = (
+        plate_front_y - LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS
+    )
+    for latch_x in LATCH_X_CENTERS:
+        for side in (-1.0, 1.0):
+            protector_center_x = latch_x + side * (
+                LATCH_BASE_EAR_CENTER_OFFSET_X
+                + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+            )
+            x0 = protector_center_x - LATCH_PROTECTOR_BASE_WIDTH / 2.0
+            x1 = protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0
+            footprint_area = (x1 - x0) * (plate_bottom_outer_y - plate_root_y)
+            outline_overlap_area = polygon_area_xy(
+                clip_polygon_to_rectangle(
+                    outline,
+                    x0,
+                    x1,
+                    plate_root_y,
+                    plate_bottom_outer_y,
+                )
+            )
+            expected_first_layer_area += footprint_area - outline_overlap_area
     combined_first_layer_area = lid_first_layer_area + inlay_first_layer_area
     if not math.isclose(
         combined_first_layer_area,
