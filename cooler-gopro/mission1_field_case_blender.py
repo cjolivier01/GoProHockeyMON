@@ -2461,23 +2461,17 @@ LID_LOGO_TEXT_OUTLINE_OFFSET = (
 LID_LOGO_BLOCK_SIZE = (14.0, 5.0)
 LID_LOGO_BLOCK_GAP = 2.0
 LID_LOGO_BLOCK_CENTER_Y = 18.0
-# One broad, printable hockey-stick silhouette and a round puck sit above the
-# text after the lid is installed.  Coordinates are lid-local and are mirrored
-# with the existing artwork when viewed through the outer face.
-LID_HOCKEY_ICON_CENTER_Y = -34.0
-LID_HOCKEY_STICK_PROFILE_XY = (
-    (-38.0, -2.0),
-    (18.0, -2.0),
-    (20.0, -3.0),
-    (22.0, -8.0),
-    (37.0, -7.0),
-    (38.0, -2.0),
-    (26.0, -1.0),
-    (24.0, 2.0),
-    (-38.0, 2.0),
-)
-LID_HOCKEY_PUCK_CENTER_XY = (32.0, -14.0)
-LID_HOCKEY_PUCK_DIAMETER = 9.0
+# Two broad, rounded hockey sticks cross above opposing blades, with a round
+# puck centered below them.  Coordinates are lid-local and appear upright when
+# viewed through the installed outer face.
+LID_HOCKEY_ICON_CENTER_Y = -46.5
+LID_HOCKEY_STICK_SHAFT_WIDTH = 5.0
+LID_HOCKEY_STICK_HANDLES_XY = ((-22.0, -20.0), (22.0, -20.0))
+LID_HOCKEY_STICK_HEELS_XY = ((16.0, 10.0), (-16.0, 10.0))
+LID_HOCKEY_STICK_BLADE_CENTERS_XY = ((27.0, 11.5), (-27.0, 11.5))
+LID_HOCKEY_STICK_BLADE_SIZE = (34.0, 7.0)
+LID_HOCKEY_PUCK_CENTER_XY = (0.0, 21.5)
+LID_HOCKEY_PUCK_SIZE = (14.0, 6.0)
 LID_INLAY_DEPTH = 0.8
 LID_INLAY_CUTTER_OVERTRAVEL = 0.2
 
@@ -3739,26 +3733,48 @@ def validate_configuration() -> None:
             "TPU lid-pad lens-hood relief depth must be between 1.0 mm and "
             f"{LID_BUTTON_RELIEF_DEPTH:.1f} mm"
         )
-    hockey_x_values = [point[0] for point in LID_HOCKEY_STICK_PROFILE_XY]
-    hockey_y_values = [
-        LID_HOCKEY_ICON_CENTER_Y + point[1]
-        for point in LID_HOCKEY_STICK_PROFILE_XY
-    ]
-    puck_radius = LID_HOCKEY_PUCK_DIAMETER / 2.0
+    shaft_radius = LID_HOCKEY_STICK_SHAFT_WIDTH / 2.0
+    hockey_x_values = []
+    hockey_y_values = []
+    for point_x, point_y in (
+        *LID_HOCKEY_STICK_HANDLES_XY,
+        *LID_HOCKEY_STICK_HEELS_XY,
+    ):
+        hockey_x_values.extend((point_x - shaft_radius, point_x + shaft_radius))
+        hockey_y_values.extend(
+            (
+                LID_HOCKEY_ICON_CENTER_Y + point_y - shaft_radius,
+                LID_HOCKEY_ICON_CENTER_Y + point_y + shaft_radius,
+            )
+        )
+    blade_half_width = LID_HOCKEY_STICK_BLADE_SIZE[0] / 2.0
+    blade_half_height = LID_HOCKEY_STICK_BLADE_SIZE[1] / 2.0
+    for center_x, center_y in LID_HOCKEY_STICK_BLADE_CENTERS_XY:
+        hockey_x_values.extend(
+            (center_x - blade_half_width, center_x + blade_half_width)
+        )
+        hockey_y_values.extend(
+            (
+                LID_HOCKEY_ICON_CENTER_Y + center_y - blade_half_height,
+                LID_HOCKEY_ICON_CENTER_Y + center_y + blade_half_height,
+            )
+        )
+    puck_half_width = LID_HOCKEY_PUCK_SIZE[0] / 2.0
+    puck_half_height = LID_HOCKEY_PUCK_SIZE[1] / 2.0
     hockey_x_values.extend(
         (
-            LID_HOCKEY_PUCK_CENTER_XY[0] - puck_radius,
-            LID_HOCKEY_PUCK_CENTER_XY[0] + puck_radius,
+            LID_HOCKEY_PUCK_CENTER_XY[0] - puck_half_width,
+            LID_HOCKEY_PUCK_CENTER_XY[0] + puck_half_width,
         )
     )
     hockey_y_values.extend(
         (
             LID_HOCKEY_ICON_CENTER_Y
             + LID_HOCKEY_PUCK_CENTER_XY[1]
-            - puck_radius,
+            - puck_half_height,
             LID_HOCKEY_ICON_CENTER_Y
             + LID_HOCKEY_PUCK_CENTER_XY[1]
-            + puck_radius,
+            + puck_half_height,
         )
     )
     artwork_edge_margin = 8.0
@@ -3774,7 +3790,7 @@ def validate_configuration() -> None:
         LID_LOGO_TEXT_CENTER_Y - LID_LOGO_TEXT_SIZE / 2.0 - 4.0
     ):
         raise ValueError("Hockey artwork needs a 4 mm gap above the lid text")
-    if LID_HOCKEY_PUCK_DIAMETER < 6.0:
+    if min(LID_HOCKEY_PUCK_SIZE) < 6.0:
         raise ValueError("Hockey puck inlay is too small for reliable printing")
 
     camera_contact_top = BASE_FLOOR_THICKNESS + CAMERA_FLOOR_Z + mission1.BODY_HEIGHT
@@ -5477,30 +5493,62 @@ def create_lid(
         )
         blocks[block_name] = block
 
-    hockey_stick = extrude_loop_z(
-        "Lid_Hockey_Stick_Orange_Inlay",
-        tuple(
-            (
-                dx + point_x,
-                LID_HOCKEY_ICON_CENTER_Y + point_y,
-            )
-            for point_x, point_y in LID_HOCKEY_STICK_PROFILE_XY
+    hockey_sticks = []
+    for stick_index, (handle_xy, heel_xy, blade_center_xy) in enumerate(
+        zip(
+            LID_HOCKEY_STICK_HANDLES_XY,
+            LID_HOCKEY_STICK_HEELS_XY,
+            LID_HOCKEY_STICK_BLADE_CENTERS_XY,
         ),
+        start=1,
+    ):
+        shaft_delta_x = heel_xy[0] - handle_xy[0]
+        shaft_delta_y = heel_xy[1] - handle_xy[1]
+        shaft_length = math.hypot(shaft_delta_x, shaft_delta_y)
+        shaft = add_rounded_prism(
+            f"Lid_Hockey_Stick_{stick_index}_Rounded_Shaft_Orange_Inlay",
+            shaft_length,
+            LID_HOCKEY_STICK_SHAFT_WIDTH,
+            0.0,
+            LID_INLAY_DEPTH,
+            LID_HOCKEY_STICK_SHAFT_WIDTH / 2.0,
+        )
+        shaft.location = (
+            dx + (handle_xy[0] + heel_xy[0]) / 2.0,
+            LID_HOCKEY_ICON_CENTER_Y + (handle_xy[1] + heel_xy[1]) / 2.0,
+            0.0,
+        )
+        shaft.rotation_euler.z = math.atan2(shaft_delta_y, shaft_delta_x)
+        blade = add_rounded_prism(
+            f"Lid_Hockey_Stick_{stick_index}_Rounded_Blade_Orange_Inlay",
+            LID_HOCKEY_STICK_BLADE_SIZE[0],
+            LID_HOCKEY_STICK_BLADE_SIZE[1],
+            0.0,
+            LID_INLAY_DEPTH,
+            LID_HOCKEY_STICK_BLADE_SIZE[1] / 2.0,
+            (
+                dx + blade_center_xy[0],
+                LID_HOCKEY_ICON_CENTER_Y + blade_center_xy[1],
+            ),
+        )
+        union_into(shaft, blade)
+        hockey_sticks.append(shaft)
+    crossed_hockey_sticks = hockey_sticks[0]
+    union_into(crossed_hockey_sticks, hockey_sticks[1])
+    crossed_hockey_sticks.name = "Lid_Crossed_Hockey_Sticks_Orange_Inlay"
+    hockey_puck = add_rounded_prism(
+        "Lid_Hockey_Puck_Orange_Inlay",
+        LID_HOCKEY_PUCK_SIZE[0],
+        LID_HOCKEY_PUCK_SIZE[1],
         0.0,
         LID_INLAY_DEPTH,
-    )
-    hockey_puck = add_cylinder_z(
-        "Lid_Hockey_Puck_Orange_Inlay",
-        LID_HOCKEY_PUCK_DIAMETER / 2.0,
-        LID_INLAY_DEPTH,
+        LID_HOCKEY_PUCK_SIZE[1] / 2.0,
         (
             dx + LID_HOCKEY_PUCK_CENTER_XY[0],
             LID_HOCKEY_ICON_CENTER_Y + LID_HOCKEY_PUCK_CENTER_XY[1],
-            LID_INLAY_DEPTH / 2.0,
         ),
-        vertices=64,
     )
-    hockey_inlays = (hockey_stick, hockey_puck)
+    hockey_inlays = (crossed_hockey_sticks, hockey_puck)
 
     # All lid lettering, blocks, and hockey artwork intentionally share one
     # orange material and one slicer body, leaving only two rigid AMS filaments
@@ -10687,42 +10735,86 @@ def validate_built_flush_lid_inlay(parts) -> None:
 
 
 def validate_built_lid_hockey_inlay(parts) -> None:
-    """Prove the orange stick and puck have substantial printable cores."""
+    """Prove both crossed sticks and the puck have printable solid cores."""
 
     logo = parts["logo_orange_inlay"]
-    stick_probe_dimensions = (20.0, 2.0, 0.4)
-    stick_probe_location = (
-        LID_DISPLAY_OFFSET_X - 10.0,
-        LID_HOCKEY_ICON_CENTER_Y,
-        LID_INLAY_DEPTH / 2.0,
-    )
-    stick_probe = add_rounded_box(
-        "TEMPORARY_Lid_Hockey_Stick_Core_Probe",
-        stick_probe_dimensions,
-        stick_probe_location,
-        bevel=0.0,
-    )
-    try:
-        _faces, stick_volume = exact_transformed_intersection(
-            logo,
-            stick_probe,
-            second_location=stick_probe.location.copy(),
+    shaft_core_volumes = []
+    blade_core_volumes = []
+    shaft_probe_width = LID_HOCKEY_STICK_SHAFT_WIDTH - 1.0
+    blade_probe_dimensions = (20.0, 3.0, 0.4)
+    for stick_index, (handle_xy, heel_xy, blade_center_xy) in enumerate(
+        zip(
+            LID_HOCKEY_STICK_HANDLES_XY,
+            LID_HOCKEY_STICK_HEELS_XY,
+            LID_HOCKEY_STICK_BLADE_CENTERS_XY,
+        ),
+        start=1,
+    ):
+        shaft_delta_x = heel_xy[0] - handle_xy[0]
+        shaft_delta_y = heel_xy[1] - handle_xy[1]
+        shaft_probe_length = (
+            math.hypot(shaft_delta_x, shaft_delta_y)
+            - 2.0 * LID_HOCKEY_STICK_SHAFT_WIDTH
         )
-    finally:
-        bpy.data.objects.remove(stick_probe, do_unlink=True)
+        shaft_probe = add_rounded_prism(
+            f"TEMPORARY_Lid_Hockey_Stick_{stick_index}_Shaft_Core_Probe",
+            shaft_probe_length,
+            shaft_probe_width,
+            0.2,
+            0.6,
+            shaft_probe_width / 2.0,
+        )
+        shaft_probe.location = (
+            LID_DISPLAY_OFFSET_X + (handle_xy[0] + heel_xy[0]) / 2.0,
+            LID_HOCKEY_ICON_CENTER_Y + (handle_xy[1] + heel_xy[1]) / 2.0,
+            0.0,
+        )
+        shaft_probe.rotation_euler.z = math.atan2(shaft_delta_y, shaft_delta_x)
+        try:
+            _faces, shaft_volume = exact_transformed_intersection(
+                logo,
+                shaft_probe,
+                second_location=shaft_probe.location.copy(),
+                second_rotation=shaft_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(shaft_probe, do_unlink=True)
+        shaft_core_volumes.append(shaft_volume)
 
-    puck_probe_radius = LID_HOCKEY_PUCK_DIAMETER / 2.0 - 0.5
-    puck_probe_depth = 0.4
-    puck_probe = add_cylinder_z(
+        blade_probe = add_rounded_box(
+            f"TEMPORARY_Lid_Hockey_Stick_{stick_index}_Blade_Core_Probe",
+            blade_probe_dimensions,
+            (
+                LID_DISPLAY_OFFSET_X + blade_center_xy[0],
+                LID_HOCKEY_ICON_CENTER_Y + blade_center_xy[1],
+                LID_INLAY_DEPTH / 2.0,
+            ),
+            bevel=0.0,
+        )
+        try:
+            _faces, blade_volume = exact_transformed_intersection(
+                logo,
+                blade_probe,
+                second_location=blade_probe.location.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(blade_probe, do_unlink=True)
+        blade_core_volumes.append(blade_volume)
+
+    puck_probe_dimensions = (
+        LID_HOCKEY_PUCK_SIZE[0] - 2.0,
+        LID_HOCKEY_PUCK_SIZE[1] - 2.0,
+        0.4,
+    )
+    puck_probe = add_rounded_box(
         "TEMPORARY_Lid_Hockey_Puck_Core_Probe",
-        puck_probe_radius,
-        puck_probe_depth,
+        puck_probe_dimensions,
         (
             LID_DISPLAY_OFFSET_X + LID_HOCKEY_PUCK_CENTER_XY[0],
             LID_HOCKEY_ICON_CENTER_Y + LID_HOCKEY_PUCK_CENTER_XY[1],
             LID_INLAY_DEPTH / 2.0,
         ),
-        vertices=48,
+        bevel=0.0,
     )
     try:
         _faces, puck_volume = exact_transformed_intersection(
@@ -10733,15 +10825,22 @@ def validate_built_lid_hockey_inlay(parts) -> None:
     finally:
         bpy.data.objects.remove(puck_probe, do_unlink=True)
 
-    minimum_stick_volume = math.prod(stick_probe_dimensions) * 0.95
-    minimum_puck_volume = math.pi * puck_probe_radius**2 * puck_probe_depth * 0.95
-    if stick_volume < minimum_stick_volume:
-        raise ValueError("Orange hockey-stick inlay lacks a solid printable shaft")
+    minimum_shaft_volume = shaft_probe_length * shaft_probe_width * 0.4 * 0.9
+    minimum_blade_volume = math.prod(blade_probe_dimensions) * 0.95
+    minimum_puck_volume = math.prod(puck_probe_dimensions) * 0.95
+    if min(shaft_core_volumes) < minimum_shaft_volume:
+        raise ValueError("An orange hockey-stick inlay lacks a solid printable shaft")
+    if min(blade_core_volumes) < minimum_blade_volume:
+        raise ValueError("An orange hockey-stick inlay lacks a solid printable blade")
     if puck_volume < minimum_puck_volume:
         raise ValueError("Orange hockey-puck inlay lacks a solid printable core")
     print(
         "FIELD_CASE_LID_HOCKEY_INLAY_VALID "
-        f"stick_core={stick_volume:.6f}/{minimum_stick_volume:.6f} "
+        f"sticks={len(shaft_core_volumes)} "
+        f"shaft_core_min={min(shaft_core_volumes):.6f}/"
+        f"{minimum_shaft_volume:.6f} "
+        f"blade_core_min={min(blade_core_volumes):.6f}/"
+        f"{minimum_blade_volume:.6f} "
         f"puck_core={puck_volume:.6f}/{minimum_puck_volume:.6f}"
     )
 

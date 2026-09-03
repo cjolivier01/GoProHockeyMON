@@ -61,10 +61,11 @@ scene objects, not additional STL dependencies or print outputs.
 
 The lid text is `GoPro Missions`, set in the compact embedded Neuropol
 GoPro-style face. Its minimum stroke is widened from 1.475 mm to 2.2125 mm,
-exactly 50% thicker than the original. A broad hockey-stick silhouette and a
-9 mm round puck sit above the text, while four small blocks below it follow the
-familiar GoPro layout. The artwork, lettering, and blocks use the same orange
-material and are joined into one shallow 0.8 mm flush-inlay STL.
+exactly 50% thicker than the original. Two broad, rounded hockey sticks cross
+above the text with opposing blades and a compact rounded puck centered below
+them, while four small blocks below the text follow the familiar GoPro layout.
+The artwork, lettering, and blocks use the same orange material and are joined
+into one shallow 0.8 mm flush-inlay STL.
 
 With the default `PRINT_TPU_GASKET_WITH_LID = True`,
 `mission1_field_case_ams_project.3mf` contains the lid as one aligned
