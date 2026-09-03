@@ -3736,8 +3736,8 @@ def validate_configuration() -> None:
 
     if not 1.0 <= LID_LENS_HOOD_RELIEF_DEPTH <= LID_BUTTON_RELIEF_DEPTH:
         raise ValueError(
-            "TPU lid-pad lens-hood relief must be 1 mm deep through no more "
-            "than the shutter-button relief depth"
+            "TPU lid-pad lens-hood relief depth must be between 1.0 mm and "
+            f"{LID_BUTTON_RELIEF_DEPTH:.1f} mm"
         )
     hockey_x_values = [point[0] for point in LID_HOCKEY_STICK_PROFILE_XY]
     hockey_y_values = [

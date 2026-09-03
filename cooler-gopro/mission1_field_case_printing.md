@@ -71,7 +71,7 @@ With the default `PRINT_TPU_GASKET_WITH_LID = True`,
 three-material compound object:
 
 - black shell
-- orange `GoPro Missions` text and four orange blocks
+- orange hockey artwork, `GoPro Missions` text, and four orange blocks
 - hollow hard-TPU lid gasket
 
 The 3MF declares black and orange rigid filaments plus hard TPU as filament 3.
