@@ -43,11 +43,14 @@ Both compartments leave 4 mm of TPU beneath their floors and at least 4 mm to
 the tray side walls, enlarged battery-door slots, enlarged battery row, and
 procedural camera/hood recesses.
 
-The TPU lid pad has separate shutter-button reliefs. Its asymmetric perimeter
-notch mates with a rigid lid boss, so the pad seats in only the correct
-direction. Two localized 11 mm extensions meet the proud battery doors with
-the same 0.6 mm preload as the camera/battery contact face, preventing the
-doors from rattling when the case is closed.
+The TPU lid pad has separate shutter-button reliefs. It also mirrors the lower
+tray's two trapezoidal MISSION 1 Pro lens-flare footprints as 2 mm-deep
+indentations in its camera-contact face, so the flared soft lens pieces are not
+pinched between the two TPU halves. Solid 10.4 mm TPU floors remain beneath
+both pockets. Its asymmetric perimeter notch mates with a rigid lid boss, so
+the pad seats in only the correct direction. Two localized 11 mm extensions
+meet the proud battery doors with the same 0.6 mm preload as the camera/battery
+contact face, preventing the doors from rattling when the case is closed.
 
 With `BUILD_REFERENCE_MOCKUPS = True`, the script also creates four procedural
 33.5 x 12.5 x 40.56 mm battery solids and two procedural 50 x 10 x 18 mm door
@@ -56,10 +59,11 @@ scene objects, not additional STL dependencies or print outputs.
 
 ## Lid logo
 
-The only lid text is `GoPro Missions`, set in the compact embedded Neuropol
+The lid text is `GoPro Missions`, set in the compact embedded Neuropol
 GoPro-style face. Its minimum stroke is widened from 1.475 mm to 2.2125 mm,
-exactly 50% thicker than the original. Four small blocks below it follow the
-familiar GoPro layout. All lettering and all four blocks use the same orange
+exactly 50% thicker than the original. A broad hockey-stick silhouette and a
+9 mm round puck sit above the text, while four small blocks below it follow the
+familiar GoPro layout. The artwork, lettering, and blocks use the same orange
 material and are joined into one shallow 0.8 mm flush-inlay STL.
 
 With the default `PRINT_TPU_GASKET_WITH_LID = True`,
@@ -180,7 +184,7 @@ the same 21 mm projection from the case wall to the common front edge. Its side
 profile is one 21 mm-long by 16 mm-high rectangle with straight 90-degree edges,
 not a narrow column, wedge, or triangular tower. The wall begins directly on
 the lid's original Z = 0 outer-top print plane; only the exposed top/front
-corner receives a small 1 mm radius (2 mm diameter). A hidden 0.5 mm rectangular
+corner receives a 2 mm radius. A hidden 0.5 mm rectangular
 root tab bonds the wall into the existing 4 mm lid plate without extending into
 the base's closed envelope. The lid shell, flange, and closure dimensions are
 unchanged outside these four protector walls, and the lid still prints flat on
