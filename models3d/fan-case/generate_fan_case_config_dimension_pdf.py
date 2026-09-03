@@ -17,6 +17,7 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import textwrap
 from dataclasses import dataclass
@@ -35,12 +36,14 @@ from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon as ShapelyPolygon
 from shapely.ops import unary_union
 
-from fan_size_presets import get_standard_fan_preset
-
-
 HERE = Path(__file__).absolute().parent
+COMMON = HERE.parent / "common"
+sys.path.insert(0, str(COMMON))
+
+from fan_size_presets import get_standard_fan_preset  # noqa: E402
+
 MODEL_SOURCE = HERE / "gopro_fan_case_parametric_blender.py"
-PRESET_SOURCE = HERE / "fan_size_presets.py"
+PRESET_SOURCE = COMMON / "fan_size_presets.py"
 OUTPUT_PDF = HERE / "gopro_fan_case_configuration_dimensions.pdf"
 
 INK = "#152536"

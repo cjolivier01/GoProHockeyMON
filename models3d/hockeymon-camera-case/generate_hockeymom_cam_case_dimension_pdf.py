@@ -37,8 +37,8 @@ from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch, Pol
 # current generator through that same workspace view.
 HERE = Path(__file__).absolute().parent
 MODEL_SOURCE = HERE / "hockeymom_cam_case_blender.py"
-CAMERA_SOURCE = HERE / "gopro_mission1_dummy_blender.py"
-FAN_PRESET_SOURCE = HERE / "fan_size_presets.py"
+CAMERA_SOURCE = HERE.parent / "mission1-dummy" / "gopro_mission1_dummy_blender.py"
+FAN_PRESET_SOURCE = HERE.parent / "common" / "fan_size_presets.py"
 OUTPUT_PDF = HERE / "hockeymom_cam_case_configuration_dimensions.pdf"
 TOTAL_SHEETS = 0
 UNDERSIZED_NOTE_BOXES: list[tuple[str, float]] = []

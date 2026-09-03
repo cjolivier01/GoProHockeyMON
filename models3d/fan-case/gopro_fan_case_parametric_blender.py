@@ -71,6 +71,7 @@ def find_fan_preset_directory() -> Path:
         for entry in sys.path
         if entry and Path(entry).expanduser().is_dir()
     )
+    candidates.extend(directory.parent / "common" for directory in tuple(candidates))
 
     searched = []
     for directory in candidates:

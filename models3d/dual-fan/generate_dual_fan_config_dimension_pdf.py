@@ -18,6 +18,7 @@ import math
 import re
 import struct
 import subprocess
+import sys
 import tempfile
 import textwrap
 from dataclasses import dataclass
@@ -27,7 +28,6 @@ from pathlib import Path
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from fan_size_presets import STANDARD_FAN_PRESETS
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Arc, Circle, FancyArrowPatch, FancyBboxPatch
 from matplotlib.patches import Polygon, Rectangle
@@ -38,8 +38,13 @@ from shapely.ops import unary_union
 
 
 HERE = Path(__file__).absolute().parent
+COMMON = HERE.parent / "common"
+sys.path.insert(0, str(COMMON))
+
+from fan_size_presets import STANDARD_FAN_PRESETS  # noqa: E402
+
 MODEL_SOURCE = HERE / "dual_fan_parametric_blender.py"
-PRESET_SOURCE = HERE / "fan_size_presets.py"
+PRESET_SOURCE = COMMON / "fan_size_presets.py"
 OUTPUT_PDF = HERE / "gopro_dual_fan_configuration_dimensions.pdf"
 
 INK = "#152536"
