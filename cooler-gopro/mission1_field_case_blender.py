@@ -3906,7 +3906,7 @@ def validate_configuration() -> None:
         )
     if not 0.1 <= LATCH_HOOK_PROTECTOR_TOP_CLEARANCE <= 0.6:
         raise ValueError(
-            "Closed hook needs modest clearance below the lid protector slats"
+            "Closed hook needs modest clearance below the lid protector walls"
         )
     reinforced_fixed_sweep_radius = (
         LATCH_LEVER_FIXED_BOSS_RADIUS + LATCH_REINFORCEMENT_RUNNING_CLEARANCE
@@ -7674,7 +7674,7 @@ def validate_installed_latch_mechanics(parts) -> None:
     hook_protector_top_clearance = LATCH_LID_INSTALLED_Z - closed_hook_top_z
     if hook_protector_top_clearance < LATCH_HOOK_PROTECTOR_TOP_CLEARANCE:
         raise ValueError(
-            "Closed hook protrudes above the lid latch protector slats: "
+            "Closed hook protrudes above the lid latch protector walls: "
             f"clearance={hook_protector_top_clearance:.3f} mm"
         )
     minimum_detent_peak = min(
