@@ -44,8 +44,8 @@ the tray side walls, enlarged battery-door slots, enlarged battery row, and
 procedural camera/hood recesses.
 
 The TPU lid pad has separate shutter-button reliefs. It also mirrors the lower
-tray's two trapezoidal MISSION 1 Pro lens-flare footprints as 2 mm-deep
-indentations in its camera-contact face, so the flared soft lens pieces are not
+tray's two trapezoidal MISSION 1 Pro lens-hood footprints as 2 mm-deep
+indentations in its camera-contact face, so the flared soft lens hoods are not
 pinched between the two TPU halves. Solid 10.4 mm TPU floors remain beneath
 both pockets. Its asymmetric perimeter notch mates with a rigid lid boss, so
 the pad seats in only the correct direction. Two localized 11 mm extensions
