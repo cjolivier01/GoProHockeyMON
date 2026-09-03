@@ -10739,6 +10739,7 @@ def validate_built_lid_hockey_inlay(parts) -> None:
 
     logo = parts["logo_orange_inlay"]
     shaft_core_volumes = []
+    minimum_shaft_volumes = []
     blade_core_volumes = []
     shaft_probe_width = LID_HOCKEY_STICK_SHAFT_WIDTH - 1.0
     blade_probe_dimensions = (20.0, 3.0, 0.4)
@@ -10780,6 +10781,9 @@ def validate_built_lid_hockey_inlay(parts) -> None:
         finally:
             bpy.data.objects.remove(shaft_probe, do_unlink=True)
         shaft_core_volumes.append(shaft_volume)
+        minimum_shaft_volumes.append(
+            shaft_probe_length * shaft_probe_width * 0.4 * 0.9
+        )
 
         blade_probe = add_rounded_box(
             f"TEMPORARY_Lid_Hockey_Stick_{stick_index}_Blade_Core_Probe",
@@ -10825,20 +10829,24 @@ def validate_built_lid_hockey_inlay(parts) -> None:
     finally:
         bpy.data.objects.remove(puck_probe, do_unlink=True)
 
-    minimum_shaft_volume = shaft_probe_length * shaft_probe_width * 0.4 * 0.9
     minimum_blade_volume = math.prod(blade_probe_dimensions) * 0.95
     minimum_puck_volume = math.prod(puck_probe_dimensions) * 0.95
-    if min(shaft_core_volumes) < minimum_shaft_volume:
+    shaft_volume_checks = tuple(zip(shaft_core_volumes, minimum_shaft_volumes))
+    if any(volume < minimum for volume, minimum in shaft_volume_checks):
         raise ValueError("An orange hockey-stick inlay lacks a solid printable shaft")
     if min(blade_core_volumes) < minimum_blade_volume:
         raise ValueError("An orange hockey-stick inlay lacks a solid printable blade")
     if puck_volume < minimum_puck_volume:
         raise ValueError("Orange hockey-puck inlay lacks a solid printable core")
+    limiting_shaft_volume, limiting_shaft_minimum = min(
+        shaft_volume_checks,
+        key=lambda volumes: volumes[0] / volumes[1],
+    )
     print(
         "FIELD_CASE_LID_HOCKEY_INLAY_VALID "
         f"sticks={len(shaft_core_volumes)} "
-        f"shaft_core_min={min(shaft_core_volumes):.6f}/"
-        f"{minimum_shaft_volume:.6f} "
+        f"shaft_core_min={limiting_shaft_volume:.6f}/"
+        f"{limiting_shaft_minimum:.6f} "
         f"blade_core_min={min(blade_core_volumes):.6f}/"
         f"{minimum_blade_volume:.6f} "
         f"puck_core={puck_volume:.6f}/{minimum_puck_volume:.6f}"
@@ -10865,7 +10873,9 @@ def validate_built_lid_retainer_hood_reliefs(retainer) -> None:
             (
                 world_x,
                 world_y,
-                LID_RETAINER_HEIGHT - LID_LENS_HOOD_RELIEF_DEPTH / 2.0,
+                retainer.location.z
+                + LID_RETAINER_HEIGHT
+                - LID_LENS_HOOD_RELIEF_DEPTH / 2.0,
             ),
             bevel=0.0,
         )
@@ -10886,7 +10896,10 @@ def validate_built_lid_retainer_hood_reliefs(retainer) -> None:
             (
                 world_x,
                 world_y,
-                LID_RETAINER_HEIGHT - LID_LENS_HOOD_RELIEF_DEPTH - 0.11,
+                retainer.location.z
+                + LID_RETAINER_HEIGHT
+                - LID_LENS_HOOD_RELIEF_DEPTH
+                - 0.11,
             ),
             bevel=0.0,
         )
