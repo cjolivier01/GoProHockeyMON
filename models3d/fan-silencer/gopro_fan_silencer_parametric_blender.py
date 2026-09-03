@@ -122,6 +122,7 @@ def find_companion_module_directory() -> Path:
         for entry in sys.path
         if entry and Path(entry).expanduser().is_dir()
     )
+    candidates.extend(directory.parent / "common" for directory in tuple(candidates))
 
     searched = []
     for directory in candidates:
@@ -242,7 +243,7 @@ BOSS_RADIUS = REFERENCE_BOSS_RADIUS * REFERENCE_SCALE
 
 
 def case_generator_path() -> Path:
-    return SCRIPT_SOURCE_DIRECTORY / CASE_GENERATOR_NAME
+    return SCRIPT_SOURCE_DIRECTORY.parent / "fan-case" / CASE_GENERATOR_NAME
 
 
 def read_case_interface_config():

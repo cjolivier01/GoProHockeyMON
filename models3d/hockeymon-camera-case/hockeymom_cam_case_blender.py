@@ -97,6 +97,9 @@ def import_mission1_module():
         for path in (Path(entry).expanduser().resolve(),)
         if path.is_dir()
     )
+    candidates.extend(
+        directory.parent / "mission1-dummy" for directory in tuple(candidates)
+    )
 
     searched = []
     for directory in candidates:
@@ -119,10 +122,17 @@ def import_mission1_module():
 
 mission1 = import_mission1_module()
 
-# ``import_mission1_module`` adds the generator directory to ``sys.path`` even
-# when this file is executed from Blender's Text Editor.  Keep all standard
-# square-fan dimensions in the repository-wide reference table rather than
-# copying another local preset table into this generator.
+# Keep all standard square-fan dimensions in the shared repository table
+# rather than copying another local preset table into this generator.
+common_source_directory = Path(mission1.__file__).resolve().parent.parent / "common"
+if not (common_source_directory / "fan_size_presets.py").is_file():
+    raise ModuleNotFoundError(
+        f"Could not locate shared fan presets in {common_source_directory}"
+    )
+common_directory_text = str(common_source_directory)
+if common_directory_text not in sys.path:
+    sys.path.insert(0, common_directory_text)
+
 from fan_size_presets import get_standard_fan_preset  # noqa: E402
 
 

@@ -11,7 +11,7 @@ not load that `.blend` or any STL at runtime.
 Build all ten STLs and the multicolor 3MF project with:
 
 ```sh
-make -C cooler-gopro mission1-field-case
+make -C models3d mission1-field-case
 ```
 
 The Makefile requires GNU Make 4.3 or newer. On macOS, install a current GNU

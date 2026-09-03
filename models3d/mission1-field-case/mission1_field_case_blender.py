@@ -43,7 +43,7 @@ Run inside Blender::
       --python mission1_field_case_blender.py
 
 Set ``EXPORT_STL = True`` below, or use
-``make -C cooler-gopro mission1-field-case`` from the repository root, to emit
+``make -C models3d mission1-field-case`` from the repository root, to emit
 all ten printable-part STLs and ``mission1_field_case_ams_project.3mf``.
 The 3MF contains the complete project; by default its lid is one compound object
 with a black shell, one flush orange text-and-block body, and one hollow TPU
@@ -131,6 +131,8 @@ def import_mission1_module():
         add_candidate(Path(bpy.data.filepath).parent)
 
     add_candidate(Path.cwd())
+    for directory in tuple(candidates):
+        add_candidate(directory.parent / "mission1-dummy")
 
     module_name = "gopro_mission1_dummy_blender"
     for directory in candidates:

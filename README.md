@@ -6,6 +6,8 @@
 
 PlatformIO firmware for a GoPro remote that uses the current Open GoPro BLE and Wi-Fi control flow.
 
+GoProHockeyMON also includes a complete [3D-printable hardware library](models3d/README.md) for camera cooling, mounting, protection, and rink-side transport. Each primary model has its own directory under `models3d/`, with shared standards and attributed reference geometry in `models3d/common/`.
+
 The current hardware path is the ESP32-S3 remote with the integrated 1.8-inch AMOLED screen:
 
 - `esp32s3_amoled_ui`: ESP32-S3 1.8-inch AMOLED display/touch remote UI with BLE pairing, GoPro Wi-Fi connection, physical-button controls, battery/status indicators, and JPEG snapshot preview.
