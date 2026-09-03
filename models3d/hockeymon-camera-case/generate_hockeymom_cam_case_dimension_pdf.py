@@ -3288,7 +3288,7 @@ def page_acoustic(pdf):
 
 def page_nut(pdf):
     fig=new_sheet(13,"RECESSED ANGLED BOTTOM CAPTIVE-NUT MOUNT",
-                  "The full pole enters the flat case bottom and seats on an internal tilted face backed by a reinforced disk and captive-nut boss")
+                  "The full pole enters the flat case bottom; a continuous 4.5 mm floor-rooted plinth supports the tilted backing roof and captive-nut boss")
     ax=panel(fig,[0.065,0.43,0.47,0.44],"AUTO-RESOLVED FLOOR LOCATION","BOTTOM / PLAN")
     depth=float(val("BODY_DEPTH",233.661)); width=float(val("BODY_WIDTH",180)); frac=float(val("BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION",0.5))
     outline=soft_triangle(depth,width,0.75,0.55)
@@ -3298,6 +3298,10 @@ def page_nut(pdf):
     tilt=float(val("BOTTOM_MOUNT_FORWARD_TILT_DEG",20)); tilt_rad=math.radians(tilt)
     post_d=float(val("BOTTOM_MOUNT_POST_DIAMETER",31.75)); post_clearance=float(val("BOTTOM_MOUNT_POST_RECESS_DIAMETER_CLEARANCE",0.5)); seat_margin=float(val("BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN",1.0)); seat_r=post_d/2+seat_margin
     access_r=(post_d+post_clearance)/2; seat_axis=seat_r*math.tan(abs(tilt_rad)); seat_center_x=x+seat_axis*math.sin(tilt_rad)
+    backing=float(val("BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS",4.0)); support_wall=float(val("BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS",4.5)); support_r=access_r+support_wall; support_floor_r=access_r/math.cos(abs(tilt_rad))+support_wall; support_top_axis=seat_axis+backing; support_center_x=x+support_top_axis*math.sin(tilt_rad)
+    ax.add_patch(Circle((x,y),support_floor_r,facecolor="#dcebdd",edgecolor=GREEN,lw=1.0))
+    support_plan=[(support_center_x+support_r*math.cos(tilt_rad)*math.cos(a),y+support_r*math.sin(a)) for a in [2*math.pi*i/72 for i in range(72)]]
+    ax.add_patch(Polygon(support_plan,closed=True,facecolor="#ccebd7",edgecolor=GREEN,lw=1.3))
     seat_plan=[(seat_center_x+seat_r*math.cos(tilt_rad)*math.cos(a),y+seat_r*math.sin(a)) for a in [2*math.pi*i/72 for i in range(72)]]
     ax.add_patch(Polygon(seat_plan,closed=True,facecolor="#ccebd7",edgecolor=GREEN,lw=1.3))
     access_plan=[(x+access_r/math.cos(tilt_rad)*math.cos(a),y+access_r*math.sin(a)) for a in [2*math.pi*i/72 for i in range(72)]]
@@ -3313,19 +3317,20 @@ def page_nut(pdf):
            "BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER\nBOTTOM_MOUNT_HOLE_DIAMETER",BLUE,"right")
     setup(ax,-depth/2-25,depth/2+30,-width/2-28,width/2+28)
 
-    ax2=panel(fig,[0.56,0.43,0.375,0.44],"RECESSED SEAT + CAPTIVE NUT","FORWARD SECTION / DETAIL")
+    ax2=panel(fig,[0.56,0.43,0.375,0.44],"SUPPORTED RECESS + NUT","FORWARD SECTION / DETAIL")
     nut_af=float(val("BOTTOM_MOUNT_NUT_ACROSS_FLATS",11.11)); nut_t=float(val("BOTTOM_MOUNT_NUT_THICKNESS",5.56)); lip_h=float(val("BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT",1.5)); lip_p=float(val("BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION",0.4))
-    bottom_t=float(val("BOTTOM_THICKNESS",3.2)); overlap=0.2; backing=float(val("BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS",4.0))
+    bottom_t=float(val("BOTTOM_THICKNESS",3.2)); overlap=0.2
     nut_seat=seat_axis+backing
     holder_base=nut_seat-overlap
     holder_top=nut_seat+nut_t+float(val("BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE",0.3))+float(val("BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE",0.35))+lip_h
     def p(plane,axis): return (plane*math.cos(tilt_rad)+axis*math.sin(tilt_rad),-plane*math.sin(tilt_rad)+axis*math.cos(tilt_rad))
     def local_box(half_width,axis0,axis1): return [p(-half_width,axis0),p(half_width,axis0),p(half_width,axis1),p(-half_width,axis1)]
     post_end=seat_axis-24
-    ax2.add_patch(Polygon(local_box(post_d/2,post_end,seat_axis),closed=True,facecolor="#d8e0e5",edgecolor=GRAY,lw=1.0))
     seat_left,seat_right=p(-seat_r,seat_axis),p(seat_r,seat_axis)
     ax2.add_patch(Rectangle((-35,0),70,bottom_t,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
-    ax2.add_patch(Polygon(local_box(seat_r,seat_axis,seat_axis+backing),closed=True,facecolor="#ccebd7",edgecolor=GREEN,lw=1.2))
+    support_left,support_right=p(-support_r,support_top_axis),p(support_r,support_top_axis)
+    ax2.add_patch(Polygon([(-support_floor_r,0),(support_floor_r,0),support_right,support_left],closed=True,facecolor="#ccebd7",edgecolor=GREEN,lw=1.2))
+    ax2.add_patch(Polygon(local_box(post_d/2,post_end,seat_axis),closed=True,facecolor="#d8e0e5",edgecolor=GRAY,lw=1.0))
     ax2.add_patch(Polygon(local_box(od/2,holder_base,holder_top),closed=True,facecolor="#dcebdd",edgecolor=GREEN,lw=1.2))
     ax2.add_patch(Polygon(local_box(nut_af/2,nut_seat,nut_seat+nut_t),closed=True,facecolor="#d8b66a",edgecolor=INK,lw=1.0,hatch="///"))
     ax2.add_patch(Polygon(local_box(hole/2,post_end-1,holder_top+1),closed=True,facecolor=WHITE,edgecolor=INK,lw=0.7))
@@ -3339,6 +3344,7 @@ def page_nut(pdf):
     ax2.add_patch(Arc((0,0),18,18,theta1=90-abs(tilt),theta2=90,edgecolor=ORANGE,lw=1.1))
     leader(ax2,p(0,holder_top),(25,27),"BOTTOM_MOUNT_FORWARD_TILT_DEG",ORANGE,"right")
     leader(ax2,seat_left,(-39,-13),"recessed seat OD = post diameter + 2 x edge margin",GREEN,"right")
+    leader(ax2,support_right,(29,6),"continuous floor-rooted 4.5 mm support wall",GREEN,"right")
     leader(ax2,p(nut_af/2,nut_seat+nut_t/2),(27,17),"press-fit nut + six snap lips",ORANGE,"right")
     leader(ax2,p(0,seat_axis-12),(-39,-34),"nominal 1.25-inch vertical post",GRAY,"right")
     setup(ax2,-43,45,-43,33)
@@ -3358,15 +3364,15 @@ def page_nut(pdf):
     note_box(fig,[0.655,0.18,0.28,0.17],"CAPTIVE NUT + RETENTION",
              [f"pocket interference = {mm('BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE',0.15,2)}",
               f"recess backing = {mm('BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS',4)}",
+              f"support wall = {mm('BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS',4.5)}",
               f"minimum holder wall = {mm('BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL',4)}",
-              f"minimum seat width = {mm('BOTTOM_MOUNT_NUT_MIN_SEAT_WIDTH',2)}",
               f"retention clearance = {mm('BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE',0.35,2)}"],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
 
 def page_keystone(pdf):
     fig=new_sheet(14,"BOTTOM KEYSTONE SNAP HOUSINGS",
-                  "Complete Python-generated sleeves, adjustable fit-clearance ramps, and a standalone test-coupon STL")
+                  "Optional and disabled by default: complete Python-generated sleeves, adjustable fit-clearance ramps, and a standalone test-coupon STL")
     ax=panel(fig,[0.065,0.43,0.47,0.44],"CONFIGURABLE HOUSING CORNER CLUSTER","BOTTOM / PLAN")
     depth=190; width=145; outline=soft_triangle(depth,width,0.75,0.55)
     ax.add_patch(Polygon(outline,closed=True,facecolor="#edf4f7",edgecolor=BLUE,lw=1.3))
@@ -3486,7 +3492,7 @@ def page_index(pdf):
         ("BOTTOM INTERFACES",[
             ("Mount front-to-back station","BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION"),
             ("Forward case tilt on vertical post","BOTTOM_MOUNT_FORWARD_TILT_DEG"),
-            ("Recessed post / clearance / backing","BOTTOM_MOUNT_POST_DIAMETER / BOTTOM_MOUNT_POST_RECESS_DIAMETER_CLEARANCE / BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN / BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS"),
+            ("Recessed post / clearance / support","BOTTOM_MOUNT_POST_DIAMETER / BOTTOM_MOUNT_POST_RECESS_DIAMETER_CLEARANCE / BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN / BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS / BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS"),
             ("Through-hole diameter","BOTTOM_MOUNT_HOLE_DIAMETER"),
             ("Nut thread / across-flats / thickness","BOTTOM_MOUNT_NUT_THREAD_DIAMETER / BOTTOM_MOUNT_NUT_ACROSS_FLATS / BOTTOM_MOUNT_NUT_THICKNESS"),
             ("Nut-holder outer diameter / wall","BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL"),

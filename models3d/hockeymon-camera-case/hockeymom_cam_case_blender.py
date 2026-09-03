@@ -1568,7 +1568,7 @@ CAMERA_COOLING_MIN_REAR_FACE_WASH_RATIO = 0.215
 CAMERA_COOLING_MIN_FAN_TO_REAR_FACE_COSINE = 0.25
 CAMERA_COOLING_WASH_SAMPLE_GRID = 17
 
-# Optional monolithic air-guide vanes.  These are enabled by default and are
+# Optional monolithic air-guide vanes.  These are disabled by default and are
 # rooted in the enclosure floor so they print vertically without support.  In
 # rear-fan mode, each paired wall begins inside its fan/outlet aperture and is
 # routed around removable hardware toward the assigned camera.  In lid-fan
@@ -1576,7 +1576,7 @@ CAMERA_COOLING_WASH_SAMPLE_GRID = 17
 # separate regions of the overhead opening.  The layout is resolved only after
 # camera, shell, fan, and acoustic geometry; it never participates in camera
 # placement or shell expansion and therefore cannot trade away lens protrusion.
-AIR_GUIDE_VANES_ENABLED = True
+AIR_GUIDE_VANES_ENABLED = False
 AIR_GUIDE_VANE_THICKNESS = 2.4
 AIR_GUIDE_VANE_HEIGHT = 52.0
 AIR_GUIDE_VANE_ROOT_EMBED = 0.4
@@ -1738,7 +1738,8 @@ FAN_GASKET_COLOR = (0.12, 0.12, 0.12, 1.0)
 # recessed opening through the flat exterior floor and bears against a circular
 # face normal to the fastener axis.  Nothing in this mount extends below Z=0,
 # preserving the base's uninterrupted print plane.  A thick internal backing
-# disk joins the captive-nut boss to the floor.  Six independent ramped lips
+# roof and continuous load-bearing plinth join the captive-nut boss to the
+# floor.  Six independent ramped lips
 # let a standard 1/4-inch finished hex nut press in along the tilted axis and
 # then catch its top face.  Measure the actual post, nut, and printer before
 # production; inch hardware varies by standard and coating.
@@ -1765,6 +1766,7 @@ BOTTOM_MOUNT_POST_DIAMETER = 31.75
 BOTTOM_MOUNT_POST_RECESS_DIAMETER_CLEARANCE = 0.5
 BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN = 1.0
 BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS = 4.0
+BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS = 4.5
 BOTTOM_MOUNT_NUT_HOLDER_ENABLED = True
 BOTTOM_MOUNT_NUT_THREAD_DIAMETER = 6.35
 BOTTOM_MOUNT_NUT_ACROSS_FLATS = 11.11
@@ -1797,7 +1799,7 @@ BOTTOM_MOUNT_NUT_FINAL_BOSS_MIN_SOLID_RATIO = 1.0
 # inside and their connector faces finish flush with the case exterior.  The
 # named fit/ramp dimensions make the snap feel adjustable without editing the
 # generated mesh topology.
-BOTTOM_KEYSTONES_ENABLED = True
+BOTTOM_KEYSTONES_ENABLED = False
 BOTTOM_KEYSTONE_COUNT = 3
 BOTTOM_KEYSTONE_CORNER_Y_SIGN = 1.0
 BOTTOM_KEYSTONE_ROW_AXIS = "y"  # "x" runs rear-to-front; "y" runs toward center.
@@ -3658,6 +3660,23 @@ def bottom_mount_post_access_radius() -> float:
     ) / 2.0
 
 
+def bottom_mount_recess_support_radius() -> float:
+    """Outer support radius measured normal to the tilted mount axis."""
+    return (
+        bottom_mount_post_access_radius()
+        + BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS
+    )
+
+
+def bottom_mount_recess_support_floor_radius() -> float:
+    """Leave the configured wall outside the projected floor opening."""
+    return (
+        bottom_mount_post_access_radius()
+        / math.cos(abs(bottom_mount_tilt_radians()))
+        + BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS
+    )
+
+
 def bottom_mount_post_seat_axis() -> float:
     """Axial station whose recessed circular seat remains at or above Z=0."""
     return bottom_mount_post_seat_radius() * math.tan(
@@ -3683,12 +3702,16 @@ def bottom_mount_nut_holder_base_axis() -> float:
     )
 
 
-def bottom_mount_nut_seat_axis() -> float:
-    """Seat the nut above the full internal backing thickness."""
+def bottom_mount_recess_support_top_axis() -> float:
     return (
         bottom_mount_post_seat_axis()
         + BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS
     )
+
+
+def bottom_mount_nut_seat_axis() -> float:
+    """Seat the nut above the full internal backing thickness."""
+    return bottom_mount_recess_support_top_axis()
 
 
 def bottom_mount_nut_snap_shoulder_axis() -> float:
@@ -3717,19 +3740,20 @@ def bottom_mount_nut_holder_top_axis() -> float:
 def bottom_mount_feature_radius() -> float:
     """Conservative plan radius covering the sloped seat and internal boss."""
     tilt_sine = abs(math.sin(bottom_mount_tilt_radians()))
-    seat_radius = bottom_mount_post_seat_radius()
-    seat_reach = seat_radius + (
-        bottom_mount_post_seat_axis()
-        + BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS
-    ) * tilt_sine
+    support_radius = bottom_mount_recess_support_radius()
+    support_reach = max(
+        bottom_mount_recess_support_floor_radius(),
+        support_radius
+        + bottom_mount_recess_support_top_axis() * tilt_sine,
+    )
     if not BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
-        return seat_reach
+        return support_reach
     holder_radius = BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0
     holder_center_reach = max(
         abs(bottom_mount_nut_holder_base_axis()),
         abs(bottom_mount_nut_holder_top_axis()),
     ) * tilt_sine
-    return max(seat_reach, holder_radius + holder_center_reach)
+    return max(support_reach, holder_radius + holder_center_reach)
 
 
 def bottom_keystone_mount_plan_dimensions():
@@ -4534,6 +4558,9 @@ def validate_config() -> None:
         "BOTTOM_MOUNT_POST_DIAMETER": BOTTOM_MOUNT_POST_DIAMETER,
         "BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS": (
             BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS
+        ),
+        "BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS": (
+            BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS
         ),
         "BOTTOM_MOUNT_NUT_THREAD_DIAMETER": BOTTOM_MOUNT_NUT_THREAD_DIAMETER,
         "BOTTOM_MOUNT_NUT_ACROSS_FLATS": BOTTOM_MOUNT_NUT_ACROSS_FLATS,
@@ -6464,6 +6491,16 @@ def validate_config() -> None:
     if bottom_mount_post_access_radius() >= bottom_mount_post_seat_radius():
         raise ValueError(
             "Bottom mount post recess and clearance consume the seat edge margin"
+        )
+    support_top_min_z = (
+        bottom_mount_recess_support_top_axis()
+        * math.cos(abs(bottom_mount_tilt_radians()))
+        - bottom_mount_recess_support_radius()
+        * math.sin(abs(bottom_mount_tilt_radians()))
+    )
+    if support_top_min_z <= 0.0:
+        raise ValueError(
+            "Bottom mount support top crosses below the exterior print plane"
         )
     if not math.isfinite(float(BOTTOM_MOUNT_NUT_ROTATION_DEG)):
         raise ValueError("BOTTOM_MOUNT_NUT_ROTATION_DEG must be finite")
@@ -10241,18 +10278,39 @@ def add_bottom_mount_snap_wedge(
     return create_mesh_object(name, vertices, faces)
 
 
-def add_bottom_mount_recess_backing(name: str, position):
-    """Create the tilted internal disk behind the recessed pole seat."""
-    return add_bottom_mount_axial_prism(
-        name,
-        position,
-        bottom_mount_post_seat_radius(),
-        bottom_mount_post_seat_axis(),
-        (
-            bottom_mount_post_seat_axis()
-            + BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS
-        ),
-    )
+def add_bottom_mount_recess_support(name: str, position):
+    """Create a continuous floor-rooted plinth behind the recessed seat."""
+    floor_radius = bottom_mount_recess_support_floor_radius()
+    top_radius = bottom_mount_recess_support_radius()
+    top_axis = bottom_mount_recess_support_top_axis()
+    segments = 72
+    vertices = []
+    for index in range(segments):
+        angle = 2.0 * math.pi * index / segments
+        vertices.append(
+            (
+                position[0] + floor_radius * math.cos(angle),
+                position[1] + floor_radius * math.sin(angle),
+                0.0,
+            )
+        )
+    for index in range(segments):
+        angle = 2.0 * math.pi * index / segments
+        vertices.append(
+            bottom_mount_frame_point(
+                position,
+                top_radius * math.cos(angle),
+                top_radius * math.sin(angle),
+                top_axis,
+            )
+        )
+    faces = []
+    for index in range(segments):
+        following = (index + 1) % segments
+        faces.append((index, following, segments + following, segments + index))
+    faces.append(tuple(range(segments - 1, -1, -1)))
+    faces.append(tuple(segments + index for index in range(segments)))
+    return create_mesh_object(name, vertices, faces)
 
 
 def add_xz_polyline_tube(name: str, points, radius: float, segments=24):
@@ -27708,8 +27766,8 @@ def add_camera_bracket_posts(base, cameras, bracket_position_pairs):
 def add_bottom_mount_hole(base, position):
     if not BOTTOM_MOUNT_HOLE_ENABLED or position is None:
         return base
-    mount = add_bottom_mount_recess_backing(
-        "Bottom_Mount_Recessed_Post_Seat_Backing",
+    mount = add_bottom_mount_recess_support(
+        "Bottom_Mount_Recessed_Post_Seat_Support",
         position,
     )
     if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
@@ -27824,7 +27882,7 @@ def add_bottom_mount_hole(base, position):
         boolean_union(
             holder,
             mount,
-            "Bottom_Mount_Recessed_Post_Seat_Backing_Union",
+            "Bottom_Mount_Recessed_Post_Seat_Support_Union",
             solver=BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER,
         )
         mount = holder
@@ -27896,6 +27954,8 @@ def add_bottom_mount_hole(base, position):
         f"seat_diameter={2.0 * bottom_mount_post_seat_radius():.2f}mm "
         f"edge_margin={BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN:.2f}mm "
         f"backing={BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS:.2f}mm "
+        f"support_wall="
+        f"{BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS:.2f}mm "
         "exterior_min_z=0.00mm"
     )
     if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
@@ -32861,29 +32921,66 @@ def validate_final_bottom_mount_nut_holder(base, position):
                     )
                 )
 
-        backing_sample_count = 36
+        backing_sample_count = seat_sample_count
         backing_solid_samples = 0
-        backing_sample_radius = (
-            bottom_mount_post_access_radius()
-            + bottom_mount_post_seat_radius()
-        ) / 2.0
         backing_sample_axis = (
             bottom_mount_post_seat_axis()
             + BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS / 2.0
         )
-        for index in range(backing_sample_count):
-            angle = 2.0 * math.pi * index / backing_sample_count
-            point = Vector(
-                bottom_mount_frame_point(
-                    position,
-                    backing_sample_radius * math.cos(angle),
-                    backing_sample_radius * math.sin(angle),
-                    backing_sample_axis,
+        for backing_sample_radius in seat_sample_radii:
+            for index in range(36):
+                angle = 2.0 * math.pi * index / 36
+                point = Vector(
+                    bottom_mount_frame_point(
+                        position,
+                        backing_sample_radius * math.cos(angle),
+                        backing_sample_radius * math.sin(angle),
+                        backing_sample_axis,
+                    )
+                )
+                backing_solid_samples += int(
+                    point_inside_closed_bvh(record[0], record[1] @ point)
+                )
+
+        support_axial_fractions = (0.15, 0.40, 0.65, 0.90)
+        support_ring_sample_count = 36
+        support_sample_count = (
+            len(support_axial_fractions) * support_ring_sample_count
+        )
+        support_solid_samples = 0
+        support_floor_radius = bottom_mount_recess_support_floor_radius()
+        support_top_radius = bottom_mount_recess_support_radius()
+        support_top_axis = bottom_mount_recess_support_top_axis()
+        bottom_center = Vector((position[0], position[1], 0.0))
+        top_center = Vector(
+            bottom_mount_frame_point(position, 0.0, 0.0, support_top_axis)
+        )
+        for index in range(support_ring_sample_count):
+            angle = 2.0 * math.pi * index / support_ring_sample_count
+            bottom_outer = Vector(
+                (
+                    position[0] + support_floor_radius * math.cos(angle),
+                    position[1] + support_floor_radius * math.sin(angle),
+                    0.0,
                 )
             )
-            backing_solid_samples += int(
-                point_inside_closed_bvh(record[0], record[1] @ point)
+            top_outer = Vector(
+                bottom_mount_frame_point(
+                    position,
+                    support_top_radius * math.cos(angle),
+                    support_top_radius * math.sin(angle),
+                    support_top_axis,
+                )
             )
+            for axial_fraction in support_axial_fractions:
+                local_center = bottom_center.lerp(top_center, axial_fraction)
+                local_outer = bottom_outer.lerp(top_outer, axial_fraction)
+                inward = local_center - local_outer
+                inward.normalize()
+                point = local_outer + inward
+                support_solid_samples += int(
+                    point_inside_closed_bvh(record[0], record[1] @ point)
+                )
 
         solid_samples = 0
         sample_radius = 0.0
@@ -32938,6 +33035,11 @@ def validate_final_bottom_mount_nut_holder(base, position):
             "Final base is missing recessed-seat reinforcement: "
             f"solid_samples={backing_solid_samples}/{backing_sample_count}"
         )
+    if support_solid_samples != support_sample_count:
+        raise RuntimeError(
+            "Final base is missing the floor-rooted mount support plinth: "
+            f"solid_samples={support_solid_samples}/{support_sample_count}"
+        )
     print(
         "FINAL_BOTTOM_MOUNT_RECESSED_POST_SEAT PASS "
         f"solid_samples={seat_solid_samples}/{seat_sample_count} "
@@ -32945,10 +33047,13 @@ def validate_final_bottom_mount_nut_holder(base, position):
         f"access_path_void_samples={access_void_samples}/"
         f"{access_sample_count} "
         f"backing_samples={backing_solid_samples}/{backing_sample_count} "
+        f"support_samples={support_solid_samples}/{support_sample_count} "
         f"post_diameter={BOTTOM_MOUNT_POST_DIAMETER:.2f}mm "
         f"access_diameter={2.0 * bottom_mount_post_access_radius():.2f}mm "
         f"seat_diameter={2.0 * bottom_mount_post_seat_radius():.2f}mm "
         f"backing={BOTTOM_MOUNT_RECESSED_SEAT_BACKING_THICKNESS:.2f}mm "
+        f"support_wall="
+        f"{BOTTOM_MOUNT_RECESSED_SUPPORT_WALL_THICKNESS:.2f}mm "
         f"tilt={BOTTOM_MOUNT_FORWARD_TILT_DEG:.2f}deg "
         f"minimum_z={bottom_z:.6f}mm"
     )
