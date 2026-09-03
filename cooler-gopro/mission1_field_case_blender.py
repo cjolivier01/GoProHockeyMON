@@ -251,7 +251,7 @@ LID_LATCH_CAPTURE_TOWER_OUTSET = 0.7
 LID_LATCH_PROTECTOR_PLATE_PROJECTION = 21.0
 LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP = 0.5
 LID_LATCH_PROTECTOR_PLATE_HEIGHT = 16.0
-LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS = 1.0
+LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS = 2.0
 LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS = 8
 LID_DISPLAY_OFFSET_X = 215.0
 
@@ -360,6 +360,7 @@ MISC_COMPARTMENT_STEP_FILLETS = ((), ((61.0, 2.5, 2.0),))
 LID_RETAINER_HEIGHT = 12.4
 LID_BUTTON_RELIEF_DEPTH = 4.2
 LID_BUTTON_RELIEF_CLEARANCE = 1.0
+LID_LENS_HOOD_RELIEF_DEPTH = 2.0
 LID_PAD_KEY_CENTER = (-42.0, -69.0)
 LID_PAD_KEY_NOTCH_SIZE = (14.0, 8.0)
 LID_PAD_KEY_BOSS_SIZE = (12.0, 6.0, 4.0)
@@ -2460,6 +2461,17 @@ LID_LOGO_TEXT_OUTLINE_OFFSET = (
 LID_LOGO_BLOCK_SIZE = (14.0, 5.0)
 LID_LOGO_BLOCK_GAP = 2.0
 LID_LOGO_BLOCK_CENTER_Y = 18.0
+# Two broad, rounded hockey sticks cross above opposing blades, with a round
+# puck centered below them.  Coordinates are lid-local and appear upright when
+# viewed through the installed outer face.
+LID_HOCKEY_ICON_CENTER_Y = -46.5
+LID_HOCKEY_STICK_SHAFT_WIDTH = 5.0
+LID_HOCKEY_STICK_HANDLES_XY = ((-22.0, -20.0), (22.0, -20.0))
+LID_HOCKEY_STICK_HEELS_XY = ((16.0, 10.0), (-16.0, 10.0))
+LID_HOCKEY_STICK_BLADE_CENTERS_XY = ((27.0, 11.5), (-27.0, 11.5))
+LID_HOCKEY_STICK_BLADE_SIZE = (34.0, 7.0)
+LID_HOCKEY_PUCK_CENTER_XY = (0.0, 21.5)
+LID_HOCKEY_PUCK_SIZE = (14.0, 6.0)
 LID_INLAY_DEPTH = 0.8
 LID_INLAY_CUTTER_OVERTRAVEL = 0.2
 
@@ -3716,6 +3728,71 @@ def validate_configuration() -> None:
                     "Miscellaneous compartments need a 4 mm separating web"
                 )
 
+    if not 1.0 <= LID_LENS_HOOD_RELIEF_DEPTH <= LID_BUTTON_RELIEF_DEPTH:
+        raise ValueError(
+            "TPU lid-pad lens-hood relief depth must be between 1.0 mm and "
+            f"{LID_BUTTON_RELIEF_DEPTH:.1f} mm"
+        )
+    shaft_radius = LID_HOCKEY_STICK_SHAFT_WIDTH / 2.0
+    hockey_x_values = []
+    hockey_y_values = []
+    for point_x, point_y in (
+        *LID_HOCKEY_STICK_HANDLES_XY,
+        *LID_HOCKEY_STICK_HEELS_XY,
+    ):
+        hockey_x_values.extend((point_x - shaft_radius, point_x + shaft_radius))
+        hockey_y_values.extend(
+            (
+                LID_HOCKEY_ICON_CENTER_Y + point_y - shaft_radius,
+                LID_HOCKEY_ICON_CENTER_Y + point_y + shaft_radius,
+            )
+        )
+    blade_half_width = LID_HOCKEY_STICK_BLADE_SIZE[0] / 2.0
+    blade_half_height = LID_HOCKEY_STICK_BLADE_SIZE[1] / 2.0
+    for center_x, center_y in LID_HOCKEY_STICK_BLADE_CENTERS_XY:
+        hockey_x_values.extend(
+            (center_x - blade_half_width, center_x + blade_half_width)
+        )
+        hockey_y_values.extend(
+            (
+                LID_HOCKEY_ICON_CENTER_Y + center_y - blade_half_height,
+                LID_HOCKEY_ICON_CENTER_Y + center_y + blade_half_height,
+            )
+        )
+    puck_half_width = LID_HOCKEY_PUCK_SIZE[0] / 2.0
+    puck_half_height = LID_HOCKEY_PUCK_SIZE[1] / 2.0
+    hockey_x_values.extend(
+        (
+            LID_HOCKEY_PUCK_CENTER_XY[0] - puck_half_width,
+            LID_HOCKEY_PUCK_CENTER_XY[0] + puck_half_width,
+        )
+    )
+    hockey_y_values.extend(
+        (
+            LID_HOCKEY_ICON_CENTER_Y
+            + LID_HOCKEY_PUCK_CENTER_XY[1]
+            - puck_half_height,
+            LID_HOCKEY_ICON_CENTER_Y
+            + LID_HOCKEY_PUCK_CENTER_XY[1]
+            + puck_half_height,
+        )
+    )
+    artwork_edge_margin = 8.0
+    if max(abs(value) for value in hockey_x_values) > (
+        CASE_WIDTH / 2.0 - artwork_edge_margin
+    ):
+        raise ValueError("Hockey artwork exceeds the lid width")
+    if max(abs(value) for value in hockey_y_values) > (
+        CASE_DEPTH / 2.0 - artwork_edge_margin
+    ):
+        raise ValueError("Hockey artwork exceeds the lid depth")
+    if max(hockey_y_values) >= (
+        LID_LOGO_TEXT_CENTER_Y - LID_LOGO_TEXT_SIZE / 2.0 - 4.0
+    ):
+        raise ValueError("Hockey artwork needs a 4 mm gap above the lid text")
+    if min(LID_HOCKEY_PUCK_SIZE) < 6.0:
+        raise ValueError("Hockey puck inlay is too small for reliable printing")
+
     camera_contact_top = BASE_FLOOR_THICKNESS + CAMERA_FLOOR_Z + mission1.BODY_HEIGHT
     battery_top = BASE_FLOOR_THICKNESS + BATTERY_FLOOR_Z + BATTERY_HEIGHT
     content_top = max(camera_contact_top, battery_top)
@@ -4089,7 +4166,7 @@ def validate_configuration() -> None:
         raise ValueError("Lid latch protector needs a modest bonded root overlap")
     if LID_LATCH_PROTECTOR_PLATE_HEIGHT < LID_WALL_HEIGHT:
         raise ValueError("Rectangular lid latch protector is too short")
-    if not 0.5 <= LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS <= 1.5:
+    if not 0.5 <= LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS <= 2.5:
         raise ValueError("Lid latch protector corner radius must remain modest")
     if LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS >= min(
         LID_LATCH_PROTECTOR_PLATE_PROJECTION,
@@ -4430,6 +4507,7 @@ def validate_configuration() -> None:
         f"door_pocket={BATTERY_DOOR_SLOT_SIZE[0]:.1f}x"
         f"{BATTERY_DOOR_SLOT_SIZE[1]:.1f}x{BATTERY_DOOR_SLOT_DEPTH:.1f} "
         f"door_pad_preload={battery_door_pad_compression:.2f} "
+        f"lid_pad_hood_relief={LID_LENS_HOOD_RELIEF_DEPTH:.2f} "
         f"tray_installed_z={LOWER_TRAY_INSTALLED_Z:.2f} "
         f"misc_pockets={misc_lobe_specs[0][0][1][0]:.1f}x"
         f"{misc_lobe_specs[0][0][1][1]:.1f}/right_step="
@@ -4489,6 +4567,7 @@ def validate_configuration() -> None:
         f"lid_protector={LATCH_PROTECTOR_BASE_WIDTH:.2f}x"
         f"{LID_LATCH_PROTECTOR_PLATE_PROJECTION:.2f}x"
         f"{LID_LATCH_PROTECTOR_PLATE_HEIGHT:.2f} "
+        f"lid_protector_corner_r={LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
         f"latch_guard_handle_clearance={latch_guard_handle_clearance:.2f} "
         f"latch_hardware_handle_clearance={latch_hardware_handle_clearance:.2f} "
@@ -5414,17 +5493,77 @@ def create_lid(
         )
         blocks[block_name] = block
 
-    # All lid lettering and blocks intentionally share one orange material and
-    # one slicer body, leaving only two AMS filaments on the compound lid.
+    hockey_sticks = []
+    for stick_index, (handle_xy, heel_xy, blade_center_xy) in enumerate(
+        zip(
+            LID_HOCKEY_STICK_HANDLES_XY,
+            LID_HOCKEY_STICK_HEELS_XY,
+            LID_HOCKEY_STICK_BLADE_CENTERS_XY,
+        ),
+        start=1,
+    ):
+        shaft_delta_x = heel_xy[0] - handle_xy[0]
+        shaft_delta_y = heel_xy[1] - handle_xy[1]
+        shaft_length = math.hypot(shaft_delta_x, shaft_delta_y)
+        shaft = add_rounded_prism(
+            f"Lid_Hockey_Stick_{stick_index}_Rounded_Shaft_Orange_Inlay",
+            shaft_length,
+            LID_HOCKEY_STICK_SHAFT_WIDTH,
+            0.0,
+            LID_INLAY_DEPTH,
+            LID_HOCKEY_STICK_SHAFT_WIDTH / 2.0,
+        )
+        shaft.location = (
+            dx + (handle_xy[0] + heel_xy[0]) / 2.0,
+            LID_HOCKEY_ICON_CENTER_Y + (handle_xy[1] + heel_xy[1]) / 2.0,
+            0.0,
+        )
+        shaft.rotation_euler.z = math.atan2(shaft_delta_y, shaft_delta_x)
+        blade = add_rounded_prism(
+            f"Lid_Hockey_Stick_{stick_index}_Rounded_Blade_Orange_Inlay",
+            LID_HOCKEY_STICK_BLADE_SIZE[0],
+            LID_HOCKEY_STICK_BLADE_SIZE[1],
+            0.0,
+            LID_INLAY_DEPTH,
+            LID_HOCKEY_STICK_BLADE_SIZE[1] / 2.0,
+            (
+                dx + blade_center_xy[0],
+                LID_HOCKEY_ICON_CENTER_Y + blade_center_xy[1],
+            ),
+        )
+        union_into(shaft, blade)
+        hockey_sticks.append(shaft)
+    crossed_hockey_sticks = hockey_sticks[0]
+    union_into(crossed_hockey_sticks, hockey_sticks[1])
+    crossed_hockey_sticks.name = "Lid_Crossed_Hockey_Sticks_Orange_Inlay"
+    hockey_puck = add_rounded_prism(
+        "Lid_Hockey_Puck_Orange_Inlay",
+        LID_HOCKEY_PUCK_SIZE[0],
+        LID_HOCKEY_PUCK_SIZE[1],
+        0.0,
+        LID_INLAY_DEPTH,
+        LID_HOCKEY_PUCK_SIZE[1] / 2.0,
+        (
+            dx + LID_HOCKEY_PUCK_CENTER_XY[0],
+            LID_HOCKEY_ICON_CENTER_Y + LID_HOCKEY_PUCK_CENTER_XY[1],
+        ),
+    )
+    hockey_inlays = (crossed_hockey_sticks, hockey_puck)
+
+    # All lid lettering, blocks, and hockey artwork intentionally share one
+    # orange material and one slicer body, leaving only two rigid AMS filaments
+    # on the compound lid.
     logo_orange = logo_text_objects[0]
     select_only(logo_orange)
     for text_obj in logo_text_objects[1:]:
         text_obj.select_set(True)
     for block in blocks.values():
         block.select_set(True)
+    for hockey_inlay in hockey_inlays:
+        hockey_inlay.select_set(True)
     bpy.context.view_layer.objects.active = logo_orange
     bpy.ops.object.join()
-    logo_orange.name = "Lid_GoPro_Missions_And_Blocks_Orange_Inlay"
+    logo_orange.name = "Lid_GoPro_Missions_Hockey_Artwork_Orange_Inlay"
 
     # Bake the joined islands, duplicate them as one Boolean tool, and extend
     # only the tool's bottom through the lid's build-facing plane.  The orange
@@ -5587,6 +5726,21 @@ def create_lid_retainer(material):
             (button_center[0], -button_center[1]),
         )
         difference_from(retainer, relief)
+
+        # Mirror the lower tray's exact trapezoidal soft-hood footprint into
+        # lid coordinates.  A shallow pocket clears the flared lens piece at
+        # the pad contact face without cutting through the TPU retainer.
+        lid_hood_loop = tuple(
+            (point_x, -point_y)
+            for point_x, point_y in reversed(lens_hood_relief_loop(placement))
+        )
+        hood_relief = extrude_loop_z(
+            f"Camera_{index}_Lid_Pad_Soft_Lens_Hood_Flare_Relief",
+            lid_hood_loop,
+            LID_RETAINER_HEIGHT - LID_LENS_HOOD_RELIEF_DEPTH,
+            LID_RETAINER_HEIGHT + 0.3,
+        )
+        difference_from(retainer, hood_relief)
 
     # The doors sit 11 mm below the camera/battery contact plane because only
     # 10 mm of their 18 mm height is recessed. These localized extensions meet
@@ -6904,7 +7058,10 @@ def validate_built_latch_impact_protectors(parts) -> None:
                 (
                     (lid_plate_root_y + 0.5, 0.1),
                     (lid_plate_root_y + 0.5, LID_LATCH_PROTECTOR_PLATE_HEIGHT - 0.5),
-                    (lid_plate_front_y - 0.5, 0.5),
+                    (
+                        lid_plate_front_y - 0.5,
+                        LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS + 0.5,
+                    ),
                     (lid_plate_front_y - 0.5, LID_LATCH_PROTECTOR_PLATE_HEIGHT - 0.5),
                 ),
                 start=1,
@@ -10577,6 +10734,199 @@ def validate_built_flush_lid_inlay(parts) -> None:
     )
 
 
+def validate_built_lid_hockey_inlay(parts) -> None:
+    """Prove both crossed sticks and the puck have printable solid cores."""
+
+    logo = parts["logo_orange_inlay"]
+    shaft_core_volumes = []
+    minimum_shaft_volumes = []
+    blade_core_volumes = []
+    shaft_probe_width = LID_HOCKEY_STICK_SHAFT_WIDTH - 1.0
+    blade_probe_dimensions = (20.0, 3.0, 0.4)
+    for stick_index, (handle_xy, heel_xy, blade_center_xy) in enumerate(
+        zip(
+            LID_HOCKEY_STICK_HANDLES_XY,
+            LID_HOCKEY_STICK_HEELS_XY,
+            LID_HOCKEY_STICK_BLADE_CENTERS_XY,
+        ),
+        start=1,
+    ):
+        shaft_delta_x = heel_xy[0] - handle_xy[0]
+        shaft_delta_y = heel_xy[1] - handle_xy[1]
+        shaft_probe_length = (
+            math.hypot(shaft_delta_x, shaft_delta_y)
+            - 2.0 * LID_HOCKEY_STICK_SHAFT_WIDTH
+        )
+        shaft_probe = add_rounded_prism(
+            f"TEMPORARY_Lid_Hockey_Stick_{stick_index}_Shaft_Core_Probe",
+            shaft_probe_length,
+            shaft_probe_width,
+            0.2,
+            0.6,
+            shaft_probe_width / 2.0,
+        )
+        shaft_probe.location = (
+            LID_DISPLAY_OFFSET_X + (handle_xy[0] + heel_xy[0]) / 2.0,
+            LID_HOCKEY_ICON_CENTER_Y + (handle_xy[1] + heel_xy[1]) / 2.0,
+            0.0,
+        )
+        shaft_probe.rotation_euler.z = math.atan2(shaft_delta_y, shaft_delta_x)
+        try:
+            _faces, shaft_volume = exact_transformed_intersection(
+                logo,
+                shaft_probe,
+                second_location=shaft_probe.location.copy(),
+                second_rotation=shaft_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(shaft_probe, do_unlink=True)
+        shaft_core_volumes.append(shaft_volume)
+        minimum_shaft_volumes.append(
+            shaft_probe_length * shaft_probe_width * 0.4 * 0.9
+        )
+
+        blade_probe = add_rounded_box(
+            f"TEMPORARY_Lid_Hockey_Stick_{stick_index}_Blade_Core_Probe",
+            blade_probe_dimensions,
+            (
+                LID_DISPLAY_OFFSET_X + blade_center_xy[0],
+                LID_HOCKEY_ICON_CENTER_Y + blade_center_xy[1],
+                LID_INLAY_DEPTH / 2.0,
+            ),
+            bevel=0.0,
+        )
+        try:
+            _faces, blade_volume = exact_transformed_intersection(
+                logo,
+                blade_probe,
+                second_location=blade_probe.location.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(blade_probe, do_unlink=True)
+        blade_core_volumes.append(blade_volume)
+
+    puck_probe_dimensions = (
+        LID_HOCKEY_PUCK_SIZE[0] - 2.0,
+        LID_HOCKEY_PUCK_SIZE[1] - 2.0,
+        0.4,
+    )
+    puck_probe = add_rounded_box(
+        "TEMPORARY_Lid_Hockey_Puck_Core_Probe",
+        puck_probe_dimensions,
+        (
+            LID_DISPLAY_OFFSET_X + LID_HOCKEY_PUCK_CENTER_XY[0],
+            LID_HOCKEY_ICON_CENTER_Y + LID_HOCKEY_PUCK_CENTER_XY[1],
+            LID_INLAY_DEPTH / 2.0,
+        ),
+        bevel=0.0,
+    )
+    try:
+        _faces, puck_volume = exact_transformed_intersection(
+            logo,
+            puck_probe,
+            second_location=puck_probe.location.copy(),
+        )
+    finally:
+        bpy.data.objects.remove(puck_probe, do_unlink=True)
+
+    minimum_blade_volume = math.prod(blade_probe_dimensions) * 0.95
+    minimum_puck_volume = math.prod(puck_probe_dimensions) * 0.95
+    shaft_volume_checks = tuple(zip(shaft_core_volumes, minimum_shaft_volumes))
+    if any(volume < minimum for volume, minimum in shaft_volume_checks):
+        raise ValueError("An orange hockey-stick inlay lacks a solid printable shaft")
+    if min(blade_core_volumes) < minimum_blade_volume:
+        raise ValueError("An orange hockey-stick inlay lacks a solid printable blade")
+    if puck_volume < minimum_puck_volume:
+        raise ValueError("Orange hockey-puck inlay lacks a solid printable core")
+    limiting_shaft_volume, limiting_shaft_minimum = min(
+        shaft_volume_checks,
+        key=lambda volumes: volumes[0] / volumes[1],
+    )
+    print(
+        "FIELD_CASE_LID_HOCKEY_INLAY_VALID "
+        f"sticks={len(shaft_core_volumes)} "
+        f"shaft_core_min={limiting_shaft_volume:.6f}/"
+        f"{limiting_shaft_minimum:.6f} "
+        f"blade_core_min={min(blade_core_volumes):.6f}/"
+        f"{minimum_blade_volume:.6f} "
+        f"puck_core={puck_volume:.6f}/{minimum_puck_volume:.6f}"
+    )
+
+
+def validate_built_lid_retainer_hood_reliefs(retainer) -> None:
+    """Prove both mirrored lens-hood pockets are open with solid TPU floors."""
+
+    air_probe_dimensions = (0.8, 0.8, 0.8)
+    floor_probe_dimensions = (0.8, 0.8, 0.2)
+    air_volumes = []
+    floor_volumes = []
+    for index, placement in enumerate(CAMERA_PLACEMENTS, start=1):
+        hood_loop = lens_hood_relief_loop(placement)
+        center_x = sum(point[0] for point in hood_loop) / len(hood_loop)
+        center_y = -sum(point[1] for point in hood_loop) / len(hood_loop)
+        world_x = retainer.location.x + center_x
+        world_y = retainer.location.y + center_y
+
+        air_probe = add_rounded_box(
+            f"TEMPORARY_Lid_Pad_Hood_Relief_{index}_Air_Probe",
+            air_probe_dimensions,
+            (
+                world_x,
+                world_y,
+                retainer.location.z
+                + LID_RETAINER_HEIGHT
+                - LID_LENS_HOOD_RELIEF_DEPTH / 2.0,
+            ),
+            bevel=0.0,
+        )
+        try:
+            _faces, air_volume = exact_transformed_intersection(
+                retainer,
+                air_probe,
+                first_location=retainer.location.copy(),
+                second_location=air_probe.location.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(air_probe, do_unlink=True)
+        air_volumes.append(air_volume)
+
+        floor_probe = add_rounded_box(
+            f"TEMPORARY_Lid_Pad_Hood_Relief_{index}_Floor_Probe",
+            floor_probe_dimensions,
+            (
+                world_x,
+                world_y,
+                retainer.location.z
+                + LID_RETAINER_HEIGHT
+                - LID_LENS_HOOD_RELIEF_DEPTH
+                - 0.11,
+            ),
+            bevel=0.0,
+        )
+        try:
+            _faces, floor_volume = exact_transformed_intersection(
+                retainer,
+                floor_probe,
+                first_location=retainer.location.copy(),
+                second_location=floor_probe.location.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(floor_probe, do_unlink=True)
+        floor_volumes.append(floor_volume)
+
+    if max(air_volumes) > 1e-7:
+        raise ValueError("A TPU lid-pad lens-hood indentation is obstructed")
+    minimum_floor_volume = math.prod(floor_probe_dimensions) * 0.9
+    if min(floor_volumes) < minimum_floor_volume:
+        raise ValueError("A TPU lid-pad lens-hood indentation cuts through its floor")
+    print(
+        "FIELD_CASE_LID_PAD_HOOD_RELIEFS_VALID "
+        f"count={len(air_volumes)} depth={LID_LENS_HOOD_RELIEF_DEPTH:.2f} "
+        f"air_max={max(air_volumes):.9f} "
+        f"floor_min={min(floor_volumes):.6f}"
+    )
+
+
 def build_mission1_field_case():
     validate_configuration()
     if CLEAR_SCENE:
@@ -10642,6 +10992,8 @@ def build_mission1_field_case():
         validate_built_part(name, obj)
     validate_built_hollow_gasket(parts)
     validate_built_flush_lid_inlay(parts)
+    validate_built_lid_hockey_inlay(parts)
+    validate_built_lid_retainer_hood_reliefs(parts["lid_retainer"])
     validate_installed_lower_tray(parts)
     validate_built_base_hinge_gussets(parts["base"])
     validate_built_lid_hinge_receivers(parts["lid"])
