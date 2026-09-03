@@ -1733,11 +1733,15 @@ FAN_GASKET_SCREW_CLEARANCE = 3.4
 FAN_ACOUSTIC_COLOR = (0.18, 0.42, 0.70, 1.0)
 FAN_GASKET_COLOR = (0.12, 0.12, 0.12, 1.0)
 
-# Vertical floor mount for a nominal 1/4-20 UNC fastener.  By default an
-# interior boss captures a standard 1/4-inch finished hex nut in a slightly
-# undersized press-fit pocket.  Six independent ramped lips let the nut press
-# in from above and then catch its top face.  Measure the actual nut and printer
-# before production; inch fastener hardware varies by standard and coating.
+# Angled floor mount for a nominal 1/4-20 UNC fastener.  Positive tilt points
+# the case nose down when the mating post is vertical.  The underside wedge
+# presents a circular face normal to the fastener axis, so the configured post
+# bears flush against the case instead of touching one edge of the flat floor.
+# By default an interior boss captures a standard 1/4-inch finished hex nut in
+# a slightly undersized press-fit pocket.  Six independent ramped lips let the
+# nut press in along the tilted axis and then catch its top face.  Measure the
+# actual nut and printer before production; inch fastener hardware varies by
+# standard and coating.
 BOTTOM_MOUNT_HOLE_ENABLED = True
 # BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.50
 BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION = 0.55
@@ -1754,6 +1758,11 @@ BOTTOM_MOUNT_HOLE_SEARCH_STEP = 2.0
 BOTTOM_MOUNT_HOLE_AUTO_FRONT_TO_BACK = True
 BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_RANGE = 0.40
 BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP = 0.01
+BOTTOM_MOUNT_FORWARD_TILT_DEG = 20.0
+# A nominal 1.25-inch pole may carry a centered 1/4-20 stud.  The added margin
+# leaves the pole face entirely supported despite ordinary print tolerances.
+BOTTOM_MOUNT_POST_DIAMETER = 31.75
+BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN = 1.0
 BOTTOM_MOUNT_NUT_HOLDER_ENABLED = True
 BOTTOM_MOUNT_NUT_THREAD_DIAMETER = 6.35
 BOTTOM_MOUNT_NUT_ACROSS_FLATS = 11.11
@@ -3603,37 +3612,107 @@ def bottom_mount_nut_pocket_across_flats() -> float:
     return BOTTOM_MOUNT_NUT_ACROSS_FLATS - BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE
 
 
-def bottom_mount_nut_seat_z() -> float:
-    return BOTTOM_THICKNESS
+def bottom_mount_tilt_radians() -> float:
+    return math.radians(BOTTOM_MOUNT_FORWARD_TILT_DEG)
 
 
-def bottom_mount_nut_snap_shoulder_z() -> float:
+def bottom_mount_axis_frame():
+    """Return rearward seat tangent, lateral tangent, and inward mount axis."""
+    tilt = bottom_mount_tilt_radians()
     return (
-        bottom_mount_nut_seat_z()
+        Vector((math.cos(tilt), 0.0, -math.sin(tilt))),
+        Vector((0.0, 1.0, 0.0)),
+        Vector((math.sin(tilt), 0.0, math.cos(tilt))),
+    )
+
+
+def bottom_mount_frame_point(
+    position,
+    plane_x: float,
+    plane_y: float,
+    axial: float,
+):
+    plane_x_axis, plane_y_axis, mount_axis = bottom_mount_axis_frame()
+    point = (
+        Vector((position[0], position[1], 0.0))
+        + plane_x * plane_x_axis
+        + plane_y * plane_y_axis
+        + axial * mount_axis
+    )
+    return tuple(point)
+
+
+def bottom_mount_post_seat_radius() -> float:
+    return (
+        BOTTOM_MOUNT_POST_DIAMETER / 2.0
+        + BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN
+    )
+
+
+def bottom_mount_post_seat_axis() -> float:
+    """Axial station whose entire circular seat remains at or below Z=0."""
+    return -bottom_mount_post_seat_radius() * math.tan(
+        abs(bottom_mount_tilt_radians())
+    )
+
+
+def bottom_mount_nut_holder_base_axis() -> float:
+    """Start low enough that the whole tilted boss intersects the floor."""
+    tilt = abs(bottom_mount_tilt_radians())
+    center_z = (
+        BOTTOM_THICKNESS
+        - BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0 * math.sin(tilt)
+    )
+    return center_z / math.cos(tilt) - BOOLEAN_OVERLAP
+
+
+def bottom_mount_nut_seat_axis() -> float:
+    """Keep the complete tilted nut above the case's interior floor plane."""
+    tilt = abs(bottom_mount_tilt_radians())
+    pocket_corner_radius = bottom_mount_nut_pocket_across_flats() / math.sqrt(3.0)
+    center_z = BOTTOM_THICKNESS + pocket_corner_radius * math.sin(tilt)
+    return center_z / math.cos(tilt)
+
+
+def bottom_mount_nut_snap_shoulder_axis() -> float:
+    return (
+        bottom_mount_nut_seat_axis()
         + BOTTOM_MOUNT_NUT_THICKNESS
         + BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE
         + BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE
     )
 
 
-def bottom_mount_nut_snap_relief_base_z() -> float:
+def bottom_mount_nut_snap_relief_base_axis() -> float:
     return (
-        bottom_mount_nut_snap_shoulder_z()
+        bottom_mount_nut_snap_shoulder_axis()
         - BOTTOM_MOUNT_NUT_SNAP_FLEX_HEIGHT
     )
 
 
-def bottom_mount_nut_holder_top_z() -> float:
+def bottom_mount_nut_holder_top_axis() -> float:
     return (
-        bottom_mount_nut_snap_shoulder_z()
+        bottom_mount_nut_snap_shoulder_axis()
         + BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT
     )
 
 
 def bottom_mount_feature_radius() -> float:
-    if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
-        return BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0
-    return BOTTOM_MOUNT_HOLE_DIAMETER / 2.0
+    """Conservative plan radius covering the sloped seat and internal boss."""
+    tilt_sine = abs(math.sin(bottom_mount_tilt_radians()))
+    seat_radius = bottom_mount_post_seat_radius()
+    seat_reach = (
+        seat_radius
+        + abs(bottom_mount_post_seat_axis()) * tilt_sine
+    )
+    if not BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
+        return seat_reach
+    holder_radius = BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0
+    holder_center_reach = max(
+        abs(bottom_mount_nut_holder_base_axis()),
+        abs(bottom_mount_nut_holder_top_axis()),
+    ) * tilt_sine
+    return max(seat_reach, holder_radius + holder_center_reach)
 
 
 def bottom_keystone_mount_plan_dimensions():
@@ -4435,6 +4514,7 @@ def validate_config() -> None:
         "BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP": (
             BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_STEP
         ),
+        "BOTTOM_MOUNT_POST_DIAMETER": BOTTOM_MOUNT_POST_DIAMETER,
         "BOTTOM_MOUNT_NUT_THREAD_DIAMETER": BOTTOM_MOUNT_NUT_THREAD_DIAMETER,
         "BOTTOM_MOUNT_NUT_ACROSS_FLATS": BOTTOM_MOUNT_NUT_ACROSS_FLATS,
         "BOTTOM_MOUNT_NUT_THICKNESS": BOTTOM_MOUNT_NUT_THICKNESS,
@@ -6258,6 +6338,9 @@ def validate_config() -> None:
         ),
         "CAMERA_SUPPORT_PAD_EDGE_RADIUS": CAMERA_SUPPORT_PAD_EDGE_RADIUS,
         "CAMERA_SUPPORT_FEATURE_CLEARANCE": CAMERA_SUPPORT_FEATURE_CLEARANCE,
+        "BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN": (
+            BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN
+        ),
         "BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE": (
             BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE
         ),
@@ -6345,6 +6428,16 @@ def validate_config() -> None:
         raise ValueError(
             "BOTTOM_MOUNT_HOLE_FRACTION_SEARCH_RANGE cannot exceed 1"
         )
+    if (
+        not math.isfinite(float(BOTTOM_MOUNT_FORWARD_TILT_DEG))
+        or abs(BOTTOM_MOUNT_FORWARD_TILT_DEG) >= 45.0
+    ):
+        raise ValueError(
+            "BOTTOM_MOUNT_FORWARD_TILT_DEG must be finite and between "
+            "-45 and +45 degrees"
+        )
+    if BOTTOM_MOUNT_POST_DIAMETER <= BOTTOM_MOUNT_HOLE_DIAMETER:
+        raise ValueError("Bottom mount post must be wider than its through-hole")
     if not math.isfinite(float(BOTTOM_MOUNT_NUT_ROTATION_DEG)):
         raise ValueError("BOTTOM_MOUNT_NUT_ROTATION_DEG must be finite")
     if BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER not in {
@@ -6418,9 +6511,19 @@ def validate_config() -> None:
             and remaining_relief_wall < BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL
         ):
             raise ValueError("Bottom mount snap relief leaves too little outer wall")
-        if bottom_mount_nut_snap_relief_base_z() <= BOTTOM_THICKNESS:
+        if (
+            bottom_mount_nut_snap_relief_base_axis()
+            <= bottom_mount_nut_seat_axis()
+        ):
             raise ValueError("Bottom mount snap-flex tongues extend into the floor")
-        if bottom_mount_nut_holder_top_z() >= BASE_HEIGHT:
+        holder_top_max_z = (
+            bottom_mount_nut_holder_top_axis()
+            * math.cos(bottom_mount_tilt_radians())
+            + BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER
+            / 2.0
+            * abs(math.sin(bottom_mount_tilt_radians()))
+        )
+        if holder_top_max_z >= BASE_HEIGHT:
             raise ValueError("Bottom mount nut holder does not fit below the lid")
     if not isinstance(BOTTOM_KEYSTONE_COUNT, int) or BOTTOM_KEYSTONE_COUNT < 1:
         raise ValueError("BOTTOM_KEYSTONE_COUNT must be a positive integer")
@@ -9963,6 +10066,180 @@ def add_cylinder_z(
     obj.name = name
     obj.data.name = name + "_Mesh"
     return obj
+
+
+def add_bottom_mount_axial_prism(
+    name: str,
+    position,
+    radius: float,
+    axial0: float,
+    axial1: float,
+    segments: int = 72,
+    angular_offset: float = 0.0,
+):
+    """Create a regular prism along the configured bottom-mount axis."""
+    if radius <= 0.0 or axial1 <= axial0 or segments < 3:
+        raise ValueError(f"{name} requires a valid radius, span, and segment count")
+    vertices = []
+    for axial in (axial0, axial1):
+        for index in range(segments):
+            angle = angular_offset + 2.0 * math.pi * index / segments
+            vertices.append(
+                bottom_mount_frame_point(
+                    position,
+                    radius * math.cos(angle),
+                    radius * math.sin(angle),
+                    axial,
+                )
+            )
+    faces = []
+    for index in range(segments):
+        following = (index + 1) % segments
+        faces.append((index, following, segments + following, segments + index))
+    faces.append(tuple(range(segments - 1, -1, -1)))
+    faces.append(tuple(segments + index for index in range(segments)))
+    return create_mesh_object(name, vertices, faces)
+
+
+def add_bottom_mount_hex_prism(
+    name: str,
+    position,
+    across_flats: float,
+    axial0: float,
+    axial1: float,
+    rotation: float,
+):
+    # A +30-degree vertex offset puts the first face normal on ``rotation``.
+    return add_bottom_mount_axial_prism(
+        name,
+        position,
+        across_flats / math.sqrt(3.0),
+        axial0,
+        axial1,
+        segments=6,
+        angular_offset=rotation + math.pi / 6.0,
+    )
+
+
+def add_bottom_mount_axis_box(
+    name: str,
+    position,
+    size_radial: float,
+    size_tangential: float,
+    axial0: float,
+    axial1: float,
+    center_radial: float,
+    center_tangential: float,
+    rotation: float,
+):
+    """Create a rectangular prism in the tilted mount's local frame."""
+    radial_axis = (math.cos(rotation), math.sin(rotation))
+    tangent_axis = (-radial_axis[1], radial_axis[0])
+    vertices = []
+    for axial in (axial0, axial1):
+        for radial_sign, tangent_sign in (
+            (-1.0, -1.0),
+            (1.0, -1.0),
+            (1.0, 1.0),
+            (-1.0, 1.0),
+        ):
+            local_radial = center_radial + (
+                radial_sign * size_radial / 2.0
+            )
+            local_tangential = center_tangential + (
+                tangent_sign * size_tangential / 2.0
+            )
+            vertices.append(
+                bottom_mount_frame_point(
+                    position,
+                    local_radial * radial_axis[0]
+                    + local_tangential * tangent_axis[0],
+                    local_radial * radial_axis[1]
+                    + local_tangential * tangent_axis[1],
+                    axial,
+                )
+            )
+    faces = (
+        (0, 3, 2, 1),
+        (4, 5, 6, 7),
+        (0, 1, 5, 4),
+        (1, 2, 6, 5),
+        (2, 3, 7, 6),
+        (3, 0, 4, 7),
+    )
+    return create_mesh_object(name, vertices, faces)
+
+
+def add_bottom_mount_snap_wedge(
+    name: str,
+    position,
+    face_angle: float,
+    wall_apothem: float,
+    projection: float,
+    root_embed: float,
+    width: float,
+    axial0: float,
+    axial1: float,
+):
+    """Create one tilted-axis nut-retention ramp."""
+    normal = (math.cos(face_angle), math.sin(face_angle))
+    tangent = (-normal[1], normal[0])
+    root_radius = wall_apothem + root_embed
+    inner_radius = wall_apothem - projection
+    half_width = width / 2.0
+
+    def point(radius, tangent_offset, axial):
+        return bottom_mount_frame_point(
+            position,
+            radius * normal[0] + tangent_offset * tangent[0],
+            radius * normal[1] + tangent_offset * tangent[1],
+            axial,
+        )
+
+    vertices = (
+        point(root_radius, -half_width, axial0),
+        point(root_radius, -half_width, axial1),
+        point(inner_radius, -half_width, axial0),
+        point(root_radius, half_width, axial0),
+        point(root_radius, half_width, axial1),
+        point(inner_radius, half_width, axial0),
+    )
+    faces = (
+        (0, 2, 1),
+        (3, 4, 5),
+        (0, 1, 4, 3),
+        (0, 3, 5, 2),
+        (2, 5, 4, 1),
+    )
+    return create_mesh_object(name, vertices, faces)
+
+
+def add_bottom_mount_post_seat(name: str, position):
+    """Create the exterior wedge with a circular pole-contact face."""
+    radius = bottom_mount_post_seat_radius()
+    axial = bottom_mount_post_seat_axis()
+    segments = 72
+    bottom_ring = [
+        bottom_mount_frame_point(
+            position,
+            radius * math.cos(2.0 * math.pi * index / segments),
+            radius * math.sin(2.0 * math.pi * index / segments),
+            axial,
+        )
+        for index in range(segments)
+    ]
+    vertices = [*bottom_ring]
+    vertices.extend(
+        (point[0], point[1], BOTTOM_THICKNESS)
+        for point in bottom_ring
+    )
+    faces = []
+    for index in range(segments):
+        following = (index + 1) % segments
+        faces.append((index, following, segments + following, segments + index))
+    faces.append(tuple(range(segments - 1, -1, -1)))
+    faces.append(tuple(segments + index for index in range(segments)))
+    return create_mesh_object(name, vertices, faces)
 
 
 def add_xz_polyline_tube(name: str, points, radius: float, segments=24):
@@ -27422,28 +27699,29 @@ def add_camera_bracket_posts(base, cameras, bracket_position_pairs):
 def add_bottom_mount_hole(base, position):
     if not BOTTOM_MOUNT_HOLE_ENABLED or position is None:
         return base
-    x, y = position
+    mount = add_bottom_mount_post_seat(
+        "Bottom_Mount_Flush_Post_Seat",
+        position,
+    )
     if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
-        holder_top = bottom_mount_nut_holder_top_z()
-        holder = add_cylinder_z(
+        holder_top = bottom_mount_nut_holder_top_axis()
+        holder = add_bottom_mount_axial_prism(
             "Bottom_Mount_Captive_Nut_Structural_Boss",
+            position,
             BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0,
-            BOTTOM_THICKNESS - BOOLEAN_OVERLAP,
+            bottom_mount_nut_holder_base_axis(),
             holder_top,
-            x,
-            y,
         )
 
         pocket_across_flats = bottom_mount_nut_pocket_across_flats()
         rotation = math.radians(BOTTOM_MOUNT_NUT_ROTATION_DEG)
-        pocket = add_hex_prism_z(
+        pocket = add_bottom_mount_hex_prism(
             "Bottom_Mount_Captive_Nut_Press_Fit_Pocket",
+            position,
             pocket_across_flats,
-            bottom_mount_nut_seat_z(),
+            bottom_mount_nut_seat_axis(),
             holder_top + BOOLEAN_OVERLAP,
-            x,
-            y,
-            rotation_z=rotation,
+            rotation,
         )
         boolean_difference(
             holder,
@@ -27451,14 +27729,14 @@ def add_bottom_mount_hole(base, position):
             "Bottom_Mount_Captive_Nut_Press_Fit_Pocket",
         )
 
-        lip_z0 = bottom_mount_nut_snap_shoulder_z()
-        lip_z1 = lip_z0 + BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT
+        lip_axis0 = bottom_mount_nut_snap_shoulder_axis()
+        lip_axis1 = lip_axis0 + BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT
         pocket_apothem = pocket_across_flats / 2.0
         back_relief_cutters = []
         side_slot_cutters = []
         if BOTTOM_MOUNT_NUT_SNAP_RELIEF_ENABLED:
-            relief_z0 = bottom_mount_nut_snap_relief_base_z()
-            relief_z1 = holder_top + BOOLEAN_OVERLAP
+            relief_axis0 = bottom_mount_nut_snap_relief_base_axis()
+            relief_axis1 = holder_top + BOOLEAN_OVERLAP
             flex_wall = BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS
             relief_depth = BOTTOM_MOUNT_NUT_SNAP_RELIEF_DEPTH
             side_slot = BOTTOM_MOUNT_NUT_SNAP_SIDE_SLOT_WIDTH
@@ -27466,31 +27744,17 @@ def add_bottom_mount_hole(base, position):
                 face_angle = rotation + math.radians(
                     60.0 * relief_index
                 )
-                normal = (math.cos(face_angle), math.sin(face_angle))
-                tangent = (-normal[1], normal[0])
-
-                def relief_center(radial, tangential):
-                    return (
-                        x + radial * normal[0] + tangential * tangent[0],
-                        y + radial * normal[1] + tangential * tangent[1],
-                        (relief_z0 + relief_z1) / 2.0,
-                    )
-
                 back_relief_cutters.append(
-                    add_beveled_box(
+                    add_bottom_mount_axis_box(
                         f"Bottom_Mount_Nut_Lip_{relief_index + 1}_Back_Relief",
-                        (
-                            relief_depth,
-                            BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH
-                            + 2.0 * side_slot,
-                            relief_z1 - relief_z0,
-                        ),
-                        relief_center(
-                            pocket_apothem + flex_wall + relief_depth / 2.0,
-                            0.0,
-                        ),
-                        rotation_z=face_angle,
-                        bevel=0.0,
+                        position,
+                        relief_depth,
+                        BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH + 2.0 * side_slot,
+                        relief_axis0,
+                        relief_axis1,
+                        pocket_apothem + flex_wall + relief_depth / 2.0,
+                        0.0,
+                        face_angle,
                     )
                 )
                 side_radial_start = pocket_apothem - BOOLEAN_OVERLAP
@@ -27502,39 +27766,35 @@ def add_bottom_mount_hole(base, position):
                 )
                 for tangent_sign in (-1.0, 1.0):
                     side_slot_cutters.append(
-                        add_beveled_box(
+                        add_bottom_mount_axis_box(
                             f"Bottom_Mount_Nut_Lip_{relief_index + 1}_"
                             f"Side_Slot_{tangent_sign:+.0f}",
-                            (
-                                side_radial_end - side_radial_start,
-                                side_slot,
-                                relief_z1 - relief_z0,
+                            position,
+                            side_radial_end - side_radial_start,
+                            side_slot,
+                            relief_axis0,
+                            relief_axis1,
+                            (side_radial_start + side_radial_end) / 2.0,
+                            tangent_sign
+                            * (
+                                BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH / 2.0
+                                + side_slot / 2.0
                             ),
-                            relief_center(
-                                (side_radial_start + side_radial_end) / 2.0,
-                                tangent_sign
-                                * (
-                                    BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH / 2.0
-                                    + side_slot / 2.0
-                                ),
-                            ),
-                            rotation_z=face_angle,
-                            bevel=0.0,
+                            face_angle,
                         )
                     )
         for lip_index in range(6):
             face_angle = rotation + math.radians(60.0 * lip_index)
-            lip = add_hex_face_snap_wedge(
+            lip = add_bottom_mount_snap_wedge(
                 f"Bottom_Mount_Nut_Snap_Lip_{lip_index + 1}",
-                x,
-                y,
+                position,
                 face_angle,
                 pocket_apothem,
                 BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION,
                 BOTTOM_MOUNT_NUT_SNAP_ROOT_EMBED,
                 BOTTOM_MOUNT_NUT_SNAP_LIP_WIDTH,
-                lip_z0,
-                lip_z1,
+                lip_axis0,
+                lip_axis1,
             )
             boolean_union(
                 holder,
@@ -27552,46 +27812,68 @@ def add_bottom_mount_hole(base, position):
                 side_slot_cutters,
                 "Bottom_Mount_Nut_Snap_Tongue_Side_Slots",
             )
-        holder_non_manifold = non_manifold_edge_count(holder)
-        holder_shells = connected_shell_count(holder)
-        print(
-            "BOTTOM_MOUNT_NUT_HOLDER_VALIDATION "
-            f"non_manifold_edges={holder_non_manifold} "
-            f"connected_shells={holder_shells}"
-        )
-        if holder_non_manifold or holder_shells != 1:
-            raise RuntimeError("Captive nut holder is not one manifold component")
-        pre_union_non_manifold = non_manifold_edge_count(base)
-        if pre_union_non_manifold:
-            triangulate_mesh(base)
-            repair_tiny_closed_boundary_holes(base)
-            post_repair_non_manifold = non_manifold_edge_count(base)
-            print(
-                "BOTTOM_MOUNT_BASE_TOPOLOGY_REPAIR "
-                f"non_manifold_edges={pre_union_non_manifold}->"
-                f"{post_repair_non_manifold}"
-            )
-            if post_repair_non_manifold:
-                raise RuntimeError(
-                    "Base remains non-manifold before the captive-nut holder "
-                    f"union: {post_repair_non_manifold} edges"
-                )
         boolean_union(
-            base,
             holder,
-            "Bottom_Mount_Captive_Nut_Boss_Union",
+            mount,
+            "Bottom_Mount_Flush_Post_Seat_Union",
             solver=BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER,
         )
-
-    cutter = add_cylinder_z(
-        "Bottom_One_Half_Inch_Through_Hole",
-        BOTTOM_MOUNT_HOLE_DIAMETER / 2.0,
-        -BOOLEAN_OVERLAP,
-        BOTTOM_THICKNESS + BOOLEAN_OVERLAP,
-        x,
-        y,
+        mount = holder
+        mount_non_manifold = non_manifold_edge_count(mount)
+        mount_shells = connected_shell_count(mount)
+        print(
+            "BOTTOM_MOUNT_NUT_HOLDER_VALIDATION "
+            f"non_manifold_edges={mount_non_manifold} "
+            f"connected_shells={mount_shells}"
+        )
+        if mount_non_manifold or mount_shells != 1:
+            raise RuntimeError("Captive nut holder is not one manifold component")
+    pre_union_non_manifold = non_manifold_edge_count(base)
+    if pre_union_non_manifold:
+        triangulate_mesh(base)
+        repair_tiny_closed_boundary_holes(base)
+        post_repair_non_manifold = non_manifold_edge_count(base)
+        print(
+            "BOTTOM_MOUNT_BASE_TOPOLOGY_REPAIR "
+            f"non_manifold_edges={pre_union_non_manifold}->"
+            f"{post_repair_non_manifold}"
+        )
+        if post_repair_non_manifold:
+            raise RuntimeError(
+                "Base remains non-manifold before the bottom mount union: "
+                f"{post_repair_non_manifold} edges"
+            )
+    boolean_union(
+        base,
+        mount,
+        "Bottom_Mount_Assembly_Union",
+        solver=BOTTOM_MOUNT_NUT_HOLDER_UNION_SOLVER,
     )
-    boolean_difference(base, [cutter], "Bottom_One_Half_Inch_Through_Hole")
+
+    if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
+        cutter_end = bottom_mount_nut_holder_top_axis() + BOOLEAN_OVERLAP
+    else:
+        cutter_end = (
+            BOTTOM_THICKNESS
+            + BOTTOM_MOUNT_HOLE_DIAMETER
+            / 2.0
+            * abs(math.sin(bottom_mount_tilt_radians()))
+        ) / math.cos(bottom_mount_tilt_radians()) + BOOLEAN_OVERLAP
+    cutter = add_bottom_mount_axial_prism(
+        "Bottom_Mount_Through_Hole",
+        position,
+        BOTTOM_MOUNT_HOLE_DIAMETER / 2.0,
+        bottom_mount_post_seat_axis() - BOOLEAN_OVERLAP,
+        cutter_end,
+    )
+    boolean_difference(base, [cutter], "Bottom_Mount_Through_Hole")
+    print(
+        "BOTTOM_MOUNT_FLUSH_POST_SEAT "
+        f"forward_tilt={BOTTOM_MOUNT_FORWARD_TILT_DEG:.2f}deg "
+        f"post_diameter={BOTTOM_MOUNT_POST_DIAMETER:.2f}mm "
+        f"seat_diameter={2.0 * bottom_mount_post_seat_radius():.2f}mm "
+        f"edge_margin={BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN:.2f}mm"
+    )
     if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
         print(
             "BOTTOM_MOUNT_CAPTIVE_NUT "
@@ -27604,7 +27886,7 @@ def add_bottom_mount_hole(base, position):
             f"retention_clearance="
             f"{BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE:.2f} "
             f"relieved_lips={BOTTOM_MOUNT_NUT_SNAP_RELIEF_ENABLED} "
-            f"snap_lips=6"
+            f"snap_lips=6 axis_tilt={BOTTOM_MOUNT_FORWARD_TILT_DEG:.2f}deg"
         )
     return base
 
@@ -29575,7 +29857,6 @@ def create_base(
     add_fan_acoustic_base_posts(base, acoustic_layout)
     add_fastener_posts(base, positions)
     add_camera_bracket_posts(base, cameras, bracket_position_pairs)
-    add_bottom_mount_hole(base, bottom_mount_hole_position)
     add_bottom_keystone_mounts(base, bottom_keystone_positions)
     add_adjustable_carrier_top_loading_chimney(base, cameras, footprint)
     # When exterior USB openings are requested, cut them after all interior
@@ -29617,6 +29898,11 @@ def create_base(
     # the same rear surface is consumed by the legacy fan pair, and its shallow
     # cutter cannot be refilled by any later post or hardware union.
     add_rear_wall_label(base, footprint)
+    # The placement/layout solvers have reserved this mount's full projected
+    # keepout since the start of the build.  Union it only after the sensitive
+    # shallow lettering Boolean so the broad angled seat cannot alter the rear
+    # wall's otherwise unrelated triangulation.
+    add_bottom_mount_hole(base, bottom_mount_hole_position)
     if (
         CAMERA_CARTRIDGE_WORM_ENABLED
         and CAMERA_CARRIER_CHIMNEY_REMOVE_SMALL_FRAGMENTS
@@ -32471,42 +32757,84 @@ def validate_final_worm_hardware_cavities(base, mechanism):
 
 
 def validate_final_bottom_mount_nut_holder(base, position):
-    """Confirm the structural nut boss survived its union into the base."""
-    if (
-        not BOTTOM_MOUNT_HOLE_ENABLED
-        or not BOTTOM_MOUNT_NUT_HOLDER_ENABLED
-        or position is None
-    ):
+    """Confirm the flush pole seat and angled structural boss survived."""
+    if not BOTTOM_MOUNT_HOLE_ENABLED or position is None:
         return
-    x, y = position
-    pocket_corner_radius = (
-        bottom_mount_nut_pocket_across_flats() / math.sqrt(3.0)
-    )
-    boss_radius = BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0
-    sample_radius = (pocket_corner_radius + boss_radius) / 2.0
-    sample_z = (BOTTOM_THICKNESS + bottom_mount_nut_holder_top_z()) / 2.0
     record = object_bvh_record(base)
-    solid_samples = 0
     try:
-        for index in range(BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT):
-            angle = (
-                2.0
-                * math.pi
-                * index
-                / BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT
-            )
-            point = Vector(
-                (
-                    x + sample_radius * math.cos(angle),
-                    y + sample_radius * math.sin(angle),
-                    sample_z,
+        post_radius = BOTTOM_MOUNT_POST_DIAMETER / 2.0
+        seat_probe_inset = min(
+            0.25,
+            (post_radius - BOTTOM_MOUNT_HOLE_DIAMETER / 2.0) / 4.0,
+        )
+        seat_sample_radius = post_radius - seat_probe_inset
+        seat_sample_count = 36
+        _plane_x_axis, _plane_y_axis, mount_axis = bottom_mount_axis_frame()
+        seat_solid_samples = 0
+        for index in range(seat_sample_count):
+            angle = 2.0 * math.pi * index / seat_sample_count
+            surface_point = Vector(
+                bottom_mount_frame_point(
+                    position,
+                    seat_sample_radius * math.cos(angle),
+                    seat_sample_radius * math.sin(angle),
+                    bottom_mount_post_seat_axis(),
                 )
             )
-            solid_samples += int(
-                point_inside_closed_bvh(record[0], record[1] @ point)
+            seat_solid_samples += int(
+                point_inside_closed_bvh(
+                    record[0],
+                    record[1] @ (surface_point + 0.10 * mount_axis),
+                )
             )
+
+        solid_samples = 0
+        sample_radius = 0.0
+        sample_axis = 0.0
+        if BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
+            pocket_corner_radius = (
+                bottom_mount_nut_pocket_across_flats() / math.sqrt(3.0)
+            )
+            boss_radius = BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / 2.0
+            sample_radius = (pocket_corner_radius + boss_radius) / 2.0
+            sample_axis = (
+                bottom_mount_nut_seat_axis()
+                + bottom_mount_nut_holder_top_axis()
+            ) / 2.0
+            for index in range(BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT):
+                angle = (
+                    2.0
+                    * math.pi
+                    * index
+                    / BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT
+                )
+                point = Vector(
+                    bottom_mount_frame_point(
+                        position,
+                        sample_radius * math.cos(angle),
+                        sample_radius * math.sin(angle),
+                        sample_axis,
+                    )
+                )
+                solid_samples += int(
+                    point_inside_closed_bvh(record[0], record[1] @ point)
+                )
     finally:
         record[2].free()
+    if seat_solid_samples != seat_sample_count:
+        raise RuntimeError(
+            "Final base does not support the complete configured post face: "
+            f"solid_samples={seat_solid_samples}/{seat_sample_count}"
+        )
+    print(
+        "FINAL_BOTTOM_MOUNT_POST_SEAT PASS "
+        f"solid_samples={seat_solid_samples}/{seat_sample_count} "
+        f"post_diameter={BOTTOM_MOUNT_POST_DIAMETER:.2f}mm "
+        f"seat_diameter={2.0 * bottom_mount_post_seat_radius():.2f}mm "
+        f"tilt={BOTTOM_MOUNT_FORWARD_TILT_DEG:.2f}deg"
+    )
+    if not BOTTOM_MOUNT_NUT_HOLDER_ENABLED:
+        return
     solid_ratio = solid_samples / BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT
     if solid_ratio < BOTTOM_MOUNT_NUT_FINAL_BOSS_MIN_SOLID_RATIO:
         raise RuntimeError(
@@ -32518,7 +32846,8 @@ def validate_final_bottom_mount_nut_holder(base, position):
         "FINAL_BOTTOM_MOUNT_NUT_HOLDER PASS "
         f"solid_samples={solid_samples}/"
         f"{BOTTOM_MOUNT_NUT_FINAL_BOSS_SAMPLE_COUNT} "
-        f"sample_radius={sample_radius:.2f}mm sample_z={sample_z:.2f}mm"
+        f"sample_radius={sample_radius:.2f}mm "
+        f"sample_axis={sample_axis:.2f}mm"
     )
 
 

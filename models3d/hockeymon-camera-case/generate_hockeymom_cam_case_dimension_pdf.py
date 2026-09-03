@@ -334,8 +334,8 @@ FEATURE_RULES = (
     ),
     FeatureRule(
         "bottom_mount",
-        "Bottom captive-nut mounting boss",
-        "Through-hole, press-fit nut pocket, snap lips, boss wall and placement search dimensions.",
+        "Angled bottom captive-nut mount",
+        "Forward tilt, flush post seat, through-hole, press-fit nut pocket, snap lips, boss wall and placement search dimensions.",
         (r"^BOTTOM_MOUNT_",),
     ),
     FeatureRule(
@@ -1757,6 +1757,10 @@ def _catalog_scene_rear_fans(ax, entry):
 
 def _catalog_scene_bottom_mount(ax, entry):
     ax.add_patch(Rectangle((25, 9), 180, 6, facecolor="#cce0ec", edgecolor=BLUE, lw=1.0))
+    ax.add_patch(Polygon([(81, 9), (149, 3), (149, 15), (81, 15)], closed=True,
+                         facecolor="#ccebd7", edgecolor=GREEN, lw=1.0))
+    ax.add_patch(Polygon([(91, 8), (139, 4), (140, 0), (92, 4)], closed=True,
+                         facecolor="#d8e0e5", edgecolor=GRAY, lw=0.9))
     ax.add_patch(Rectangle((81, 15), 68, 27, facecolor="#dcebdd", edgecolor=GREEN, lw=1.0))
     ax.add_patch(Rectangle((100, 18), 30, 12, facecolor="#d8b66a", edgecolor=INK, lw=0.9,
                            hatch="///"))
@@ -1766,7 +1770,13 @@ def _catalog_scene_bottom_mount(ax, entry):
     ax.add_patch(Polygon([(130, 30), (136, 35), (130, 38), (122, 31)], closed=True,
                          facecolor="#f3c7aa", edgecolor=ORANGE, lw=0.9))
     name = entry.name
-    if "HOLDER_OUTER_DIAMETER" in name:
+    if "FORWARD_TILT" in name:
+        preferred = "mount_tilt"
+    elif "POST_DIAMETER" in name:
+        preferred = "post_diameter"
+    elif "POST_SEAT_EDGE_MARGIN" in name:
+        preferred = "seat_margin"
+    elif "HOLDER_OUTER_DIAMETER" in name:
         preferred = "holder_diameter"
     elif "DIAMETER" in name:
         preferred = "diameter"
@@ -1806,10 +1816,13 @@ def _catalog_scene_bottom_mount(ax, entry):
         "CAPTIVE 1/4-20 NUT BOSS / SNAP-LIP SECTION",
         h=(81, 149, 7, 9), v=(9, 42, 159, 149),
         gap=((100, 24), (109, 24)), diameter=(115, 27, 6),
-        radial=(115, 27, 6, 34), angle=(115, 27, 14, 0, 30),
+        radial=(115, 27, 6, 34), angle=(115, 9, 14, 0, 20),
         position=((25, 9), (115, 27)), area=(115, 27),
         anchors={
             "holder_diameter": ("h", (81, 149, 7, 9)),
+            "post_diameter": ("h", (91, 139, 0, 4)),
+            "seat_margin": ("h", (81, 91, 3, 8)),
+            "mount_tilt": ("angle", (115, 9, 14, 0, 20)),
             "nut_width": ("h", (100, 130, 16, 18)),
             "hole_position": ("position", ((25, 9), (115, 27))),
             "nut_thickness": ("v", (18, 30, 136, 130)),
@@ -3274,56 +3287,78 @@ def page_acoustic(pdf):
 
 
 def page_nut(pdf):
-    fig=new_sheet(13,"BOTTOM CAPTIVE-NUT MOUNT",
-                  "BOTTOM_MOUNT_NUT_THREAD_DIAMETER identifies the nominal nut size; flexible ramped lips retain it after insertion")
+    fig=new_sheet(13,"ANGLED BOTTOM CAPTIVE-NUT MOUNT",
+                  "A circular underside seat supports the full pole face; the through-hole, nut pocket and snap lips share the configured forward-tilt axis")
     ax=panel(fig,[0.065,0.43,0.47,0.44],"AUTO-RESOLVED FLOOR LOCATION","BOTTOM / PLAN")
     depth=float(val("BODY_DEPTH",233.661)); width=float(val("BODY_WIDTH",180)); frac=float(val("BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION",0.5))
     outline=soft_triangle(depth,width,0.75,0.55)
     ax.add_patch(Polygon(outline,closed=True,facecolor="#edf4f7",edgecolor=BLUE,lw=1.3))
     x=-depth/2+frac*depth; y=float(val("BOTTOM_MOUNT_HOLE_LATERAL_TARGET",0))
     od=float(val("BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER",24)); hole=float(val("BOTTOM_MOUNT_HOLE_DIAMETER",6.8))
+    tilt=float(val("BOTTOM_MOUNT_FORWARD_TILT_DEG",20)); tilt_rad=math.radians(tilt)
+    post_d=float(val("BOTTOM_MOUNT_POST_DIAMETER",31.75)); seat_margin=float(val("BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN",1.0)); seat_r=post_d/2+seat_margin
+    seat_axis=-seat_r*math.tan(abs(tilt_rad)); seat_center_x=x+seat_axis*math.sin(tilt_rad)
+    seat_plan=[(seat_center_x+seat_r*math.cos(tilt_rad)*math.cos(a),y+seat_r*math.sin(a)) for a in [2*math.pi*i/72 for i in range(72)]]
+    ax.add_patch(Polygon(seat_plan,closed=True,facecolor="#ccebd7",edgecolor=GREEN,lw=1.3))
     ax.add_patch(Circle((x,y),od/2,facecolor="#dcebdd",edgecolor=GREEN,lw=1.3))
     ax.add_patch(Circle((x,y),hole/2,facecolor=WHITE,edgecolor=INK,lw=1.0))
     centerline(ax,(-depth/2-8,0),(depth/2+8,0))
     dim_h(ax,-depth/2,x,-width/2-18,-width/2,"BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION")
     dim_v(ax,0,y+0.01,x+25,x,"BOTTOM_MOUNT_HOLE_LATERAL_TARGET")
-    leader(ax,(x+od/2,y),(132,48),
-           "BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER\nBOTTOM_MOUNT_HOLE_DIAMETER",GREEN,"right")
+    leader(ax,(seat_center_x+seat_r*math.cos(tilt_rad),y),(132,48),
+           "BOTTOM_MOUNT_POST_DIAMETER\n+ 2 x BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN",GREEN,"right")
+    leader(ax,(x+hole/2,y),(132,18),
+           "BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER\nBOTTOM_MOUNT_HOLE_DIAMETER",BLUE,"right")
     setup(ax,-depth/2-25,depth/2+30,-width/2-28,width/2+28)
 
-    ax2=panel(fig,[0.56,0.43,0.375,0.44],"CAPTIVE NUT + SNAP LIPS","SECTION / DETAIL")
+    ax2=panel(fig,[0.56,0.43,0.375,0.44],"FLUSH POST SEAT + CAPTIVE NUT","FORWARD SECTION / DETAIL")
     nut_af=float(val("BOTTOM_MOUNT_NUT_ACROSS_FLATS",11.11)); nut_t=float(val("BOTTOM_MOUNT_NUT_THICKNESS",5.56)); lip_h=float(val("BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT",1.5)); lip_p=float(val("BOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION",0.4))
-    ax2.add_patch(Rectangle((-od/2,0),od,15,facecolor="#ccebd7",edgecolor=GREEN,lw=1.2))
-    ax2.add_patch(Rectangle((-nut_af/2,3.2),nut_af,nut_t,facecolor="#d8b66a",edgecolor=INK,lw=1.0,hatch="///"))
-    ax2.add_patch(Rectangle((-hole/2,-2),hole,12,facecolor=WHITE,edgecolor=INK,lw=0.7))
+    bottom_t=float(val("BOTTOM_THICKNESS",3.2)); overlap=0.2
+    nut_corner=nut_af/math.sqrt(3); nut_seat=(bottom_t+nut_corner*abs(math.sin(tilt_rad)))/math.cos(tilt_rad)
+    holder_base=(bottom_t-od/2*abs(math.sin(tilt_rad)))/math.cos(tilt_rad)-overlap
+    holder_top=nut_seat+nut_t+float(val("BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE",0.3))+float(val("BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE",0.35))+lip_h
+    def p(plane,axis): return (plane*math.cos(tilt_rad)+axis*math.sin(tilt_rad),-plane*math.sin(tilt_rad)+axis*math.cos(tilt_rad))
+    def local_box(half_width,axis0,axis1): return [p(-half_width,axis0),p(half_width,axis0),p(half_width,axis1),p(-half_width,axis1)]
+    post_end=seat_axis-24
+    ax2.add_patch(Polygon(local_box(post_d/2,post_end,seat_axis),closed=True,facecolor="#d8e0e5",edgecolor=GRAY,lw=1.0))
+    seat_left,seat_right=p(-seat_r,seat_axis),p(seat_r,seat_axis)
+    ax2.add_patch(Polygon([seat_left,seat_right,(seat_right[0],bottom_t+overlap),(seat_left[0],bottom_t+overlap)],closed=True,facecolor="#ccebd7",edgecolor=GREEN,lw=1.2))
+    ax2.add_patch(Rectangle((-35,0),70,bottom_t,facecolor="#cce0ec",edgecolor=BLUE,lw=1.0))
+    ax2.add_patch(Polygon(local_box(od/2,holder_base,holder_top),closed=True,facecolor="#dcebdd",edgecolor=GREEN,lw=1.2))
+    ax2.add_patch(Polygon(local_box(nut_af/2,nut_seat,nut_seat+nut_t),closed=True,facecolor="#d8b66a",edgecolor=INK,lw=1.0,hatch="///"))
+    ax2.add_patch(Polygon(local_box(hole/2,post_end-1,holder_top+1),closed=True,facecolor=WHITE,edgecolor=INK,lw=0.7))
+    snap_axis=nut_seat+nut_t+float(val("BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE",0.3))+float(val("BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE",0.35))
     for sign in (-1,1):
-        base=sign*nut_af/2
-        pts=[(base,3.2+nut_t),(base+sign*(3.5),3.2+nut_t),(base+sign*(3.5),3.2+nut_t+lip_h),(base-sign*lip_p,3.2+nut_t+0.2)]
+        root=sign*nut_af/2
+        pts=[p(root,snap_axis),p(root+sign*3.5,snap_axis),p(root+sign*3.5,snap_axis+lip_h),p(root-sign*lip_p,snap_axis+0.2)]
         ax2.add_patch(Polygon(pts,closed=True,facecolor="#f3c7aa",edgecolor=ORANGE,lw=0.9))
-    dim_h(ax2,-nut_af/2,nut_af/2,-7,3.2,"BOTTOM_MOUNT_NUT_ACROSS_FLATS",ORANGE)
-    dim_v(ax2,3.2,3.2+nut_t,22,nut_af/2,"BOTTOM_MOUNT_NUT_THICKNESS",ORANGE)
-    dim_h(ax2,-od/2,od/2,20,15,"BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER",GREEN)
-    leader(ax2,(nut_af/2+1,3.2+nut_t+0.5),(10,27),
-           "BOTTOM_MOUNT_NUT_SNAP_LIP_HEIGHT\nBOTTOM_MOUNT_NUT_SNAP_LIP_PROJECTION",ORANGE,"right")
-    leader(ax2,(0,5),(-27,12),"BOTTOM_MOUNT_NUT_THREAD_DIAMETER",BLUE,"right")
-    setup(ax2,-36,42,-12,32)
+    centerline(ax2,p(0,post_end-2),p(0,holder_top+3))
+    ax2.plot([seat_left[0],seat_right[0]],[seat_left[1],seat_right[1]],color=GREEN,lw=1.8)
+    ax2.add_patch(Arc((0,0),18,18,theta1=90-abs(tilt),theta2=90,edgecolor=ORANGE,lw=1.1))
+    leader(ax2,p(0,holder_top),(25,27),"BOTTOM_MOUNT_FORWARD_TILT_DEG",ORANGE,"right")
+    leader(ax2,seat_left,(-39,-13),"seat OD = post diameter + 2 x edge margin",GREEN,"right")
+    leader(ax2,p(nut_af/2,nut_seat+nut_t/2),(27,17),"press-fit nut + six snap lips",ORANGE,"right")
+    leader(ax2,p(0,seat_axis-12),(-39,-34),"nominal 1.25-inch vertical post",GRAY,"right")
+    setup(ax2,-43,45,-43,33)
 
-    note_box(fig,[0.065,0.18,0.285,0.17],"PLACEMENT SEARCH",
+    note_box(fig,[0.065,0.18,0.285,0.17],"ANGLE + PLACEMENT",
              ["BOTTOM_MOUNT_HOLE_AUTO_LATERAL enables lateral search",
               "BOTTOM_MOUNT_HOLE_AUTO_FRONT_TO_BACK enables station search",
+              f"forward case tilt on vertical post = {deg('BOTTOM_MOUNT_FORWARD_TILT_DEG',20)}",
               f"edge clearance = {mm('BOTTOM_MOUNT_HOLE_EDGE_CLEARANCE',3)}",
-              f"keep-out clearance = {mm('BOTTOM_MOUNT_HOLE_KEEP_OUT_CLEARANCE',2)}",
-              "BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION is preferred if it clears all geometry."],BLUE)
-    note_box(fig,[0.37,0.18,0.265,0.17],"PRESS FIT",
+              "The solver reserves the projected seat and angled boss."],BLUE)
+    note_box(fig,[0.37,0.18,0.265,0.17],"FLUSH POST INTERFACE",
+             [f"post diameter = {mm('BOTTOM_MOUNT_POST_DIAMETER',31.75)} (1.25 in)",
+              f"seat edge margin = {mm('BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN',1)}",
+              f"seat diameter = {post_d+2*seat_margin:.2f} mm",
+              "The circular contact face is normal to the bolt axis.",
+              "Positive tilt points the case nose down."],GREEN)
+    note_box(fig,[0.655,0.18,0.28,0.17],"CAPTIVE NUT + RETENTION",
              [f"pocket interference = {mm('BOTTOM_MOUNT_NUT_PRESS_INTERFERENCE',0.15,2)}",
               f"minimum holder wall = {mm('BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL',4)}",
               f"minimum seat width = {mm('BOTTOM_MOUNT_NUT_MIN_SEAT_WIDTH',2)}",
-              f"nut thickness tolerance = {mm('BOTTOM_MOUNT_NUT_THICKNESS_TOLERANCE',0.3)}"],ORANGE)
-    note_box(fig,[0.655,0.18,0.28,0.17],"RETENTION",
-             ["Six independent flexible ramped lips permit top loading.",
               f"retention clearance = {mm('BOTTOM_MOUNT_NUT_SNAP_LIP_RETENTION_CLEARANCE',0.35,2)}",
-              f"flex wall = {mm('BOTTOM_MOUNT_NUT_SNAP_FLEX_WALL_THICKNESS',0.8)}",
-              "Measure the actual plated nut and calibrate press fit."],GREEN)
+              "Load the nut from inside along the tilted axis."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -3448,6 +3483,8 @@ def page_index(pdf):
         ]),
         ("BOTTOM INTERFACES",[
             ("Mount front-to-back station","BOTTOM_MOUNT_HOLE_FRONT_TO_BACK_FRACTION"),
+            ("Forward case tilt on vertical post","BOTTOM_MOUNT_FORWARD_TILT_DEG"),
+            ("Flush post face / seat margin","BOTTOM_MOUNT_POST_DIAMETER / BOTTOM_MOUNT_POST_SEAT_EDGE_MARGIN"),
             ("Through-hole diameter","BOTTOM_MOUNT_HOLE_DIAMETER"),
             ("Nut thread / across-flats / thickness","BOTTOM_MOUNT_NUT_THREAD_DIAMETER / BOTTOM_MOUNT_NUT_ACROSS_FLATS / BOTTOM_MOUNT_NUT_THICKNESS"),
             ("Nut-holder outer diameter / wall","BOTTOM_MOUNT_NUT_HOLDER_OUTER_DIAMETER / BOTTOM_MOUNT_NUT_HOLDER_MIN_WALL"),
