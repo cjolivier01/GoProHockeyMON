@@ -1,14 +1,17 @@
 # Dual MISSION 1 field case
 
 `mission1_field_case_blender.py` creates every printable part of a
-rugged case for two GoPro MISSION 1 cameras and four Enduro 2/HERO13-format
-batteries. It reads no STL during generation, and every part fits within a
-250 x 250 mm build area. The latch lever and moving hook are derived from the
+rugged case for two GoPro MISSION 1 cameras, four Enduro 2/HERO13-format
+batteries, and the assembled parametric dual-fan holder with two installed
+80 x 80 x 25 mm fans. It reads no STL during generation, and every part fits
+within a 250 x 250 mm build area. The rigid shell is 234 x 158 x 162.8 mm;
+its largest print-bed footprints are the 244 x 187.8 mm lid and the
+241.6 x 187.8 mm base. The latch lever and moving hook are derived from the
 mechanism in the user-supplied `pelican_case_blender_2.9.blend`; their processed
 mesh coordinates are embedded directly in the Python file, so generation does
 not load that `.blend` or any STL at runtime.
 
-Build all ten STLs and the multicolor 3MF project with:
+Build all eleven STLs and the multicolor 3MF project with:
 
 ```sh
 make -C models3d mission1-field-case
@@ -17,14 +20,34 @@ make -C models3d mission1-field-case
 The Makefile requires GNU Make 4.3 or newer. On macOS, install a current GNU
 Make and run the command as `gmake` when the system `make` is BSD Make.
 
-The lower insert is one flush-top TPU tray. In the assembled Blender scene its
-bottom is positioned at Z = 3.2 mm, directly on top of the rigid case floor;
-it does not share the floor's Z = 0-3.2 mm volume. The standalone STL and 3MF
-plate normalize the tray back to Z = 0 for printing. It has two independent
-camera pockets cut from the local procedural MISSION 1 body, including its
-offset lens housing, controls, and rounded body. The cameras face opposite
-directions so their lens lobes nest while a continuous TPU web keeps the
-pockets separate.
+## Stacked TPU storage tiers
+
+The lower insert is now
+`mission1_field_case_lower_fan_cradle_tpu.stl`, a 224 x 148 x 6 mm TPU
+locator. In the assembled Blender scene its bottom is at Z = 3.2 mm, directly
+on top of the rigid case floor; its standalone STL and 3MF plate are normalized
+back to Z = 0 for printing. A 214.5 x 131.71 x 3 mm shallow pocket locates the
+dual-fan holder's shared rear-grille contact plane while retaining a 3 mm TPU
+floor and at least 4.75 mm of TPU at the nearest cradle edge.
+
+The stored default dual-fan assembly is 212.5 x 129.71 x 95.57 mm including
+the holder, attached three-prong GoPro adapter, and installed fans. Place the
+complete assembly rear-grille-down, with its adapter projecting toward the
+front/latch side of the case. The two grille/frame contact regions seat in the
+shallow pocket; the adapter rises into the open lower tier. This matches the
+holder's supported print orientation and avoids a deep negative mold around
+the adapter. The assembly reaches approximately Z = 101.77 mm.
+
+`mission1_field_case_upper_equipment_tray_tpu.stl` is the removable
+224 x 148 x 35 mm upper tier. Its assembled bottom is at Z = 104 mm on two
+rigid side rails, leaving 2.23 mm above the stored fan assembly. Lift this tray
+out to install or remove the fan holder. The former rectangular and stepped
+generic storage compartments were removed to make room for the fan tier.
+
+The upper tray retains two independent camera pockets cut from the local
+procedural MISSION 1 body, including its offset lens housing, controls, and
+rounded body. The cameras face opposite directions so their lens lobes nest
+while a continuous TPU web keeps the pockets separate.
 Each lens end widens into a trapezoidal relief for the soft MISSION 1 Pro lens
 flare/hood. Four 34.5 x 13.5 mm battery pockets provide 1 mm total clearance
 around the 33.5 x 12.5 mm generated inspection batteries and retain their
@@ -33,17 +56,7 @@ terminal-down. Two outer 50 x 11 mm door pockets are recessed 11 mm. The
 generated 50 x 10 x 18 mm door solids remain 7 mm proud for an easy finger
 grip.
 
-Two miscellaneous-storage compartments follow the open side channels in the
-supplied `lower_tray.stl` reference. The left compartment runs beside both
-opposed cameras and is 37.8 x 118.4 x 31 mm. The right compartment is a
-continuous stepped pocket: its 58 x 52.9 mm lower section continues upward as
-a narrower 37.9 x 68.5 mm section beside the rear camera. The sections overlap,
-and a 2 mm inside fillet rounds the step instead of leaving a TPU tear point.
-Both compartments leave 4 mm of TPU beneath their floors and at least 4 mm to
-the tray side walls, enlarged battery-door slots, enlarged battery row, and
-procedural camera/hood recesses.
-
-The TPU lid pad has separate shutter-button reliefs. It also mirrors the lower
+The TPU lid pad has separate shutter-button reliefs. It also mirrors the upper
 tray's two trapezoidal MISSION 1 Pro lens-hood footprints as 2 mm-deep
 indentations in its camera-contact face, so the flared soft lens hoods are not
 pinched between the two TPU halves. Solid 10.4 mm TPU floors remain beneath
@@ -52,10 +65,12 @@ the pad seats in only the correct direction. Two localized 11 mm extensions
 meet the proud battery doors with the same 0.6 mm preload as the camera/battery
 contact face, preventing the doors from rattling when the case is closed.
 
-With `BUILD_REFERENCE_MOCKUPS = True`, the script also creates four procedural
-33.5 x 12.5 x 40.56 mm battery solids and two procedural 50 x 10 x 18 mm door
-solids seated in those pockets for visual inspection. They are reference-only
-scene objects, not additional STL dependencies or print outputs.
+With `BUILD_REFERENCE_MOCKUPS = True`, the script also creates the exact
+generated dual-fan holder and attached three-prong adapter, two installed
+80 x 80 x 25 mm fan solids, four procedural 33.5 x 12.5 x 40.56 mm battery
+solids, and two procedural 50 x 10 x 18 mm door solids for visual inspection.
+They are reference-only scene objects, not additional STL dependencies or
+print outputs.
 
 ## Lid logo
 
@@ -103,7 +118,7 @@ bridge that layer or generate broad support beneath it.
 The default integrated gasket is a closed hollow tube rather than a solid hard-
 TPU ring. Its 2.2 x 1.45 mm section contains a continuous 1.1 x 0.45 mm air
 channel, with 0.55 mm side walls, a 0.60 mm floor, and a 0.40 mm roof. The
-internal void removes 344.695 mm3 of TPU and lets a relatively hard material
+internal void removes 366.341 mm3 of TPU and lets a relatively hard material
 compress more readily while preserving the existing 0.25 mm proud seal height.
 The short 1.1 mm internal bridge needs no generated support.
 
@@ -149,8 +164,8 @@ guard. Its circular region clears the socket head, while a 45-degree roof
 closes the horizontal pocket for printing. The 3.0 mm-tall head sits 0.2 mm
 below the outside face. A standard nut is fully recessed in a captive 5.8
 mm-across-flats by 2.7 mm-deep hex pocket on the guard toward the case center.
-The M3 x 30 screw fully engages the 2.4 mm nut thickness, reaches 3.02 mm past
-the nut-pocket floor, and projects approximately 0.32 mm beyond the inboard
+The M3 x 30 screw fully engages the 2.4 mm nut thickness, reaches 2.82 mm past
+the nut-pocket floor, and projects approximately 0.12 mm beyond the inboard
 guard face. The captive pocket extends above the hex with its own 45-degree
 printable roof. At the moving pivot, the 4 mm rod passes through the lever's
 4.4 mm running bore and is retained by the hook's 3.9 mm bore.
@@ -226,10 +241,12 @@ Matching 6 mm-thick impact cheeks are integrated into the base on both sides
 of each lever. They stand forward of the closed lever, join the shell on
 45-degree support-free lower ramps, and use chamfered top returns instead of
 brittle square-ended posts. The added thickness fully encloses the fixed-pivot
-screw head and nut while preserving the original lever-facing surfaces and
-0.2 mm lever clearance on both sides. Together with the lid towers, they
+screw head and nut while the inner pivot ears preserve 0.2 mm lever clearance
+on both sides. Together with the lid towers, the cheeks
 protect the closed hardware from side hits and snags while leaving the full
-center finger corridor open. The horizontal catch rail is the only short
+center finger corridor open. A deliberate 0.1 mm offset prevents coincident
+ear/guard faces while preserving 0.3 mm between each guard and the moving
+lever. The horizontal catch rail is the only short
 bridge that may benefit from tuned bridging or localized support. The load
 ledge turns that bridge into an 8.6 mm-deep structural shelf tied into the lid
 wall and towers; the guard ramps themselves do not require support in the
@@ -312,9 +329,8 @@ Install the handle with one M3 x 12 ISO 4762 / DIN 912 Allen socket-head cap
 screw and one standard M3 hex nut per side. Each screw enters from the
 case-outside face of its handle fork, passes through the handle's continuous
 3.5 mm easy-running path and the existing base lug, and seats in the captive
-nut on the case-center face. The base is unchanged: both integrated mounting
-lugs retain their existing 3.9 mm bores, which already provide free travel for
-an M3 screw.
+nut on the case-center face. Both integrated mounting lugs retain their
+existing 3.9 mm bores, which already provide free travel for an M3 screw.
 
 Each 5.5 mm-maximum-diameter by 3.0 mm-tall socket head is fully recessed in a
 6.0 mm-diameter by 3.2 mm-deep cylindrical counterbore with a printable
@@ -326,12 +342,12 @@ reaches 4.2 mm past the nut-pocket floor, and projects 1.5 mm beyond the
 inboard handle face.
 
 The handle pivot is centered horizontally and vertically on the assembled case
-front: X = 0 and Z = 36.5 mm. The 95 mm-wide folded bar occupies only the
+front: X = 0 and Z = 86.9 mm. The 95 mm-wide folded bar occupies only the
 reserved center zone. The two exact latches retain their compatible X = ±82 mm
 centerlines; their
 moving levers remain 22.16 mm from the handle's full folded and swinging X
-envelope. The 6 mm integrated guards retain 15.96 mm from that envelope, and
-the installed latch M3 screw tips retain 15.64 mm. The two old
+envelope. The 6 mm integrated guards retain 15.86 mm from that envelope, and
+the installed latch M3 screw tips retain 15.74 mm. The two old
 front-center impact ribs are deliberately omitted so this entire access path
 stays open. When raised, the smaller 32.5 mm-drop handle leaves 28.1
 mm between the case face and the inside of the grip across the unobstructed 75
@@ -375,7 +391,7 @@ support removal, while the 10 mm outside diameter retains 2.6 mm of radial
 barrel wall.
 
 Generation checks 224 slot-aligned path positions from 0 through 65 degrees
-and verifies at least 0.687230 mm3 of blocking intersection at every sampled
+and verifies at least 0.687214 mm3 of blocking intersection at every sampled
 angle. At 70 degrees it checks 17 travel positions with the complete 151 mm
 rod centered and within 0.05 mm of both axial-play extremes: all 51 full-rod
 samples and all base/lid samples clear. It also checks each finished receiver,
@@ -388,7 +404,7 @@ placing each end 0.5 mm inside its base-knuckle face. Each lid stop begins 0.3
 mm beyond that face, leaving 0.8 mm clearance at each rod end and 1.6 mm total
 axial play. The stops therefore pass outside the rod during 70-degree slide-on
 assembly, then prevent it from walking out in either direction while the lid
-is attached. Their smaller diameter clears the unchanged base rear wall;
+is attached. Their smaller diameter clears the base rear wall;
 generated solid probes and deliberate axial-overtravel probes verify both
 stops and retention.
 
@@ -401,16 +417,17 @@ stops and retention.
   your printer handles reliably, at least five walls, and high infill around
   the flat bearing pad, round retention boss, and link-pivot end. Soft 95A
   tray-style settings are not recommended for this load-bearing part.
-- Lower tray and lid pad: TPU 95A, two or three walls, and 15-20% infill.
+- Lower fan cradle, upper equipment tray, and lid pad: TPU 95A, two or three
+  walls, and 15-20% infill.
 - Gasket: relatively hard TPU with a 0.4 mm nozzle and 0.20 mm layers. The air
   channel is modeled into the STL, so do not enable support or gap filling in
   that closed void. The gasket is for dust and splash resistance, not certified
   waterproofing.
-- Print the base, compound lid, tray, lid pad, latches, and handle bar in their
-  exported orientations. Their broad faces are already on the bed. With the
-  default option, the gasket is already positioned inside the compound lid;
-  the standalone gasket STL is an aligned multipart component, not a separate
-  Z = 0 print.
+- Print the base, compound lid, both trays, lid pad, latches, and handle bar in
+  their exported orientations. Their broad faces are already on the bed. With
+  the default option, the gasket is already positioned inside the compound
+  lid; the standalone gasket STL is an aligned multipart component, not a
+  separate Z = 0 print.
 - The case-side latch and handle mounts rise on 45-degree lower webs and do not
   require support. Do not place support inside their teardrop pivot bores.
 - The two lid hinge slots bridge the full 22.8 mm receiver widths in the broad-
@@ -427,8 +444,12 @@ and can be regenerated without editing an STL.
 
 ## Case assembly
 
-1. Press the lower TPU tray into the base and lay the two removable battery
-   doors in the shallow outer pockets if carried; each door remains 7 mm proud.
+1. Press the lower fan cradle into the base. Turn the complete dual-fan
+   assembly rear-grille-down, point its attached adapter toward the front/latch
+   side, and seat both fan-frame contact regions in the shallow locator pocket.
+   Place the upper equipment tray on the two rigid side rails. Load the two
+   removable battery doors in its shallow outer pockets if carried; each door
+   remains 7 mm proud.
 2. With the default integrated print, inspect the beam-interlocked TPU gasket
    for a continuous bond to the lid channel. If the separate-gasket option was
    used, seat the hollow TPU ring in the channel. Fit the TPU pad with its
@@ -437,7 +458,7 @@ and can be regenerated without editing an STL.
    pin) through the three base knuckles, leaving both ends about 0.5 mm inset.
    Hold the lid approximately 70 degrees open. Align both rearward-opening
    receivers with the installed bar and slide the lid diagonally down and rear
-   along the slot direction, then rotate it closed. The unchanged base
+   along the slot direction, then rotate it closed. The base
    blocks that same removal path through 65 degrees, while the two solid lid
    stops retain the bar axially.
 4. Install each latch with one M3 x 30 ISO 4762 / DIN 912 Allen socket-head cap
@@ -445,7 +466,8 @@ and can be regenerated without editing an STL.
    `LATCH_LINK_ROD_LENGTH`. Install the separate handle bar with two M3 x 12
    Allen socket-head screws and two standard M3 nuts, one set per side.
 5. Load the two opposed cameras with their soft lens hoods in the flared ends,
-   then load four batteries terminal-down.
+   then load four batteries terminal-down. Remove the cameras and batteries,
+   then lift out the upper tray, whenever the fan assembly must be removed.
 
 ## Reference acknowledgments
 
