@@ -7,7 +7,9 @@ from disk.  The default kit holds:
   lenses opposed and laterally nested, including flared soft-lens-hood reliefs,
 * four MISSION 1 Enduro 2 / HERO13-format batteries, terminal end downward,
 * two shallow flat pockets for the removable camera battery-cage doors,
-* a flush-top recessed TPU equipment tray and a one-way-keyed TPU lid pad,
+* a lower TPU cradle for the assembled parametric dual-80 mm-fan holder and
+  its installed 80 x 80 x 25 mm fans,
+* a removable upper TPU equipment tray and a one-way-keyed TPU lid pad,
 * a hollow TPU dust/splash gasket that prints into the lid by default, two
   source-derived two-piece Pelican latch
   mechanisms mounted on M3 fixed pivots and 4 mm moving-link rods, and a
@@ -44,7 +46,7 @@ Run inside Blender::
 
 Set ``EXPORT_STL = True`` below, or use
 ``make -C models3d mission1-field-case`` from the repository root, to emit
-all ten printable-part STLs and ``mission1_field_case_ams_project.3mf``.
+all eleven printable-part STLs and ``mission1_field_case_ams_project.3mf``.
 The 3MF contains the complete project; by default its lid is one compound object
 with a black shell, one flush orange text-and-block body, and one hollow TPU
 gasket joined through slicer-generated beam interlocking.  The standalone lid
@@ -80,8 +82,8 @@ import bpy
 from mathutils import Vector
 
 
-def import_mission1_module():
-    """Import the companion camera reference from CLI or Blender Text Editor."""
+def import_companion_module(module_name, sibling_directory):
+    """Import a companion generator from CLI or Blender's Text Editor."""
     script_path = Path(__file__).expanduser().resolve()
     script_parent = script_path.parent
     candidates = []
@@ -111,7 +113,7 @@ def import_mission1_module():
     active_text = getattr(space_data, "text", None)
     add_text_file_parent(getattr(active_text, "filepath", ""))
 
-    text_name = script_path.name
+    text_name = f"{module_name}.py"
     loaded_texts = tuple(getattr(bpy.data, "texts", ()))
     for text_block in loaded_texts:
         if Path(text_block.name).name == text_name:
@@ -132,9 +134,8 @@ def import_mission1_module():
 
     add_candidate(Path.cwd())
     for directory in tuple(candidates):
-        add_candidate(directory.parent / "mission1-dummy")
+        add_candidate(directory.parent / sibling_directory)
 
-    module_name = "gopro_mission1_dummy_blender"
     for directory in candidates:
         module_path = directory / f"{module_name}.py"
         if module_path.is_file():
@@ -162,12 +163,17 @@ def import_mission1_module():
             return module, directory
 
     searched = ", ".join(str(directory) for directory in candidates)
-    raise ModuleNotFoundError(
-        f"Could not locate {module_name}.py; searched: {searched}"
-    )
+    raise ModuleNotFoundError(f"Could not locate {module_name}.py; searched: {searched}")
 
 
-mission1, MISSION1_SOURCE_DIRECTORY = import_mission1_module()
+mission1, MISSION1_SOURCE_DIRECTORY = import_companion_module(
+    "gopro_mission1_dummy_blender",
+    "mission1-dummy",
+)
+dual_fan, DUAL_FAN_SOURCE_DIRECTORY = import_companion_module(
+    "dual_fan_parametric_blender",
+    "dual-fan",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +193,8 @@ PRINT_TPU_GASKET_WITH_LID = True
 
 BASE_STL_NAME = "mission1_field_case_base.stl"
 LID_STL_NAME = "mission1_field_case_lid.stl"
-LOWER_TRAY_STL_NAME = "mission1_field_case_lower_tray_tpu.stl"
+FAN_CRADLE_STL_NAME = "mission1_field_case_lower_fan_cradle_tpu.stl"
+EQUIPMENT_TRAY_STL_NAME = "mission1_field_case_upper_equipment_tray_tpu.stl"
 LID_RETAINER_STL_NAME = "mission1_field_case_lid_retainer_tpu.stl"
 GASKET_STL_NAME = "mission1_field_case_gasket_tpu.stl"
 LATCH_LEVER_STL_NAME = "mission1_field_case_pelican_latch_lever_print_two.stl"
@@ -200,7 +207,8 @@ PROJECT_3MF_NAME = "mission1_field_case_ams_project.3mf"
 PRINTABLE_STL_NAMES = (
     BASE_STL_NAME,
     LID_STL_NAME,
-    LOWER_TRAY_STL_NAME,
+    FAN_CRADLE_STL_NAME,
+    EQUIPMENT_TRAY_STL_NAME,
     LID_RETAINER_STL_NAME,
     GASKET_STL_NAME,
     LATCH_LEVER_STL_NAME,
@@ -215,15 +223,39 @@ PRINTABLE_STL_NAMES = (
 # PARAMETRIC CASE CONFIGURATION
 
 MAX_PRINT_XY = 250.0
+PROJECT_PLATE_SIZE = 250.0
 
-# Compact double-capacity shell based on the proportions and component split
-# of the supplied one-camera example, without consuming its mesh geometry.
-CASE_WIDTH = 216.0
-CASE_DEPTH = 154.0
-BASE_HEIGHT = 62.0
+# The dual-fan tier needs the full case footprint.  A 234 mm shell leaves the
+# 244 mm flanged lid below the 250 mm print-bed limit while providing at least
+# 4.75 mm of TPU beside the 214.5 mm fan-cradle pocket.
+CASE_WIDTH = 234.0
+CASE_DEPTH = 158.0
 CASE_CORNER_RADIUS = 12.0
 WALL_THICKNESS = 4.5
 BASE_FLOOR_THICKNESS = 3.2
+
+# Pack the dual-fan holder rear-grille-down, its support-conscious print
+# orientation.  The shallow TPU pocket locates that shared contact plane.  The
+# upper tray sits directly above the installed fan bodies while a localized
+# passage lets the stalk and attached GoPro adapter rise through it and into a
+# matching lid-pad relief.
+FAN_STORAGE_COUNT = 2
+FAN_STORAGE_SIZE_MM = 80.0
+FAN_STORAGE_DEPTH_MM = 25.0
+FAN_STORAGE_PLAN_CLEARANCE = 1.0
+FAN_CRADLE_HEIGHT = 6.0
+FAN_CRADLE_FLOOR_THICKNESS = 3.0
+FAN_CRADLE_INSTALLED_Z = BASE_FLOOR_THICKNESS
+FAN_BODY_TOP_CLEARANCE = 2.0
+FAN_ARM_RIGID_LID_CLEARANCE = 1.0
+EQUIPMENT_TRAY_INSTALLED_Z = 37.0
+EQUIPMENT_TRAY_LEDGE_THICKNESS = 4.0
+EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH = 5.0
+LEGACY_BASE_HEIGHT = 62.0
+LEGACY_EQUIPMENT_TRAY_INSTALLED_Z = BASE_FLOOR_THICKNESS
+BASE_HEIGHT = LEGACY_BASE_HEIGHT + (
+    EQUIPMENT_TRAY_INSTALLED_Z - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z
+)
 
 LID_PLATE_THICKNESS = 4.0
 LID_WALL_HEIGHT = 11.0
@@ -257,13 +289,117 @@ LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS = 2.0
 LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS = 8
 LID_DISPLAY_OFFSET_X = 215.0
 
-# The lower TPU insert is a continuous recessed tray.  All cavity walls point
-# down from one flat top surface; nothing protrudes above TRAY_HEIGHT.
+# The lower cradle and lid pad retain their close locator fit.  The frequently
+# removed upper equipment tray has twice the per-side clearance plus two front
+# finger scallops so it lifts without dragging on the shell walls.
 INSERT_SIDE_CLEARANCE = 0.5
+EQUIPMENT_TRAY_SIDE_CLEARANCE = 1.0
 TRAY_HEIGHT = 35.0
 TRAY_FLOOR_THICKNESS = 3.0
-LOWER_TRAY_INSTALLED_Z = BASE_FLOOR_THICKNESS
 INSERT_CORNER_RADIUS = CASE_CORNER_RADIUS - WALL_THICKNESS - 0.5
+EQUIPMENT_TRAY_CORNER_RADIUS = (
+    CASE_CORNER_RADIUS - WALL_THICKNESS - EQUIPMENT_TRAY_SIDE_CLEARANCE
+)
+EQUIPMENT_TRAY_LIFT_NOTCH_WIDTH = 18.0
+EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH = 18.0
+EQUIPMENT_TRAY_LIFT_NOTCH_X_CENTERS = (-96.0, 96.0)
+
+
+def dual_fan_storage_geometry():
+    """Return the configured holder/fan envelope and cradle contact bounds."""
+    dual_fan.apply_material_profile()
+    fan_specs = tuple(dual_fan.resolve_fan_specs())
+    fan_x0 = min(fan["center_x"] - fan["frame_size"] / 2.0 for fan in fan_specs)
+    fan_x1 = max(fan["center_x"] + fan["frame_size"] / 2.0 for fan in fan_specs)
+    fan_y0 = min(-fan["frame_size"] / 2.0 for fan in fan_specs)
+    fan_y1 = max(fan["frame_size"] / 2.0 for fan in fan_specs)
+    mating_y = (
+        dual_fan.mount_stalk_center_y()
+        - dual_fan.MOUNT_BLOCK_DEPTH_Y / 2.0
+        - dual_fan.GOPRO_ADAPTER_MATING_GAP
+    )
+    adapter_pivot_y = mating_y - dual_fan.GOPRO_PIVOT_FROM_MATING_FACE_Y
+    adapter_pivot_z = (
+        dual_fan.mount_block_center_z()
+        - dual_fan.GOPRO_PIVOT_BELOW_MOUNT_HOLES_Z
+    )
+    grill_z0, _grill_z1 = dual_fan.fan_grill_z_bounds()
+    source_bounds = (
+        fan_x0,
+        fan_x1,
+        min(fan_y0, adapter_pivot_y - dual_fan.GOPRO_PRONG_RADIUS),
+        fan_y1,
+        min(
+            adapter_pivot_z - dual_fan.GOPRO_PRONG_RADIUS,
+            *(grill_z0 - fan["depth"] for fan in fan_specs),
+        ),
+        dual_fan.attachment_plane_z(),
+    )
+    source_center_x = (source_bounds[0] + source_bounds[1]) / 2.0
+    source_center_y = (source_bounds[2] + source_bounds[3]) / 2.0
+    placement = (source_center_x, -source_center_y)
+
+    # The pocket is shallow, but use the complete plan envelope so the routed
+    # stalk cannot clip a pocket wall as it rises from the shared rear print
+    # plane.  The adapter still needs no deep negative mold.
+    contact_source_bounds = (
+        fan_x0,
+        fan_x1,
+        source_bounds[2],
+        source_bounds[3],
+    )
+    installed_contact_x = sorted(
+        (
+            -contact_source_bounds[0] + placement[0],
+            -contact_source_bounds[1] + placement[0],
+        )
+    )
+    installed_contact_y = (
+        contact_source_bounds[2] + placement[1],
+        contact_source_bounds[3] + placement[1],
+    )
+    cavity_bounds = (
+        installed_contact_x[0] - FAN_STORAGE_PLAN_CLEARANCE,
+        installed_contact_x[1] + FAN_STORAGE_PLAN_CLEARANCE,
+        installed_contact_y[0] - FAN_STORAGE_PLAN_CLEARANCE,
+        installed_contact_y[1] + FAN_STORAGE_PLAN_CLEARANCE,
+    )
+    return {
+        "fan_specs": fan_specs,
+        "source_bounds": source_bounds,
+        "source_dimensions": (
+            source_bounds[1] - source_bounds[0],
+            source_bounds[3] - source_bounds[2],
+            source_bounds[5] - source_bounds[4],
+        ),
+        "placement": placement,
+        "cavity_bounds": cavity_bounds,
+    }
+
+
+DUAL_FAN_STORAGE = dual_fan_storage_geometry()
+FAN_ASSEMBLY_INSTALLED_BOTTOM_Z = (
+    FAN_CRADLE_INSTALLED_Z + FAN_CRADLE_FLOOR_THICKNESS
+)
+FAN_ASSEMBLY_INSTALLED_TOP_Z = (
+    FAN_ASSEMBLY_INSTALLED_BOTTOM_Z + DUAL_FAN_STORAGE["source_dimensions"][2]
+)
+FAN_STORAGE_TRANSLATION_Z = (
+    FAN_ASSEMBLY_INSTALLED_BOTTOM_Z + DUAL_FAN_STORAGE["source_bounds"][5]
+)
+FAN_GRILL_INSTALLED_SOURCE_Z0 = dual_fan.fan_grill_z_bounds()[0]
+FAN_BODY_INSTALLED_TOP_Z = max(
+    FAN_STORAGE_TRANSLATION_Z
+    - (FAN_GRILL_INSTALLED_SOURCE_Z0 - fan["depth"])
+    for fan in DUAL_FAN_STORAGE["fan_specs"]
+)
+
+# Exact reference slicing shows that only this compact front-center arm region
+# remains above the fan bodies.  The default dual-fan configuration is locked
+# below, and exact built-scene collision checks reject any source change that
+# outgrows this 1.5+ mm-clearance passage.
+FAN_ARM_PASSAGE_BOUNDS = (-8.0, 31.5, -66.5, -19.0)
+FAN_ARM_PASSAGE_CORNER_RADIUS = 3.0
 
 # Camera cavities are cut directly with expanded copies of the procedural
 # MISSION 1 mesh.  Camera 1 faces +Y; camera 2 faces -Y and is rolled in plan,
@@ -275,7 +411,7 @@ CAMERA_POCKET_CLEARANCE_XY = 0.8
 CAMERA_POCKET_CLEARANCE_Z = 0.4
 CAMERA_FLOOR_Z = TRAY_FLOOR_THICKNESS
 MIN_CAMERA_POCKET_WEB = 2.0
-CAMERA_PAIR_CENTER_Y = 20.0
+CAMERA_PAIR_CENTER_Y = 27.0
 # The optional soft MISSION 1 Pro lens hood flares beyond the square lens
 # housing.  Its tray relief is a plan-view trapezoid: narrow at the lens base
 # and wider/longer toward the hood mouth, matching the supplied case photos.
@@ -316,10 +452,10 @@ BATTERY_POCKET_DEPTH = BATTERY_WIDTH + BATTERY_CLEARANCE
 BATTERY_POCKET_INSERTION_DEPTH = 21.8
 BATTERY_FLOOR_Z = TRAY_HEIGHT - BATTERY_POCKET_INSERTION_DEPTH
 BATTERY_CENTERS = (
-    (-30.0, -48.0),
-    (-10.0, -48.0),
-    (10.0, -48.0),
-    (30.0, -48.0),
+    (-72.0, -48.0),
+    (-52.0, -48.0),
+    (52.0, -48.0),
+    (72.0, -48.0),
 )
 
 # Each removable battery-cage door lies flat in a 50 x 11 mm pocket sunk only
@@ -329,7 +465,7 @@ BATTERY_DOOR_SIZE = (50.0, 10.0, 18.0)
 BATTERY_DOOR_SLOT_SIZE = (BATTERY_DOOR_SIZE[0], 11.0)
 BATTERY_DOOR_SLOT_DEPTH = 11.0
 BATTERY_DOOR_SLOT_FLOOR_Z = TRAY_HEIGHT - BATTERY_DOOR_SLOT_DEPTH
-BATTERY_DOOR_SLOT_CENTERS = ((-70.0, -60.0), (70.0, -60.0))
+BATTERY_DOOR_SLOT_CENTERS = ((-82.0, -8.0), (82.0, -8.0))
 BATTERY_DOOR_LID_HOLD_DOWN_SIZE = (42.0, 7.0)
 BATTERY_DOOR_LID_HOLD_DOWN_EXTENSION = (
     CAMERA_FLOOR_Z
@@ -337,33 +473,11 @@ BATTERY_DOOR_LID_HOLD_DOWN_EXTENSION = (
     - (BATTERY_DOOR_SLOT_FLOOR_Z + BATTERY_DOOR_SIZE[2])
 )
 
-# Two deep miscellaneous-storage pockets follow the large side channels shown
-# in the supplied lower_tray.stl reference.  The left pocket continues beside
-# both opposed cameras.  The right pocket is one continuous stepped cavity: a
-# wide lower lobe clears the battery-door slot and the flared lens hood, while
-# a narrower upper lobe continues beside the rear camera.  A circular cutter
-# rounds the re-entrant step to avoid a TPU tear point.  Their envelopes
-# preserve 4 mm to the tray floor, outer side walls, door slots, battery row,
-# and camera/hood cutters.  The 0.1 mm reductions at both outer edges preserve
-# 4 mm after mesh polygonization, and the left pocket's 0.1 mm inboard
-# reduction makes its hood web a true 4 mm.
-MISC_COMPARTMENT_MIN_WEB = 4.0
-MISC_COMPARTMENT_FLOOR_Z = MISC_COMPARTMENT_MIN_WEB
-MISC_COMPARTMENT_LOBE_BOUNDS = (
-    (((-98.9, -61.1), (-50.4, 68.0)),),
-    (
-        ((40.9, 98.9), (-50.4, 2.5)),
-        ((61.0, 98.9), (-0.5, 68.0)),
-    ),
-)
-MISC_COMPARTMENT_CORNER_RADIUS = 3.0
-MISC_COMPARTMENT_STEP_FILLETS = ((), ((61.0, 2.5, 2.0),))
-
 LID_RETAINER_HEIGHT = 12.4
 LID_BUTTON_RELIEF_DEPTH = 4.2
 LID_BUTTON_RELIEF_CLEARANCE = 1.0
 LID_LENS_HOOD_RELIEF_DEPTH = 2.0
-LID_PAD_KEY_CENTER = (-42.0, -69.0)
+LID_PAD_KEY_CENTER = (-42.0, -71.0)
 LID_PAD_KEY_NOTCH_SIZE = (14.0, 8.0)
 LID_PAD_KEY_BOSS_SIZE = (12.0, 6.0, 4.0)
 
@@ -518,6 +632,8 @@ LATCH_X_CENTERS = (-82.0, 82.0)
 LATCH_LINK_ROD_DIAMETER = 4.0
 LATCH_PRESS_FIT_BORE_DIAMETER = 3.9
 LATCH_RUNNING_BORE_DIAMETER = 4.4
+LATCH_VERTICAL_OFFSET = BASE_HEIGHT - LEGACY_BASE_HEIGHT
+LATCH_DEPTH_OFFSET = (CASE_DEPTH - 154.0) / 2.0
 LATCH_FIXED_M3_NOMINAL_DIAMETER = 3.0
 LATCH_FIXED_M3_CLEARANCE_DIAMETER = 3.5
 LATCH_FIXED_M3_COUNTERBORE_DIAMETER = 6.0
@@ -570,8 +686,8 @@ LATCH_LINK_PIVOT_LOCAL_YZ = (
     LATCH_LINK_PIVOT_LOCAL_Y,
     LATCH_LINK_PIVOT_LOCAL_Z,
 )
-LATCH_BASE_PIVOT_Y = -85.0
-LATCH_BASE_PIVOT_Z = 41.65
+LATCH_BASE_PIVOT_Y = -CASE_DEPTH / 2.0 - 8.0
+LATCH_BASE_PIVOT_Z = 41.65 + LATCH_VERTICAL_OFFSET
 LATCH_LEVER_CLOSED_ANGLE = 0.0
 LATCH_LEVER_OPEN_ANGLE = -80.0
 LATCH_HOOK_CLOSED_ANGLE = -80.0
@@ -598,7 +714,7 @@ LATCH_BASE_EAR_PROFILE_YZ = support_free_mount_profile_yz(
     LATCH_BASE_PIVOT_Z,
     PIVOT_MOUNT_BODY_Y,
     LATCH_MOUNT_LOWER_Z,
-    54.5,
+    54.5 + LATCH_VERTICAL_OFFSET,
     PIVOT_MOUNT_OUTER_RADIUS,
 )
 LATCH_LEVER_FIXED_BOSS_RADIUS = (
@@ -669,7 +785,10 @@ LATCH_CAPTURE_FLAT_PAD_CASEWARD_LENGTH = 1.3
 LATCH_CAPTURE_FLAT_PAD_HEIGHT = 2.8
 LATCH_CAPTURE_FLAT_PAD_SEATED_CLEARANCE = 0.14
 LATCH_CAPTURE_FLAT_PAD_RAIL_CLEARANCE = 0.05
-LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y = -82.5
+LATCH_CAPTURE_LOWER_JAW_REMOVAL_OUTWARD_Y = -91.0 - LATCH_DEPTH_OFFSET
+LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y = -82.5 - LATCH_DEPTH_OFFSET
+LATCH_CAPTURE_LOWER_JAW_REMOVAL_BOTTOM_Z = 53.0 + LATCH_VERTICAL_OFFSET
+LATCH_CAPTURE_LOWER_JAW_REMOVAL_TOP_Z = 61.85 + LATCH_VERTICAL_OFFSET
 LATCH_CAPTURE_OUTWARD_PEEL_TRAVEL = 0.6
 LATCH_CAPTURE_OUTWARD_PEEL_MIN_VOLUME = 0.02
 LID_LATCH_LOAD_LEDGE_CONTACT_Z = LID_LATCH_CAPTURE_RAIL_CENTER_Z - 0.2
@@ -678,27 +797,26 @@ LATCH_FINGER_ACCESS_CLEARANCE = 22.0
 LATCH_GUARD_HANDLE_CLEARANCE = 15.5
 LATCH_HARDWARE_HANDLE_CLEARANCE = 15.0
 LATCH_PROTECTOR_BASE_WIDTH = 6.0
+# Move the thicker protector 0.1 mm beyond the pivot ear's old coplanar outer
+# face.  The resulting volumetric overlap makes the tall-base Boolean robust
+# while retaining 0.3 mm of clearance from the moving lever.
 LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT = (
     LATCH_PROTECTOR_BASE_WIDTH - LATCH_BASE_EAR_WIDTH
-) / 2.0
+) / 2.0 + 0.1
 LATCH_PROTECTOR_MOUNT_HALF_WIDTH = (
     LATCH_BASE_EAR_CENTER_OFFSET_X
     + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
     + LATCH_PROTECTOR_BASE_WIDTH / 2.0
 )
-LATCH_FIXED_M3_GUARD_SPAN = (
-    LATCH_WIDTH
-    + 2.0 * LATCH_BASE_EAR_AXIAL_CLEARANCE
-    + 2.0 * LATCH_PROTECTOR_BASE_WIDTH
-)
+LATCH_FIXED_M3_GUARD_SPAN = 2.0 * LATCH_PROTECTOR_MOUNT_HALF_WIDTH
 LATCH_PROTECTOR_BODY_Y = -CASE_DEPTH / 2.0 + 0.3
-LATCH_PROTECTOR_FRONT_Y = -98.0
-LATCH_PROTECTOR_ROOT_Z = 3.0
+LATCH_PROTECTOR_FRONT_Y = -CASE_DEPTH / 2.0 - LID_LATCH_PROTECTOR_PLATE_PROJECTION
+LATCH_PROTECTOR_ROOT_Z = 3.0 + LATCH_VERTICAL_OFFSET
 LATCH_PROTECTOR_FRONT_LOWER_Z = LATCH_PROTECTOR_ROOT_Z + abs(
     LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y
 )
-LATCH_PROTECTOR_FRONT_UPPER_Z = 53.5
-LATCH_PROTECTOR_TOP_Z = 56.5
+LATCH_PROTECTOR_FRONT_UPPER_Z = 53.5 + LATCH_VERTICAL_OFFSET
+LATCH_PROTECTOR_TOP_Z = 56.5 + LATCH_VERTICAL_OFFSET
 LATCH_PROTECTOR_PROFILE_YZ = (
     (LATCH_PROTECTOR_BODY_Y, LATCH_PROTECTOR_ROOT_Z),
     (LATCH_PROTECTOR_FRONT_Y, LATCH_PROTECTOR_FRONT_LOWER_Z),
@@ -947,7 +1065,7 @@ HANDLE_BASE_EAR_PROFILE_YZ = support_free_mount_profile_yz(
     HANDLE_PIVOT_Z,
     PIVOT_MOUNT_BODY_Y,
     HANDLE_MOUNT_LOWER_Z,
-    49.0,
+    49.0 + LATCH_VERTICAL_OFFSET / 2.0,
     PIVOT_MOUNT_OUTER_RADIUS,
 )
 HANDLE_FORK_SWEEP_CLEARANCE = 0.6
@@ -3252,29 +3370,81 @@ def rectangles_overlap(a_center, a_size, b_center, b_size, gap=0.0):
     )
 
 
-def circle_rectangle_clearance(circle_center, circle_radius, rectangle_bounds):
-    """Return edge clearance from an XY circle to an axis-aligned rectangle."""
-    rectangle_min_x, rectangle_max_x, rectangle_min_y, rectangle_max_y = (
-        rectangle_bounds
-    )
-    delta_x = max(
-        rectangle_min_x - circle_center[0],
-        0.0,
-        circle_center[0] - rectangle_max_x,
-    )
-    delta_y = max(
-        rectangle_min_y - circle_center[1],
-        0.0,
-        circle_center[1] - rectangle_max_y,
-    )
-    return math.hypot(delta_x, delta_y) - circle_radius
-
-
 def validate_configuration() -> None:
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
-    tray_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
-    tray_depth = inner_depth - 2.0 * INSERT_SIDE_CLEARANCE
+    cradle_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
+    cradle_depth = inner_depth - 2.0 * INSERT_SIDE_CLEARANCE
+    tray_width = inner_width - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE
+    tray_depth = inner_depth - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE
+    retainer_width = cradle_width
+    retainer_depth = cradle_depth
+
+    fan_specs = DUAL_FAN_STORAGE["fan_specs"]
+    if not (
+        dual_fan.MATERIAL_MODE == "TPU"
+        and dual_fan.FAN_COUNT == FAN_STORAGE_COUNT
+        and len(fan_specs) == FAN_STORAGE_COUNT
+        and all(
+            math.isclose(fan["size"], FAN_STORAGE_SIZE_MM, abs_tol=1e-6)
+            and math.isclose(fan["depth"], FAN_STORAGE_DEPTH_MM, abs_tol=1e-6)
+            for fan in fan_specs
+        )
+        and all(
+            math.isclose(angle, 0.0, abs_tol=1e-9)
+            for fan in fan_specs
+            for angle in fan["rotation"]
+        )
+        and dual_fan.SUPPORT_ENABLED
+        and dual_fan.STALK_ENABLED
+        and dual_fan.MOUNT_BLOCK_ENABLED
+        and dual_fan.GOPRO_ADAPTER_ENABLED
+        and dual_fan.FAN_GRILL_ON_BACK
+        and dual_fan.STALK_DROPPED_ROUTE_ENABLED
+        and dual_fan.configured_gopro_adapter_prong_counts()[0] == 3
+    ):
+        raise ValueError(
+            "Fan storage requires the complete default TPU dual-80 mm rear-grille "
+            "holder, zero fan rotations, dropped route, 25 mm fans, and attached "
+            "3-prong adapter"
+        )
+    cavity_x0, cavity_x1, cavity_y0, cavity_y1 = DUAL_FAN_STORAGE["cavity_bounds"]
+    cradle_walls = (
+        cavity_x0 + cradle_width / 2.0,
+        cradle_width / 2.0 - cavity_x1,
+        cavity_y0 + cradle_depth / 2.0,
+        cradle_depth / 2.0 - cavity_y1,
+    )
+    if min(cradle_walls) < 4.0:
+        raise ValueError(
+            "Dual-fan cradle pocket needs at least 4 mm of TPU to every edge"
+        )
+    if FAN_CRADLE_FLOOR_THICKNESS < 3.0:
+        raise ValueError("Dual-fan cradle needs at least a 3 mm TPU floor")
+    if FAN_CRADLE_HEIGHT <= FAN_CRADLE_FLOOR_THICKNESS:
+        raise ValueError("Dual-fan cradle pocket needs positive locating depth")
+    fan_body_vertical_clearance = (
+        EQUIPMENT_TRAY_INSTALLED_Z - FAN_BODY_INSTALLED_TOP_Z
+    )
+    if fan_body_vertical_clearance < FAN_BODY_TOP_CLEARANCE:
+        raise ValueError(
+            "Upper equipment tray does not clear the installed fan bodies"
+        )
+    fan_width, fan_depth, fan_height = DUAL_FAN_STORAGE["source_dimensions"]
+    if fan_width > cradle_width or fan_depth > cradle_depth:
+        raise ValueError("Stored dual-fan assembly exceeds the lower tier footprint")
+    ledge_opening = (
+        inner_width - 2.0 * EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH,
+        inner_depth - 2.0 * EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH,
+    )
+    if fan_width > ledge_opening[0] or fan_depth > ledge_opening[1]:
+        raise ValueError("Upper tray support ledge enters the dual-fan envelope")
+    if not math.isclose(
+        BASE_HEIGHT - EQUIPMENT_TRAY_INSTALLED_Z,
+        LEGACY_BASE_HEIGHT - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("Upper equipment tier no longer preserves lid-pad preload")
 
     if not (
         math.isclose(BATTERY_POCKET_DEPTH, 34.5, abs_tol=1e-6)
@@ -3294,14 +3464,19 @@ def validate_configuration() -> None:
         )
     ):
         raise ValueError("Battery-door lid hold-down must fit inside the door outline")
-    if min(WALL_THICKNESS, BASE_FLOOR_THICKNESS, TRAY_FLOOR_THICKNESS) < 2.0:
+    if min(
+        WALL_THICKNESS,
+        BASE_FLOOR_THICKNESS,
+        TRAY_FLOOR_THICKNESS,
+        FAN_CRADLE_FLOOR_THICKNESS,
+    ) < 2.0:
         raise ValueError("Default shell walls and all floors must remain at least 2 mm")
     if not math.isclose(
-        LOWER_TRAY_INSTALLED_Z,
+        FAN_CRADLE_INSTALLED_Z,
         BASE_FLOOR_THICKNESS,
         abs_tol=1e-6,
     ):
-        raise ValueError("The installed lower tray must rest on top of the base floor")
+        raise ValueError("The installed fan cradle must rest on top of the base floor")
     hinge_segments = sorted(
         (*HINGE_BASE_SEGMENTS, *HINGE_LID_SEGMENTS),
         key=lambda segment: segment[0],
@@ -3403,8 +3578,6 @@ def validate_configuration() -> None:
     ):
         raise ValueError("Base hinge gusset must remain below the rod bore")
 
-    retainer_width = tray_width
-    retainer_depth = tray_depth
     key_x, key_y = LID_PAD_KEY_CENTER
     notch_width, notch_depth = LID_PAD_KEY_NOTCH_SIZE
     boss_width, boss_depth, boss_height = LID_PAD_KEY_BOSS_SIZE
@@ -3418,6 +3591,36 @@ def validate_configuration() -> None:
     notch_max_y = key_y + notch_depth / 2.0
     if not notch_min_y <= -retainer_depth / 2.0 < notch_max_y:
         raise ValueError("Lid-pad key notch must remain open through one end perimeter")
+
+    arm_x0, arm_x1, arm_y0, arm_y1 = FAN_ARM_PASSAGE_BOUNDS
+    arm_passage_center = ((arm_x0 + arm_x1) / 2.0, (arm_y0 + arm_y1) / 2.0)
+    arm_passage_size = (arm_x1 - arm_x0, arm_y1 - arm_y0)
+    arm_passage_edge_walls = (
+        arm_x0 + tray_width / 2.0,
+        tray_width / 2.0 - arm_x1,
+        arm_y0 + tray_depth / 2.0,
+        tray_depth / 2.0 - arm_y1,
+    )
+    if min(arm_passage_edge_walls) < 4.0:
+        raise ValueError("Fan-arm passage needs at least 4 mm to every tray edge")
+
+    lift_notch_size = (
+        EQUIPMENT_TRAY_LIFT_NOTCH_WIDTH,
+        EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH,
+    )
+    lift_notch_center_y = -tray_depth / 2.0
+    lift_notch_centers = tuple(
+        (center_x, lift_notch_center_y)
+        for center_x in EQUIPMENT_TRAY_LIFT_NOTCH_X_CENTERS
+    )
+    for center in lift_notch_centers:
+        if abs(center[0]) + lift_notch_size[0] / 2.0 > tray_width / 2.0:
+            raise ValueError("An equipment-tray lift scallop exceeds the tray width")
+        if not (
+            center[1] - lift_notch_size[1] / 2.0 < -tray_depth / 2.0
+            < center[1] + lift_notch_size[1] / 2.0
+        ):
+            raise ValueError("Each tray lift scallop must open through the front edge")
 
     camera_bounds = []
     reference_corners = (
@@ -3439,6 +3642,16 @@ def validate_configuration() -> None:
             raise ValueError(f"Camera cavity exceeds tray width: {placement}")
         if min_y < -tray_depth / 2.0 or max_y > tray_depth / 2.0:
             raise ValueError(f"Camera cavity exceeds tray depth: {placement}")
+        camera_center = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+        camera_size = (max_x - min_x, max_y - min_y)
+        if rectangles_overlap(
+            camera_center,
+            camera_size,
+            arm_passage_center,
+            arm_passage_size,
+            gap=2.0,
+        ):
+            raise ValueError("Fan-arm passage needs a 2 mm web from each camera pocket")
 
     camera_center_x = (mission1.REFERENCE_MIN_X + mission1.REFERENCE_MAX_X) / 2.0
     camera_center_y = (mission1.REFERENCE_MIN_Y + mission1.REFERENCE_MAX_Y) / 2.0
@@ -3481,6 +3694,16 @@ def validate_configuration() -> None:
             raise ValueError("Soft lens-hood relief exceeds the tray width")
         if min_y < -tray_depth / 2.0 or max_y > tray_depth / 2.0:
             raise ValueError("Soft lens-hood relief exceeds the tray depth")
+        hood_center = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+        hood_size = (max_x - min_x, max_y - min_y)
+        if rectangles_overlap(
+            hood_center,
+            hood_size,
+            arm_passage_center,
+            arm_passage_size,
+            gap=2.0,
+        ):
+            raise ValueError("Fan-arm passage needs a 2 mm web from each hood relief")
     hood_lateral_web = max(
         hood_bounds[1][0] - hood_bounds[0][1],
         hood_bounds[0][0] - hood_bounds[1][1],
@@ -3511,6 +3734,25 @@ def validate_configuration() -> None:
                     "Battery cavities overlap or have less than 2 mm clearance: "
                     f"{center} and {other}"
                 )
+        if rectangles_overlap(
+            center,
+            battery_size,
+            arm_passage_center,
+            arm_passage_size,
+            gap=2.0,
+        ):
+            raise ValueError("A battery pocket enters the fan-arm passage")
+        if any(
+            rectangles_overlap(
+                center,
+                battery_size,
+                notch_center,
+                lift_notch_size,
+                gap=2.0,
+            )
+            for notch_center in lift_notch_centers
+        ):
+            raise ValueError("A battery pocket enters a tray lift scallop")
         battery_top = center[1] + battery_size[1] / 2.0
         nearest_camera = min(bounds[2] for bounds in camera_bounds)
         if battery_top + 4.0 > nearest_camera:
@@ -3538,9 +3780,41 @@ def validate_configuration() -> None:
                 center, door_slot_size, other, door_slot_size, gap=2.0
             ):
                 raise ValueError("Battery-cage-door slots need a 2 mm TPU web")
-        nearest_camera = min(bounds[2] for bounds in camera_bounds)
-        if center[1] + door_slot_size[1] / 2.0 + 4.0 > nearest_camera:
-            raise ValueError("Battery-cage-door slot needs 4 mm camera clearance")
+        if rectangles_overlap(
+            center,
+            door_slot_size,
+            arm_passage_center,
+            arm_passage_size,
+            gap=2.0,
+        ):
+            raise ValueError("A battery-cage-door slot enters the fan-arm passage")
+        if any(
+            rectangles_overlap(
+                center,
+                door_slot_size,
+                notch_center,
+                lift_notch_size,
+                gap=2.0,
+            )
+            for notch_center in lift_notch_centers
+        ):
+            raise ValueError("A battery-cage-door slot enters a tray lift scallop")
+        for bounds in (*camera_bounds, *hood_bounds):
+            bounds_center = (
+                (bounds[0] + bounds[1]) / 2.0,
+                (bounds[2] + bounds[3]) / 2.0,
+            )
+            bounds_size = (bounds[1] - bounds[0], bounds[3] - bounds[2])
+            if rectangles_overlap(
+                center,
+                door_slot_size,
+                bounds_center,
+                bounds_size,
+                gap=4.0,
+            ):
+                raise ValueError(
+                    "Battery-cage-door slot needs 4 mm camera/hood clearance"
+                )
         hold_down_center = (center[0], -center[1])
         if (
             abs(hold_down_center[0]) + BATTERY_DOOR_LID_HOLD_DOWN_SIZE[0] / 2.0
@@ -3549,186 +3823,6 @@ def validate_configuration() -> None:
             > retainer_depth / 2.0
         ):
             raise ValueError("Battery-door lid hold-down exceeds the TPU lid pad")
-
-    if not (
-        len(MISC_COMPARTMENT_LOBE_BOUNDS) == 2
-        and len(MISC_COMPARTMENT_STEP_FILLETS) == 2
-    ):
-        raise ValueError("Exactly two miscellaneous compartments are required")
-    if MISC_COMPARTMENT_FLOOR_Z < MISC_COMPARTMENT_MIN_WEB:
-        raise ValueError("Miscellaneous compartments need a 4 mm TPU floor")
-    misc_lobe_specs = []
-    for compartment_index, (lobe_bounds, step_fillets) in enumerate(
-        zip(MISC_COMPARTMENT_LOBE_BOUNDS, MISC_COMPARTMENT_STEP_FILLETS),
-        start=1,
-    ):
-        if not lobe_bounds:
-            raise ValueError("Each miscellaneous compartment needs a cavity lobe")
-        compartment_lobe_specs = []
-        for x_bounds, y_bounds in lobe_bounds:
-            misc_width = x_bounds[1] - x_bounds[0]
-            misc_depth = y_bounds[1] - y_bounds[0]
-            misc_center = (sum(x_bounds) / 2.0, sum(y_bounds) / 2.0)
-            misc_size = (misc_width, misc_depth)
-            misc_bounds = (*x_bounds, *y_bounds)
-            compartment_lobe_specs.append((misc_center, misc_size, misc_bounds))
-            if (
-                abs(misc_center[0]) + misc_width / 2.0 + MISC_COMPARTMENT_MIN_WEB
-                > tray_width / 2.0 + 1e-6
-                or abs(misc_center[1]) + misc_depth / 2.0 + MISC_COMPARTMENT_MIN_WEB
-                > tray_depth / 2.0 + 1e-6
-            ):
-                raise ValueError("Miscellaneous compartment weakens a TPU side wall")
-            for bounds in (*camera_bounds, *hood_bounds):
-                neighbor_center = (
-                    (bounds[0] + bounds[1]) / 2.0,
-                    (bounds[2] + bounds[3]) / 2.0,
-                )
-                neighbor_size = (bounds[1] - bounds[0], bounds[3] - bounds[2])
-                if rectangles_overlap(
-                    misc_center,
-                    misc_size,
-                    neighbor_center,
-                    neighbor_size,
-                    gap=MISC_COMPARTMENT_MIN_WEB,
-                ):
-                    raise ValueError(
-                        "Miscellaneous compartment needs 4 mm from camera recesses"
-                    )
-            for center in BATTERY_CENTERS:
-                if rectangles_overlap(
-                    misc_center,
-                    misc_size,
-                    center,
-                    battery_size,
-                    gap=MISC_COMPARTMENT_MIN_WEB,
-                ):
-                    raise ValueError(
-                        "Miscellaneous compartment needs 4 mm from battery pockets"
-                    )
-            for center in BATTERY_DOOR_SLOT_CENTERS:
-                if rectangles_overlap(
-                    misc_center,
-                    misc_size,
-                    center,
-                    door_slot_size,
-                    gap=MISC_COMPARTMENT_MIN_WEB,
-                ):
-                    raise ValueError(
-                        "Miscellaneous compartment needs 4 mm from battery-door slots"
-                    )
-
-        connected_lobes = {0}
-        while True:
-            newly_connected = {
-                candidate_index
-                for connected_index in connected_lobes
-                for candidate_index, candidate in enumerate(compartment_lobe_specs)
-                if candidate_index not in connected_lobes
-                and rectangles_overlap(
-                    compartment_lobe_specs[connected_index][0],
-                    compartment_lobe_specs[connected_index][1],
-                    candidate[0],
-                    candidate[1],
-                )
-            }
-            if not newly_connected:
-                break
-            connected_lobes.update(newly_connected)
-        if len(connected_lobes) != len(compartment_lobe_specs):
-            raise ValueError(
-                f"Miscellaneous compartment {compartment_index} is not continuous"
-            )
-
-        for fillet_x, fillet_y, fillet_radius in step_fillets:
-            fillet_center = (fillet_x, fillet_y)
-            if fillet_radius <= 0.0:
-                raise ValueError("Miscellaneous step fillet radius must be positive")
-            if (
-                abs(fillet_x) + fillet_radius + MISC_COMPARTMENT_MIN_WEB
-                > tray_width / 2.0 + 1e-6
-                or abs(fillet_y) + fillet_radius + MISC_COMPARTMENT_MIN_WEB
-                > tray_depth / 2.0 + 1e-6
-            ):
-                raise ValueError("Miscellaneous step fillet weakens a TPU side wall")
-            if (
-                sum(
-                    circle_rectangle_clearance(
-                        fillet_center,
-                        fillet_radius,
-                        lobe_spec[2],
-                    )
-                    <= 0.0
-                    for lobe_spec in compartment_lobe_specs
-                )
-                < 2
-            ):
-                raise ValueError(
-                    "Miscellaneous step fillet must blend two cavity lobes"
-                )
-            for bounds in (*camera_bounds, *hood_bounds):
-                if (
-                    circle_rectangle_clearance(
-                        fillet_center,
-                        fillet_radius,
-                        bounds,
-                    )
-                    < MISC_COMPARTMENT_MIN_WEB
-                ):
-                    raise ValueError(
-                        "Miscellaneous step fillet needs 4 mm from camera recesses"
-                    )
-            for center in BATTERY_CENTERS:
-                battery_bounds = (
-                    center[0] - battery_size[0] / 2.0,
-                    center[0] + battery_size[0] / 2.0,
-                    center[1] - battery_size[1] / 2.0,
-                    center[1] + battery_size[1] / 2.0,
-                )
-                if (
-                    circle_rectangle_clearance(
-                        fillet_center,
-                        fillet_radius,
-                        battery_bounds,
-                    )
-                    < MISC_COMPARTMENT_MIN_WEB
-                ):
-                    raise ValueError(
-                        "Miscellaneous step fillet needs 4 mm from battery pockets"
-                    )
-            for center in BATTERY_DOOR_SLOT_CENTERS:
-                door_bounds = (
-                    center[0] - door_slot_size[0] / 2.0,
-                    center[0] + door_slot_size[0] / 2.0,
-                    center[1] - door_slot_size[1] / 2.0,
-                    center[1] + door_slot_size[1] / 2.0,
-                )
-                if (
-                    circle_rectangle_clearance(
-                        fillet_center,
-                        fillet_radius,
-                        door_bounds,
-                    )
-                    < MISC_COMPARTMENT_MIN_WEB
-                ):
-                    raise ValueError(
-                        "Miscellaneous step fillet needs 4 mm from battery-door slots"
-                    )
-
-        misc_lobe_specs.append(compartment_lobe_specs)
-
-    for first_lobe in misc_lobe_specs[0]:
-        for second_lobe in misc_lobe_specs[1]:
-            if rectangles_overlap(
-                first_lobe[0],
-                first_lobe[1],
-                second_lobe[0],
-                second_lobe[1],
-                gap=MISC_COMPARTMENT_MIN_WEB,
-            ):
-                raise ValueError(
-                    "Miscellaneous compartments need a 4 mm separating web"
-                )
 
     if not 1.0 <= LID_LENS_HOOD_RELIEF_DEPTH <= LID_BUTTON_RELIEF_DEPTH:
         raise ValueError(
@@ -3795,10 +3889,15 @@ def validate_configuration() -> None:
     if min(LID_HOCKEY_PUCK_SIZE) < 6.0:
         raise ValueError("Hockey puck inlay is too small for reliable printing")
 
-    camera_contact_top = BASE_FLOOR_THICKNESS + CAMERA_FLOOR_Z + mission1.BODY_HEIGHT
-    battery_top = BASE_FLOOR_THICKNESS + BATTERY_FLOOR_Z + BATTERY_HEIGHT
+    camera_contact_top = (
+        EQUIPMENT_TRAY_INSTALLED_Z + CAMERA_FLOOR_Z + mission1.BODY_HEIGHT
+    )
+    battery_top = EQUIPMENT_TRAY_INSTALLED_Z + BATTERY_FLOOR_Z + BATTERY_HEIGHT
     content_top = max(camera_contact_top, battery_top)
     installed_lid_inner_face = BASE_HEIGHT + (LID_WALL_HEIGHT - LID_PLATE_THICKNESS)
+    fan_rigid_lid_clearance = installed_lid_inner_face - FAN_ASSEMBLY_INSTALLED_TOP_Z
+    if fan_rigid_lid_clearance < FAN_ARM_RIGID_LID_CLEARANCE:
+        raise ValueError("Stored fan arm sits too close to the rigid lid plate")
     pad_compression = content_top + LID_RETAINER_HEIGHT - installed_lid_inner_face
     if not 0.2 <= pad_compression <= 1.5:
         raise ValueError(
@@ -3806,7 +3905,9 @@ def validate_configuration() -> None:
             f"computed {pad_compression:.2f} mm"
         )
     battery_door_top = (
-        BASE_FLOOR_THICKNESS + BATTERY_DOOR_SLOT_FLOOR_Z + BATTERY_DOOR_SIZE[2]
+        EQUIPMENT_TRAY_INSTALLED_Z
+        + BATTERY_DOOR_SLOT_FLOOR_Z
+        + BATTERY_DOOR_SIZE[2]
     )
     battery_door_pad_compression = (
         battery_door_top
@@ -3819,7 +3920,7 @@ def validate_configuration() -> None:
             "Battery-door lid hold-down preload must remain 0.2-1.5 mm; "
             f"computed {battery_door_pad_compression:.2f} mm"
         )
-    camera_button_top = BASE_FLOOR_THICKNESS + CAMERA_FLOOR_Z + CAMERA_HEIGHT
+    camera_button_top = EQUIPMENT_TRAY_INSTALLED_Z + CAMERA_FLOOR_Z + CAMERA_HEIGHT
     relief_ceiling = installed_lid_inner_face - (
         LID_RETAINER_HEIGHT - LID_BUTTON_RELIEF_DEPTH
     )
@@ -4486,8 +4587,9 @@ def validate_configuration() -> None:
     for part, dimensions in (
         ("base", (base_print_width, base_print_depth)),
         ("lid", (lid_print_width, lid_print_depth)),
-        ("lower TPU tray", (tray_width, tray_depth)),
-        ("lid retainer", (tray_width, tray_depth)),
+        ("lower TPU fan cradle", (cradle_width, cradle_depth)),
+        ("upper TPU equipment tray", (tray_width, tray_depth)),
+        ("lid retainer", (retainer_width, retainer_depth)),
         ("gasket", (CASE_WIDTH - 3.8, CASE_DEPTH - 3.8)),
         ("Pelican latch lever", LATCH_LEVER_PRINT_SIZE[:2]),
         ("Pelican latch hook", LATCH_HOOK_PRINT_SIZE[:2]),
@@ -4500,7 +4602,10 @@ def validate_configuration() -> None:
     print(
         "FIELD_CASE_CONFIG "
         f"shell={CASE_WIDTH:.1f}x{CASE_DEPTH:.1f}x{BASE_HEIGHT:.1f} "
-        f"tray={tray_width:.1f}x{tray_depth:.1f}x{TRAY_HEIGHT:.1f} "
+        f"fan_cradle={cradle_width:.1f}x{cradle_depth:.1f}x"
+        f"{FAN_CRADLE_HEIGHT:.1f} "
+        f"equipment_tray={tray_width:.1f}x{tray_depth:.1f}x{TRAY_HEIGHT:.1f} "
+        f"equipment_tray_side_clearance={EQUIPMENT_TRAY_SIDE_CLEARANCE:.2f} "
         f"lens_web={lateral_lens_web:.2f} hood_web={hood_lateral_web:.2f} "
         f"hood_body_web={hood_body_web:.2f} axial_web={axial_body_web:.2f} "
         f"pad_preload={pad_compression:.2f} "
@@ -4510,15 +4615,19 @@ def validate_configuration() -> None:
         f"{BATTERY_DOOR_SLOT_SIZE[1]:.1f}x{BATTERY_DOOR_SLOT_DEPTH:.1f} "
         f"door_pad_preload={battery_door_pad_compression:.2f} "
         f"lid_pad_hood_relief={LID_LENS_HOOD_RELIEF_DEPTH:.2f} "
-        f"tray_installed_z={LOWER_TRAY_INSTALLED_Z:.2f} "
-        f"misc_pockets={misc_lobe_specs[0][0][1][0]:.1f}x"
-        f"{misc_lobe_specs[0][0][1][1]:.1f}/right_step="
-        f"{misc_lobe_specs[1][0][1][0]:.1f}x"
-        f"{misc_lobe_specs[1][0][1][1]:.1f}+"
-        f"{misc_lobe_specs[1][1][1][0]:.1f}x"
-        f"{misc_lobe_specs[1][1][1][1]:.1f}x"
-        f"{TRAY_HEIGHT - MISC_COMPARTMENT_FLOOR_Z:.1f} "
-        f"misc_web={MISC_COMPARTMENT_MIN_WEB:.1f} "
+        f"fan_cradle_installed_z={FAN_CRADLE_INSTALLED_Z:.2f} "
+        f"equipment_tray_installed_z={EQUIPMENT_TRAY_INSTALLED_Z:.2f} "
+        f"fan_storage={fan_width:.2f}x{fan_depth:.2f}x{fan_height:.2f} "
+        f"fan_cavity={cavity_x1 - cavity_x0:.2f}x"
+        f"{cavity_y1 - cavity_y0:.2f}x"
+        f"{FAN_CRADLE_HEIGHT - FAN_CRADLE_FLOOR_THICKNESS:.2f} "
+        f"fan_cradle_wall_min={min(cradle_walls):.2f} "
+        f"fan_body_clearance={fan_body_vertical_clearance:.2f} "
+        f"fan_lid_clearance={fan_rigid_lid_clearance:.2f} "
+        f"fan_arm_passage={arm_passage_size[0]:.1f}x"
+        f"{arm_passage_size[1]:.1f} "
+        f"tray_lift_scallops={len(lift_notch_centers)}x"
+        f"{lift_notch_size[0]:.1f}x{lift_notch_size[1]:.1f} "
         f"latch_source_scale={LATCH_SOURCE_SCALE:.2f} "
         f"latch_lever={LATCH_LEVER_PRINT_SIZE[0]:.2f}x"
         f"{LATCH_LEVER_PRINT_SIZE[1]:.2f}x{LATCH_LEVER_PRINT_SIZE[2]:.2f} "
@@ -4776,12 +4885,18 @@ def create_base(material):
     # front-center ribs are omitted because they would obstruct the measured
     # 24 mm finger corridor between the carry handle and each moving latch.
     # The integrated handle/latch mounts already reinforce that face.
+    rib_bottom_z = 3.0
+    rib_top_z = BASE_HEIGHT - 17.0
+    rib_center_z = (rib_bottom_z + rib_top_z) / 2.0
+    rib_height = rib_top_z - rib_bottom_z
     rib_specs = []
     for x in (-42.0, 0.0, 42.0):
-        rib_specs.append(((x, CASE_DEPTH / 2.0 + 1.3, 24.0), (6.0, 4.8, 42.0)))
+        rib_specs.append(
+            ((x, CASE_DEPTH / 2.0 + 1.3, rib_center_z), (6.0, 4.8, rib_height))
+        )
     for x in (-CASE_WIDTH / 2.0 - 1.3, CASE_WIDTH / 2.0 + 1.3):
         for y in (-38.0, 38.0):
-            rib_specs.append(((x, y, 22.0), (5.0, 24.0, 38.0)))
+            rib_specs.append(((x, y, rib_center_z), (5.0, 24.0, rib_height)))
     for index, (location, dimensions) in enumerate(rib_specs, start=1):
         rib = add_rounded_box(
             f"Base_Impact_Rib_{index}",
@@ -4922,22 +5037,82 @@ def create_base(material):
         difference_from(lug, hole)
         union_into(base, lug)
 
+    # Add two long upper-tray support rails after the exterior hardware
+    # features and bores.  Keeping the new internal supports away from the
+    # front latch wall preserves its proven Boolean topology and leaves the
+    # complete fan envelope open below the removable equipment tray.
+    inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
+    inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
+    tray_depth = inner_depth - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE
+    rail_wall_overlap = 0.2
+    for side in (-1.0, 1.0):
+        rail = add_rounded_box(
+            "Base_Upper_Equipment_Tray_Side_Support_Rail",
+            (
+                EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH + rail_wall_overlap,
+                tray_depth - 8.0,
+                EQUIPMENT_TRAY_LEDGE_THICKNESS,
+            ),
+            (
+                side
+                * (
+                    inner_width / 2.0
+                    - EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH / 2.0
+                    + rail_wall_overlap / 2.0
+                ),
+                0.0,
+                EQUIPMENT_TRAY_INSTALLED_Z
+                - EQUIPMENT_TRAY_LEDGE_THICKNESS / 2.0,
+            ),
+            bevel=0.6,
+        )
+        union_into(base, rail)
+
     assign_material(base, material)
     return base
 
 
-def create_lower_tray(material):
+def create_fan_cradle(material):
+    """Create the lower TPU locator for the rear-grille-down fan assembly."""
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     tray_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
     tray_depth = inner_depth - 2.0 * INSERT_SIDE_CLEARANCE
+    cradle = add_rounded_prism(
+        "Field_Case_Lower_TPU_Dual_80mm_Fan_Cradle",
+        tray_width,
+        tray_depth,
+        0.0,
+        FAN_CRADLE_HEIGHT,
+        INSERT_CORNER_RADIUS,
+    )
+    cavity_x0, cavity_x1, cavity_y0, cavity_y1 = DUAL_FAN_STORAGE["cavity_bounds"]
+    pocket = add_rounded_prism(
+        "Dual_80mm_Fan_Assembly_Rear_Plane_Pocket",
+        cavity_x1 - cavity_x0,
+        cavity_y1 - cavity_y0,
+        FAN_CRADLE_FLOOR_THICKNESS,
+        FAN_CRADLE_HEIGHT + 0.4,
+        3.0,
+        ((cavity_x0 + cavity_x1) / 2.0, (cavity_y0 + cavity_y1) / 2.0),
+    )
+    difference_from(cradle, pocket)
+    assign_material(cradle, material)
+    return cradle
+
+
+def create_equipment_tray(material):
+    inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
+    inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
+    tray_width = inner_width - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE
+    tray_depth = inner_depth - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE
     tray = add_rounded_prism(
-        "Field_Case_Recessed_TPU_Lower_Tray",
+        "Field_Case_Removable_Upper_TPU_Equipment_Tray",
         tray_width,
         tray_depth,
         0.0,
         TRAY_HEIGHT,
-        INSERT_CORNER_RADIUS,
+        EQUIPMENT_TRAY_CORNER_RADIUS,
     )
 
     # The procedural camera itself forms each cavity.  This retains the body
@@ -5005,43 +5180,32 @@ def create_lower_tray(material):
         )
         difference_from(tray, scoop)
 
-    for compartment_index, (lobe_bounds, step_fillets) in enumerate(
-        zip(MISC_COMPARTMENT_LOBE_BOUNDS, MISC_COMPARTMENT_STEP_FILLETS),
+    arm_x0, arm_x1, arm_y0, arm_y1 = FAN_ARM_PASSAGE_BOUNDS
+    arm_passage = add_rounded_prism(
+        "Dual_Fan_Arm_Through_Tray_Passage",
+        arm_x1 - arm_x0,
+        arm_y1 - arm_y0,
+        -0.2,
+        TRAY_HEIGHT + 0.4,
+        FAN_ARM_PASSAGE_CORNER_RADIUS,
+        ((arm_x0 + arm_x1) / 2.0, (arm_y0 + arm_y1) / 2.0),
+    )
+    difference_from(tray, arm_passage)
+
+    for index, center_x in enumerate(
+        EQUIPMENT_TRAY_LIFT_NOTCH_X_CENTERS,
         start=1,
     ):
-        for lobe_index, (x_bounds, y_bounds) in enumerate(lobe_bounds, start=1):
-            misc_width = x_bounds[1] - x_bounds[0]
-            misc_depth = y_bounds[1] - y_bounds[0]
-            pocket = add_rounded_prism(
-                "Miscellaneous_Storage_Compartment_"
-                f"{compartment_index}_Lobe_{lobe_index}",
-                misc_width,
-                misc_depth,
-                MISC_COMPARTMENT_FLOOR_Z,
-                TRAY_HEIGHT + 0.4,
-                MISC_COMPARTMENT_CORNER_RADIUS,
-                (sum(x_bounds) / 2.0, sum(y_bounds) / 2.0),
-            )
-            difference_from(tray, pocket)
-
-        for fillet_index, (fillet_x, fillet_y, fillet_radius) in enumerate(
-            step_fillets,
-            start=1,
-        ):
-            fillet_height = TRAY_HEIGHT + 0.4 - MISC_COMPARTMENT_FLOOR_Z
-            fillet = add_cylinder_z(
-                "Miscellaneous_Storage_Compartment_"
-                f"{compartment_index}_Step_Fillet_{fillet_index}",
-                fillet_radius,
-                fillet_height,
-                (
-                    fillet_x,
-                    fillet_y,
-                    MISC_COMPARTMENT_FLOOR_Z + fillet_height / 2.0,
-                ),
-                vertices=48,
-            )
-            difference_from(tray, fillet)
+        lift_notch = add_rounded_prism(
+            f"Equipment_Tray_Front_Finger_Lift_Scallop_{index}",
+            EQUIPMENT_TRAY_LIFT_NOTCH_WIDTH,
+            EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH,
+            -0.2,
+            TRAY_HEIGHT + 0.4,
+            EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH / 2.0,
+            (center_x, -tray_depth / 2.0),
+        )
+        difference_from(tray, lift_notch)
 
     assign_material(tray, material)
     return tray
@@ -5729,7 +5893,7 @@ def create_lid_retainer(material):
         )
         difference_from(retainer, relief)
 
-        # Mirror the lower tray's exact trapezoidal soft-hood footprint into
+        # Mirror the upper tray's exact trapezoidal soft-hood footprint into
         # lid coordinates.  A shallow pocket clears the flared lens piece at
         # the pad contact face without cutting through the TPU retainer.
         lid_hood_loop = tuple(
@@ -5758,6 +5922,18 @@ def create_lid_retainer(material):
             (center[0], -center[1]),
         )
         union_into(retainer, hold_down)
+
+    arm_x0, arm_x1, arm_y0, arm_y1 = FAN_ARM_PASSAGE_BOUNDS
+    arm_relief = add_rounded_prism(
+        "Dual_Fan_Arm_Through_Lid_Pad_Relief",
+        arm_x1 - arm_x0,
+        arm_y1 - arm_y0,
+        -0.2,
+        LID_RETAINER_HEIGHT + 0.3,
+        FAN_ARM_PASSAGE_CORNER_RADIUS,
+        ((arm_x0 + arm_x1) / 2.0, -(arm_y0 + arm_y1) / 2.0),
+    )
+    difference_from(retainer, arm_relief)
 
     key_notch = add_rounded_prism(
         "TPU_Lid_Pad_One_Way_Key_Notch",
@@ -5949,10 +6125,22 @@ def create_pelican_latch_parts(material):
             # larger overlapping root sit above that pad and behind the rail
             # only to block outward escape.
             lower_jaw_corners_installed = (
-                (-91.0, 53.0),
-                (LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y, 53.0),
-                (LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y, 61.85),
-                (-91.0, 61.85),
+                (
+                    LATCH_CAPTURE_LOWER_JAW_REMOVAL_OUTWARD_Y,
+                    LATCH_CAPTURE_LOWER_JAW_REMOVAL_BOTTOM_Z,
+                ),
+                (
+                    LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y,
+                    LATCH_CAPTURE_LOWER_JAW_REMOVAL_BOTTOM_Z,
+                ),
+                (
+                    LATCH_CAPTURE_LOWER_JAW_REMOVAL_CASEWARD_Y,
+                    LATCH_CAPTURE_LOWER_JAW_REMOVAL_TOP_Z,
+                ),
+                (
+                    LATCH_CAPTURE_LOWER_JAW_REMOVAL_OUTWARD_Y,
+                    LATCH_CAPTURE_LOWER_JAW_REMOVAL_TOP_Z,
+                ),
             )
             lower_jaw_cutter = extrude_loop_x(
                 "Pelican_Hook_Remove_Obsolete_Lower_Capture_Jaw",
@@ -6897,8 +7085,8 @@ def validate_built_latch_hook_capture(hook) -> None:
     )
     lower_jaw_local_y, lower_jaw_local_z = installed_yz_in_hook_local(
         LATCH_LEVER_CLOSED_ANGLE,
-        -87.5,
-        58.5,
+        -87.5 - LATCH_DEPTH_OFFSET,
+        58.5 + LATCH_VERTICAL_OFFSET,
     )
     lower_jaw_volume = overlap_with_sphere(
         "TEMPORARY_Latch_Obsolete_Lower_Jaw_Air_Probe",
@@ -7007,7 +7195,11 @@ def validate_built_latch_impact_protectors(parts) -> None:
             overlap_at(
                 parts["base"],
                 f"TEMPORARY_Latch_{index}_Protector_Finger_Access_Probe",
-                (x, LATCH_PROTECTOR_FRONT_Y + 1.0, 36.0),
+                (
+                    x,
+                    LATCH_PROTECTOR_FRONT_Y + 1.0,
+                    36.0 + LATCH_VERTICAL_OFFSET,
+                ),
                 (LATCH_WIDTH - 1.0, 0.5, 1.0),
             )
         )
@@ -7019,7 +7211,11 @@ def validate_built_latch_impact_protectors(parts) -> None:
                 overlap_at(
                     parts["base"],
                     f"TEMPORARY_Latch_{index}_Base_Protector_Solid_Probe",
-                    (protector_center_x, LATCH_PROTECTOR_FRONT_Y + 0.3, 40.0),
+                    (
+                        protector_center_x,
+                        LATCH_PROTECTOR_FRONT_Y + 0.3,
+                        40.0 + LATCH_VERTICAL_OFFSET,
+                    ),
                     base_probe_dimensions,
                 )
             )
@@ -7027,7 +7223,11 @@ def validate_built_latch_impact_protectors(parts) -> None:
                 overlap_at(
                     parts["base"],
                     f"TEMPORARY_Latch_{index}_Base_Protector_Bond_Probe",
-                    (protector_center_x, LATCH_PROTECTOR_BODY_Y, 40.0),
+                    (
+                        protector_center_x,
+                        LATCH_PROTECTOR_BODY_Y,
+                        40.0 + LATCH_VERTICAL_OFFSET,
+                    ),
                     base_probe_dimensions,
                 )
             )
@@ -8773,66 +8973,164 @@ def validate_built_lid_hinge_end_stops(lid) -> None:
     )
 
 
-def validate_installed_lower_tray(parts) -> None:
-    """Prove the tray rests on, rather than intersects, the rigid base floor."""
-    tray_minimum, tray_maximum = object_world_bounds(parts["lower_tray"])
-    if not math.isclose(
-        tray_minimum.z,
-        LOWER_TRAY_INSTALLED_Z,
-        abs_tol=1e-6,
-    ):
-        raise ValueError(
-            "Installed lower tray bottom does not align with the base floor top: "
-            f"tray_z={tray_minimum.z:.6f} floor_z={BASE_FLOOR_THICKNESS:.6f}"
-        )
-    if not math.isclose(
-        tray_maximum.z,
-        LOWER_TRAY_INSTALLED_Z + TRAY_HEIGHT,
-        abs_tol=1e-6,
-    ):
-        raise ValueError("Installed lower tray height is inconsistent")
-
-    # Lift the tray by a negligible amount to avoid treating its intended
-    # coplanar floor contact as Boolean volume. Any real floor or wall overlap
-    # remains after this 0.001 mm numerical-clearance probe.
+def validate_installed_trays(parts) -> None:
+    """Prove both removable TPU tiers rest on their intended rigid seats."""
     validation_lift = 0.001
-    clearance_faces, clearance_volume = exact_transformed_intersection(
-        parts["base"],
-        parts["lower_tray"],
-        second_location=(
-            0.0,
-            0.0,
-            LOWER_TRAY_INSTALLED_Z + validation_lift,
-        ),
-    )
-    if clearance_faces or clearance_volume > 1e-6:
-        raise ValueError(
-            "Installed lower tray intersects the rigid case: "
-            f"faces={clearance_faces} volume={clearance_volume:.6f}"
-        )
-
-    # A small deliberate downward probe must intersect the base floor. This
-    # guards against fixing an overlap by accidentally leaving the tray
-    # floating above its support surface.
     contact_probe_depth = 0.05
-    contact_faces, contact_volume = exact_transformed_intersection(
-        parts["base"],
-        parts["lower_tray"],
-        second_location=(
-            0.0,
-            0.0,
-            LOWER_TRAY_INSTALLED_Z - contact_probe_depth,
+    tray_specs = (
+        (
+            "fan_cradle",
+            FAN_CRADLE_INSTALLED_Z,
+            FAN_CRADLE_HEIGHT,
+            "base floor",
+            100.0,
+        ),
+        (
+            "equipment_tray",
+            EQUIPMENT_TRAY_INSTALLED_Z,
+            TRAY_HEIGHT,
+            "upper support ledge",
+            (
+                2.0
+                * (
+                    EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH
+                    - EQUIPMENT_TRAY_SIDE_CLEARANCE
+                )
+                * (
+                    CASE_DEPTH
+                    - 2.0 * WALL_THICKNESS
+                    - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE
+                    - 8.0
+                )
+                * contact_probe_depth
+                * 0.8
+            ),
         ),
     )
-    if not contact_faces or contact_volume < 100.0:
-        raise ValueError("Installed lower tray does not contact the rigid base floor")
+    results = []
+    for key, installed_z, height, support_name, minimum_contact in tray_specs:
+        tray_minimum, tray_maximum = object_world_bounds(parts[key])
+        if not math.isclose(tray_minimum.z, installed_z, abs_tol=1e-6):
+            raise ValueError(
+                f"Installed {key} bottom misses its {support_name}: "
+                f"tray_z={tray_minimum.z:.6f} expected={installed_z:.6f}"
+            )
+        if not math.isclose(tray_maximum.z, installed_z + height, abs_tol=1e-6):
+            raise ValueError(f"Installed {key} height is inconsistent")
+
+        clearance_faces, clearance_volume = exact_transformed_intersection(
+            parts["base"],
+            parts[key],
+            second_location=(0.0, 0.0, installed_z + validation_lift),
+        )
+        if clearance_faces or clearance_volume > 1e-6:
+            raise ValueError(
+                f"Installed {key} intersects the rigid case: "
+                f"faces={clearance_faces} volume={clearance_volume:.6f}"
+            )
+        contact_faces, contact_volume = exact_transformed_intersection(
+            parts["base"],
+            parts[key],
+            second_location=(0.0, 0.0, installed_z - contact_probe_depth),
+        )
+        if not contact_faces or contact_volume < minimum_contact:
+            raise ValueError(f"Installed {key} does not contact its {support_name}")
+        results.append((key, installed_z, clearance_volume, contact_volume))
+
     print(
-        "FIELD_CASE_INSTALLED_TRAY_VALID "
-        f"base_floor_top={BASE_FLOOR_THICKNESS:.3f} "
-        f"tray_bottom={tray_minimum.z:.3f} "
-        f"clearance_intersection={clearance_volume:.6f} "
-        f"contact_probe={contact_probe_depth:.3f}/"
-        f"{contact_volume:.6f}"
+        "FIELD_CASE_INSTALLED_TRAYS_VALID "
+        + " ".join(
+            f"{key}_z={installed_z:.3f}/clear={clearance:.6f}/"
+            f"contact={contact:.6f}"
+            for key, installed_z, clearance, contact in results
+        )
+    )
+
+
+def validate_built_fan_cradle(cradle) -> None:
+    """Prove the lower locator retains its pocket, floor, and edge walls."""
+
+    def overlap_at(name, location, dimensions):
+        probe = add_rounded_box(name, dimensions, location, bevel=0.0)
+        try:
+            _faces, volume = exact_transformed_intersection(
+                cradle,
+                probe,
+                first_location=cradle.location.copy(),
+                second_location=location,
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        return volume
+
+    cavity_x0, cavity_x1, cavity_y0, cavity_y1 = DUAL_FAN_STORAGE["cavity_bounds"]
+    pocket_center = (
+        (cavity_x0 + cavity_x1) / 2.0,
+        (cavity_y0 + cavity_y1) / 2.0,
+    )
+    pocket_height = FAN_CRADLE_HEIGHT - FAN_CRADLE_FLOOR_THICKNESS
+    pocket_air_dimensions = (1.0, 1.0, pocket_height - 0.2)
+    pocket_air = overlap_at(
+        "TEMPORARY_Fan_Cradle_Pocket_Air_Probe",
+        (
+            *pocket_center,
+            FAN_CRADLE_INSTALLED_Z
+            + FAN_CRADLE_FLOOR_THICKNESS
+            + pocket_height / 2.0,
+        ),
+        pocket_air_dimensions,
+    )
+    floor_dimensions = (1.0, 1.0, FAN_CRADLE_FLOOR_THICKNESS - 0.2)
+    floor_fill = overlap_at(
+        "TEMPORARY_Fan_Cradle_Floor_Probe",
+        (
+            *pocket_center,
+            FAN_CRADLE_INSTALLED_Z + FAN_CRADLE_FLOOR_THICKNESS / 2.0,
+        ),
+        floor_dimensions,
+    )
+    tray_half_width = (
+        CASE_WIDTH
+        - 2.0 * WALL_THICKNESS
+        - 2.0 * INSERT_SIDE_CLEARANCE
+    ) / 2.0
+    tray_half_depth = (
+        CASE_DEPTH
+        - 2.0 * WALL_THICKNESS
+        - 2.0 * INSERT_SIDE_CLEARANCE
+    ) / 2.0
+    wall_probe_dimensions = (0.8, 0.8, 0.8)
+    wall_probe_z = (
+        FAN_CRADLE_INSTALLED_Z
+        + FAN_CRADLE_FLOOR_THICKNESS
+        + pocket_height / 2.0
+    )
+    wall_locations = (
+        ((-tray_half_width + cavity_x0) / 2.0, pocket_center[1], wall_probe_z),
+        ((tray_half_width + cavity_x1) / 2.0, pocket_center[1], wall_probe_z),
+        (pocket_center[0], (-tray_half_depth + cavity_y0) / 2.0, wall_probe_z),
+        (pocket_center[0], (tray_half_depth + cavity_y1) / 2.0, wall_probe_z),
+    )
+    wall_fills = [
+        overlap_at(
+            f"TEMPORARY_Fan_Cradle_Edge_Wall_Probe_{index}",
+            location,
+            wall_probe_dimensions,
+        )
+        for index, location in enumerate(wall_locations, start=1)
+    ]
+    if pocket_air > 1e-7:
+        raise ValueError("Built fan-cradle locating pocket is obstructed")
+    if floor_fill < math.prod(floor_dimensions) * 0.9:
+        raise ValueError("Built fan-cradle pocket cuts through its TPU floor")
+    if min(wall_fills) < math.prod(wall_probe_dimensions) * 0.9:
+        raise ValueError("Built fan-cradle pocket breaks through an edge wall")
+    print(
+        "FIELD_CASE_FAN_CRADLE_VALID "
+        f"pocket={cavity_x1 - cavity_x0:.2f}x"
+        f"{cavity_y1 - cavity_y0:.2f}x{pocket_height:.2f} "
+        f"air={pocket_air:.9f} floor={floor_fill:.6f} "
+        f"edge_wall_min={min(wall_fills):.6f}"
     )
 
 
@@ -8841,6 +9139,7 @@ def create_reference_mockups(materials, parts):
     (
         camera_material,
         battery_material,
+        fan_material,
         latch_material,
         latch_rod_material,
         carry_handle_material,
@@ -8851,7 +9150,7 @@ def create_reference_mockups(materials, parts):
             placement,
             as_cutter=False,
         )
-        translate_object(mockup, (0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
+        translate_object(mockup, (0.0, 0.0, EQUIPMENT_TRAY_INSTALLED_Z))
         assign_material(mockup, camera_material)
         objects.append(mockup)
     for index, center in enumerate(BATTERY_CENTERS, start=1):
@@ -8864,7 +9163,7 @@ def create_reference_mockups(materials, parts):
             1.6,
             center,
         )
-        translate_object(mockup, (0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
+        translate_object(mockup, (0.0, 0.0, EQUIPMENT_TRAY_INSTALLED_Z))
         assign_material(mockup, battery_material)
         objects.append(mockup)
     for index, center in enumerate(BATTERY_DOOR_SLOT_CENTERS, start=1):
@@ -8877,8 +9176,59 @@ def create_reference_mockups(materials, parts):
             1.3,
             center,
         )
-        translate_object(mockup, (0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
+        translate_object(mockup, (0.0, 0.0, EQUIPMENT_TRAY_INSTALLED_Z))
         assign_material(mockup, battery_material)
+        objects.append(mockup)
+
+    previous_clear_scene = dual_fan.CLEAR_SCENE
+    previous_export_stl = dual_fan.EXPORT_STL
+    previous_adapter_counts = dual_fan.GOPRO_ADAPTER_PRONG_COUNTS
+    previous_legacy_adapter_count = dual_fan.GOPRO_ADAPTER_PRONG_COUNT
+    try:
+        dual_fan.CLEAR_SCENE = False
+        dual_fan.EXPORT_STL = False
+        dual_fan.GOPRO_ADAPTER_PRONG_COUNTS = (3,)
+        dual_fan.GOPRO_ADAPTER_PRONG_COUNT = None
+        holder = dual_fan.build_dual_fan()
+    finally:
+        dual_fan.CLEAR_SCENE = previous_clear_scene
+        dual_fan.EXPORT_STL = previous_export_stl
+        dual_fan.GOPRO_ADAPTER_PRONG_COUNTS = previous_adapter_counts
+        dual_fan.GOPRO_ADAPTER_PRONG_COUNT = previous_legacy_adapter_count
+    adapter = bpy.data.objects.get("Detachable_GoPro_Adapter_3_Prong")
+    if adapter is None:
+        raise ValueError("Dual-fan reference build did not create its 3-prong adapter")
+    placement_x, placement_y = DUAL_FAN_STORAGE["placement"]
+    storage_translation_z = (
+        FAN_ASSEMBLY_INSTALLED_BOTTOM_Z
+        + DUAL_FAN_STORAGE["source_bounds"][5]
+    )
+    for obj in (holder, adapter):
+        # The companion generator retains each primitive's source translation
+        # on its final object.  Bake that transform before applying the common
+        # rear-grille-down storage rotation; replacing the location directly
+        # would shift both references away from their real assembled datums.
+        select_only(obj)
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        obj.rotation_euler.y = math.pi
+        obj.location = (placement_x, placement_y, storage_translation_z)
+        obj.name = "REFERENCE_ONLY_Stored_" + obj.name
+        assign_material(obj, fan_material)
+        objects.append(obj)
+    grill_z0, _grill_z1 = dual_fan.fan_grill_z_bounds()
+    for fan in DUAL_FAN_STORAGE["fan_specs"]:
+        fan_center = (
+            -fan["center_x"] + placement_x,
+            placement_y,
+            storage_translation_z - (grill_z0 - fan["depth"] / 2.0),
+        )
+        mockup = add_rounded_box(
+            f"REFERENCE_ONLY_Installed_{fan['size']:.0f}mm_Fan_{fan['index']}",
+            (fan["size"], fan["size"], fan["depth"]),
+            fan_center,
+            bevel=2.0,
+        )
+        assign_material(mockup, fan_material)
         objects.append(mockup)
     objects.extend(
         create_latch_reference_mockups(
@@ -8911,6 +9261,122 @@ def create_reference_mockups(materials, parts):
         obj.display_type = "SOLID"
         obj.hide_render = False
     return objects
+
+
+def validate_stored_dual_fan_reference(parts, reference_objects) -> None:
+    """Check the exact generated holder, adapter, and fans in their storage pose."""
+    stored_objects = [
+        obj
+        for obj in reference_objects
+        if obj.name.startswith("REFERENCE_ONLY_Stored_")
+        or obj.name.startswith("REFERENCE_ONLY_Installed_80mm_Fan_")
+    ]
+    if len(stored_objects) != FAN_STORAGE_COUNT + 2:
+        raise ValueError("Stored dual-fan reference scene is incomplete")
+
+    minimums = []
+    maximums = []
+    for obj in stored_objects:
+        minimum, maximum = object_world_bounds(obj)
+        minimums.append(minimum)
+        maximums.append(maximum)
+    actual_bounds = tuple(
+        value
+        for axis in range(3)
+        for value in (
+            min(minimum[axis] for minimum in minimums),
+            max(maximum[axis] for maximum in maximums),
+        )
+    )
+    source_x0, source_x1, source_y0, source_y1, _source_z0, _source_z1 = (
+        DUAL_FAN_STORAGE["source_bounds"]
+    )
+    placement_x, placement_y = DUAL_FAN_STORAGE["placement"]
+    expected_bounds = (
+        -source_x1 + placement_x,
+        -source_x0 + placement_x,
+        source_y0 + placement_y,
+        source_y1 + placement_y,
+        FAN_ASSEMBLY_INSTALLED_BOTTOM_Z,
+        FAN_ASSEMBLY_INSTALLED_TOP_Z,
+    )
+    if any(
+        not math.isclose(actual, expected, abs_tol=0.01)
+        for actual, expected in zip(actual_bounds, expected_bounds)
+    ):
+        raise ValueError(
+            "Stored dual-fan reference envelope differs from the configured "
+            f"storage envelope: actual={actual_bounds} expected={expected_bounds}"
+        )
+
+    collision_volumes = {}
+    collision_details = {}
+    for part_key in ("base", "fan_cradle", "equipment_tray"):
+        collision_volume = 0.0
+        for obj in stored_objects:
+            _faces, volume, bounds = exact_transformed_intersection(
+                parts[part_key],
+                obj,
+                first_location=parts[part_key].location.copy(),
+                first_rotation=parts[part_key].rotation_euler.copy(),
+                second_location=obj.location.copy(),
+                second_rotation=obj.rotation_euler.copy(),
+                return_bounds=True,
+            )
+            collision_volume += volume
+            if volume > 1e-7:
+                collision_details[f"{part_key}/{obj.name}"] = (volume, bounds)
+        collision_volumes[part_key] = collision_volume
+    installed_lid_inner_face = BASE_HEIGHT + (
+        LID_WALL_HEIGHT - LID_PLATE_THICKNESS
+    )
+    lid_pad_collision_volume = 0.0
+    for obj in stored_objects:
+        _faces, volume, bounds = exact_transformed_intersection(
+            parts["lid_retainer"],
+            obj,
+            first_location=(0.0, 0.0, installed_lid_inner_face),
+            first_rotation=(math.pi, 0.0, 0.0),
+            second_location=obj.location.copy(),
+            second_rotation=obj.rotation_euler.copy(),
+            return_bounds=True,
+        )
+        lid_pad_collision_volume += volume
+        if volume > 1e-7:
+            collision_details[f"lid_retainer/{obj.name}"] = (volume, bounds)
+    collision_volumes["lid_retainer"] = lid_pad_collision_volume
+    if max(collision_volumes.values()) > 1e-5:
+        raise ValueError(
+            "Stored dual-fan reference intersects the case: "
+            f"{collision_volumes}; details={collision_details}"
+        )
+
+    seating_volume = 0.0
+    for obj in stored_objects:
+        _faces, volume = exact_transformed_intersection(
+            parts["fan_cradle"],
+            obj,
+            first_location=parts["fan_cradle"].location.copy(),
+            first_rotation=parts["fan_cradle"].rotation_euler.copy(),
+            second_location=obj.location + Vector((0.0, 0.0, -0.05)),
+            second_rotation=obj.rotation_euler.copy(),
+        )
+        seating_volume += volume
+    if seating_volume < 1.0:
+        raise ValueError("Stored dual-fan reference does not seat on its TPU cradle")
+
+    print(
+        "FIELD_CASE_STORED_DUAL_FAN_VALID "
+        f"objects={len(stored_objects)} "
+        f"envelope={actual_bounds[1] - actual_bounds[0]:.2f}x"
+        f"{actual_bounds[3] - actual_bounds[2]:.2f}x"
+        f"{actual_bounds[5] - actual_bounds[4]:.2f} "
+        f"base_overlap={collision_volumes['base']:.6f} "
+        f"cradle_overlap={collision_volumes['fan_cradle']:.6f} "
+        f"upper_tray_overlap={collision_volumes['equipment_tray']:.6f} "
+        f"lid_pad_overlap={collision_volumes['lid_retainer']:.6f} "
+        f"seating_probe={seating_volume:.6f}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -9443,7 +9909,7 @@ def three_mf_translation(x: float = 0.0, y: float = 0.0, z: float = 0.0) -> str:
     )
 
 
-def project_layout(groups, plate_size=256.0, plate_gap_ratio=0.2):
+def project_layout(groups, plate_size=PROJECT_PLATE_SIZE, plate_gap_ratio=0.2):
     placements = []
     plate_count = max(group["plate"] for group in groups) + 1
     plate_columns = math.ceil(math.sqrt(plate_count))
@@ -9595,7 +10061,12 @@ def project_settings_bytes() -> bytes:
         "nozzle_diameter": ["0.4"],
         "print_compatible_printers": [BAMBU_PRINTER_SETTINGS_ID],
         "print_settings_id": BAMBU_PROCESS_SETTINGS_ID,
-        "printable_area": ["0x0", "256x0", "256x256", "0x256"],
+        "printable_area": [
+            "0x0",
+            f"{PROJECT_PLATE_SIZE:g}x0",
+            f"{PROJECT_PLATE_SIZE:g}x{PROJECT_PLATE_SIZE:g}",
+            f"0x{PROJECT_PLATE_SIZE:g}",
+        ],
         "printable_height": "250",
         "printer_model": "Bambu Lab P1S",
         "printer_settings_id": BAMBU_PRINTER_SETTINGS_ID,
@@ -9663,46 +10134,47 @@ def export_3mf_project(path: Path, parts) -> Path:
         },
     ]
     remaining_groups = [
-        ("lower_tray", LOWER_TRAY_STL_NAME, 3, 1, 2, None),
-        ("lid_retainer", LID_RETAINER_STL_NAME, 3, 1, 3, None),
+        ("fan_cradle", FAN_CRADLE_STL_NAME, 3, 1, 2, None),
+        ("equipment_tray", EQUIPMENT_TRAY_STL_NAME, 3, 1, 3, None),
+        ("lid_retainer", LID_RETAINER_STL_NAME, 3, 1, 4, None),
     ]
     if not PRINT_TPU_GASKET_WITH_LID:
-        remaining_groups.append(("gasket", GASKET_STL_NAME, 3, 1, 4, None))
-    hardware_plate = 4 if PRINT_TPU_GASKET_WITH_LID else 5
+        remaining_groups.append(("gasket", GASKET_STL_NAME, 3, 1, 5, None))
+    hardware_plate = 5 if PRINT_TPU_GASKET_WITH_LID else 6
     remaining_groups.extend(
         [
-        (
-            "latch_lever",
-            LATCH_LEVER_STL_NAME,
-            1,
-            2,
-            hardware_plate,
-            ((30.0, 30.0), (85.0, 30.0)),
-        ),
-        (
-            "latch_hook",
-            LATCH_HOOK_STL_NAME,
-            1,
-            2,
-            hardware_plate,
-            ((30.0, 80.0), (75.0, 80.0)),
-        ),
-        (
-            "handle_bar",
-            HANDLE_BAR_STL_NAME,
-            1,
-            1,
-            hardware_plate,
-            ((145.0, 100.0),),
-        ),
-        (
-            "hinge_pin",
-            HINGE_PIN_STL_NAME,
-            1,
-            1,
-            hardware_plate,
-            ((45.0, 190.0),),
-        ),
+            (
+                "latch_lever",
+                LATCH_LEVER_STL_NAME,
+                1,
+                2,
+                hardware_plate,
+                ((30.0, 30.0), (85.0, 30.0)),
+            ),
+            (
+                "latch_hook",
+                LATCH_HOOK_STL_NAME,
+                1,
+                2,
+                hardware_plate,
+                ((30.0, 80.0), (75.0, 80.0)),
+            ),
+            (
+                "handle_bar",
+                HANDLE_BAR_STL_NAME,
+                1,
+                1,
+                hardware_plate,
+                ((145.0, 100.0),),
+            ),
+            (
+                "hinge_pin",
+                HINGE_PIN_STL_NAME,
+                1,
+                1,
+                hardware_plate,
+                ((45.0, 190.0),),
+            ),
         ]
     )
     for (
@@ -9874,7 +10346,8 @@ def export_3mf_project(path: Path, parts) -> Path:
         plate_names = (
             "Shell Base",
             "AMS Lid + Hollow TPU Gasket",
-            "TPU Lower Tray",
+            "TPU Lower Fan Cradle",
+            "TPU Upper Equipment Tray",
             "TPU Lid Pad",
             "Printed Hardware",
         )
@@ -9882,7 +10355,8 @@ def export_3mf_project(path: Path, parts) -> Path:
         plate_names = (
             "Shell Base",
             "AMS Lid",
-            "TPU Lower Tray",
+            "TPU Lower Fan Cradle",
+            "TPU Upper Equipment Tray",
             "TPU Lid Pad",
             "TPU Gasket",
             "Printed Hardware",
@@ -10012,7 +10486,7 @@ def validate_relationships(root, expected_targets) -> None:
 
 
 def validate_3mf_project(path: Path) -> None:
-    object_count = 8 if PRINT_TPU_GASKET_WITH_LID else 9
+    object_count = 9 if PRINT_TPU_GASKET_WITH_LID else 10
     object_model_paths = [
         f"3D/Objects/object_{index}.model" for index in range(1, object_count + 1)
     ]
@@ -10108,35 +10582,41 @@ def validate_3mf_project(path: Path) -> None:
             ),
             (
                 "8",
-                "Field_Case_Recessed_TPU_Lower_Tray",
+                "Field_Case_Lower_TPU_Dual_80mm_Fan_Cradle",
                 ("7",),
                 object_model_paths[2],
             ),
             (
                 "10",
-                "Field_Case_Recessed_TPU_Lid_Pad",
+                "Field_Case_Removable_Upper_TPU_Equipment_Tray",
                 ("9",),
                 object_model_paths[3],
             ),
             (
                 "12",
-                "Field_Case_Pelican_Source_Lever_Print_Two",
+                "Field_Case_Recessed_TPU_Lid_Pad",
                 ("11",),
                 object_model_paths[4],
             ),
             (
                 "14",
-                "Field_Case_Pelican_Source_Hook_Print_Two",
+                "Field_Case_Pelican_Source_Lever_Print_Two",
                 ("13",),
                 object_model_paths[5],
             ),
             (
                 "16",
-                "Field_Case_Pivoting_Handle_Bar",
+                "Field_Case_Pelican_Source_Hook_Print_Two",
                 ("15",),
                 object_model_paths[6],
             ),
-            ("18", "Field_Case_Hinge_Pin", ("17",), object_model_paths[7]),
+            (
+                "18",
+                "Field_Case_Pivoting_Handle_Bar",
+                ("17",),
+                object_model_paths[7],
+            ),
+            ("20", "Field_Case_Hinge_Pin", ("19",), object_model_paths[8]),
         )
     else:
         expected_groups = (
@@ -10149,36 +10629,42 @@ def validate_3mf_project(path: Path) -> None:
             ),
             (
                 "7",
-                "Field_Case_Recessed_TPU_Lower_Tray",
+                "Field_Case_Lower_TPU_Dual_80mm_Fan_Cradle",
                 ("6",),
                 object_model_paths[2],
             ),
             (
                 "9",
-                "Field_Case_Recessed_TPU_Lid_Pad",
+                "Field_Case_Removable_Upper_TPU_Equipment_Tray",
                 ("8",),
                 object_model_paths[3],
             ),
-            ("11", "Field_Case_Hollow_TPU_Gasket", ("10",), object_model_paths[4]),
             (
-                "13",
-                "Field_Case_Pelican_Source_Lever_Print_Two",
-                ("12",),
-                object_model_paths[5],
+                "11",
+                "Field_Case_Recessed_TPU_Lid_Pad",
+                ("10",),
+                object_model_paths[4],
             ),
+            ("13", "Field_Case_Hollow_TPU_Gasket", ("12",), object_model_paths[5]),
             (
                 "15",
-                "Field_Case_Pelican_Source_Hook_Print_Two",
+                "Field_Case_Pelican_Source_Lever_Print_Two",
                 ("14",),
                 object_model_paths[6],
             ),
             (
                 "17",
-                "Field_Case_Pivoting_Handle_Bar",
+                "Field_Case_Pelican_Source_Hook_Print_Two",
                 ("16",),
                 object_model_paths[7],
             ),
-            ("19", "Field_Case_Hinge_Pin", ("18",), object_model_paths[8]),
+            (
+                "19",
+                "Field_Case_Pivoting_Handle_Bar",
+                ("18",),
+                object_model_paths[8],
+            ),
+            ("21", "Field_Case_Hinge_Pin", ("20",), object_model_paths[9]),
         )
     component_objects = model.findall(
         f"./{three_mf_tag('resources')}/{three_mf_tag('object')}"
@@ -10260,7 +10746,7 @@ def validate_3mf_project(path: Path) -> None:
         mesh_payloads["3"],
         (mesh_payloads["4"],),
     )
-    gasket_mesh_id = "5" if PRINT_TPU_GASKET_WITH_LID else "10"
+    gasket_mesh_id = "5" if PRINT_TPU_GASKET_WITH_LID else "12"
     gasket_vertices, gasket_triangles = mesh_payloads[gasket_mesh_id]
     expected_gasket_z0 = GASKET_INSTALLED_Z if PRINT_TPU_GASKET_WITH_LID else 0.0
     gasket_minimum_z = min(vertex[2] for vertex in gasket_vertices)
@@ -10286,25 +10772,27 @@ def validate_3mf_project(path: Path) -> None:
             "3": (LID_STL_NAME, "1"),
             "4": (LOGO_ORANGE_INLAY_STL_NAME, "2"),
             "5": (GASKET_STL_NAME, "3"),
-            "7": (LOWER_TRAY_STL_NAME, "3"),
-            "9": (LID_RETAINER_STL_NAME, "3"),
-            "11": (LATCH_LEVER_STL_NAME, "1"),
-            "13": (LATCH_HOOK_STL_NAME, "1"),
-            "15": (HANDLE_BAR_STL_NAME, "1"),
-            "17": (HINGE_PIN_STL_NAME, "1"),
+            "7": (FAN_CRADLE_STL_NAME, "3"),
+            "9": (EQUIPMENT_TRAY_STL_NAME, "3"),
+            "11": (LID_RETAINER_STL_NAME, "3"),
+            "13": (LATCH_LEVER_STL_NAME, "1"),
+            "15": (LATCH_HOOK_STL_NAME, "1"),
+            "17": (HANDLE_BAR_STL_NAME, "1"),
+            "19": (HINGE_PIN_STL_NAME, "1"),
         }
     else:
         expected_parts = {
             "1": (BASE_STL_NAME, "1"),
             "3": (LID_STL_NAME, "1"),
             "4": (LOGO_ORANGE_INLAY_STL_NAME, "2"),
-            "6": (LOWER_TRAY_STL_NAME, "3"),
-            "8": (LID_RETAINER_STL_NAME, "3"),
-            "10": (GASKET_STL_NAME, "3"),
-            "12": (LATCH_LEVER_STL_NAME, "1"),
-            "14": (LATCH_HOOK_STL_NAME, "1"),
-            "16": (HANDLE_BAR_STL_NAME, "1"),
-            "18": (HINGE_PIN_STL_NAME, "1"),
+            "6": (FAN_CRADLE_STL_NAME, "3"),
+            "8": (EQUIPMENT_TRAY_STL_NAME, "3"),
+            "10": (LID_RETAINER_STL_NAME, "3"),
+            "12": (GASKET_STL_NAME, "3"),
+            "14": (LATCH_LEVER_STL_NAME, "1"),
+            "16": (LATCH_HOOK_STL_NAME, "1"),
+            "18": (HANDLE_BAR_STL_NAME, "1"),
+            "20": (HINGE_PIN_STL_NAME, "1"),
         }
     settings_objects = model_settings.findall("object")
     settings_parts = model_settings.findall("object/part")
@@ -10316,10 +10804,11 @@ def validate_3mf_project(path: Path) -> None:
             "6": "1",
             "8": "3",
             "10": "3",
-            "12": "1",
+            "12": "3",
             "14": "1",
             "16": "1",
             "18": "1",
+            "20": "1",
         }
     else:
         expected_object_extruders = {
@@ -10328,10 +10817,11 @@ def validate_3mf_project(path: Path) -> None:
             "7": "3",
             "9": "3",
             "11": "3",
-            "13": "1",
+            "13": "3",
             "15": "1",
             "17": "1",
             "19": "1",
+            "21": "1",
         }
     expected_group_names = {group[0]: group[1] for group in expected_groups}
     for settings_object in settings_objects:
@@ -10357,7 +10847,8 @@ def validate_3mf_project(path: Path) -> None:
         plate_names = (
             "Shell Base",
             "AMS Lid + Hollow TPU Gasket",
-            "TPU Lower Tray",
+            "TPU Lower Fan Cradle",
+            "TPU Upper Equipment Tray",
             "TPU Lid Pad",
             "Printed Hardware",
         )
@@ -10366,20 +10857,22 @@ def validate_3mf_project(path: Path) -> None:
             (("6", "0"),),
             (("8", "0"),),
             (("10", "0"),),
+            (("12", "0"),),
             (
-                ("12", "0"),
-                ("12", "1"),
                 ("14", "0"),
                 ("14", "1"),
                 ("16", "0"),
+                ("16", "1"),
                 ("18", "0"),
+                ("20", "0"),
             ),
         )
     else:
         plate_names = (
             "Shell Base",
             "AMS Lid",
-            "TPU Lower Tray",
+            "TPU Lower Fan Cradle",
+            "TPU Upper Equipment Tray",
             "TPU Lid Pad",
             "TPU Gasket",
             "Printed Hardware",
@@ -10390,13 +10883,14 @@ def validate_3mf_project(path: Path) -> None:
             (("7", "0"),),
             (("9", "0"),),
             (("11", "0"),),
+            (("13", "0"),),
             (
-                ("13", "0"),
-                ("13", "1"),
                 ("15", "0"),
                 ("15", "1"),
                 ("17", "0"),
+                ("17", "1"),
                 ("19", "0"),
+                ("21", "0"),
             ),
         )
     settings_plates = model_settings.findall("plate")
@@ -10450,7 +10944,7 @@ def validate_3mf_project(path: Path) -> None:
             max(point[2] for point in points),
         )
     plate_boxes = [[] for _name in plate_names]
-    plate_stride = 256.0 * 1.2
+    plate_stride = PROJECT_PLATE_SIZE * 1.2
     item_index = 0
     for plate_index, plate_instances in enumerate(expected_plate_instances):
         origin_x = (plate_index % 3) * plate_stride
@@ -10469,9 +10963,9 @@ def validate_3mf_project(path: Path) -> None:
             )
             if not (
                 origin_x - 1e-6 <= box[0]
-                and box[1] <= origin_x + 256.0 + 1e-6
+                and box[1] <= origin_x + PROJECT_PLATE_SIZE + 1e-6
                 and origin_y - 1e-6 <= box[2]
-                and box[3] <= origin_y + 256.0 + 1e-6
+                and box[3] <= origin_y + PROJECT_PLATE_SIZE + 1e-6
                 and -1e-6 <= box[4]
                 and box[5] <= 250.0 + 1e-6
             ):
@@ -10929,6 +11423,108 @@ def validate_built_lid_retainer_hood_reliefs(retainer) -> None:
     )
 
 
+def validate_built_upper_tray_access(tray, retainer) -> None:
+    """Prove the arm passage and both tray-lift scallops remain open."""
+
+    def air_overlap(part, probe, part_location):
+        try:
+            _faces, volume = exact_transformed_intersection(
+                part,
+                probe,
+                first_location=part_location,
+                second_location=probe.location.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        return volume
+
+    arm_x0, arm_x1, arm_y0, arm_y1 = FAN_ARM_PASSAGE_BOUNDS
+    passage_inset = 1.0
+    tray_passage_probe = add_rounded_prism(
+        "TEMPORARY_Upper_Tray_Fan_Arm_Passage_Air_Probe",
+        arm_x1 - arm_x0 - 2.0 * passage_inset,
+        arm_y1 - arm_y0 - 2.0 * passage_inset,
+        tray.location.z + 0.1,
+        tray.location.z + TRAY_HEIGHT - 0.1,
+        max(FAN_ARM_PASSAGE_CORNER_RADIUS - passage_inset, 0.0),
+        ((arm_x0 + arm_x1) / 2.0, (arm_y0 + arm_y1) / 2.0),
+    )
+    tray_passage_overlap = air_overlap(
+        tray,
+        tray_passage_probe,
+        tray.location.copy(),
+    )
+
+    tray_width = (
+        CASE_WIDTH
+        - 2.0 * WALL_THICKNESS
+        - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE
+    )
+    tray_depth = (
+        CASE_DEPTH
+        - 2.0 * WALL_THICKNESS
+        - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE
+    )
+    lift_probe_inset = 1.0
+    lift_overlaps = []
+    for index, center_x in enumerate(
+        EQUIPMENT_TRAY_LIFT_NOTCH_X_CENTERS,
+        start=1,
+    ):
+        lift_probe = add_rounded_prism(
+            f"TEMPORARY_Upper_Tray_Lift_Scallop_{index}_Air_Probe",
+            EQUIPMENT_TRAY_LIFT_NOTCH_WIDTH - 2.0 * lift_probe_inset,
+            EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH - 2.0 * lift_probe_inset,
+            tray.location.z + 0.1,
+            tray.location.z + TRAY_HEIGHT - 0.1,
+            EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH / 2.0 - lift_probe_inset,
+            (center_x, -tray_depth / 2.0),
+        )
+        lift_overlaps.append(air_overlap(tray, lift_probe, tray.location.copy()))
+
+    lid_passage_probe = add_rounded_prism(
+        "TEMPORARY_Lid_Pad_Fan_Arm_Passage_Air_Probe",
+        arm_x1 - arm_x0 - 2.0 * passage_inset,
+        arm_y1 - arm_y0 - 2.0 * passage_inset,
+        retainer.location.z + 0.1,
+        retainer.location.z + LID_RETAINER_HEIGHT - 0.1,
+        max(FAN_ARM_PASSAGE_CORNER_RADIUS - passage_inset, 0.0),
+        (
+            retainer.location.x + (arm_x0 + arm_x1) / 2.0,
+            retainer.location.y - (arm_y0 + arm_y1) / 2.0,
+        ),
+    )
+    lid_passage_overlap = air_overlap(
+        retainer,
+        lid_passage_probe,
+        retainer.location.copy(),
+    )
+
+    maximum_overlap = max(
+        tray_passage_overlap,
+        lid_passage_overlap,
+        *lift_overlaps,
+    )
+    if maximum_overlap > 1e-7:
+        raise ValueError(
+            "An upper-tray access opening is obstructed: "
+            f"tray_passage={tray_passage_overlap:.9f} "
+            f"lift_scallops={lift_overlaps} "
+            f"lid_passage={lid_passage_overlap:.9f}"
+        )
+    print(
+        "FIELD_CASE_UPPER_TRAY_ACCESS_VALID "
+        f"arm_passage={arm_x1 - arm_x0:.1f}x{arm_y1 - arm_y0:.1f} "
+        f"tray_air={tray_passage_overlap:.9f} "
+        f"lid_pad_air={lid_passage_overlap:.9f} "
+        f"lift_scallops={len(lift_overlaps)}x"
+        f"{EQUIPMENT_TRAY_LIFT_NOTCH_WIDTH:.1f}x"
+        f"{EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH:.1f} "
+        f"lift_air_max={max(lift_overlaps):.9f} "
+        f"tray={tray_width:.1f}x{tray_depth:.1f}"
+    )
+
+
 def build_mission1_field_case():
     validate_configuration()
     if CLEAR_SCENE:
@@ -10951,6 +11547,9 @@ def build_mission1_field_case():
     battery_material = make_material(
         "Battery_Reference", (0.88, 0.9, 0.94), roughness=0.5
     )
+    fan_reference_material = make_material(
+        "Dual_Fan_Reference", (0.36, 0.12, 0.08), roughness=0.42
+    )
     latch_reference_material = make_material(
         "Pelican_Source_Latch_Reference", (0.82, 0.06, 0.03), roughness=0.38
     )
@@ -10962,8 +11561,13 @@ def build_mission1_field_case():
     )
     parts = {}
     parts["base"] = create_base(shell_material)
-    parts["lower_tray"] = create_lower_tray(tpu_material)
-    translate_object(parts["lower_tray"], (0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
+    parts["fan_cradle"] = create_fan_cradle(tpu_material)
+    translate_object(parts["fan_cradle"], (0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
+    parts["equipment_tray"] = create_equipment_tray(tpu_material)
+    translate_object(
+        parts["equipment_tray"],
+        (0.0, 0.0, EQUIPMENT_TRAY_INSTALLED_Z),
+    )
     lid, logo_orange = create_lid(
         shell_material,
         logo_orange_material,
@@ -10978,11 +11582,13 @@ def build_mission1_field_case():
     parts["handle_bar"] = create_pivoting_handle_bar(hardware_material)
     parts["hinge_pin"] = create_hinge_pin(hardware_material)
 
+    reference_objects = []
     if BUILD_REFERENCE_MOCKUPS:
-        create_reference_mockups(
+        reference_objects = create_reference_mockups(
             (
                 camera_material,
                 battery_material,
+                fan_reference_material,
                 latch_reference_material,
                 latch_rod_reference_material,
                 carry_handle_reference_material,
@@ -10996,7 +11602,14 @@ def build_mission1_field_case():
     validate_built_flush_lid_inlay(parts)
     validate_built_lid_hockey_inlay(parts)
     validate_built_lid_retainer_hood_reliefs(parts["lid_retainer"])
-    validate_installed_lower_tray(parts)
+    validate_built_upper_tray_access(
+        parts["equipment_tray"],
+        parts["lid_retainer"],
+    )
+    validate_installed_trays(parts)
+    validate_built_fan_cradle(parts["fan_cradle"])
+    if reference_objects:
+        validate_stored_dual_fan_reference(parts, reference_objects)
     validate_built_base_hinge_gussets(parts["base"])
     validate_built_lid_hinge_receivers(parts["lid"])
     validate_built_lid_hinge_end_stops(parts["lid"])
@@ -11035,7 +11648,8 @@ def build_mission1_field_case():
         exports = (
             (BASE_STL_NAME, parts["base"]),
             (LID_STL_NAME, parts["lid"]),
-            (LOWER_TRAY_STL_NAME, parts["lower_tray"]),
+            (FAN_CRADLE_STL_NAME, parts["fan_cradle"]),
+            (EQUIPMENT_TRAY_STL_NAME, parts["equipment_tray"]),
             (LID_RETAINER_STL_NAME, parts["lid_retainer"]),
             (GASKET_STL_NAME, parts["gasket"]),
             (LATCH_LEVER_STL_NAME, parts["latch_lever"]),
@@ -11047,8 +11661,10 @@ def build_mission1_field_case():
         for filename, obj in exports:
             print_origin = None
             expected_minimum_z = 0.0
-            if obj is parts["lower_tray"]:
-                print_origin = Vector((0.0, 0.0, LOWER_TRAY_INSTALLED_Z))
+            if obj is parts["fan_cradle"]:
+                print_origin = Vector((0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
+            elif obj is parts["equipment_tray"]:
+                print_origin = Vector((0.0, 0.0, EQUIPMENT_TRAY_INSTALLED_Z))
             elif obj is parts["gasket"] and PRINT_TPU_GASKET_WITH_LID:
                 expected_minimum_z = GASKET_INSTALLED_Z
             export_stl(
