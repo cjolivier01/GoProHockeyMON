@@ -6,7 +6,7 @@ Run from the repository root with::
       --python models3d/mission1-field-case/render_mission1_field_case_previews.py
 
 The script builds the same validated reference scene as the model generator and
-writes a loaded lower-tier section plus an exploded storage-stack view to
+writes a loaded compact-stack cutaway plus an exploded storage-stack view to
 ``renderings/``.
 """
 
@@ -199,12 +199,18 @@ def hide_non_storage_objects():
         obj.hide_render = not obj.name.startswith(visible_prefixes)
 
 
-def render_loaded_fan_tier(camera):
+def render_loaded_compact_stack(camera):
     cutaway_base = PARTS["base"].copy()
     cutaway_base.data = PARTS["base"].data.copy()
-    cutaway_base.name = "PREVIEW_ONLY_Lower_Fan_Tier_Sectioned_Base"
+    cutaway_base.name = "PREVIEW_ONLY_Loaded_Compact_Stack_Sectioned_Base"
     bpy.context.collection.objects.link(cutaway_base)
-    section_height = 72.0
+    # Lower the shell wall in the documentation copy so the upper tray, its
+    # front lift scallops, and the fan arm emerging through the tray remain
+    # legible.  This boolean never touches the printable base.
+    section_height = (
+        field_case.EQUIPMENT_TRAY_INSTALLED_Z
+        + 0.75 * field_case.TRAY_HEIGHT
+    )
     section_cutter = field_case.add_rounded_box(
         "PREVIEW_ONLY_Base_Upper_Section_Cutter",
         (500.0, 500.0, 300.0),
@@ -213,17 +219,8 @@ def render_loaded_fan_tier(camera):
     )
     field_case.difference_from(cutaway_base, section_cutter)
     PARTS["base"].hide_render = True
-    PARTS["equipment_tray"].hide_render = True
-    content_prefixes = (
-        "REFERENCE_ONLY_MISSION1_",
-        "REFERENCE_ONLY_Enduro2_",
-        "REFERENCE_ONLY_MISSION1_Battery_Cage_Door_",
-    )
-    for prefix in content_prefixes:
-        for obj in reference_objects(prefix):
-            obj.hide_render = True
-    camera.location = (420.0, -515.0, 380.0)
-    aim_object(camera, (0.0, 0.0, 58.0))
+    camera.location = (385.0, -500.0, 355.0)
+    aim_object(camera, (0.0, -3.0, 66.0))
     bpy.context.scene.render.filepath = str(
         RENDER_DIRECTORY / "mission1_field_case_fan_tier_cutaway.png"
     )
@@ -242,8 +239,18 @@ def render_exploded_stack(camera):
         for obj in reference_objects(prefix):
             obj.hide_render = False
 
-    cradle_shift = 191.8
-    equipment_shift = 221.0
+    stack_gap = 30.0
+    cradle_shift = (
+        field_case.BASE_HEIGHT
+        + stack_gap
+        - field_case.FAN_CRADLE_INSTALLED_Z
+    )
+    equipment_shift = (
+        field_case.FAN_ASSEMBLY_INSTALLED_TOP_Z
+        + cradle_shift
+        + stack_gap
+        - field_case.EQUIPMENT_TRAY_INSTALLED_Z
+    )
     PARTS["fan_cradle"].location.z += cradle_shift
     PARTS["equipment_tray"].location.z += equipment_shift
     for prefix in (
@@ -276,6 +283,6 @@ RENDER_DIRECTORY.mkdir(parents=True, exist_ok=True)
 CAMERA = set_studio_scene()
 hide_non_storage_objects()
 set_reference_materials()
-render_loaded_fan_tier(CAMERA)
+render_loaded_compact_stack(CAMERA)
 render_exploded_stack(CAMERA)
 print(f"FIELD_CASE_RENDERED_PREVIEWS {RENDER_DIRECTORY}")

@@ -4,7 +4,7 @@
 rugged case for two GoPro MISSION 1 cameras, four Enduro 2/HERO13-format
 batteries, and the assembled parametric dual-fan holder with two installed
 80 x 80 x 25 mm fans. It reads no STL during generation, and every part fits
-within a 250 x 250 mm build area. The rigid shell is 234 x 158 x 162.8 mm;
+within a 250 x 250 mm build area. The rigid shell is 234 x 158 x 95.8 mm;
 its largest print-bed footprints are the 244 x 187.8 mm lid and the
 241.6 x 187.8 mm base. The latch lever and moving hook are derived from the
 mechanism in the user-supplied `pelican_case_blender_2.9.blend`; their processed
@@ -28,10 +28,10 @@ blender --background --factory-startup \
   --python models3d/mission1-field-case/render_mission1_field_case_previews.py
 ```
 
-This writes the loaded lower-fan-tier section and exploded storage-stack PNGs
-under `models3d/mission1-field-case/renderings/`. The section view trims only a
-temporary copy of the shell above the fan tier; it does not modify printable
-geometry.
+This writes the loaded compact-stack cutaway and exploded storage-stack PNGs
+under `models3d/mission1-field-case/renderings/`. The cutaway trims only a
+temporary copy of the shell wall so the tray pass-through remains visible; it
+does not modify printable geometry.
 
 ## Stacked TPU storage tiers
 
@@ -47,36 +47,46 @@ The stored default dual-fan assembly is 212.5 x 129.71 x 95.57 mm including
 the holder, attached three-prong GoPro adapter, and installed fans. Place the
 complete assembly rear-grille-down, with its adapter projecting toward the
 front/latch side of the case. The two grille/frame contact regions seat in the
-shallow pocket; the adapter rises into the open lower tier. This matches the
-holder's supported print orientation and avoids a deep negative mold around
-the adapter. The assembly reaches approximately Z = 101.77 mm.
+shallow pocket. The 80 mm fan bodies end at approximately Z = 34.7 mm, while
+only the routed support arm and attached adapter continue upward. This matches
+the holder's supported print orientation and avoids a deep negative mold
+around the adapter. The complete assembly reaches approximately Z = 101.77 mm.
 
 `mission1_field_case_upper_equipment_tray_tpu.stl` is the removable
-224 x 148 x 35 mm upper tier. Its assembled bottom is at Z = 104 mm on two
-rigid side rails, leaving 2.23 mm above the stored fan assembly. Lift this tray
-out to install or remove the fan holder. The former rectangular and stepped
-generic storage compartments were removed to make room for the fan tier.
+223 x 147 x 35 mm upper tier. Its assembled bottom is at Z = 37 mm on two
+rigid side rails, 2.3 mm above the installed fan bodies. A localized rounded
+39.5 x 47.5 mm opening lets the routed arm pass through the tray; the matching
+opening in the inverted TPU lid pad lets the arm occupy otherwise-unused tray
+and pad height while preserving 1.03 mm clearance from the rigid lid plate.
+The tray has 1 mm clearance per side, twice the original clearance, to reduce
+friction against the shell. Two 18 x 18 mm scallops open through its front edge
+for a direct two-finger lift. The former rectangular and stepped generic
+storage compartments were removed to make room for the compact stack.
 
 The upper tray retains two independent camera pockets cut from the local
 procedural MISSION 1 body, including its offset lens housing, controls, and
 rounded body. The cameras face opposite directions so their lens lobes nest
-while a continuous TPU web keeps the pockets separate.
+while a continuous TPU web keeps the pockets separate; the pair is shifted
+rearward around the arm opening.
 Each lens end widens into a trapezoidal relief for the soft MISSION 1 Pro lens
 flare/hood. Four 34.5 x 13.5 mm battery pockets provide 1 mm total clearance
 around the 33.5 x 12.5 mm generated inspection batteries and retain their
-existing 21.8 mm insertion depth. The batteries are 40.56 mm tall and sit
-terminal-down. Two outer 50 x 11 mm door pockets are recessed 11 mm. The
-generated 50 x 10 x 18 mm door solids remain 7 mm proud for an easy finger
-grip.
+existing 21.8 mm insertion depth. The batteries are split into left and right
+front banks around the pass-through; they are 40.56 mm tall and sit
+terminal-down. Two 50 x 11 mm door pockets occupy the outer side channels and
+are recessed 11 mm. The generated 50 x 10 x 18 mm door solids remain 7 mm
+proud for an easy finger grip.
 
 The TPU lid pad has separate shutter-button reliefs. It also mirrors the upper
 tray's two trapezoidal MISSION 1 Pro lens-hood footprints as 2 mm-deep
 indentations in its camera-contact face, so the flared soft lens hoods are not
 pinched between the two TPU halves. Solid 10.4 mm TPU floors remain beneath
-both pockets. Its asymmetric perimeter notch mates with a rigid lid boss, so
-the pad seats in only the correct direction. Two localized 11 mm extensions
-meet the proud battery doors with the same 0.6 mm preload as the camera/battery
-contact face, preventing the doors from rattling when the case is closed.
+both pockets. A mirrored full-depth arm opening aligns with the tray opening
+when the lid closes. The pad's asymmetric perimeter notch mates with a rigid
+lid boss, so it seats in only the correct direction. Two localized 11 mm
+extensions meet the proud battery doors with the same 0.6 mm preload as the
+camera/battery contact face, preventing the doors from rattling when the case
+is closed.
 
 With `BUILD_REFERENCE_MOCKUPS = True`, the script also creates the exact
 generated dual-fan holder and attached three-prong adapter, two installed
@@ -460,9 +470,10 @@ and can be regenerated without editing an STL.
 1. Press the lower fan cradle into the base. Turn the complete dual-fan
    assembly rear-grille-down, point its attached adapter toward the front/latch
    side, and seat both fan-frame contact regions in the shallow locator pocket.
-   Place the upper equipment tray on the two rigid side rails. Load the two
-   removable battery doors in its shallow outer pockets if carried; each door
-   remains 7 mm proud.
+   Lower the upper equipment tray over the support arm until the arm passes
+   through the rounded opening and the tray rests on both rigid side rails.
+   Load the two removable battery doors in its shallow outer pockets if
+   carried; each door remains 7 mm proud.
 2. With the default integrated print, inspect the beam-interlocked TPU gasket
    for a continuous bond to the lid channel. If the separate-gasket option was
    used, seat the hollow TPU ring in the channel. Fit the TPU pad with its
@@ -480,7 +491,8 @@ and can be regenerated without editing an STL.
    Allen socket-head screws and two standard M3 nuts, one set per side.
 5. Load the two opposed cameras with their soft lens hoods in the flared ends,
    then load four batteries terminal-down. Remove the cameras and batteries,
-   then lift out the upper tray, whenever the fan assembly must be removed.
+   place two fingers in the front scallops, and lift the upper tray straight up
+   along the fan arm whenever the fan assembly must be removed.
 
 ## Reference acknowledgments
 
