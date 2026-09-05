@@ -6,8 +6,7 @@ Run from the repository root with::
       --python models3d/mission1-field-case/render_mission1_field_case_previews.py
 
 The script builds the same validated reference scene as the model generator and
-writes a loaded compact-stack cutaway plus an exploded storage-stack view to
-``renderings/``.
+writes loaded, exploded, and closed latch-protector views to ``renderings/``.
 """
 
 from pathlib import Path
@@ -170,6 +169,8 @@ def set_reference_materials():
         roughness=0.36,
     )
     assign_material(PARTS["base"], shell)
+    assign_material(PARTS["lid"], shell)
+    assign_material(PARTS["logo_orange_inlay"], tray)
     assign_material(PARTS["fan_cradle"], tray)
     assign_material(PARTS["equipment_tray"], tray)
     for obj in reference_objects("REFERENCE_ONLY_Stored_"):
@@ -200,33 +201,15 @@ def hide_non_storage_objects():
 
 
 def render_loaded_compact_stack(camera):
-    cutaway_base = PARTS["base"].copy()
-    cutaway_base.data = PARTS["base"].data.copy()
-    cutaway_base.name = "PREVIEW_ONLY_Loaded_Compact_Stack_Sectioned_Base"
-    bpy.context.collection.objects.link(cutaway_base)
-    # Lower the shell wall in the documentation copy so the upper tray, its
-    # front lift scallops, and the fan arm emerging through the tray remain
-    # legible.  This boolean never touches the printable base.
-    section_height = (
-        field_case.EQUIPMENT_TRAY_INSTALLED_Z
-        + 0.75 * field_case.TRAY_HEIGHT
-    )
-    section_cutter = field_case.add_rounded_box(
-        "PREVIEW_ONLY_Base_Upper_Section_Cutter",
-        (500.0, 500.0, 300.0),
-        (0.0, 0.0, section_height + 150.0),
-        bevel=0.0,
-    )
-    field_case.difference_from(cutaway_base, section_cutter)
-    PARTS["base"].hide_render = True
-    camera.location = (385.0, -500.0, 355.0)
-    aim_object(camera, (0.0, -3.0, 66.0))
+    # A steep view preserves the complete printable shell and exterior impact
+    # protectors while still looking down into the recessed upper tray.
+    PARTS["base"].hide_render = False
+    camera.location = (340.0, -430.0, 500.0)
+    aim_object(camera, (0.0, -3.0, 62.0))
     bpy.context.scene.render.filepath = str(
         RENDER_DIRECTORY / "mission1_field_case_fan_tier_cutaway.png"
     )
     bpy.ops.render.render(write_still=True)
-    cutaway_base.hide_render = True
-    PARTS["base"].hide_render = False
 
 
 def render_exploded_stack(camera):
@@ -275,6 +258,46 @@ def render_exploded_stack(camera):
     bpy.ops.render.render(write_still=True)
 
 
+def render_closed_latch_protectors(camera):
+    for obj in PARTS.values():
+        obj.hide_render = True
+    for obj in reference_objects("REFERENCE_ONLY_"):
+        obj.hide_render = True
+    PARTS["base"].hide_render = False
+
+    lid_location, lid_rotation = field_case.installed_lid_pose(0.0)
+    installed_lid_parts = []
+    for key in ("lid", "logo_orange_inlay"):
+        source = PARTS[key]
+        installed = source.copy()
+        installed.data = source.data.copy()
+        installed.name = f"PREVIEW_ONLY_Closed_{source.name}"
+        bpy.context.collection.objects.link(installed)
+        installed.location = lid_location
+        installed.rotation_euler = lid_rotation
+        installed.hide_render = False
+        installed_lid_parts.append(installed)
+
+    for prefix in (
+        "REFERENCE_ONLY_CLOSED_Pelican_Source_",
+        "REFERENCE_ONLY_Latch_",
+        "REFERENCE_ONLY_Folded_Pivoting_Handle",
+        "REFERENCE_ONLY_Handle_",
+    ):
+        for obj in reference_objects(prefix):
+            obj.hide_render = False
+
+    camera.location = (400.0, -540.0, 265.0)
+    aim_object(camera, (0.0, -5.0, 56.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_latch_protectors.png"
+    )
+    bpy.ops.render.render(write_still=True)
+
+    for obj in installed_lid_parts:
+        obj.hide_render = True
+
+
 field_case.BUILD_REFERENCE_MOCKUPS = True
 field_case.EXPORT_STL = False
 field_case.SAVE_BLEND = False
@@ -285,4 +308,5 @@ hide_non_storage_objects()
 set_reference_materials()
 render_loaded_compact_stack(CAMERA)
 render_exploded_stack(CAMERA)
+render_closed_latch_protectors(CAMERA)
 print(f"FIELD_CASE_RENDERED_PREVIEWS {RENDER_DIRECTORY}")

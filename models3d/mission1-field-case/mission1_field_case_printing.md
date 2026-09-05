@@ -28,10 +28,11 @@ blender --background --factory-startup \
   --python models3d/mission1-field-case/render_mission1_field_case_previews.py
 ```
 
-This writes the loaded compact-stack cutaway and exploded storage-stack PNGs
-under `models3d/mission1-field-case/renderings/`. The cutaway trims only a
-temporary copy of the shell wall so the tray pass-through remains visible; it
-does not modify printable geometry.
+This writes loaded full-shell, exploded storage-stack, and closed
+latch-protector PNGs under `models3d/mission1-field-case/renderings/`. The steep
+loaded view keeps the complete printable base protectors visible while looking
+down into the tray pass-through. The closed view shows the unsectioned base and
+lid protector walls with both installed latches.
 
 ## Stacked TPU storage tiers
 
