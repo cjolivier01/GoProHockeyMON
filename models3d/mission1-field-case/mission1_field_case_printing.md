@@ -20,6 +20,19 @@ make -C models3d mission1-field-case
 The Makefile requires GNU Make 4.3 or newer. On macOS, install a current GNU
 Make and run the command as `gmake` when the system `make` is BSD Make.
 
+The documentation renderings can be regenerated from the same validated model
+and exact reference assembly with:
+
+```sh
+blender --background --factory-startup \
+  --python models3d/mission1-field-case/render_mission1_field_case_previews.py
+```
+
+This writes the loaded lower-fan-tier section and exploded storage-stack PNGs
+under `models3d/mission1-field-case/renderings/`. The section view trims only a
+temporary copy of the shell above the fan tier; it does not modify printable
+geometry.
+
 ## Stacked TPU storage tiers
 
 The lower insert is now
