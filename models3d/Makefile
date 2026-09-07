@@ -401,14 +401,16 @@ $(MISSION1_DUMMY_STLS): $(MISSION1_DUMMY_SOURCE)
 	$(call run_single_output_generator,$<,main,EXPORT_PATH)
 
 # One generator emits every printable field-case component plus the multicolor
-# project. Reference mockups stay disabled for print-output builds. The grouped
-# rule records that one invocation updates the complete kit while retaining
-# normal timestamp-based incremental builds.
+# project. Exact reference mockups remain enabled so any dual-fan source change
+# is collision-tested against the current cradle, tray, and lid pad before the
+# explicit printable parts are exported. The grouped rule records that one
+# invocation updates the complete kit while retaining normal timestamp-based
+# incremental builds.
 $(MISSION1_FIELD_CASE_OUTPUTS) &: $(MISSION1_FIELD_CASE_SOURCE) \
 	$(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) $(FAN_PRESET_SOURCE)
 	$(RM) $(MISSION1_FIELD_CASE_OUTPUTS) $(MISSION1_FIELD_CASE_OBSOLETE_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
-		"import os; p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']=os.path.abspath('$(MISSION1_FIELD_CASE_DIR)'); ns['BUILD_REFERENCE_MOCKUPS']=False; ns['build_mission1_field_case']()"
+		"import os; p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']=os.path.abspath('$(MISSION1_FIELD_CASE_DIR)'); ns['BUILD_REFERENCE_MOCKUPS']=True; ns['build_mission1_field_case']()"
 	$(PDF_PYTHON) -c "from pathlib import Path; import zipfile; paths=[Path(name) for name in '$(MISSION1_FIELD_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; stl_payloads=[(path, path.read_bytes()) for path in paths[:-1]]; invalid_stls=[str(path) for path, data in stl_payloads if len(data) < 84 or len(data) != 84 + 50 * int.from_bytes(data[80:84], 'little')]; assert not invalid_stls, f'Invalid binary STL outputs: {invalid_stls}'; archive=zipfile.ZipFile(paths[-1]); bad_member=archive.testzip(); archive.close(); assert bad_member is None, f'Corrupt 3MF member: {bad_member}'"
 
 $(DUAL_FAN_STLS) &: $(DUAL_FAN_SOURCE) $(FAN_PRESET_SOURCE)

@@ -3,8 +3,9 @@
 `mission1_field_case_blender.py` creates every printable part of a
 rugged case for two GoPro MISSION 1 cameras, four Enduro 2/HERO13-format
 batteries, and the assembled parametric dual-fan holder with two installed
-80 x 80 x 25 mm fans. It reads no STL during generation, and every part fits
-within a 250 x 250 mm build area. The rigid shell is 234 x 158 x 95.8 mm;
+80 x 80 x 25 mm nominal fans whose front/rear Noctua pads produce a 27 mm
+installed thickness. It reads no STL during generation, and every part fits
+within a 250 x 250 mm build area. The rigid shell is 234 x 158 x 97.8 mm;
 its largest print-bed footprints are the 244 x 187.8 mm lid and the
 241.6 x 187.8 mm base. The latch lever and moving hook are derived from the
 mechanism in the user-supplied `pelican_case_blender_2.9.blend`; their processed
@@ -48,21 +49,35 @@ The stored default dual-fan assembly is 212.5 x 129.71 x 95.57 mm including
 the holder, attached three-prong GoPro adapter, and installed fans. Place the
 complete assembly rear-grille-down, with its adapter projecting toward the
 front/latch side of the case. The two grille/frame contact regions seat in the
-shallow pocket. The 80 mm fan bodies end at approximately Z = 34.7 mm, while
-only the routed support arm and attached adapter continue upward. This matches
-the holder's supported print orientation and avoids a deep negative mold
-around the adapter. The complete assembly reaches approximately Z = 101.77 mm.
+shallow pocket. The padded 80 mm fan bodies end at approximately Z = 36.7 mm,
+while only the routed support arm and attached adapter continue upward. This
+matches the holder's supported print orientation and avoids a deep negative
+mold around the adapter. The complete assembly reaches approximately
+Z = 101.77 mm.
 
 `mission1_field_case_upper_equipment_tray_tpu.stl` is the removable
-223 x 147 x 35 mm upper tier. Its assembled bottom is at Z = 37 mm on two
-rigid side rails, 2.3 mm above the installed fan bodies. A localized rounded
-39.5 x 47.5 mm opening lets the routed arm pass through the tray; the matching
-opening in the inverted TPU lid pad lets the arm occupy otherwise-unused tray
-and pad height while preserving 1.03 mm clearance from the rigid lid plate.
+223 x 147 x 35 mm upper tier. Its assembled bottom is at Z = 39 mm on two
+rigid side rails, 2.3 mm above the padded installed fan bodies. A localized
+rounded 39.5 x 47.5 mm opening lets the routed arm pass through the tray; the
+matching opening in the inverted TPU lid pad lets the arm occupy
+otherwise-unused tray and pad height while preserving 3.03 mm clearance from
+the rigid lid plate.
 The tray has 1 mm clearance per side, twice the original clearance, to reduce
 friction against the shell. Two 18 x 18 mm scallops open through its front edge
 for a direct two-finger lift. The former rectangular and stepped generic
 storage compartments were removed to make room for the compact stack.
+
+The padded fan-body depth is derived from the dual-fan generator's current
+nominal fan depth plus the 2 mm storage allowance for the Noctua pads. The
+upper-tray elevation rounds up to the next 0.5 mm and the shell height follows
+it, preserving the configured 2 mm minimum fan-body clearance when the nominal
+depth changes. Plan dimensions and the localized arm opening remain bounded
+case-design constraints; incompatible fan counts, sizes, rotations, or
+routed-arm geometry are rejected by validation rather than silently producing
+an oversized part.
+The production Make target constructs the current generated holder, adapter,
+and padded fan references and requires zero exact collision with the base,
+cradle, upper tray, and inverted lid pad before exporting the printable parts.
 
 The upper tray retains two independent camera pockets cut from the local
 procedural MISSION 1 body, including its offset lens housing, controls, and
@@ -91,10 +106,10 @@ is closed.
 
 With `BUILD_REFERENCE_MOCKUPS = True`, the script also creates the exact
 generated dual-fan holder and attached three-prong adapter, two installed
-80 x 80 x 25 mm fan solids, four procedural 33.5 x 12.5 x 40.56 mm battery
-solids, and two procedural 50 x 10 x 18 mm door solids for visual inspection.
-They are reference-only scene objects, not additional STL dependencies or
-print outputs.
+80 x 80 x 27 mm padded fan solids, four procedural 33.5 x 12.5 x 40.56 mm
+battery solids, and two procedural 50 x 10 x 18 mm door solids for visual
+inspection. They are reference-only scene objects, not additional STL
+dependencies or print outputs.
 
 ## Lid logo
 

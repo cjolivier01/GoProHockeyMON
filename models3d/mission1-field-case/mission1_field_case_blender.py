@@ -8,7 +8,7 @@ from disk.  The default kit holds:
 * four MISSION 1 Enduro 2 / HERO13-format batteries, terminal end downward,
 * two shallow flat pockets for the removable camera battery-cage doors,
 * a lower TPU cradle for the assembled parametric dual-80 mm-fan holder and
-  its installed 80 x 80 x 25 mm fans,
+  its installed 80 x 80 x 27 mm padded fans,
 * a removable upper TPU equipment tray and a one-way-keyed TPU lid pad,
 * a hollow TPU dust/splash gasket that prints into the lid by default, two
   source-derived two-piece Pelican latch
@@ -241,21 +241,18 @@ BASE_FLOOR_THICKNESS = 3.2
 # matching lid-pad relief.
 FAN_STORAGE_COUNT = 2
 FAN_STORAGE_SIZE_MM = 80.0
-FAN_STORAGE_DEPTH_MM = 25.0
+FAN_STORAGE_PAD_ALLOWANCE_MM = 2.0
 FAN_STORAGE_PLAN_CLEARANCE = 1.0
 FAN_CRADLE_HEIGHT = 6.0
 FAN_CRADLE_FLOOR_THICKNESS = 3.0
 FAN_CRADLE_INSTALLED_Z = BASE_FLOOR_THICKNESS
 FAN_BODY_TOP_CLEARANCE = 2.0
 FAN_ARM_RIGID_LID_CLEARANCE = 1.0
-EQUIPMENT_TRAY_INSTALLED_Z = 37.0
+EQUIPMENT_TRAY_Z_INCREMENT = 0.5
 EQUIPMENT_TRAY_LEDGE_THICKNESS = 4.0
 EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH = 5.0
 LEGACY_BASE_HEIGHT = 62.0
 LEGACY_EQUIPMENT_TRAY_INSTALLED_Z = BASE_FLOOR_THICKNESS
-BASE_HEIGHT = LEGACY_BASE_HEIGHT + (
-    EQUIPMENT_TRAY_INSTALLED_Z - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z
-)
 
 LID_PLATE_THICKNESS = 4.0
 LID_WALL_HEIGHT = 11.0
@@ -305,6 +302,11 @@ EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH = 18.0
 EQUIPMENT_TRAY_LIFT_NOTCH_X_CENTERS = (-96.0, 96.0)
 
 
+def padded_fan_storage_depth(fan):
+    """Return the installed fan depth including front/rear Noctua pads."""
+    return fan["depth"] + FAN_STORAGE_PAD_ALLOWANCE_MM
+
+
 def dual_fan_storage_geometry():
     """Return the configured holder/fan envelope and cradle contact bounds."""
     dual_fan.apply_material_profile()
@@ -331,7 +333,7 @@ def dual_fan_storage_geometry():
         fan_y1,
         min(
             adapter_pivot_z - dual_fan.GOPRO_PRONG_RADIUS,
-            *(grill_z0 - fan["depth"] for fan in fan_specs),
+            *(grill_z0 - padded_fan_storage_depth(fan) for fan in fan_specs),
         ),
         dual_fan.attachment_plane_z(),
     )
@@ -390,8 +392,15 @@ FAN_STORAGE_TRANSLATION_Z = (
 FAN_GRILL_INSTALLED_SOURCE_Z0 = dual_fan.fan_grill_z_bounds()[0]
 FAN_BODY_INSTALLED_TOP_Z = max(
     FAN_STORAGE_TRANSLATION_Z
-    - (FAN_GRILL_INSTALLED_SOURCE_Z0 - fan["depth"])
+    - (FAN_GRILL_INSTALLED_SOURCE_Z0 - padded_fan_storage_depth(fan))
     for fan in DUAL_FAN_STORAGE["fan_specs"]
+)
+EQUIPMENT_TRAY_INSTALLED_Z = EQUIPMENT_TRAY_Z_INCREMENT * math.ceil(
+    (FAN_BODY_INSTALLED_TOP_Z + FAN_BODY_TOP_CLEARANCE)
+    / EQUIPMENT_TRAY_Z_INCREMENT
+)
+BASE_HEIGHT = LEGACY_BASE_HEIGHT + (
+    EQUIPMENT_TRAY_INSTALLED_Z - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z
 )
 
 # Exact reference slicing shows that only this compact front-center arm region
@@ -3385,9 +3394,10 @@ def validate_configuration() -> None:
         dual_fan.MATERIAL_MODE == "TPU"
         and dual_fan.FAN_COUNT == FAN_STORAGE_COUNT
         and len(fan_specs) == FAN_STORAGE_COUNT
+        and math.isclose(FAN_STORAGE_PAD_ALLOWANCE_MM, 2.0, abs_tol=1e-6)
         and all(
             math.isclose(fan["size"], FAN_STORAGE_SIZE_MM, abs_tol=1e-6)
-            and math.isclose(fan["depth"], FAN_STORAGE_DEPTH_MM, abs_tol=1e-6)
+            and fan["depth"] > 0.0
             for fan in fan_specs
         )
         and all(
@@ -3405,8 +3415,8 @@ def validate_configuration() -> None:
     ):
         raise ValueError(
             "Fan storage requires the complete default TPU dual-80 mm rear-grille "
-            "holder, zero fan rotations, dropped route, 25 mm fans, and attached "
-            "3-prong adapter"
+            "holder, zero fan rotations, dropped route, positive configured fan "
+            "depths with 2 mm total pad allowance, and attached 3-prong adapter"
         )
     cavity_x0, cavity_x1, cavity_y0, cavity_y1 = DUAL_FAN_STORAGE["cavity_bounds"]
     cradle_walls = (
@@ -3426,6 +3436,8 @@ def validate_configuration() -> None:
     fan_body_vertical_clearance = (
         EQUIPMENT_TRAY_INSTALLED_Z - FAN_BODY_INSTALLED_TOP_Z
     )
+    if not 0.1 <= EQUIPMENT_TRAY_Z_INCREMENT <= 1.0:
+        raise ValueError("Upper-tray Z increment must remain between 0.1 and 1 mm")
     if fan_body_vertical_clearance < FAN_BODY_TOP_CLEARANCE:
         raise ValueError(
             "Upper equipment tray does not clear the installed fan bodies"
@@ -4617,7 +4629,11 @@ def validate_configuration() -> None:
         f"lid_pad_hood_relief={LID_LENS_HOOD_RELIEF_DEPTH:.2f} "
         f"fan_cradle_installed_z={FAN_CRADLE_INSTALLED_Z:.2f} "
         f"equipment_tray_installed_z={EQUIPMENT_TRAY_INSTALLED_Z:.2f} "
+        f"equipment_tray_z_increment={EQUIPMENT_TRAY_Z_INCREMENT:.2f} "
         f"fan_storage={fan_width:.2f}x{fan_depth:.2f}x{fan_height:.2f} "
+        f"fan_nominal_depth={max(fan['depth'] for fan in fan_specs):.2f} "
+        f"fan_padded_depth="
+        f"{max(padded_fan_storage_depth(fan) for fan in fan_specs):.2f} "
         f"fan_cavity={cavity_x1 - cavity_x0:.2f}x"
         f"{cavity_y1 - cavity_y0:.2f}x"
         f"{FAN_CRADLE_HEIGHT - FAN_CRADLE_FLOOR_THICKNESS:.2f} "
@@ -9217,14 +9233,15 @@ def create_reference_mockups(materials, parts):
         objects.append(obj)
     grill_z0, _grill_z1 = dual_fan.fan_grill_z_bounds()
     for fan in DUAL_FAN_STORAGE["fan_specs"]:
+        installed_depth = padded_fan_storage_depth(fan)
         fan_center = (
             -fan["center_x"] + placement_x,
             placement_y,
-            storage_translation_z - (grill_z0 - fan["depth"] / 2.0),
+            storage_translation_z - (grill_z0 - installed_depth / 2.0),
         )
         mockup = add_rounded_box(
             f"REFERENCE_ONLY_Installed_{fan['size']:.0f}mm_Fan_{fan['index']}",
-            (fan["size"], fan["size"], fan["depth"]),
+            (fan["size"], fan["size"], installed_depth),
             fan_center,
             bevel=2.0,
         )
