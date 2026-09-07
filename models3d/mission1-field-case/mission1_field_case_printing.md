@@ -64,8 +64,10 @@ otherwise-unused tray and pad height while preserving 3.03 mm clearance from
 the rigid lid plate.
 The tray has 1 mm clearance per side, twice the original clearance, to reduce
 friction against the shell. Two 18 x 18 mm scallops open through its front edge
-for a direct two-finger lift. The former rectangular and stepped generic
-storage compartments were removed to make room for the compact stack.
+for a direct two-finger lift. Two symmetric 45 x 54 x 32 mm general-purpose
+pockets use the otherwise empty rear-left and rear-right strips beside the
+camera pair. Each has a 3 mm TPU floor, at least 4.6 mm of TPU beside the
+flared lens-hood reliefs, and at least 5 mm to the outer side edge.
 
 The padded fan-body depth is derived from the dual-fan generator's current
 nominal fan depth plus the 2 mm storage allowance for the Noctua pads. The
@@ -91,7 +93,8 @@ existing 21.8 mm insertion depth. The batteries are split into left and right
 front banks around the pass-through; they are 40.56 mm tall and sit
 terminal-down. Two 50 x 11 mm door pockets occupy the outer side channels and
 are recessed 11 mm. The generated 50 x 10 x 18 mm door solids remain 7 mm
-proud for an easy finger grip.
+proud for an easy finger grip. The two open side pockets remain available for
+cables, fasteners, or other small accessories that fit their 32 mm depth.
 
 The TPU lid pad has separate shutter-button reliefs. It also mirrors the upper
 tray's two trapezoidal MISSION 1 Pro lens-hood footprints as 2 mm-deep
