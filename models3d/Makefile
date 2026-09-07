@@ -40,6 +40,7 @@ FLAT_FAN_COVER_SOURCE := $(FLAT_FAN_COVER_DIR)/flat-fan-cover.py
 HOCKEYMON_CAMERA_CASE_SOURCE := $(HOCKEYMON_CAMERA_CASE_DIR)/hockeymom_cam_case_blender.py
 HOCKEYMON_CAMERA_CASE_PDF_SOURCE := $(HOCKEYMON_CAMERA_CASE_DIR)/generate_hockeymom_cam_case_dimension_pdf.py
 HORN_SOURCE := $(HORN_DIR)/horn_parametric_blender.py
+HORN_RENDER_SOURCE := $(HORN_DIR)/render_horn_previews.py
 MISSION1_DUMMY_SOURCE := $(MISSION1_DUMMY_DIR)/gopro_mission1_dummy_blender.py
 MISSION1_FIELD_CASE_SOURCE := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_blender.py
 WRAPPING_FAN_COVER_SOURCE := $(WRAPPING_FAN_COVER_DIR)/wrapping-fan-cover.py
@@ -55,6 +56,9 @@ DUAL_FAN_DIMENSION_PDF := $(DUAL_FAN_DIR)/gopro_dual_fan_configuration_dimension
 FLAT_FAN_COVER_STLS := $(FLAT_FAN_COVER_DIR)/flat-fan-cover.stl
 WRAPPING_FAN_COVER_STLS := $(WRAPPING_FAN_COVER_DIR)/wrapping-fan-cover.stl
 HORN_STLS := $(HORN_DIR)/horn_parametric_blender.stl
+HORN_RENDERINGS := \
+	$(HORN_DIR)/renderings/horn_standard_40_to_40.png \
+	$(HORN_DIR)/renderings/horn_standard_40_to_80.png
 MISSION1_DUMMY_STLS := $(MISSION1_DUMMY_DIR)/gopro_mission1_dummy_recreated.stl
 MISSION1_FIELD_CASE_STLS := \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_base.stl \
@@ -270,7 +274,7 @@ STL_FILES := \
 	all print_targets dim-pdf check-dim-pdf-sync \
 	dual-fan-dim-pdf check-dual-fan-dim-pdf-sync \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
-	flat-fan-cover wrapping-fan-cover horn mission1-dummy mission1-field-case dual-fan fan-silencer \
+	flat-fan-cover wrapping-fan-cover horn horn-renderings mission1-dummy mission1-field-case dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymon-camera-case hockeymom-cam-case \
 	hockeymom-keystone-test-coupon \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
@@ -305,6 +309,7 @@ print_targets:
 		'' \
 		'Renders' \
 		'-------' \
+		'horn-renderings             Render default and mixed-size standard-fan horns.' \
 		'fan-silencer-cross-section  Render its assembled case/silencer/fan center section.' \
 		'fan-silencer-mounted-view  Render the silencer mounted on its fan intake.' \
 		'' \
@@ -340,6 +345,7 @@ print_targets:
 flat-fan-cover: $(FLAT_FAN_COVER_STLS)
 wrapping-fan-cover: $(WRAPPING_FAN_COVER_STLS)
 horn: $(HORN_STLS)
+horn-renderings: $(HORN_RENDERINGS)
 mission1-dummy: $(MISSION1_DUMMY_STLS)
 mission1-field-case: $(MISSION1_FIELD_CASE_OUTPUTS)
 dual-fan: $(DUAL_FAN_STLS)
@@ -394,8 +400,11 @@ $(FLAT_FAN_COVER_STLS): $(FLAT_FAN_COVER_SOURCE)
 $(WRAPPING_FAN_COVER_STLS): $(WRAPPING_FAN_COVER_SOURCE)
 	$(call export_selected_object,$<,build_wrapping_fan_cover)
 
-$(HORN_STLS): $(HORN_SOURCE)
+$(HORN_STLS): $(HORN_SOURCE) $(FAN_PRESET_SOURCE)
 	$(call run_single_output_generator,$<,build_horn,EXPORT_STL_PATH)
+
+$(HORN_RENDERINGS) &: $(HORN_RENDER_SOURCE) $(HORN_SOURCE) $(FAN_PRESET_SOURCE)
+	$(BLENDER) $(BLENDER_FLAGS) --python $<
 
 $(MISSION1_DUMMY_STLS): $(MISSION1_DUMMY_SOURCE)
 	$(call run_single_output_generator,$<,main,EXPORT_PATH)
