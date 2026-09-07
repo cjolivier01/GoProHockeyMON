@@ -7,8 +7,9 @@ from disk.  The default kit holds:
   lenses opposed and laterally nested, including flared soft-lens-hood reliefs,
 * four MISSION 1 Enduro 2 / HERO13-format batteries, terminal end downward,
 * two shallow flat pockets for the removable camera battery-cage doors,
+* two open general-purpose pockets beside the camera pair,
 * a lower TPU cradle for the assembled parametric dual-80 mm-fan holder and
-  its installed 80 x 80 x 25 mm fans,
+  its installed 80 x 80 x 27 mm padded fans,
 * a removable upper TPU equipment tray and a one-way-keyed TPU lid pad,
 * a hollow TPU dust/splash gasket that prints into the lid by default, two
   source-derived two-piece Pelican latch
@@ -241,21 +242,18 @@ BASE_FLOOR_THICKNESS = 3.2
 # matching lid-pad relief.
 FAN_STORAGE_COUNT = 2
 FAN_STORAGE_SIZE_MM = 80.0
-FAN_STORAGE_DEPTH_MM = 25.0
+FAN_STORAGE_PAD_ALLOWANCE_MM = 2.0
 FAN_STORAGE_PLAN_CLEARANCE = 1.0
 FAN_CRADLE_HEIGHT = 6.0
 FAN_CRADLE_FLOOR_THICKNESS = 3.0
 FAN_CRADLE_INSTALLED_Z = BASE_FLOOR_THICKNESS
 FAN_BODY_TOP_CLEARANCE = 2.0
 FAN_ARM_RIGID_LID_CLEARANCE = 1.0
-EQUIPMENT_TRAY_INSTALLED_Z = 37.0
+EQUIPMENT_TRAY_Z_INCREMENT = 0.5
 EQUIPMENT_TRAY_LEDGE_THICKNESS = 4.0
 EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH = 5.0
 LEGACY_BASE_HEIGHT = 62.0
 LEGACY_EQUIPMENT_TRAY_INSTALLED_Z = BASE_FLOOR_THICKNESS
-BASE_HEIGHT = LEGACY_BASE_HEIGHT + (
-    EQUIPMENT_TRAY_INSTALLED_Z - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z
-)
 
 LID_PLATE_THICKNESS = 4.0
 LID_WALL_HEIGHT = 11.0
@@ -305,6 +303,11 @@ EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH = 18.0
 EQUIPMENT_TRAY_LIFT_NOTCH_X_CENTERS = (-96.0, 96.0)
 
 
+def padded_fan_storage_depth(fan):
+    """Return the installed fan depth including front/rear Noctua pads."""
+    return fan["depth"] + FAN_STORAGE_PAD_ALLOWANCE_MM
+
+
 def dual_fan_storage_geometry():
     """Return the configured holder/fan envelope and cradle contact bounds."""
     dual_fan.apply_material_profile()
@@ -331,7 +334,7 @@ def dual_fan_storage_geometry():
         fan_y1,
         min(
             adapter_pivot_z - dual_fan.GOPRO_PRONG_RADIUS,
-            *(grill_z0 - fan["depth"] for fan in fan_specs),
+            *(grill_z0 - padded_fan_storage_depth(fan) for fan in fan_specs),
         ),
         dual_fan.attachment_plane_z(),
     )
@@ -390,8 +393,15 @@ FAN_STORAGE_TRANSLATION_Z = (
 FAN_GRILL_INSTALLED_SOURCE_Z0 = dual_fan.fan_grill_z_bounds()[0]
 FAN_BODY_INSTALLED_TOP_Z = max(
     FAN_STORAGE_TRANSLATION_Z
-    - (FAN_GRILL_INSTALLED_SOURCE_Z0 - fan["depth"])
+    - (FAN_GRILL_INSTALLED_SOURCE_Z0 - padded_fan_storage_depth(fan))
     for fan in DUAL_FAN_STORAGE["fan_specs"]
+)
+EQUIPMENT_TRAY_INSTALLED_Z = EQUIPMENT_TRAY_Z_INCREMENT * math.ceil(
+    (FAN_BODY_INSTALLED_TOP_Z + FAN_BODY_TOP_CLEARANCE)
+    / EQUIPMENT_TRAY_Z_INCREMENT
+)
+BASE_HEIGHT = LEGACY_BASE_HEIGHT + (
+    EQUIPMENT_TRAY_INSTALLED_Z - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z
 )
 
 # Exact reference slicing shows that only this compact front-center arm region
@@ -439,6 +449,15 @@ CAMERA_PLACEMENTS = (
         180.0,
     ),
 )
+
+# Two open general-purpose pockets use the otherwise empty strips beside the
+# opposed camera pair.  They retain the same 3 mm floor as the true-shape
+# camera cavities and stay clear of both flared soft-lens-hood reliefs.
+SIDE_STORAGE_POCKET_SIZE = (45.0, 54.0)
+SIDE_STORAGE_POCKET_CENTERS = ((-84.0, 39.0), (84.0, 39.0))
+SIDE_STORAGE_POCKET_FLOOR_Z = TRAY_FLOOR_THICKNESS
+SIDE_STORAGE_POCKET_CORNER_RADIUS = 3.0
+SIDE_STORAGE_POCKET_MIN_WEB = 4.0
 
 # User-measured Mission 1 battery envelope. The pocket adds 1 mm total in both
 # plan dimensions, while retaining the existing 21.8 mm insertion depth and
@@ -3385,9 +3404,10 @@ def validate_configuration() -> None:
         dual_fan.MATERIAL_MODE == "TPU"
         and dual_fan.FAN_COUNT == FAN_STORAGE_COUNT
         and len(fan_specs) == FAN_STORAGE_COUNT
+        and math.isclose(FAN_STORAGE_PAD_ALLOWANCE_MM, 2.0, abs_tol=1e-6)
         and all(
             math.isclose(fan["size"], FAN_STORAGE_SIZE_MM, abs_tol=1e-6)
-            and math.isclose(fan["depth"], FAN_STORAGE_DEPTH_MM, abs_tol=1e-6)
+            and fan["depth"] > 0.0
             for fan in fan_specs
         )
         and all(
@@ -3405,8 +3425,8 @@ def validate_configuration() -> None:
     ):
         raise ValueError(
             "Fan storage requires the complete default TPU dual-80 mm rear-grille "
-            "holder, zero fan rotations, dropped route, 25 mm fans, and attached "
-            "3-prong adapter"
+            "holder, zero fan rotations, dropped route, positive configured fan "
+            "depths with 2 mm total pad allowance, and attached 3-prong adapter"
         )
     cavity_x0, cavity_x1, cavity_y0, cavity_y1 = DUAL_FAN_STORAGE["cavity_bounds"]
     cradle_walls = (
@@ -3426,6 +3446,8 @@ def validate_configuration() -> None:
     fan_body_vertical_clearance = (
         EQUIPMENT_TRAY_INSTALLED_Z - FAN_BODY_INSTALLED_TOP_Z
     )
+    if not 0.1 <= EQUIPMENT_TRAY_Z_INCREMENT <= 1.0:
+        raise ValueError("Upper-tray Z increment must remain between 0.1 and 1 mm")
     if fan_body_vertical_clearance < FAN_BODY_TOP_CLEARANCE:
         raise ValueError(
             "Upper equipment tray does not clear the installed fan bodies"
@@ -3464,6 +3486,18 @@ def validate_configuration() -> None:
         )
     ):
         raise ValueError("Battery-door lid hold-down must fit inside the door outline")
+    if not (
+        math.isclose(
+            SIDE_STORAGE_POCKET_FLOOR_Z,
+            TRAY_FLOOR_THICKNESS,
+            abs_tol=1e-6,
+        )
+        and SIDE_STORAGE_POCKET_FLOOR_Z >= 2.0
+        and SIDE_STORAGE_POCKET_FLOOR_Z < TRAY_HEIGHT
+    ):
+        raise ValueError(
+            "Side storage pockets need the configured printable tray floor"
+        )
     if min(
         WALL_THICKNESS,
         BASE_FLOOR_THICKNESS,
@@ -3823,6 +3857,67 @@ def validate_configuration() -> None:
             > retainer_depth / 2.0
         ):
             raise ValueError("Battery-door lid hold-down exceeds the TPU lid pad")
+
+    side_storage_size = SIDE_STORAGE_POCKET_SIZE
+    side_storage_edge_walls = []
+    for index, center in enumerate(SIDE_STORAGE_POCKET_CENTERS):
+        edge_walls = (
+            center[0] - side_storage_size[0] / 2.0 + tray_width / 2.0,
+            tray_width / 2.0 - center[0] - side_storage_size[0] / 2.0,
+            center[1] - side_storage_size[1] / 2.0 + tray_depth / 2.0,
+            tray_depth / 2.0 - center[1] - side_storage_size[1] / 2.0,
+        )
+        side_storage_edge_walls.extend(edge_walls)
+        if min(edge_walls) < SIDE_STORAGE_POCKET_MIN_WEB:
+            raise ValueError(
+                "A side storage pocket needs the configured web to every tray edge"
+            )
+        for bounds in (*camera_bounds, *hood_bounds):
+            bounds_center = (
+                (bounds[0] + bounds[1]) / 2.0,
+                (bounds[2] + bounds[3]) / 2.0,
+            )
+            bounds_size = (bounds[1] - bounds[0], bounds[3] - bounds[2])
+            if rectangles_overlap(
+                center,
+                side_storage_size,
+                bounds_center,
+                bounds_size,
+                gap=SIDE_STORAGE_POCKET_MIN_WEB,
+            ):
+                raise ValueError(
+                    "A side storage pocket enters a camera or lens-hood relief"
+                )
+        occupied_regions = (
+            *((value, battery_size, "battery pocket") for value in BATTERY_CENTERS),
+            *(
+                (value, door_slot_size, "battery-door pocket")
+                for value in BATTERY_DOOR_SLOT_CENTERS
+            ),
+            (arm_passage_center, arm_passage_size, "fan-arm passage"),
+            *(
+                (value, lift_notch_size, "tray lift scallop")
+                for value in lift_notch_centers
+            ),
+        )
+        for occupied_center, occupied_size, description in occupied_regions:
+            if rectangles_overlap(
+                center,
+                side_storage_size,
+                occupied_center,
+                occupied_size,
+                gap=2.0,
+            ):
+                raise ValueError(f"A side storage pocket enters a {description}")
+        for other in SIDE_STORAGE_POCKET_CENTERS[index + 1 :]:
+            if rectangles_overlap(
+                center,
+                side_storage_size,
+                other,
+                side_storage_size,
+                gap=SIDE_STORAGE_POCKET_MIN_WEB,
+            ):
+                raise ValueError("Side storage pockets need a continuous TPU web")
 
     if not 1.0 <= LID_LENS_HOOD_RELIEF_DEPTH <= LID_BUTTON_RELIEF_DEPTH:
         raise ValueError(
@@ -4613,11 +4708,20 @@ def validate_configuration() -> None:
         f"{BATTERY_POCKET_WIDTH:.1f}x{BATTERY_POCKET_INSERTION_DEPTH:.1f} "
         f"door_pocket={BATTERY_DOOR_SLOT_SIZE[0]:.1f}x"
         f"{BATTERY_DOOR_SLOT_SIZE[1]:.1f}x{BATTERY_DOOR_SLOT_DEPTH:.1f} "
+        f"side_storage_pockets={len(SIDE_STORAGE_POCKET_CENTERS)}x"
+        f"{SIDE_STORAGE_POCKET_SIZE[0]:.1f}x"
+        f"{SIDE_STORAGE_POCKET_SIZE[1]:.1f}x"
+        f"{TRAY_HEIGHT - SIDE_STORAGE_POCKET_FLOOR_Z:.1f} "
+        f"side_storage_edge_wall_min={min(side_storage_edge_walls):.2f} "
         f"door_pad_preload={battery_door_pad_compression:.2f} "
         f"lid_pad_hood_relief={LID_LENS_HOOD_RELIEF_DEPTH:.2f} "
         f"fan_cradle_installed_z={FAN_CRADLE_INSTALLED_Z:.2f} "
         f"equipment_tray_installed_z={EQUIPMENT_TRAY_INSTALLED_Z:.2f} "
+        f"equipment_tray_z_increment={EQUIPMENT_TRAY_Z_INCREMENT:.2f} "
         f"fan_storage={fan_width:.2f}x{fan_depth:.2f}x{fan_height:.2f} "
+        f"fan_nominal_depth={max(fan['depth'] for fan in fan_specs):.2f} "
+        f"fan_padded_depth="
+        f"{max(padded_fan_storage_depth(fan) for fan in fan_specs):.2f} "
         f"fan_cavity={cavity_x1 - cavity_x0:.2f}x"
         f"{cavity_y1 - cavity_y0:.2f}x"
         f"{FAN_CRADLE_HEIGHT - FAN_CRADLE_FLOOR_THICKNESS:.2f} "
@@ -5147,6 +5251,18 @@ def create_equipment_tray(material):
             vertices=48,
         )
         difference_from(tray, scoop)
+
+    for index, center in enumerate(SIDE_STORAGE_POCKET_CENTERS, start=1):
+        pocket = add_rounded_prism(
+            f"General_Side_Storage_Pocket_{index}_45x54x32",
+            SIDE_STORAGE_POCKET_SIZE[0],
+            SIDE_STORAGE_POCKET_SIZE[1],
+            SIDE_STORAGE_POCKET_FLOOR_Z,
+            TRAY_HEIGHT + 0.4,
+            SIDE_STORAGE_POCKET_CORNER_RADIUS,
+            center,
+        )
+        difference_from(tray, pocket)
 
     for index, center in enumerate(BATTERY_DOOR_SLOT_CENTERS, start=1):
         slot = add_rounded_prism(
@@ -9217,14 +9333,15 @@ def create_reference_mockups(materials, parts):
         objects.append(obj)
     grill_z0, _grill_z1 = dual_fan.fan_grill_z_bounds()
     for fan in DUAL_FAN_STORAGE["fan_specs"]:
+        installed_depth = padded_fan_storage_depth(fan)
         fan_center = (
             -fan["center_x"] + placement_x,
             placement_y,
-            storage_translation_z - (grill_z0 - fan["depth"] / 2.0),
+            storage_translation_z - (grill_z0 - installed_depth / 2.0),
         )
         mockup = add_rounded_box(
             f"REFERENCE_ONLY_Installed_{fan['size']:.0f}mm_Fan_{fan['index']}",
-            (fan["size"], fan["size"], fan["depth"]),
+            (fan["size"], fan["size"], installed_depth),
             fan_center,
             bevel=2.0,
         )
@@ -11424,7 +11541,7 @@ def validate_built_lid_retainer_hood_reliefs(retainer) -> None:
 
 
 def validate_built_upper_tray_access(tray, retainer) -> None:
-    """Prove the arm passage and both tray-lift scallops remain open."""
+    """Prove the arm passage, side pockets, and tray-lift scallops remain open."""
 
     def air_overlap(part, probe, part_location):
         try:
@@ -11454,6 +11571,54 @@ def validate_built_upper_tray_access(tray, retainer) -> None:
         tray_passage_probe,
         tray.location.copy(),
     )
+
+    pocket_probe_inset = 1.0
+    pocket_air_overlaps = []
+    pocket_floor_volumes = []
+    for index, center in enumerate(SIDE_STORAGE_POCKET_CENTERS, start=1):
+        pocket_air_probe = add_rounded_prism(
+            f"TEMPORARY_Side_Storage_Pocket_{index}_Air_Probe",
+            SIDE_STORAGE_POCKET_SIZE[0] - 2.0 * pocket_probe_inset,
+            SIDE_STORAGE_POCKET_SIZE[1] - 2.0 * pocket_probe_inset,
+            tray.location.z + SIDE_STORAGE_POCKET_FLOOR_Z + 0.1,
+            tray.location.z + TRAY_HEIGHT - 0.1,
+            max(SIDE_STORAGE_POCKET_CORNER_RADIUS - pocket_probe_inset, 0.0),
+            center,
+        )
+        pocket_air_overlaps.append(
+            air_overlap(tray, pocket_air_probe, tray.location.copy())
+        )
+
+        pocket_floor_probe = add_rounded_prism(
+            f"TEMPORARY_Side_Storage_Pocket_{index}_Floor_Probe",
+            SIDE_STORAGE_POCKET_SIZE[0] - 2.0 * pocket_probe_inset,
+            SIDE_STORAGE_POCKET_SIZE[1] - 2.0 * pocket_probe_inset,
+            tray.location.z + 0.1,
+            tray.location.z + SIDE_STORAGE_POCKET_FLOOR_Z - 0.1,
+            max(SIDE_STORAGE_POCKET_CORNER_RADIUS - pocket_probe_inset, 0.0),
+            center,
+        )
+        try:
+            _faces, floor_volume = exact_transformed_intersection(
+                tray,
+                pocket_floor_probe,
+                first_location=tray.location.copy(),
+                second_location=pocket_floor_probe.location.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(pocket_floor_probe, do_unlink=True)
+        pocket_floor_volumes.append(floor_volume)
+
+    if max(pocket_air_overlaps) > 1e-7:
+        raise ValueError("A side storage pocket is obstructed")
+    minimum_pocket_floor_volume = (
+        (SIDE_STORAGE_POCKET_SIZE[0] - 2.0 * pocket_probe_inset)
+        * (SIDE_STORAGE_POCKET_SIZE[1] - 2.0 * pocket_probe_inset)
+        * (SIDE_STORAGE_POCKET_FLOOR_Z - 0.2)
+        * 0.9
+    )
+    if min(pocket_floor_volumes) < minimum_pocket_floor_volume:
+        raise ValueError("A side storage pocket does not retain its TPU floor")
 
     tray_width = (
         CASE_WIDTH
@@ -11503,6 +11668,7 @@ def validate_built_upper_tray_access(tray, retainer) -> None:
     maximum_overlap = max(
         tray_passage_overlap,
         lid_passage_overlap,
+        *pocket_air_overlaps,
         *lift_overlaps,
     )
     if maximum_overlap > 1e-7:
@@ -11517,6 +11683,12 @@ def validate_built_upper_tray_access(tray, retainer) -> None:
         f"arm_passage={arm_x1 - arm_x0:.1f}x{arm_y1 - arm_y0:.1f} "
         f"tray_air={tray_passage_overlap:.9f} "
         f"lid_pad_air={lid_passage_overlap:.9f} "
+        f"side_pockets={len(pocket_air_overlaps)}x"
+        f"{SIDE_STORAGE_POCKET_SIZE[0]:.1f}x"
+        f"{SIDE_STORAGE_POCKET_SIZE[1]:.1f}x"
+        f"{TRAY_HEIGHT - SIDE_STORAGE_POCKET_FLOOR_Z:.1f} "
+        f"side_pocket_air_max={max(pocket_air_overlaps):.9f} "
+        f"side_pocket_floor_min={min(pocket_floor_volumes):.6f} "
         f"lift_scallops={len(lift_overlaps)}x"
         f"{EQUIPMENT_TRAY_LIFT_NOTCH_WIDTH:.1f}x"
         f"{EQUIPMENT_TRAY_LIFT_NOTCH_DEPTH:.1f} "
