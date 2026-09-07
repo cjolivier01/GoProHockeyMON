@@ -5,7 +5,7 @@ Run from the repository root with::
     blender --background --factory-startup \
       --python models3d/horn/render_horn_previews.py
 
-The images are written to ``horn/renderings/`` for design review.
+The images are written to ``models3d/horn/renderings/`` for design review.
 """
 
 from __future__ import annotations
@@ -64,7 +64,9 @@ def configure_scene(obj, view_direction: tuple[float, float, float]):
     scene.display.shading.background_type = "VIEWPORT"
     scene.display.shading.background_color = (0.025, 0.035, 0.055)
 
-    material = bpy.data.materials.new("Horn_Review_Blue")
+    material = bpy.data.materials.get("Horn_Review_Blue")
+    if material is None:
+        material = bpy.data.materials.new("Horn_Review_Blue")
     material.diffuse_color = (0.055, 0.42, 0.72, 1.0)
     obj.data.materials.clear()
     obj.data.materials.append(material)
