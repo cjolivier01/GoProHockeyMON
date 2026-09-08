@@ -12,7 +12,8 @@ mechanism in the user-supplied `pelican_case_blender_2.9.blend`; their processed
 mesh coordinates are embedded directly in the Python file, so generation does
 not load that `.blend` or any STL at runtime.
 
-Build all eleven STLs and the multicolor 3MF project with:
+Build the eleven-part default kit, four optional loadout/calibration STLs, and
+the multicolor 3MF project with:
 
 ```sh
 make -C models3d mission1-field-case
@@ -29,11 +30,12 @@ blender --background --factory-startup \
   --python models3d/mission1-field-case/render_mission1_field_case_previews.py
 ```
 
-This writes loaded full-shell, exploded storage-stack, and closed
-latch-protector PNGs under `models3d/mission1-field-case/renderings/`. The steep
-loaded view keeps the complete printable base protectors visible while looking
-down into the tray pass-through. The closed view shows the unsectioned base and
-lid protector walls with both installed latches.
+This writes loaded and exploded views of both storage configurations, TPU
+snap-hinge and calibration-coupon close-ups, and the closed latch-protector PNG
+under `models3d/mission1-field-case/renderings/`. The steep default loaded view
+keeps the complete printable base protectors visible while looking down into
+the tray pass-through. The closed view shows the unsectioned base and lid
+protector walls with both installed latches.
 
 ## Stacked TPU storage tiers
 
@@ -113,6 +115,63 @@ generated dual-fan holder and attached three-prong adapter, two installed
 battery solids, and two procedural 50 x 10 x 18 mm door solids for visual
 inspection. They are reference-only scene objects, not additional STL
 dependencies or print outputs.
+
+## Alternate two-fan-case loadout
+
+The fan-case loadout is an alternative to the complete dual-fan storage stack,
+not an additional tier. Remove the lower dual-fan cradle, upper equipment tray,
+normal lid pad, and dual-fan assembly before installing these two parts:
+
+- `mission1_field_case_fan_case_pair_lower_insert_tpu.stl`
+- `mission1_field_case_fan_case_pair_lid_pad_tpu.stl`
+
+The 224 x 148 mm lower insert reuses the full preserved case interior for two
+fully assembled fan-case objects. Each stored object includes its installed
+MISSION 1 camera, current fan-case shell/insert/buttons/baffle/front retainer, a
+direct-mounted 40 x 40 x 20 mm rear fan, and the current
+`wrapping-fan-cover`. It also includes the three installed M3 x 40 case bolts
+and their 10 mm-diameter, nominally 2.5 mm-thick low-profile thumb-nuts.
+Generation temporarily disables the fan-case generator's
+optional 60 mm rear adapter because the 40 mm fan uses the shell's direct
+32 x 32 mm mounting pattern. The exact current complete envelope is
+97.77 x 93.40 x 68.57 mm per assembly. Both fit side-by-side with the existing
+internal width, depth, and height unchanged.
+
+The bolt length is resolved from the fan-case geometry rather than represented
+by a generic front allowance. The current captured hex-head bearing seat is at
+Y = 11.5924 mm, the rigid swing-gate front face is at Y = 46.8 mm, and the
+M3 x 40 tip is at Y = 51.5924 mm. Each shaft therefore projects exactly
+4.7924 mm past the gate and approximately 2.2924 mm past a seated 2.5 mm
+thumb-nut. The three 10 mm nut envelopes remain inside the camera's existing
+front extent and the fan-case shell's width/height extent, so they do not
+increase the complete storage envelope. Adjust `FAN_CASE_THUMB_NUT_THICKNESS`
+if the measured low-profile nuts differ.
+
+The stored assemblies are turned half a rotation around Y so each wrapping
+cover's wire notch faces upward. Shallow locator cavities support the broad
+rear-shell edges, and a local relief prevents the flipped top captive button
+from carrying weight. Two 88 x 36 mm rounded wells each hold at least
+152.4 mm (6 inches) of coiled fan lead. A 6 mm route connects each fan-cover
+area to its well. Raised flexible docks retain the two PWM plugs; the default
+user-tunable plug envelope is 16 x 10 x 8 mm with 0.6 mm retention per side.
+Measure an unusually large molded plug and adjust `PWM_CONNECTOR_ENVELOPE`
+before printing if necessary. The wells and rear-center scallop also provide
+direct finger access for lifting the insert out.
+
+The lower insert's main body is 12 mm tall with a 3 mm assembly floor and
+2.5 mm cable-well floor; its raised PWM clips bring its maximum printed height
+to 20.8 mm. The keyed 224 x 148 x 31.57 mm lid pad replaces the normal camera
+pad. Four lightweight columns contact the broad rear-shell edges with 0.6 mm
+preload while clearing the cameras and controls. Do not stack either alternate
+part with any dual-fan-loadout insert.
+
+The exact references are built directly from the current local fan-case,
+MISSION 1 dummy, and wrapping-cover generators. The production Make target
+checks two cameras, two direct 40 x 40 x 20 mm fans, two wrapping covers, six
+M3 x 40 bolts, six 10 mm thumb-nuts, both cable coils, and both PWM plugs for
+fit and collision before exporting. A
+source change that no longer fits the preserved shell therefore fails
+generation instead of silently producing an incompatible storage insert.
 
 ## Lid logo
 
@@ -450,6 +509,41 @@ is attached. Their smaller diameter clears the base rear wall;
 generated solid probes and deliberate axial-overtravel probes verify both
 stops and retention.
 
+### Optional 68D TPU snap-on lid
+
+`mission1_field_case_lid_tpu_68d_snap.stl` is a complete alternative lid for
+TPU-for-AMS with a Shore rating of 68D. It replaces
+`mission1_field_case_lid.stl`; never stack the two lids. The default rigid lid
+and its deliberate 70-degree slide-off receiver remain unchanged. The TPU lid
+keeps the same case closure, latch protectors, gasket channel, and 4.8 mm seated
+rod receiver, but narrows the snap throat to 3.9 mm and flares it to a smooth
+5.5 mm mouth. Each of the two original 22.8 mm lid receivers is divided into
+three short clips with 1.2 mm axial relief gaps, allowing six local flex zones
+instead of bending one long barrel.
+
+With the 4.1 mm rod already centered in the three base knuckles, hold the TPU
+lid partly open, align both banks of mouths with the rod, and press the clips
+onto it progressively. The hard TPU can flex past the 3.9 mm throat and recover
+around the 4.8 mm seat. To remove it, support one short clip bank at a time and
+peel it back off the rod; avoid sharply folding the lid plate or pulling one
+end of the full hinge at once.
+
+Print `mission1_field_case_tpu_68d_hinge_coupon.stl` before committing to the
+full TPU lid. It contains four breakaway, dot-coded clips with 3.8, 3.9, 4.0,
+and 4.1 mm throats: one dot is 3.8 mm, two dots is the nominal 3.9 mm, three
+dots is 4.0 mm, and four dots is 4.1 mm. Test the actual 4.1 mm rod using the
+same filament, layer height, wall count, orientation, and dry-filament state as
+the lid. Choose the smallest throat that snaps repeatedly without whitening,
+cracking, or requiring excessive force, then set `TPU_HINGE_SNAP_THROAT_WIDTH`
+to that value if it differs from 3.9 mm.
+
+The optional TPU lid is not included on the default rigid-lid 3MF plate. Import
+its STL with `mission1_field_case_lid_logo_orange_inlay.stl` as aligned parts if
+a contrasting flush logo is wanted. The gasket uses the same unchanged
+channel. In the default integrated-gasket coordinate mode, also import the
+gasket STL as an aligned part; with `PRINT_TPU_GASKET_WITH_LID = False`, install
+the separately printed Z = 0 gasket after the lid is complete.
+
 ## Suggested printing
 
 - Base, lid, broad latch levers, handle bar, and hinge pin: PETG, ASA, nylon,
@@ -461,6 +555,12 @@ stops and retention.
   tray-style settings are not recommended for this load-bearing part.
 - Lower fan cradle, upper equipment tray, and lid pad: TPU 95A, two or three
   walls, and 15-20% infill.
+- Alternate fan-case lower insert and lid pad: TPU 95A or a comparably resilient
+  protective material, three walls, and 15-20% infill. Keep the PWM dock nubs
+  flexible; do not fill the plug channels with support.
+- Optional snap-on lid and hinge coupon: TPU-for-AMS 68D, 0.20 mm layers, at
+  least four walls around the hinge clips, and enough top/bottom layers to make
+  the lid plate continuous. Print the coupon first with identical settings.
 - Gasket: relatively hard TPU with a 0.4 mm nozzle and 0.20 mm layers. The air
   channel is modeled into the STL, so do not enable support or gap filling in
   that closed void. The gasket is for dust and splash resistance, not certified
@@ -512,6 +612,14 @@ and can be regenerated without editing an STL.
    then load four batteries terminal-down. Remove the cameras and batteries,
    place two fingers in the front scallops, and lift the upper tray straight up
    along the fan arm whenever the fan assembly must be removed.
+
+For the alternate fan-case configuration, omit steps 1 and 5. Seat its lower
+insert directly on the case floor, coil each fan lead in its dedicated well,
+route the lead through the 6 mm throat, slip the PWM plug into the matching
+outer dock, and lower one complete fan-case assembly into each locator. Fit the
+alternate keyed lid pad in place of the normal lid pad. The installed cameras,
+40 mm fans, and wrapping covers remain on the fan cases during storage; the
+dual-fan assembly and all three of its TPU storage tiers stay out of the case.
 
 ## Reference acknowledgments
 

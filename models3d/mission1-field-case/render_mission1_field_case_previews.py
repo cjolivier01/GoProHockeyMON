@@ -1,4 +1,4 @@
-"""Render documentation previews for the MISSION 1 dual-fan field case.
+"""Render documentation previews for the MISSION 1 field case loadouts.
 
 Run from the repository root with::
 
@@ -6,7 +6,8 @@ Run from the repository root with::
       --python models3d/mission1-field-case/render_mission1_field_case_previews.py
 
 The script builds the same validated reference scene as the model generator and
-writes loaded, exploded, and closed latch-protector views to ``renderings/``.
+writes both loadouts, the TPU snap hinge/coupon, and the closed latch protectors
+to ``renderings/``.
 """
 
 from pathlib import Path
@@ -168,11 +169,31 @@ def set_reference_materials():
         metallic=0.06,
         roughness=0.36,
     )
+    cable = make_principled_material(
+        "Fan_Cable_Black",
+        (0.018, 0.022, 0.028),
+        roughness=0.37,
+    )
+    tpu_lid = make_principled_material(
+        "Preview_TPU_68D_Lid",
+        (0.12, 0.16, 0.23),
+        roughness=0.46,
+    )
+    hardware = make_principled_material(
+        "Fan_Case_Fastener_Steel",
+        (0.42, 0.47, 0.54),
+        metallic=0.68,
+        roughness=0.25,
+    )
     assign_material(PARTS["base"], shell)
     assign_material(PARTS["lid"], shell)
     assign_material(PARTS["logo_orange_inlay"], tray)
     assign_material(PARTS["fan_cradle"], tray)
     assign_material(PARTS["equipment_tray"], tray)
+    assign_material(PARTS["fan_case_pair_insert"], tray)
+    assign_material(PARTS["fan_case_pair_lid_pad"], tray)
+    assign_material(PARTS["tpu_hinge_coupon"], tray)
+    assign_material(PARTS["tpu_snap_lid"], tpu_lid)
     for obj in reference_objects("REFERENCE_ONLY_Stored_"):
         assign_material(obj, fan_holder)
     for obj in reference_objects("REFERENCE_ONLY_Installed_80mm_Fan_"):
@@ -183,6 +204,35 @@ def set_reference_materials():
         assign_material(obj, battery)
     for obj in reference_objects("REFERENCE_ONLY_MISSION1_Battery_Cage_Door_"):
         assign_material(obj, battery)
+    for obj in reference_objects("REFERENCE_ONLY_Fan_Case_Assembly_"):
+        if "MISSION1" in obj.name:
+            assign_material(obj, camera)
+        elif "Direct_40mm_Rear_Fan" in obj.name:
+            assign_material(obj, installed_fan)
+        elif "Wrapping_Fan_Cover" in obj.name:
+            assign_material(obj, battery)
+        elif any(
+            token in obj.name
+            for token in ("M3x40_Bolt", "M3_Hex_Head", "Thumb_Nut")
+        ):
+            assign_material(obj, hardware)
+        else:
+            assign_material(obj, fan_holder)
+    for prefix in (
+        "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+        "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+    ):
+        for obj in reference_objects(prefix):
+            assign_material(obj, cable)
+
+
+def set_visible(part_keys=(), reference_prefixes=()):
+    """Show only the selected printable and exact reference objects."""
+    visible_parts = set(part_keys)
+    for key, obj in PARTS.items():
+        obj.hide_render = key not in visible_parts
+    for obj in reference_objects("REFERENCE_ONLY_"):
+        obj.hide_render = not obj.name.startswith(tuple(reference_prefixes))
 
 
 def hide_non_storage_objects():
@@ -298,6 +348,147 @@ def render_closed_latch_protectors(camera):
         obj.hide_render = True
 
 
+def render_fan_case_loadout(camera):
+    """Show two complete camera/fan/cover assemblies and cable storage."""
+    set_visible(
+        ("base", "fan_case_pair_insert"),
+        (
+            "REFERENCE_ONLY_Fan_Case_Assembly_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+            "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+        ),
+    )
+    camera.location = (345.0, -440.0, 455.0)
+    aim_object(camera, (0.0, -3.0, 56.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_fan_case_loadout.png"
+    )
+    bpy.ops.render.render(write_still=True)
+
+
+def render_fan_case_insert_detail(camera):
+    """Expose the two coil wells, cable routes, and retained PWM plugs."""
+    set_visible(
+        ("fan_case_pair_insert",),
+        (
+            "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+            "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+        ),
+    )
+    camera.data.lens = 60.0
+    camera.location = (0.0, -330.0, 380.0)
+    aim_object(camera, (0.0, -8.0, 6.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_fan_case_insert_detail.png"
+    )
+    bpy.ops.render.render(write_still=True)
+    camera.data.lens = 58.0
+
+
+def render_fan_case_front_hardware(camera):
+    """Show the three M3x40 shafts and low-profile thumb nuts per case."""
+    set_visible((), ("REFERENCE_ONLY_Fan_Case_Assembly_",))
+    camera.data.lens = 72.0
+    camera.location = (235.0, 325.0, 180.0)
+    aim_object(camera, (0.0, 20.0, 42.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_fan_case_front_hardware.png"
+    )
+    bpy.ops.render.render(write_still=True)
+    camera.data.lens = 58.0
+
+
+def render_fan_case_loadout_exploded(camera):
+    """Explode the mutually exclusive insert, assemblies, and lid pad."""
+    set_visible(
+        ("base", "fan_case_pair_insert", "fan_case_pair_lid_pad"),
+        (
+            "REFERENCE_ONLY_Fan_Case_Assembly_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+            "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+        ),
+    )
+    insert_shift = 35.0
+    assembly_shift = 76.0
+    PARTS["fan_case_pair_insert"].location.z += insert_shift
+    for prefix in (
+        "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+        "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+    ):
+        for obj in reference_objects(prefix):
+            obj.location.z += insert_shift
+    for obj in reference_objects("REFERENCE_ONLY_Fan_Case_Assembly_"):
+        obj.location.z += assembly_shift
+
+    lid_pad = PARTS["fan_case_pair_lid_pad"]
+    # Face the contact columns upward in the documentation explosion so their
+    # lightweight structure is visible; they face downward when installed.
+    lid_pad.location = (0.0, 0.0, 210.0)
+    lid_pad.rotation_euler = (0.0, 0.0, 0.0)
+
+    camera.location = (570.0, -720.0, 520.0)
+    aim_object(camera, (0.0, -1.0, 125.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_fan_case_loadout_exploded.png"
+    )
+    bpy.ops.render.render(write_still=True)
+
+
+def render_tpu_snap_hinge(camera):
+    """Show the optional 68D lid snapped over an installed round rod."""
+    set_visible(("base", "tpu_snap_lid"))
+    lid_location, lid_rotation = field_case.installed_lid_pose(52.0)
+    PARTS["tpu_snap_lid"].location = lid_location
+    PARTS["tpu_snap_lid"].rotation_euler = lid_rotation
+
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=64,
+        radius=field_case.HINGE_ROD_DIAMETER / 2.0,
+        depth=field_case.HINGE_ROD_X1 - field_case.HINGE_ROD_X0,
+        location=(0.0, field_case.HINGE_AXIS_Y, field_case.BASE_HEIGHT),
+        rotation=(0.0, math.pi / 2.0, 0.0),
+    )
+    rod = bpy.context.object
+    rod.name = "PREVIEW_ONLY_Installed_4p1mm_Hinge_Rod"
+    assign_material(
+        rod,
+        make_principled_material(
+            "Preview_Hinge_Rod_Steel",
+            (0.38, 0.43, 0.50),
+            metallic=0.72,
+            roughness=0.24,
+        ),
+    )
+
+    camera.data.lens = 76.0
+    camera.location = (205.0, 315.0, 190.0)
+    aim_object(camera, (0.0, 79.0, 108.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_tpu_snap_hinge.png"
+    )
+    bpy.ops.render.render(write_still=True)
+    rod.hide_render = True
+    camera.data.lens = 58.0
+
+
+def render_tpu_hinge_coupon(camera):
+    """Show the four dot-coded 68D throat samples."""
+    set_visible(("tpu_hinge_coupon",))
+    coupon = PARTS["tpu_hinge_coupon"]
+    coupon.location = (0.0, 0.0, 0.0)
+    # Turn the dot-coded grip edge toward the camera while retaining a clear
+    # oblique view into all four receiver mouths.
+    coupon.rotation_euler = (0.0, 0.0, math.pi)
+    camera.data.lens = 55.0
+    camera.location = (115.0, -145.0, 100.0)
+    aim_object(camera, (0.0, 2.0, 4.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_tpu_hinge_coupon.png"
+    )
+    bpy.ops.render.render(write_still=True)
+    camera.data.lens = 58.0
+
+
 field_case.BUILD_REFERENCE_MOCKUPS = True
 field_case.EXPORT_STL = False
 field_case.SAVE_BLEND = False
@@ -309,4 +500,10 @@ set_reference_materials()
 render_loaded_compact_stack(CAMERA)
 render_exploded_stack(CAMERA)
 render_closed_latch_protectors(CAMERA)
+render_fan_case_loadout(CAMERA)
+render_fan_case_insert_detail(CAMERA)
+render_fan_case_front_hardware(CAMERA)
+render_fan_case_loadout_exploded(CAMERA)
+render_tpu_snap_hinge(CAMERA)
+render_tpu_hinge_coupon(CAMERA)
 print(f"FIELD_CASE_RENDERED_PREVIEWS {RENDER_DIRECTORY}")
