@@ -147,15 +147,21 @@ front extent and the fan-case shell's width/height extent, so they do not
 increase the complete storage envelope. Adjust `FAN_CASE_THUMB_NUT_THICKNESS`
 if the measured low-profile nuts differ.
 
-The stored assemblies are turned half a rotation around Y so each wrapping
-cover's wire notch faces upward. Shallow locator cavities support the broad
-rear-shell edges, and a local relief prevents the flipped top captive button
-from carrying weight. Two 88 x 36 mm rounded wells each hold at least
-152.4 mm (6 inches) of coiled fan lead. A 6 mm route connects each fan-cover
-area to its well. Raised flexible docks retain the two PWM plugs; the default
-user-tunable plug envelope is 16 x 10 x 8 mm with 0.6 mm retention per side.
+The stored fan cases remain upright: the source row of two fasteners is at the
+physical bottom and the single fastener is at the top. Only each wrapping cover
+turns half a rotation around its fan/global Y axis, placing the current TOP wire
+notch upward without inverting the camera or case. Shallow locator cavities
+follow the broad rear-shell edges, and local 1.4 mm-floor reliefs leave more
+than 0.5 mm of air beneath the two low 10 mm thumb-nuts so the thin hardware
+does not carry the case weight. Two 88 x 36 mm rounded wells each hold at least
+152.4 mm (6 inches) of coiled fan lead. Each 6 mm route is derived from the
+wrapping cover's current `CABLE_NOTCH_SIDE` and `CABLE_NOTCH_OFFSET`; the exact
+scene reference follows the transformed notch through that throat to its well.
+Raised flexible docks retain the two PWM plugs; the default user-tunable plug
+envelope is 16 x 10 x 8 mm, its free channel is 11 mm wide (0.5 mm clearance
+per side), and only the 0.6 mm-per-side retention nubs enter that channel.
 Measure an unusually large molded plug and adjust `PWM_CONNECTOR_ENVELOPE`
-before printing if necessary. The wells and rear-center scallop also provide
+before printing if necessary. The wells and front/latch-center scallop also provide
 direct finger access for lifting the insert out.
 
 The lower insert's main body is 12 mm tall with a 3 mm assembly floor and
@@ -533,9 +539,14 @@ full TPU lid. It contains four breakaway, dot-coded clips with 3.8, 3.9, 4.0,
 and 4.1 mm throats: one dot is 3.8 mm, two dots is the nominal 3.9 mm, three
 dots is 4.0 mm, and four dots is 4.1 mm. Test the actual 4.1 mm rod using the
 same filament, layer height, wall count, orientation, and dry-filament state as
-the lid. Choose the smallest throat that snaps repeatedly without whitening,
-cracking, or requiring excessive force, then set `TPU_HINGE_SNAP_THROAT_WIDTH`
-to that value if it differs from 3.9 mm.
+the lid. Each coupon receiver uses the actual 6.8 mm clip width and reproduces
+the lid's plate-to-flared-rim-to-barrel root cross-section in the same exported
+print orientation. Use the same removable support-interface settings inside
+all four coupon receivers that will be used inside the TPU lid clips; a changed
+interface gap can distort the throat comparison. Choose the smallest throat
+that snaps repeatedly without whitening, cracking, or requiring excessive
+force, then set `TPU_HINGE_SNAP_THROAT_WIDTH` to that value if it differs from
+3.9 mm.
 
 The optional TPU lid is not included on the default rigid-lid 3MF plate. Import
 its STL with `mission1_field_case_lid_logo_orange_inlay.stl` as aligned parts if
@@ -572,10 +583,13 @@ the separately printed Z = 0 gasket after the lid is complete.
   separate Z = 0 print.
 - The case-side latch and handle mounts rise on 45-degree lower webs and do not
   require support. Do not place support inside their teardrop pivot bores.
-- The two lid hinge slots bridge the full 22.8 mm receiver widths in the broad-
-  face-down lid orientation. Add removable support in those two slots, then
-  remove it completely and verify the 4.1 mm bar slides through the 4.6 mm
-  openings without resistance before assembly.
+- The rigid lid has two 22.8 mm hinge slots in its broad-face-down orientation;
+  add removable support in both. The optional TPU lid instead has six 6.8 mm
+  clip slots, and the coupon has four matching 6.8 mm receivers. Use the same
+  removable support-interface settings for the TPU lid and coupon so support
+  removal does not bias throat calibration. Remove support completely and
+  verify the actual 4.1 mm bar moves through every selected receiver before
+  assembly.
 - Print the optional headless 4.1 mm hinge pin on its D-shaped flat, or cut a
   4.1 mm metal bar to 151 mm. Verify the actual bar against a small bore test
   before printing the full base.
@@ -615,8 +629,9 @@ and can be regenerated without editing an STL.
 
 For the alternate fan-case configuration, omit steps 1 and 5. Seat its lower
 insert directly on the case floor, coil each fan lead in its dedicated well,
-route the lead through the 6 mm throat, slip the PWM plug into the matching
-outer dock, and lower one complete fan-case assembly into each locator. Fit the
+route the visible lead from the upward wrapping-cover notch through the 6 mm
+throat, slip the PWM plug into the matching outer dock, and lower each complete
+fan-case assembly upright with its two-bolt row down and single bolt up. Fit the
 alternate keyed lid pad in place of the normal lid pad. The installed cameras,
 40 mm fans, and wrapping covers remain on the fan cases during storage; the
 dual-fan assembly and all three of its TPU storage tiers stay out of the case.

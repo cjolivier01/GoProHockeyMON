@@ -354,6 +354,7 @@ def render_fan_case_loadout(camera):
         ("base", "fan_case_pair_insert"),
         (
             "REFERENCE_ONLY_Fan_Case_Assembly_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
             "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
             "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
         ),
@@ -372,6 +373,7 @@ def render_fan_case_insert_detail(camera):
         ("fan_case_pair_insert",),
         (
             "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
             "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
         ),
     )
@@ -413,6 +415,7 @@ def render_fan_case_loadout_exploded(camera):
     PARTS["fan_case_pair_insert"].location.z += insert_shift
     for prefix in (
         "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+        "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
         "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
     ):
         for obj in reference_objects(prefix):

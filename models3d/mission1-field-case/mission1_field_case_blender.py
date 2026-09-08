@@ -353,7 +353,7 @@ FAN_CASE_PAIR_INSERT_HEIGHT = 12.0
 FAN_CASE_PAIR_INSERT_FLOOR = 3.0
 FAN_CASE_PAIR_INSERT_INSTALLED_Z = BASE_FLOOR_THICKNESS
 FAN_CASE_PAIR_BODY_FLOOR_CLEARANCE = 0.5
-FAN_CASE_PAIR_BUTTON_RELIEF_FLOOR = 1.4
+FAN_CASE_PAIR_HARDWARE_RELIEF_FLOOR = 1.4
 FAN_CASE_PAIR_CAVITY_CORNER_RADIUS = 5.0
 FAN_CASE_CABLE_LENGTH = 152.4
 FAN_CASE_CABLE_DIAMETER = 4.0
@@ -485,8 +485,8 @@ def fan_case_pair_storage_geometry():
         cover_fan_width,
         cover_fan_height,
         cover_fan_depth,
-        _cover_inner_width,
-        _cover_inner_height,
+        cover_inner_width,
+        cover_inner_height,
         cover_outer_width,
         cover_outer_height,
         cover_total_depth,
@@ -523,10 +523,35 @@ def fan_case_pair_storage_geometry():
         fan_case.back_exterior_y() + FAN_CASE_STORAGE_COVER_CASE_CLEARANCE
     )
     cover_y0 = cover_y1 - cover_total_depth
+    notch_side = wrapping_fan_cover.CABLE_NOTCH_SIDE
+    if notch_side in {"TOP", "BOTTOM"}:
+        notch_sign = 1.0 if notch_side == "TOP" else -1.0
+        cover_notch_local_x = wrapping_fan_cover.CABLE_NOTCH_OFFSET
+        cover_notch_local_y = notch_sign * (
+            cover_inner_height / 2.0 + wrapping_fan_cover.WALL_THICKNESS / 2.0
+        )
+    else:
+        notch_sign = 1.0 if notch_side == "RIGHT" else -1.0
+        cover_notch_local_x = notch_sign * (
+            cover_inner_width / 2.0 + wrapping_fan_cover.WALL_THICKNESS / 2.0
+        )
+        cover_notch_local_y = wrapping_fan_cover.CABLE_NOTCH_OFFSET
+    # The generated cover first rotates -90 degrees around X to align its fan
+    # depth with global Y, then independently turns 180 degrees around the
+    # installed fan's global Y axis.  Apply that composition to the configured
+    # notch center instead of assuming a hard-coded TOP/offset combination.
+    cover_notch_source_x = fan_case.FAN_CENTER_X - cover_notch_local_x
+    cover_notch_source_z = fan_case.FAN_CENTER_Z + cover_notch_local_y
+    cover_notch_source_y = cover_y1 - wrapping_fan_cover.CABLE_NOTCH_DEPTH / 2.0
     camera_y0 = fan_case.camera_stop_end_y()
     camera_y1 = camera_y0 + mission1.REFERENCE_MAX_Y
     gate_y0 = fan_case.retainer_gate_assembled_y()
     gate_y1 = gate_y0 + fan_case.retainer_gate_thickness_y()
+    if not fan_case.BACK_FASTENER_HEX_RETENTION_ENABLED:
+        raise ValueError(
+            "Fan-case M3x40 storage calculation requires the rear captured "
+            "hex-head seats to be enabled"
+        )
     bolt_seat_y = fan_case.back_fastener_hex_seat_y()
     bolt_tip_y = bolt_seat_y + FAN_CASE_M3_BOLT_LENGTH
     bolt_front_protrusion = bolt_tip_y - gate_y1
@@ -598,86 +623,110 @@ def fan_case_pair_storage_geometry():
         source_z1,
     )
     storage_bounds = reference_bounds
-
-    # Rotate each assembly 180 degrees around its Y axis.  The wrapping
-    # cover's top cable notch then faces upward and the top captive button gets
-    # a dedicated shallow relief in the lower insert instead of carrying load.
-    rotated_storage_bounds = (
-        -storage_bounds[1],
-        -storage_bounds[0],
-        storage_bounds[2],
-        storage_bounds[3],
-        -storage_bounds[5],
-        -storage_bounds[4],
-    )
-    rotated_reference_bounds = (
-        -reference_bounds[1],
-        -reference_bounds[0],
-        reference_bounds[2],
-        reference_bounds[3],
-        -reference_bounds[5],
-        -reference_bounds[4],
-    )
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     # Include the 1 mm cavity expansion while retaining a true 4 mm TPU wall
     # to the alternate insert's front edge.
     target_front_y = inner_depth / 2.0 - 5.5
-    translation_y = target_front_y - rotated_storage_bounds[3]
+    translation_y = target_front_y - storage_bounds[3]
     body_floor_z = (
         FAN_CASE_PAIR_INSERT_INSTALLED_Z
         + FAN_CASE_PAIR_INSERT_FLOOR
         + FAN_CASE_PAIR_BODY_FLOOR_CLEARANCE
     )
-    # Use the broad rear-shell bottom, not the protruding flipped top button,
-    # as the support datum.  The button is relieved down toward the insert
-    # floor while the shell remains on the printable TPU floor.
+    # Keep the source two-fastener row at the physical bottom.  The broad rear
+    # shell establishes the locator datum; local pockets below the two lower
+    # thumb nuts keep that hardware from carrying load on the TPU floor.
     translation_z = body_floor_z - (-back_height / 2.0)
     placements = []
     cavity_bounds = []
     installed_reference_bounds = []
     for center_x in FAN_CASE_STORAGE_CENTERS_X:
-        rotated_center_x = (
-            rotated_storage_bounds[0] + rotated_storage_bounds[1]
-        ) / 2.0
-        translation_x = center_x - rotated_center_x
+        storage_center_x = (storage_bounds[0] + storage_bounds[1]) / 2.0
+        translation_x = center_x - storage_center_x
         placements.append((translation_x, translation_y, translation_z))
         cavity_bounds.append(
             (
-                rotated_storage_bounds[0]
+                storage_bounds[0]
                 + translation_x
                 - FAN_CASE_STORAGE_CLEARANCE,
-                rotated_storage_bounds[1]
+                storage_bounds[1]
                 + translation_x
                 + FAN_CASE_STORAGE_CLEARANCE,
-                rotated_storage_bounds[2]
+                storage_bounds[2]
                 + translation_y
                 - FAN_CASE_STORAGE_CLEARANCE,
-                rotated_storage_bounds[3]
+                storage_bounds[3]
                 + translation_y
                 + FAN_CASE_STORAGE_CLEARANCE,
             )
         )
         installed_reference_bounds.append(
             (
-                rotated_reference_bounds[0] + translation_x,
-                rotated_reference_bounds[1] + translation_x,
-                rotated_reference_bounds[2] + translation_y,
-                rotated_reference_bounds[3] + translation_y,
-                rotated_reference_bounds[4] + translation_z,
-                rotated_reference_bounds[5] + translation_z,
+                reference_bounds[0] + translation_x,
+                reference_bounds[1] + translation_x,
+                reference_bounds[2] + translation_y,
+                reference_bounds[3] + translation_y,
+                reference_bounds[4] + translation_z,
+                reference_bounds[5] + translation_z,
             )
         )
     assembly_top_z = max(bounds[5] for bounds in installed_reference_bounds)
+    broad_shell_top_z = translation_z + back_height / 2.0
     installed_lid_inner_face = BASE_HEIGHT + (
         LID_WALL_HEIGHT - LID_PLATE_THICKNESS
     )
     lid_pad_height = (
-        installed_lid_inner_face - assembly_top_z + FAN_CASE_PAIR_LID_PRELOAD
+        installed_lid_inner_face - broad_shell_top_z + FAN_CASE_PAIR_LID_PRELOAD
     )
-    # The highest surface after the Y half-turn is the original front/bottom
-    # edge of the rounded rear shell.  Land the lid bosses on that 4 mm-deep
-    # band rather than over the hollow socket center.
+    # Land the lid bosses on the broad upper edge of the upright rear shell,
+    # rather than using a narrow button or thumb nut as the hold-down datum.
     shell_center_y = fan_case.BACK_DEPTH + translation_y - 2.0
+    lower_fasteners = tuple(
+        sorted(fan_case.CASE_FASTENER_POSITIONS_XZ, key=lambda point: point[1])[:2]
+    )
+    hardware_relief_top_z = (
+        FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_PAIR_HARDWARE_RELIEF_FLOOR
+    )
+    lower_hardware_bottom_z = min(
+        fastener_z - hardware_radius + translation_z
+        for _fastener_x, fastener_z in lower_fasteners
+    )
+    lower_hardware_floor_clearance = (
+        lower_hardware_bottom_z - hardware_relief_top_z
+    )
+    cable_route_points = []
+    cable_center_z = (
+        FAN_CASE_PAIR_INSERT_INSTALLED_Z
+        + FAN_CASE_CABLE_WELL_FLOOR
+        + 0.3
+        + FAN_CASE_CABLE_DIAMETER / 2.0
+    )
+    coil_entry_y = (
+        FAN_CASE_CABLE_WELL_CENTER_Y
+        + (FAN_CASE_CABLE_WELL_SIZE[1] - 4.0) / 2.0
+    )
+    for placement, cavity in zip(placements, cavity_bounds):
+        notch_x = cover_notch_source_x + placement[0]
+        notch_y = cover_notch_source_y + placement[1]
+        notch_z = cover_notch_source_z + placement[2]
+        cable_above_cover_z = (
+            notch_z
+            + wrapping_fan_cover.WALL_THICKNESS / 2.0
+            + FAN_CASE_CABLE_DIAMETER / 2.0
+        )
+        # cavity[2] is already one configured assembly-clearance in front of
+        # the cover.  Move the descent another cable radius forward so the
+        # complete round lead, not only its centerline, clears that plane.
+        throat_y = cavity[2] - FAN_CASE_CABLE_DIAMETER / 2.0
+        cable_route_points.append(
+            (
+                (notch_x, notch_y, notch_z),
+                (notch_x, notch_y, cable_above_cover_z),
+                (notch_x, throat_y, cable_above_cover_z),
+                (notch_x, throat_y, cable_center_z),
+                (notch_x, coil_entry_y, cable_center_z),
+            )
+        )
     return {
         "cover_values": cover_values,
         "reference_source_bounds": reference_bounds,
@@ -686,9 +735,18 @@ def fan_case_pair_storage_geometry():
         "cavity_bounds": tuple(cavity_bounds),
         "installed_reference_bounds": tuple(installed_reference_bounds),
         "assembly_top_z": assembly_top_z,
+        "broad_shell_top_z": broad_shell_top_z,
         "lid_pad_height": lid_pad_height,
         "shell_contact_base_y": shell_center_y,
         "back_dimensions": (back_width, back_height),
+        "lower_fasteners": lower_fasteners,
+        "lower_hardware_floor_clearance": lower_hardware_floor_clearance,
+        "cover_notch_source": (
+            cover_notch_source_x,
+            cover_notch_source_y,
+            cover_notch_source_z,
+        ),
+        "cable_route_points": tuple(cable_route_points),
         "front_hardware": {
             "bolt_seat_y": bolt_seat_y,
             "bolt_tip_y": bolt_tip_y,
@@ -841,7 +899,6 @@ TPU_HINGE_CLIPS_PER_SEGMENT = 3
 TPU_HINGE_CLIP_RELIEF_GAP = 1.2
 TPU_HINGE_COUPON_THROATS = (3.8, 3.9, 4.0, 4.1)
 TPU_HINGE_COUPON_BLOCK_SIZE = 14.0
-TPU_HINGE_COUPON_CLIP_WIDTH = 8.0
 TPU_HINGE_COUPON_BREAKAWAY_WIDTH = 0.4
 HINGE_LID_RELEASE_ANGLE_DEGREES = 70.0
 HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES = 65.0
@@ -3102,6 +3159,28 @@ def add_uv_sphere(name, radius, location, segments=32, ring_count=16):
     return obj
 
 
+def add_round_polyline(name, points, diameter, resolution=3):
+    """Create a capped round cable following an ordered 3D polyline."""
+    curve = bpy.data.curves.new(name + "_Curve", "CURVE")
+    curve.dimensions = "3D"
+    curve.resolution_u = 1
+    curve.resolution_v = resolution
+    curve.bevel_depth = diameter / 2.0
+    curve.bevel_resolution = resolution
+    curve.fill_mode = "FULL"
+    curve.use_fill_caps = True
+    spline = curve.splines.new("POLY")
+    spline.points.add(len(points) - 1)
+    for point, coordinates in zip(spline.points, points):
+        point.co = (*coordinates, 1.0)
+    obj = bpy.data.objects.new(name, curve)
+    bpy.context.collection.objects.link(obj)
+    select_only(obj)
+    bpy.ops.object.convert(target="MESH")
+    cleanup_mesh(obj)
+    return obj
+
+
 def add_cylinder_z(name, radius, depth, location, vertices=64):
     bpy.ops.mesh.primitive_cylinder_add(
         vertices=vertices,
@@ -3786,10 +3865,13 @@ def validate_configuration() -> None:
         and math.isclose(cover_values[2], 40.0, abs_tol=1e-6)
         and math.isclose(cover_values[3], 20.0, abs_tol=1e-6)
         and wrapping_fan_cover.CABLE_NOTCH_ENABLED
+        and wrapping_fan_cover.CABLE_NOTCH_SIDE == "TOP"
+        and FAN_CASE_PAIR_STORAGE["cover_notch_source"][2]
+        > fan_case.FAN_CENTER_Z
     ):
         raise ValueError(
             "Fan-case storage requires the current 40 x 40 x 20 mm wrapping "
-            "cover with its cable notch enabled"
+            "cover with its configured TOP cable notch facing upward"
         )
     if not (
         fan_case.FAN_OPENING_ENABLED
@@ -3797,6 +3879,8 @@ def validate_configuration() -> None:
         and math.isclose(fan_case.FAN_HOLE_SPACING_Z, 32.0, abs_tol=1e-6)
         and fan_case.RETAINER_ENABLED
         and fan_case.RETAINER_STYLE == "SWING_GATE"
+        and fan_case.CASE_FASTENERS_ENABLED
+        and fan_case.BACK_FASTENER_HEX_RETENTION_ENABLED
     ):
         raise ValueError(
             "Fan-case storage requires the current direct 40 mm rear pattern "
@@ -3826,8 +3910,41 @@ def validate_configuration() -> None:
         raise ValueError("Each cable well must accept the configured six-inch lead")
     if FAN_CASE_CABLE_THROAT_WIDTH < FAN_CASE_CABLE_DIAMETER + 1.0:
         raise ValueError("Fan cable route needs at least 0.5 mm clearance per side")
+    ordered_fasteners = sorted(
+        fan_case.CASE_FASTENER_POSITIONS_XZ,
+        key=lambda point: point[1],
+    )
     if not (
-        FAN_CASE_PAIR_BUTTON_RELIEF_FLOOR >= 1.2
+        len(ordered_fasteners) == 3
+        and math.isclose(
+            ordered_fasteners[0][1], ordered_fasteners[1][1], abs_tol=1e-6
+        )
+        and ordered_fasteners[2][1] > ordered_fasteners[1][1]
+        and tuple(ordered_fasteners[:2]) == FAN_CASE_PAIR_STORAGE["lower_fasteners"]
+    ):
+        raise ValueError(
+            "Stored fan cases require the source two-fastener row at the "
+            "physical bottom and the single fastener at the top"
+        )
+    if FAN_CASE_PAIR_STORAGE["lower_hardware_floor_clearance"] < 0.5:
+        raise ValueError(
+            "The two lower M3/thumb-nut envelopes need at least 0.5 mm "
+            "clearance above their TPU floor reliefs"
+        )
+    installed_lid_inner_face = BASE_HEIGHT + (
+        LID_WALL_HEIGHT - LID_PLATE_THICKNESS
+    )
+    if FAN_CASE_PAIR_STORAGE["assembly_top_z"] >= installed_lid_inner_face:
+        raise ValueError(
+            "A fan-case top button or upper fastener reaches the closed lid"
+        )
+    connector_free_width = (
+        PWM_CONNECTOR_ENVELOPE[1] + 2.0 * PWM_CONNECTOR_CLEARANCE
+    )
+    if connector_free_width <= PWM_CONNECTOR_ENVELOPE[1]:
+        raise ValueError("PWM dock must provide positive connector side clearance")
+    if not (
+        FAN_CASE_PAIR_HARDWARE_RELIEF_FLOOR >= 1.2
         and FAN_CASE_CABLE_WELL_FLOOR >= 2.0
         and FAN_CASE_PAIR_INSERT_FLOOR >= 3.0
     ):
@@ -5714,36 +5831,35 @@ def create_fan_case_pair_insert(material):
         )
         difference_from(insert, cavity)
 
-        # The Y-axis half turn points the wrapping cover's cable notch upward,
-        # but also puts the fan-case's top captive button slightly below the
-        # broad rear-shell support datum.  Relieve it without thinning the
-        # complete 1.4 mm minimum TPU floor.
         placement_x, placement_y, _placement_z = FAN_CASE_PAIR_STORAGE[
             "placements"
         ][index - 1]
-        top_button_source_x0 = (
-            fan_case.TOP_PORT_X - fan_case.BUTTON_INNER_FLANGE_DIAMETER / 2.0
+        # The assembly remains upright, so the source row of two fasteners is
+        # at the bottom.  Cut only beneath those low-profile thumb nuts: the
+        # broad shell remains the support datum and the hardware retains more
+        # than 0.5 mm air above the 1.4 mm TPU relief floor.
+        nut_center_y = (
+            FAN_CASE_PAIR_STORAGE["front_hardware"]["gate_front_y"]
+            + FAN_CASE_THUMB_NUT_THICKNESS / 2.0
+            + placement_y
         )
-        top_button_source_x1 = (
-            fan_case.TOP_PORT_X + fan_case.BUTTON_INNER_FLANGE_DIAMETER / 2.0
-        )
-        top_button_y = fan_case.insert_start_y() + fan_case.TOP_PORT_Y_OFFSET
-        relief_x0 = -top_button_source_x1 + placement_x - FAN_CASE_STORAGE_CLEARANCE
-        relief_x1 = -top_button_source_x0 + placement_x + FAN_CASE_STORAGE_CLEARANCE
-        button_relief = add_rounded_prism(
-            f"Fan_Case_{index}_Flipped_Top_Button_Relief",
-            relief_x1 - relief_x0,
-            fan_case.BUTTON_INNER_FLANGE_DIAMETER
-            + 2.0 * FAN_CASE_STORAGE_CLEARANCE,
-            FAN_CASE_PAIR_BUTTON_RELIEF_FLOOR,
-            FAN_CASE_PAIR_INSERT_HEIGHT + 0.3,
-            2.0,
-            (
-                (relief_x0 + relief_x1) / 2.0,
-                top_button_y + placement_y,
-            ),
-        )
-        difference_from(insert, button_relief)
+        for fastener_index, (fastener_x, _fastener_z) in enumerate(
+            FAN_CASE_PAIR_STORAGE["lower_fasteners"],
+            start=1,
+        ):
+            hardware_relief = add_rounded_prism(
+                f"Fan_Case_{index}_Lower_Thumb_Nut_{fastener_index}_Floor_Relief",
+                FAN_CASE_THUMB_NUT_DIAMETER
+                + 2.0 * FAN_CASE_STORAGE_CLEARANCE,
+                FAN_CASE_THUMB_NUT_THICKNESS
+                + 2.0 * FAN_CASE_STORAGE_CLEARANCE,
+                FAN_CASE_PAIR_HARDWARE_RELIEF_FLOOR,
+                FAN_CASE_PAIR_INSERT_FLOOR + 0.3,
+                (FAN_CASE_THUMB_NUT_THICKNESS + 2.0 * FAN_CASE_STORAGE_CLEARANCE)
+                / 2.0,
+                (fastener_x + placement_x, nut_center_y),
+            )
+            difference_from(insert, hardware_relief)
 
     well_centers = tuple(
         (center_x, FAN_CASE_CABLE_WELL_CENTER_Y)
@@ -5761,26 +5877,35 @@ def create_fan_case_pair_insert(material):
         )
         difference_from(insert, well)
 
-        cavity_y0 = FAN_CASE_PAIR_STORAGE["cavity_bounds"][index - 1][2]
         well_y1 = center_y + FAN_CASE_CABLE_WELL_SIZE[1] / 2.0
-        throat_center_x = (
-            -fan_case.FAN_CENTER_X
-            + FAN_CASE_PAIR_STORAGE["placements"][index - 1][0]
-        )
+        cable_route = FAN_CASE_PAIR_STORAGE["cable_route_points"][index - 1]
+        throat_center_x = cable_route[-1][0]
+        descent_y = cable_route[-2][1]
+        # Carry the cut at least one cable radius plus side clearance into
+        # both adjoining pockets.  The rendered lead bends through these
+        # junctions, so merely meeting each nominal pocket edge would let the
+        # outside of the 4 mm cable clip the insert at the two 90-degree turns.
+        throat_end_overlap = FAN_CASE_CABLE_DIAMETER / 2.0 + (
+            FAN_CASE_CABLE_THROAT_WIDTH - FAN_CASE_CABLE_DIAMETER
+        ) / 2.0
+        throat_y0 = well_y1 - throat_end_overlap
+        throat_y1 = descent_y + throat_end_overlap
         throat = add_rounded_prism(
             f"Fan_Case_{index}_Cable_Route_To_Coil_Well",
             FAN_CASE_CABLE_THROAT_WIDTH,
-            cavity_y0 - well_y1 + 1.0,
+            throat_y1 - throat_y0,
             FAN_CASE_CABLE_WELL_FLOOR,
             FAN_CASE_PAIR_INSERT_HEIGHT + 0.3,
             FAN_CASE_CABLE_THROAT_WIDTH / 2.0,
-            (throat_center_x, (cavity_y0 + well_y1) / 2.0),
+            (throat_center_x, (throat_y0 + throat_y1) / 2.0),
         )
         difference_from(insert, throat)
 
     connector_length = PWM_CONNECTOR_ENVELOPE[0] + 2.0 * PWM_CONNECTOR_CLEARANCE
     connector_height = PWM_CONNECTOR_ENVELOPE[2] + PWM_CONNECTOR_CLEARANCE
-    connector_running_width = PWM_CONNECTOR_ENVELOPE[1] + 0.6
+    connector_running_width = (
+        PWM_CONNECTOR_ENVELOPE[1] + 2.0 * PWM_CONNECTOR_CLEARANCE
+    )
     dock_wall_thickness = 1.5
     for index, center in enumerate(PWM_CONNECTOR_DOCK_CENTERS, start=1):
         for side in (-1.0, 1.0):
@@ -5825,10 +5950,10 @@ def create_fan_case_pair_insert(material):
             )
             union_into(insert, nub)
 
-    # A center rear-edge scallop and the two large cable wells provide direct
+    # A center front/latch-edge scallop and the two large cable wells provide direct
     # grips for lifting this frequently swapped loadout from the shell.
     lift_notch = add_rounded_prism(
-        "Fan_Case_Pair_Insert_Rear_Finger_Lift_Scallop",
+        "Fan_Case_Pair_Insert_Front_Finger_Lift_Scallop",
         20.0,
         18.0,
         -0.2,
@@ -5911,9 +6036,29 @@ def create_fan_case_pair_lid_pad(material):
 
 
 def create_tpu_hinge_coupon(material):
-    """Create four breakaway 68D snap samples with dot-coded throats."""
+    """Create four lid-faithful 68D snap samples with dot-coded throats."""
     block = TPU_HINGE_COUPON_BLOCK_SIZE
     block_gap = 1.0
+    clip_width = min(
+        x1 - x0 for x0, x1 in lid_hinge_segments(HINGE_PROFILE_TPU_68D_SNAP)
+    )
+    axis_z = LID_WALL_HEIGHT
+    rim_outer_y = HINGE_AXIS_Y - (CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET)
+    rim_unflared_y = HINGE_AXIS_Y - CASE_DEPTH / 2.0
+    wall_inner_y = HINGE_AXIS_Y - (CASE_DEPTH / 2.0 - WALL_THICKNESS)
+    # This is the rear-center lid cross-section in its exported broad-face-down
+    # orientation: plate/root, 45-degree flared rim, loaded edge, and barrel.
+    # Only X length and throat vary between samples.
+    root_profile_yz = (
+        (rim_unflared_y, 0.0),
+        (wall_inner_y + 2.0, 0.0),
+        (wall_inner_y + 2.0, LID_PLATE_THICKNESS),
+        (wall_inner_y, LID_PLATE_THICKNESS),
+        (wall_inner_y, LID_WALL_HEIGHT),
+        (rim_outer_y, LID_WALL_HEIGHT),
+        (rim_outer_y, LID_FLANGE_EDGE_START_Z),
+        (rim_unflared_y, LID_FLANGE_FLARE_START_Z),
+    )
     centers_x = tuple(
         (index - (len(TPU_HINGE_COUPON_THROATS) - 1) / 2.0)
         * (block + block_gap)
@@ -5927,22 +6072,29 @@ def create_tpu_hinge_coupon(material):
         barrel = add_cylinder_x(
             f"TPU_68D_Coupon_{throat_width:.1f}_Snap_Barrel",
             HINGE_OUTER_DIAMETER / 2.0,
-            TPU_HINGE_COUPON_CLIP_WIDTH,
-            (center_x, 0.0, HINGE_OUTER_DIAMETER / 2.0),
+            clip_width,
+            (center_x, 0.0, axis_z),
             vertices=90,
         )
+        root = extrude_loop_x(
+            f"TPU_68D_Coupon_{throat_width:.1f}_Lid_Rim_Root",
+            root_profile_yz,
+            center_x - clip_width / 2.0,
+            center_x + clip_width / 2.0,
+        )
+        union_into(barrel, root)
         grip = add_rounded_box(
             f"TPU_68D_Coupon_{throat_width:.1f}_Grip",
-            (block, 7.0, 2.2),
-            (center_x, 3.5, 1.1),
+            (block, 6.0, 2.2),
+            (center_x, wall_inner_y + 1.0, 1.1),
             bevel=0.8,
         )
         union_into(barrel, grip)
         receiver = add_cylinder_x(
             f"TPU_68D_Coupon_{throat_width:.1f}_Receiver",
             HINGE_LID_RECEIVER_DIAMETER / 2.0,
-            TPU_HINGE_COUPON_CLIP_WIDTH + 0.6,
-            (center_x, 0.0, HINGE_OUTER_DIAMETER / 2.0),
+            clip_width + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+            (center_x, 0.0, axis_z),
             vertices=90,
         )
         difference_from(barrel, receiver)
@@ -5950,12 +6102,12 @@ def create_tpu_hinge_coupon(material):
             f"TPU_68D_Coupon_{throat_width:.1f}_Rounded_Lead_In",
             hinge_slot_loop_yz(
                 0.0,
-                HINGE_OUTER_DIAMETER / 2.0,
+                axis_z,
                 HINGE_PROFILE_TPU_68D_SNAP,
                 throat_width=throat_width,
             ),
-            center_x - TPU_HINGE_COUPON_CLIP_WIDTH / 2.0 - 0.3,
-            center_x + TPU_HINGE_COUPON_CLIP_WIDTH / 2.0 + 0.3,
+            center_x - clip_width / 2.0 - HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+            center_x + clip_width / 2.0 + HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
         )
         difference_from(barrel, slot)
         for dot_index in range(sample_index):
@@ -5966,7 +6118,7 @@ def create_tpu_hinge_coupon(material):
                 (
                     center_x
                     + (dot_index - (sample_index - 1) / 2.0) * 2.0,
-                    5.4,
+                    wall_inner_y + 1.0,
                     2.5,
                 ),
                 vertices=32,
@@ -5979,7 +6131,11 @@ def create_tpu_hinge_coupon(material):
             bridge = add_rounded_box(
                 f"TPU_68D_Coupon_Breakaway_Tab_{sample_index - 1}",
                 (block_gap + 0.8, 1.0, TPU_HINGE_COUPON_BREAKAWAY_WIDTH),
-                (bridge_center_x, 5.5, TPU_HINGE_COUPON_BREAKAWAY_WIDTH / 2.0),
+                (
+                    bridge_center_x,
+                    wall_inner_y + 1.0,
+                    TPU_HINGE_COUPON_BREAKAWAY_WIDTH / 2.0,
+                ),
                 bevel=0.1,
             )
             union_into(coupon, bridge)
@@ -10198,11 +10354,31 @@ def create_fan_case_pair_reference_mockups(
                 f"REFERENCE_ONLY_Fan_Case_Assembly_{assembly_index}_"
                 f"{source_index}_{source_name}"
             )
-            obj.rotation_euler = (0.0, math.pi, 0.0)
-            obj.location = placement
+            if source is cover:
+                # Keep the fan case/camera upright and turn only the cover
+                # around the fan's global Y axis.  The translation term keeps
+                # the cover centered on FAN_CENTER_X/Z while the current TOP
+                # cable notch moves from the bottom to the top.
+                obj.rotation_euler = (0.0, math.pi, 0.0)
+                obj.location = (
+                    placement[0] + 2.0 * fan_case.FAN_CENTER_X,
+                    placement[1],
+                    placement[2] + 2.0 * fan_case.FAN_CENTER_Z,
+                )
+            else:
+                obj.rotation_euler = (0.0, 0.0, 0.0)
+                obj.location = placement
             obj.hide_set(False)
             obj.hide_render = False
             objects.append(obj)
+
+        cable_lead = add_round_polyline(
+            f"REFERENCE_ONLY_Fan_Case_Cable_Lead_{assembly_index}",
+            FAN_CASE_PAIR_STORAGE["cable_route_points"][assembly_index - 1],
+            FAN_CASE_CABLE_DIAMETER,
+        )
+        assign_material(cable_lead, cable_material)
+        objects.append(cable_lead)
 
         cable_z0 = (
             FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_CABLE_WELL_FLOOR + 0.3
@@ -10529,6 +10705,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         assembly_groups.append(group)
 
     actual_bounds = []
+    fastener_orientations = []
     for assembly_index, group in enumerate(assembly_groups, start=1):
         bounds = [object_world_bounds(obj) for obj in group]
         merged = tuple(
@@ -10552,6 +10729,27 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
                 f"configured={expected}"
             )
         actual_bounds.append(merged)
+        thumb_nuts = [obj for obj in group if "10mm_Thumb_Nut" in obj.name]
+        if len(thumb_nuts) != 3:
+            raise ValueError(
+                f"Fan-case assembly {assembly_index} does not contain three thumb nuts"
+            )
+        thumb_nut_center_z = sorted(
+            (object_world_bounds(obj)[0].z + object_world_bounds(obj)[1].z) / 2.0
+            for obj in thumb_nuts
+        )
+        if not (
+            math.isclose(
+                thumb_nut_center_z[0], thumb_nut_center_z[1], abs_tol=0.06
+            )
+            and thumb_nut_center_z[2] > thumb_nut_center_z[1]
+        ):
+            raise ValueError(
+                "Stored fan-case hardware is not upright with two fasteners "
+                f"down and one up: assembly={assembly_index} "
+                f"nut_z={thumb_nut_center_z}"
+            )
+        fastener_orientations.append(tuple(thumb_nut_center_z))
 
     pair_overlap = 0.0
     for first in assembly_groups[0]:
@@ -10567,6 +10765,42 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
             pair_overlap += volume
     if pair_overlap > 1e-6:
         raise ValueError("The two stored fan-case assemblies intersect")
+
+    cable_lead_assembly_overlaps = []
+    for assembly_index, group in enumerate(assembly_groups, start=1):
+        matching_leads = [
+            obj
+            for obj in reference_objects
+            if obj.name.startswith(
+                f"REFERENCE_ONLY_Fan_Case_Cable_Lead_{assembly_index}"
+            )
+        ]
+        if len(matching_leads) != 1:
+            raise ValueError(
+                f"Fan-case assembly {assembly_index} needs one routed cable lead"
+            )
+        lead = matching_leads[0]
+        lead_overlap = 0.0
+        overlap_details = {}
+        for obj in group:
+            _faces, volume = exact_transformed_intersection(
+                lead,
+                obj,
+                first_location=lead.location.copy(),
+                first_rotation=lead.rotation_euler.copy(),
+                second_location=obj.location.copy(),
+                second_rotation=obj.rotation_euler.copy(),
+            )
+            lead_overlap += volume
+            if volume > 1e-7:
+                overlap_details[obj.name] = volume
+        if lead_overlap > 1e-5:
+            raise ValueError(
+                "Routed fan cable does not clear its complete assembly: "
+                f"assembly={assembly_index} overlap={lead_overlap:.6f} "
+                f"details={overlap_details}"
+            )
+        cable_lead_assembly_overlaps.append(lead_overlap)
 
     insert_overlap = 0.0
     base_overlap = 0.0
@@ -10596,11 +10830,13 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         obj
         for obj in reference_objects
         if obj.name.startswith("REFERENCE_ONLY_Fan_Case_Cable_Coil_")
+        or obj.name.startswith("REFERENCE_ONLY_Fan_Case_Cable_Lead_")
         or obj.name.startswith("REFERENCE_ONLY_Fan_Case_PWM_Plug_")
     ]
-    if len(accessory_objects) != 2 * FAN_CASE_STORAGE_COUNT:
+    if len(accessory_objects) != 3 * FAN_CASE_STORAGE_COUNT:
         raise ValueError("Fan-case cable/PWM reference set is incomplete")
     cable_overlap = 0.0
+    accessory_base_overlap = 0.0
     plug_retention = []
     accessory_overlap_details = {}
     for obj in accessory_objects:
@@ -10613,17 +10849,31 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
             second_rotation=obj.rotation_euler.copy(),
         )
         accessory_overlap_details[obj.name] = volume
-        if "Cable_Coil" in obj.name:
+        if "Cable_" in obj.name:
             cable_overlap += volume
         else:
             plug_retention.append(volume)
-    if max(insert_overlap, base_overlap, cable_overlap) > 1e-5 or any(
+        _faces, base_volume = exact_transformed_intersection(
+            parts["base"],
+            obj,
+            first_location=parts["base"].location.copy(),
+            first_rotation=parts["base"].rotation_euler.copy(),
+            second_location=obj.location.copy(),
+            second_rotation=obj.rotation_euler.copy(),
+        )
+        accessory_base_overlap += base_volume
+    if max(
+        insert_overlap,
+        base_overlap,
+        cable_overlap,
+        accessory_base_overlap,
+    ) > 1e-5 or any(
         not 0.02 <= volume <= 20.0 for volume in plug_retention
     ):
         raise ValueError(
             "Fan-case alternate loadout collides before lid preload: "
             f"insert={insert_overlap:.6f} base={base_overlap:.6f} "
-            f"cables={cable_overlap:.6f} "
+            f"cables={cable_overlap:.6f} accessory_base={accessory_base_overlap:.6f} "
             f"details={accessory_overlap_details}"
         )
 
@@ -10633,6 +10883,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
     pad_contacts = []
     for group in assembly_groups:
         contact = 0.0
+        broad_shell_contact = 0.0
         contact_details = {}
         for obj in group:
             _faces, volume = exact_transformed_intersection(
@@ -10646,10 +10897,13 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
             contact += volume
             if volume > 0.0:
                 contact_details[obj.name] = volume
-        if contact < 1.0:
+                if "GoPro_Fan_Case_Back" in obj.name:
+                    broad_shell_contact += volume
+        if contact < 1.0 or broad_shell_contact < 1.0:
             raise ValueError(
-                "Alternate lid pad does not preload a fan-case assembly: "
-                f"contact={contact:.6f} details={contact_details}"
+                "Alternate lid pad does not preload the broad fan-case shell: "
+                f"contact={contact:.6f} broad_shell={broad_shell_contact:.6f} "
+                f"details={contact_details}"
             )
         pad_contacts.append(contact)
 
@@ -10669,6 +10923,12 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         f"pwm_docks={FAN_CASE_STORAGE_COUNT} "
         f"pair_overlap={pair_overlap:.6f} insert_overlap={insert_overlap:.6f} "
         f"base_overlap={base_overlap:.6f} cable_overlap={cable_overlap:.6f} "
+        f"accessory_base_overlap={accessory_base_overlap:.6f} "
+        "cable_assembly_overlap="
+        f"{','.join(f'{value:.6f}' for value in cable_lead_assembly_overlaps)} "
+        f"lower_hardware_floor_clearance="
+        f"{FAN_CASE_PAIR_STORAGE['lower_hardware_floor_clearance']:.3f} "
+        "fastener_orientation=2-down/1-up "
         f"pwm_retention={','.join(f'{value:.3f}' for value in plug_retention)} "
         f"lid_pad_contacts={','.join(f'{value:.3f}' for value in pad_contacts)}"
     )
