@@ -204,6 +204,12 @@ def set_reference_materials():
         assign_material(obj, battery)
     for obj in reference_objects("REFERENCE_ONLY_MISSION1_Battery_Cage_Door_"):
         assign_material(obj, battery)
+    for prefix in (
+        "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+        "REFERENCE_ONLY_Fan_Case_Battery_Door_",
+    ):
+        for obj in reference_objects(prefix):
+            assign_material(obj, battery)
     for obj in reference_objects("REFERENCE_ONLY_Fan_Case_Assembly_"):
         if "MISSION1" in obj.name:
             assign_material(obj, camera)
@@ -357,6 +363,8 @@ def render_fan_case_loadout(camera):
             "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
             "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
             "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+            "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+            "REFERENCE_ONLY_Fan_Case_Battery_Door_",
         ),
     )
     camera.location = (345.0, -440.0, 455.0)
@@ -375,6 +383,8 @@ def render_fan_case_insert_detail(camera):
             "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
             "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
             "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+            "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+            "REFERENCE_ONLY_Fan_Case_Battery_Door_",
         ),
     )
     camera.data.lens = 60.0
@@ -408,6 +418,8 @@ def render_fan_case_loadout_exploded(camera):
             "REFERENCE_ONLY_Fan_Case_Assembly_",
             "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
             "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+            "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+            "REFERENCE_ONLY_Fan_Case_Battery_Door_",
         ),
     )
     insert_shift = 35.0
@@ -417,6 +429,8 @@ def render_fan_case_loadout_exploded(camera):
         "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
         "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
         "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+        "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+        "REFERENCE_ONLY_Fan_Case_Battery_Door_",
     ):
         for obj in reference_objects(prefix):
             obj.location.z += insert_shift

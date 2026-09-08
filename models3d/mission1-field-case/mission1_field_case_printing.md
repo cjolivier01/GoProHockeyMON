@@ -150,32 +150,50 @@ if the measured low-profile nuts differ.
 The stored fan cases remain upright: the source row of two fasteners is at the
 physical bottom and the single fastener is at the top. Only each wrapping cover
 turns half a rotation around its fan/global Y axis, placing the current TOP wire
-notch upward without inverting the camera or case. Shallow locator cavities
-follow the broad rear-shell edges, and local 1.4 mm-floor reliefs leave more
-than 0.5 mm of air beneath the two low 10 mm thumb-nuts so the thin hardware
-does not carry the case weight. Two 88 x 36 mm rounded wells each hold at least
-152.4 mm (6 inches) of coiled fan lead. Each 6 mm route is derived from the
-wrapping cover's current `CABLE_NOTCH_SIDE` and `CABLE_NOTCH_OFFSET`; the exact
-scene reference follows the transformed notch through that throat to its well.
-Raised flexible docks retain the two PWM plugs; the default user-tunable plug
-envelope is 16 x 10 x 8 mm, its free channel is 11 mm wide (0.5 mm clearance
-per side), and only the 0.6 mm-per-side retention nubs enter that channel.
-Measure an unusually large molded plug and adjust `PWM_CONNECTOR_ENVELOPE`
-before printing if necessary. The wells and front/latch-center scallop also provide
-direct finger access for lifting the insert out.
+notch upward without inverting the camera or case. The 12 mm base deck retains
+the 3 mm assembly floors. Above it, four 3.2 mm-thick corner-guide segments per
+assembly rise to 28 mm, engage 24.5 mm of the complete assembly height, and
+leave approximately 44 mm exposed for a full-hand lift. The original 1 mm plan
+clearance remains, while a 0.8 mm tapered lead-in and wide front, rear, and side
+release gaps prevent long hard-TPU walls from dragging. Local 1.4 mm-floor
+reliefs still leave more than 0.5 mm of air beneath the two low 10 mm thumb-nuts
+so the thin hardware does not carry the case weight.
 
-The lower insert's main body is 12 mm tall with a 3 mm assembly floor and
-2.5 mm cable-well floor; its raised PWM clips bring its maximum printed height
-to 20.8 mm. The keyed 224 x 148 x 31.57 mm lid pad replaces the normal camera
-pad. Four lightweight columns contact the broad rear-shell edges with 0.6 mm
-preload while clearing the cameras and controls. Do not stack either alternate
-part with any dual-fan-loadout insert.
+Two 64 x 36 mm rounded wells each carry one coiled fan lead. The modeled cable
+centerline is 56 x 28 mm with a 6 mm corner radius, for 157.7 mm of path around
+the loop versus the required 152.4 mm (6 inches). Each 8 mm route is derived
+from the wrapping cover's current `CABLE_NOTCH_SIDE` and `CABLE_NOTCH_OFFSET`
+and cuts through the full-height front guide; the exact scene reference follows
+the transformed notch through that throat to its well. Raised flexible docks
+retain the two PWM plugs; the default user-tunable plug envelope is
+16 x 10 x 8 mm, its free channel is 11 mm wide (0.5 mm clearance per side),
+and only the 0.6 mm-per-side retention nubs enter that channel. Measure an
+unusually large molded plug and adjust `PWM_CONNECTOR_ENVELOPE` before printing
+if necessary.
+
+The unused center of each cable loop contains one rotated 34.5 x 13.5 x 21.8 mm
+battery pocket, for exactly two batteries in this alternate loadout. The cable
+still has at least 3.25 mm clearance from each 38.5 x 17.5 mm battery tower.
+Approximately 18.8 mm of each battery remains exposed for removal; small
+opposed nubs create only 0.15 mm nominal local interference instead of making
+the full pocket a friction fit. Two 50.8 x 11 x 11 mm battery-door pockets use
+the center lane between the wells. They store exactly two 50 x 10 x 18 mm doors,
+leave 7 mm proud, and use the same 0.15 mm local retention. The front scallop,
+guide openings, and cable wells give direct hand access to the assemblies and
+insert.
+
+The lower insert's maximum printed height is now 28 mm at its segmented guides;
+its outer dimensions remain 224 x 148 mm. The keyed 224 x 148 x 31.57 mm lid
+pad replaces the normal camera pad. Four lightweight columns contact the broad
+rear-shell edges with 0.6 mm preload while clearing the cameras and controls.
+Do not stack either alternate part with any dual-fan-loadout insert.
 
 The exact references are built directly from the current local fan-case,
 MISSION 1 dummy, and wrapping-cover generators. The production Make target
 checks two cameras, two direct 40 x 40 x 20 mm fans, two wrapping covers, six
-M3 x 40 bolts, six 10 mm thumb-nuts, both cable coils, and both PWM plugs for
-fit and collision before exporting. A
+M3 x 40 bolts, six 10 mm thumb-nuts, two batteries, two battery doors, both
+cable coils, and both PWM plugs for fit, guide engagement, retention, and
+collision before exporting. A
 source change that no longer fits the preserved shell therefore fails
 generation instead of silently producing an incompatible storage insert.
 
@@ -629,12 +647,14 @@ and can be regenerated without editing an STL.
 
 For the alternate fan-case configuration, omit steps 1 and 5. Seat its lower
 insert directly on the case floor, coil each fan lead in its dedicated well,
-route the visible lead from the upward wrapping-cover notch through the 6 mm
-throat, slip the PWM plug into the matching outer dock, and lower each complete
-fan-case assembly upright with its two-bolt row down and single bolt up. Fit the
-alternate keyed lid pad in place of the normal lid pad. The installed cameras,
-40 mm fans, and wrapping covers remain on the fan cases during storage; the
-dual-fan assembly and all three of its TPU storage tiers stay out of the case.
+route the visible lead from the upward wrapping-cover notch through the 8 mm
+throat, and slip the PWM plug into the matching outer dock. Press one battery
+into the tower inside each cable loop and place both battery doors in the two
+center slots. Lower each complete fan-case assembly upright between its four
+corner guides with its two-bolt row down and single bolt up. Fit the alternate
+keyed lid pad in place of the normal lid pad. The installed cameras, 40 mm fans,
+and wrapping covers remain on the fan cases during storage; the dual-fan
+assembly and all three of its TPU storage tiers stay out of the case.
 
 ## Reference acknowledgments
 

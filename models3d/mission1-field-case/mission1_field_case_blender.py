@@ -355,13 +355,42 @@ FAN_CASE_PAIR_INSERT_INSTALLED_Z = BASE_FLOOR_THICKNESS
 FAN_CASE_PAIR_BODY_FLOOR_CLEARANCE = 0.5
 FAN_CASE_PAIR_HARDWARE_RELIEF_FLOOR = 1.4
 FAN_CASE_PAIR_CAVITY_CORNER_RADIUS = 5.0
+FAN_CASE_PAIR_GUIDE_HEIGHT = 28.0
+FAN_CASE_PAIR_GUIDE_WALL = 3.2
+FAN_CASE_PAIR_GUIDE_LEAD_IN_HEIGHT = 2.0
+FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION = 0.8
+FAN_CASE_PAIR_GUIDE_FRONT_GAP_WIDTH = 34.0
+FAN_CASE_PAIR_GUIDE_REAR_GAP_WIDTH = 40.0
+FAN_CASE_PAIR_GUIDE_SIDE_GAP_DEPTH = 40.0
 FAN_CASE_CABLE_LENGTH = 152.4
 FAN_CASE_CABLE_DIAMETER = 4.0
-FAN_CASE_CABLE_WELL_SIZE = (88.0, 36.0)
-FAN_CASE_CABLE_WELL_CENTER_Y = -54.0
+FAN_CASE_CABLE_WELL_SIZE = (64.0, 36.0)
+FAN_CASE_CABLE_WELL_CENTERS = ((-64.0, -54.0), (54.0, -54.0))
 FAN_CASE_CABLE_WELL_FLOOR = 2.5
 FAN_CASE_CABLE_WELL_CORNER_RADIUS = 8.0
-FAN_CASE_CABLE_THROAT_WIDTH = 6.0
+FAN_CASE_CABLE_THROAT_WIDTH = 8.0
+# One upright Mission 1 battery occupies the otherwise unused center of each
+# cable loop.  Small opposed nubs deflect locally in 68D TPU and provide light
+# retention without making the full 21.8 mm-deep pocket a friction fit.
+FAN_CASE_BATTERY_COUNT = 2
+FAN_CASE_BATTERY_POCKET_SIZE = (34.5, 13.5)
+FAN_CASE_BATTERY_TOWER_WALL = 2.0
+FAN_CASE_BATTERY_TOWER_HEIGHT = 24.8
+FAN_CASE_BATTERY_FLOOR_Z = 3.0
+FAN_CASE_BATTERY_NUB_WIDTH = 8.0
+FAN_CASE_BATTERY_NUB_HEIGHT = 2.0
+FAN_CASE_BATTERY_NUB_INTRUSION = 0.65
+# Two 50 x 10 x 18 mm battery-cage doors stand in the lane between the cable
+# wells.  They remain 7 mm proud for removal and use the same local nub idea.
+FAN_CASE_BATTERY_DOOR_COUNT = 2
+FAN_CASE_BATTERY_DOOR_SLOT_SIZE = (50.8, 11.0)
+FAN_CASE_BATTERY_DOOR_CENTERS = ((-5.0, -58.0), (-5.0, -40.0))
+FAN_CASE_BATTERY_DOOR_WALL = 1.5
+FAN_CASE_BATTERY_DOOR_FLOOR_Z = 3.0
+FAN_CASE_BATTERY_DOOR_WALL_HEIGHT = 14.0
+FAN_CASE_BATTERY_DOOR_NUB_WIDTH = 6.0
+FAN_CASE_BATTERY_DOOR_NUB_HEIGHT = 2.0
+FAN_CASE_BATTERY_DOOR_NUB_INTRUSION = 0.65
 # Conservative, user-tunable allowance for a standard four-pin PWM housing;
 # no connector dimensions exist elsewhere in this repository.
 PWM_CONNECTOR_ENVELOPE = (16.0, 10.0, 8.0)
@@ -701,11 +730,14 @@ def fan_case_pair_storage_geometry():
         + 0.3
         + FAN_CASE_CABLE_DIAMETER / 2.0
     )
-    coil_entry_y = (
-        FAN_CASE_CABLE_WELL_CENTER_Y
-        + (FAN_CASE_CABLE_WELL_SIZE[1] - 4.0) / 2.0
-    )
-    for placement, cavity in zip(placements, cavity_bounds):
+    for placement, cavity, well_center in zip(
+        placements,
+        cavity_bounds,
+        FAN_CASE_CABLE_WELL_CENTERS,
+    ):
+        coil_entry_y = (
+            well_center[1] + (FAN_CASE_CABLE_WELL_SIZE[1] - 4.0) / 2.0
+        )
         notch_x = cover_notch_source_x + placement[0]
         notch_y = cover_notch_source_y + placement[1]
         notch_z = cover_notch_source_z + placement[2]
@@ -3468,6 +3500,86 @@ def rounded_ring_frustum(
     return create_mesh_object(name, vertices, faces)
 
 
+def rounded_ring_inner_lead_in(
+    name,
+    outer_size,
+    inner_size,
+    z0,
+    z1,
+    outer_radius,
+    inner_radius,
+    lead_in_height,
+    lead_in_expansion,
+    center=(0.0, 0.0),
+):
+    """Create a straight guide ring with a flared upper inside edge."""
+    if not 0.0 < lead_in_height < z1 - z0:
+        raise ValueError("Guide-ring lead-in height must fit within its height")
+    outer = rounded_rectangle_loop(outer_size[0], outer_size[1], outer_radius)
+    inner = rounded_rectangle_loop(inner_size[0], inner_size[1], inner_radius)
+    lead_inner = rounded_rectangle_loop(
+        inner_size[0] + 2.0 * lead_in_expansion,
+        inner_size[1] + 2.0 * lead_in_expansion,
+        inner_radius + lead_in_expansion,
+    )
+    if not len(outer) == len(inner) == len(lead_inner):
+        raise ValueError("Guide-ring loops must have equal resolution")
+    cx, cy = center
+    levels = (z0, z1 - lead_in_height, z1)
+    outer_loops = (outer, outer, outer)
+    inner_loops = (inner, inner, lead_inner)
+    count = len(outer)
+    vertices = []
+    for z, loop in zip(levels, outer_loops):
+        vertices.extend((cx + x, cy + y, z) for x, y in loop)
+    for z, loop in zip(levels, inner_loops):
+        vertices.extend((cx + x, cy + y, z) for x, y in loop)
+
+    def outer_index(level, index):
+        return level * count + index
+
+    def inner_index(level, index):
+        return (3 + level) * count + index
+
+    faces = []
+    for index in range(count):
+        next_index = (index + 1) % count
+        faces.append(
+            (
+                outer_index(0, index),
+                inner_index(0, index),
+                inner_index(0, next_index),
+                outer_index(0, next_index),
+            )
+        )
+        faces.append(
+            (
+                outer_index(2, index),
+                outer_index(2, next_index),
+                inner_index(2, next_index),
+                inner_index(2, index),
+            )
+        )
+        for level in range(2):
+            faces.append(
+                (
+                    outer_index(level, index),
+                    outer_index(level, next_index),
+                    outer_index(level + 1, next_index),
+                    outer_index(level + 1, index),
+                )
+            )
+            faces.append(
+                (
+                    inner_index(level, index),
+                    inner_index(level + 1, index),
+                    inner_index(level + 1, next_index),
+                    inner_index(level, next_index),
+                )
+            )
+    return create_mesh_object(name, vertices, faces)
+
+
 def assign_material(obj, material) -> None:
     if obj.data and hasattr(obj.data, "materials"):
         obj.data.materials.clear()
@@ -3902,14 +4014,151 @@ def validate_configuration() -> None:
     first_cavity, second_cavity = FAN_CASE_PAIR_STORAGE["cavity_bounds"]
     if second_cavity[0] - first_cavity[1] < 2.0:
         raise ValueError("Complete fan-case cavities need at least a 2 mm center web")
-    well_perimeter = 2.0 * (
-        FAN_CASE_CABLE_WELL_SIZE[0] + FAN_CASE_CABLE_WELL_SIZE[1]
-        - 4.0 * FAN_CASE_CABLE_WELL_CORNER_RADIUS
-    ) + 2.0 * math.pi * FAN_CASE_CABLE_WELL_CORNER_RADIUS
-    if well_perimeter < FAN_CASE_CABLE_LENGTH:
+    guide_engagement = (
+        FAN_CASE_PAIR_INSERT_INSTALLED_Z
+        + FAN_CASE_PAIR_GUIDE_HEIGHT
+        - min(bounds[4] for bounds in FAN_CASE_PAIR_STORAGE["installed_reference_bounds"])
+    )
+    assembly_height = (
+        FAN_CASE_PAIR_STORAGE["installed_reference_bounds"][0][5]
+        - FAN_CASE_PAIR_STORAGE["installed_reference_bounds"][0][4]
+    )
+    if guide_engagement < 20.0 or assembly_height - guide_engagement < 35.0:
+        raise ValueError(
+            "Segmented fan-case guides need at least 20 mm engagement and "
+            "35 mm of exposed assembly for lifting"
+        )
+    if not (
+        FAN_CASE_PAIR_GUIDE_WALL >= 3.0
+        and FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION >= 0.5
+        and FAN_CASE_PAIR_GUIDE_HEIGHT > FAN_CASE_PAIR_INSERT_HEIGHT
+    ):
+        raise ValueError("Raised fan-case guides lack wall or lead-in allowance")
+
+    cable_centerline_size = (
+        FAN_CASE_CABLE_WELL_SIZE[0] - 2.0 * FAN_CASE_CABLE_DIAMETER,
+        FAN_CASE_CABLE_WELL_SIZE[1] - 2.0 * FAN_CASE_CABLE_DIAMETER,
+    )
+    cable_centerline_radius = (
+        FAN_CASE_CABLE_WELL_CORNER_RADIUS - FAN_CASE_CABLE_DIAMETER / 2.0
+    )
+    cable_centerline_perimeter = 2.0 * (
+        cable_centerline_size[0]
+        + cable_centerline_size[1]
+        - 4.0 * cable_centerline_radius
+    ) + 2.0 * math.pi * cable_centerline_radius
+    if cable_centerline_perimeter < FAN_CASE_CABLE_LENGTH:
         raise ValueError("Each cable well must accept the configured six-inch lead")
     if FAN_CASE_CABLE_THROAT_WIDTH < FAN_CASE_CABLE_DIAMETER + 1.0:
         raise ValueError("Fan cable route needs at least 0.5 mm clearance per side")
+    if len(FAN_CASE_CABLE_WELL_CENTERS) != FAN_CASE_STORAGE_COUNT:
+        raise ValueError("Each stored fan case needs one cable well")
+    for well_center in FAN_CASE_CABLE_WELL_CENTERS:
+        if (
+            abs(well_center[0]) + FAN_CASE_CABLE_WELL_SIZE[0] / 2.0
+            > alternate_insert_half_width
+            or abs(well_center[1]) + FAN_CASE_CABLE_WELL_SIZE[1] / 2.0
+            > alternate_insert_half_depth
+        ):
+            raise ValueError("A cable well exceeds the alternate insert")
+        for cavity in FAN_CASE_PAIR_STORAGE["cavity_bounds"]:
+            cavity_center = (
+                (cavity[0] + cavity[1]) / 2.0,
+                (cavity[2] + cavity[3]) / 2.0,
+            )
+            guide_size = (
+                cavity[1] - cavity[0] + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
+                cavity[3] - cavity[2] + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
+            )
+            if rectangles_overlap(
+                well_center,
+                FAN_CASE_CABLE_WELL_SIZE,
+                cavity_center,
+                guide_size,
+            ):
+                raise ValueError("A cable well enters a raised assembly guide")
+    coil_inner_size = (
+        FAN_CASE_CABLE_WELL_SIZE[0] - 3.0 * FAN_CASE_CABLE_DIAMETER,
+        FAN_CASE_CABLE_WELL_SIZE[1] - 3.0 * FAN_CASE_CABLE_DIAMETER,
+    )
+    battery_tower_size = tuple(
+        value + 2.0 * FAN_CASE_BATTERY_TOWER_WALL
+        for value in FAN_CASE_BATTERY_POCKET_SIZE
+    )
+    if not (
+        FAN_CASE_BATTERY_COUNT == FAN_CASE_STORAGE_COUNT
+        and all(
+            tower + 2.0 <= opening
+            for tower, opening in zip(battery_tower_size, coil_inner_size)
+        )
+        and math.isclose(
+            FAN_CASE_BATTERY_TOWER_HEIGHT - FAN_CASE_BATTERY_FLOOR_Z,
+            BATTERY_POCKET_INSERTION_DEPTH,
+            abs_tol=1e-6,
+        )
+        and 0.1
+        <= FAN_CASE_BATTERY_NUB_INTRUSION - BATTERY_CLEARANCE / 2.0
+        <= 0.25
+    ):
+        raise ValueError(
+            "Two retained 34.5 x 13.5 x 21.8 mm battery pockets must fit "
+            "inside the cable loops"
+        )
+    if not (
+        FAN_CASE_BATTERY_DOOR_COUNT == len(FAN_CASE_BATTERY_DOOR_CENTERS) == 2
+        and math.isclose(
+            FAN_CASE_BATTERY_DOOR_WALL_HEIGHT
+            - FAN_CASE_BATTERY_DOOR_FLOOR_Z,
+            11.0,
+            abs_tol=1e-6,
+        )
+        and 0.1
+        <= FAN_CASE_BATTERY_DOOR_NUB_INTRUSION
+        - (FAN_CASE_BATTERY_DOOR_SLOT_SIZE[1] - BATTERY_DOOR_SIZE[1]) / 2.0
+        <= 0.25
+    ):
+        raise ValueError("Alternate loadout needs two lightly retained door pockets")
+    door_tower_size = tuple(
+        value + 2.0 * FAN_CASE_BATTERY_DOOR_WALL
+        for value in FAN_CASE_BATTERY_DOOR_SLOT_SIZE
+    )
+    lift_notch_center = (0.0, -alternate_insert_half_depth)
+    lift_notch_size = (20.0, 18.0)
+    for center in FAN_CASE_BATTERY_DOOR_CENTERS:
+        if rectangles_overlap(
+            center,
+            door_tower_size,
+            lift_notch_center,
+            lift_notch_size,
+        ):
+            raise ValueError("A battery-door pocket blocks the insert lift scallop")
+        if (
+            abs(center[0]) + door_tower_size[0] / 2.0 > alternate_insert_half_width
+            or abs(center[1]) + door_tower_size[1] / 2.0
+            > alternate_insert_half_depth
+        ):
+            raise ValueError("A battery-door pocket exceeds the alternate insert")
+        if any(
+            rectangles_overlap(
+                center,
+                door_tower_size,
+                well_center,
+                FAN_CASE_CABLE_WELL_SIZE,
+            )
+            for well_center in FAN_CASE_CABLE_WELL_CENTERS
+        ):
+            raise ValueError("A battery-door wall enters a cable well")
+        for cavity in FAN_CASE_PAIR_STORAGE["cavity_bounds"]:
+            cavity_center = (
+                (cavity[0] + cavity[1]) / 2.0,
+                (cavity[2] + cavity[3]) / 2.0,
+            )
+            guide_size = (
+                cavity[1] - cavity[0] + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
+                cavity[3] - cavity[2] + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
+            )
+            if rectangles_overlap(center, door_tower_size, cavity_center, guide_size):
+                raise ValueError("A battery-door wall enters a raised assembly guide")
     ordered_fasteners = sorted(
         fan_case.CASE_FASTENER_POSITIONS_XZ,
         key=lambda point: point[1],
@@ -5861,11 +6110,77 @@ def create_fan_case_pair_insert(material):
             )
             difference_from(insert, hardware_relief)
 
-    well_centers = tuple(
-        (center_x, FAN_CASE_CABLE_WELL_CENTER_Y)
-        for center_x in FAN_CASE_STORAGE_CENTERS_X
-    )
-    for index, (center_x, center_y) in enumerate(well_centers, start=1):
+        cavity_width = x1 - x0
+        cavity_depth = y1 - y0
+        cavity_center = ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+        guide = rounded_ring_inner_lead_in(
+            f"Complete_Fan_Case_Assembly_{index}_Segmented_Guide",
+            (
+                cavity_width + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
+                cavity_depth + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
+            ),
+            (cavity_width, cavity_depth),
+            FAN_CASE_PAIR_INSERT_HEIGHT - 0.2,
+            FAN_CASE_PAIR_GUIDE_HEIGHT,
+            FAN_CASE_PAIR_CAVITY_CORNER_RADIUS + FAN_CASE_PAIR_GUIDE_WALL,
+            FAN_CASE_PAIR_CAVITY_CORNER_RADIUS,
+            FAN_CASE_PAIR_GUIDE_LEAD_IN_HEIGHT,
+            FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION,
+            cavity_center,
+        )
+        union_into(insert, guide)
+
+        # Break the raised ring into four low-friction corner guides.  The
+        # wide front gap is a direct grip on the assembly, while the other
+        # three gaps prevent long TPU walls from dragging during extraction.
+        guide_gap_span = (
+            2.0 * FAN_CASE_PAIR_GUIDE_WALL
+            + 2.0 * FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION
+            + 2.0
+        )
+        guide_gap_z0 = FAN_CASE_PAIR_INSERT_HEIGHT - 0.3
+        guide_gap_z1 = FAN_CASE_PAIR_GUIDE_HEIGHT + 0.3
+        for gap_name, width, depth, center in (
+            (
+                "Front_Lift",
+                FAN_CASE_PAIR_GUIDE_FRONT_GAP_WIDTH,
+                guide_gap_span,
+                (cavity_center[0], y0),
+            ),
+            (
+                "Rear_Release",
+                FAN_CASE_PAIR_GUIDE_REAR_GAP_WIDTH,
+                guide_gap_span,
+                (cavity_center[0], y1),
+            ),
+            (
+                "Left_Release",
+                guide_gap_span,
+                FAN_CASE_PAIR_GUIDE_SIDE_GAP_DEPTH,
+                (x0, cavity_center[1]),
+            ),
+            (
+                "Right_Release",
+                guide_gap_span,
+                FAN_CASE_PAIR_GUIDE_SIDE_GAP_DEPTH,
+                (x1, cavity_center[1]),
+            ),
+        ):
+            gap = add_rounded_prism(
+                f"Fan_Case_{index}_{gap_name}_Guide_Gap",
+                width,
+                depth,
+                guide_gap_z0,
+                guide_gap_z1,
+                min(3.0, width / 2.1, depth / 2.1),
+                center,
+            )
+            difference_from(insert, gap)
+
+    for index, (center_x, center_y) in enumerate(
+        FAN_CASE_CABLE_WELL_CENTERS,
+        start=1,
+    ):
         well = add_rounded_prism(
             f"Fan_Case_{index}_Six_Inch_Cable_Coil_Well",
             FAN_CASE_CABLE_WELL_SIZE[0],
@@ -5876,6 +6191,61 @@ def create_fan_case_pair_insert(material):
             (center_x, center_y),
         )
         difference_from(insert, well)
+
+        battery_tower_size = tuple(
+            value + 2.0 * FAN_CASE_BATTERY_TOWER_WALL
+            for value in FAN_CASE_BATTERY_POCKET_SIZE
+        )
+        battery_tower = add_rounded_prism(
+            f"Fan_Case_{index}_Battery_Tower",
+            battery_tower_size[0],
+            battery_tower_size[1],
+            FAN_CASE_CABLE_WELL_FLOOR - 0.2,
+            FAN_CASE_BATTERY_TOWER_HEIGHT,
+            3.0,
+            (center_x, center_y),
+        )
+        union_into(insert, battery_tower)
+        battery_pocket = add_rounded_prism(
+            f"Fan_Case_{index}_Battery_Pocket",
+            FAN_CASE_BATTERY_POCKET_SIZE[0],
+            FAN_CASE_BATTERY_POCKET_SIZE[1],
+            FAN_CASE_BATTERY_FLOOR_Z,
+            FAN_CASE_BATTERY_TOWER_HEIGHT + 0.3,
+            2.0,
+            (center_x, center_y),
+        )
+        difference_from(insert, battery_pocket)
+        for side in (-1.0, 1.0):
+            nub_depth = (
+                FAN_CASE_BATTERY_TOWER_WALL
+                + FAN_CASE_BATTERY_NUB_INTRUSION
+            )
+            battery_nub = add_rounded_box(
+                f"Fan_Case_{index}_Battery_Retention_Nub_{'Front' if side < 0 else 'Rear'}",
+                (
+                    FAN_CASE_BATTERY_NUB_WIDTH,
+                    nub_depth,
+                    FAN_CASE_BATTERY_NUB_HEIGHT,
+                ),
+                (
+                    center_x,
+                    center_y
+                    + side
+                    * (
+                        FAN_CASE_BATTERY_POCKET_SIZE[1] / 2.0
+                        + (
+                            FAN_CASE_BATTERY_TOWER_WALL
+                            - FAN_CASE_BATTERY_NUB_INTRUSION
+                        )
+                        / 2.0
+                    ),
+                    FAN_CASE_BATTERY_TOWER_HEIGHT
+                    - FAN_CASE_BATTERY_NUB_HEIGHT / 2.0,
+                ),
+                bevel=0.45,
+            )
+            union_into(insert, battery_nub)
 
         well_y1 = center_y + FAN_CASE_CABLE_WELL_SIZE[1] / 2.0
         cable_route = FAN_CASE_PAIR_STORAGE["cable_route_points"][index - 1]
@@ -5895,11 +6265,67 @@ def create_fan_case_pair_insert(material):
             FAN_CASE_CABLE_THROAT_WIDTH,
             throat_y1 - throat_y0,
             FAN_CASE_CABLE_WELL_FLOOR,
-            FAN_CASE_PAIR_INSERT_HEIGHT + 0.3,
+            FAN_CASE_PAIR_GUIDE_HEIGHT + 0.3,
             FAN_CASE_CABLE_THROAT_WIDTH / 2.0,
             (throat_center_x, (throat_y0 + throat_y1) / 2.0),
         )
         difference_from(insert, throat)
+
+    for index, center in enumerate(FAN_CASE_BATTERY_DOOR_CENTERS, start=1):
+        door_tower_size = tuple(
+            value + 2.0 * FAN_CASE_BATTERY_DOOR_WALL
+            for value in FAN_CASE_BATTERY_DOOR_SLOT_SIZE
+        )
+        door_tower = add_rounded_prism(
+            f"Fan_Case_Battery_Door_{index}_Pocket_Wall",
+            door_tower_size[0],
+            door_tower_size[1],
+            FAN_CASE_PAIR_INSERT_HEIGHT - 0.2,
+            FAN_CASE_BATTERY_DOOR_WALL_HEIGHT,
+            2.0,
+            center,
+        )
+        union_into(insert, door_tower)
+        door_pocket = add_rounded_prism(
+            f"Fan_Case_Battery_Door_{index}_Pocket",
+            FAN_CASE_BATTERY_DOOR_SLOT_SIZE[0],
+            FAN_CASE_BATTERY_DOOR_SLOT_SIZE[1],
+            FAN_CASE_BATTERY_DOOR_FLOOR_Z,
+            FAN_CASE_BATTERY_DOOR_WALL_HEIGHT + 0.3,
+            1.4,
+            center,
+        )
+        difference_from(insert, door_pocket)
+        for side in (-1.0, 1.0):
+            nub_depth = (
+                FAN_CASE_BATTERY_DOOR_WALL
+                + FAN_CASE_BATTERY_DOOR_NUB_INTRUSION
+            )
+            door_nub = add_rounded_box(
+                f"Fan_Case_Battery_Door_{index}_Retention_Nub_{'Front' if side < 0 else 'Rear'}",
+                (
+                    FAN_CASE_BATTERY_DOOR_NUB_WIDTH,
+                    nub_depth,
+                    FAN_CASE_BATTERY_DOOR_NUB_HEIGHT,
+                ),
+                (
+                    center[0],
+                    center[1]
+                    + side
+                    * (
+                        FAN_CASE_BATTERY_DOOR_SLOT_SIZE[1] / 2.0
+                        + (
+                            FAN_CASE_BATTERY_DOOR_WALL
+                            - FAN_CASE_BATTERY_DOOR_NUB_INTRUSION
+                        )
+                        / 2.0
+                    ),
+                    FAN_CASE_BATTERY_DOOR_WALL_HEIGHT
+                    - FAN_CASE_BATTERY_DOOR_NUB_HEIGHT / 2.0,
+                ),
+                bevel=0.4,
+            )
+            union_into(insert, door_nub)
 
     connector_length = PWM_CONNECTOR_ENVELOPE[0] + 2.0 * PWM_CONNECTOR_CLEARANCE
     connector_height = PWM_CONNECTOR_ENVELOPE[2] + PWM_CONNECTOR_CLEARANCE
@@ -5950,7 +6376,7 @@ def create_fan_case_pair_insert(material):
             )
             union_into(insert, nub)
 
-    # A center front/latch-edge scallop and the two large cable wells provide direct
+    # A center front/latch-edge scallop and the cable wells provide direct
     # grips for lifting this frequently swapped loadout from the shell.
     lift_notch = add_rounded_prism(
         "Fan_Case_Pair_Insert_Front_Finger_Lift_Scallop",
@@ -10198,6 +10624,7 @@ def validate_built_fan_cradle(cradle) -> None:
 def create_fan_case_pair_reference_mockups(
     case_material,
     camera_material,
+    battery_material,
     fan_material,
     cover_material,
     cable_material,
@@ -10401,8 +10828,8 @@ def create_fan_case_pair_reference_mockups(
                 0.5,
             ),
             (
-                FAN_CASE_STORAGE_CENTERS_X[assembly_index - 1],
-                FAN_CASE_CABLE_WELL_CENTER_Y,
+                FAN_CASE_CABLE_WELL_CENTERS[assembly_index - 1][0],
+                FAN_CASE_CABLE_WELL_CENTERS[assembly_index - 1][1],
             ),
         )
         assign_material(cable, cable_material)
@@ -10427,6 +10854,39 @@ def create_fan_case_pair_reference_mockups(
         )
         assign_material(connector, cable_material)
         objects.append(connector)
+
+        battery_center = FAN_CASE_CABLE_WELL_CENTERS[assembly_index - 1]
+        battery = add_rounded_prism(
+            f"REFERENCE_ONLY_Fan_Case_Enduro_Battery_{assembly_index}",
+            BATTERY_WIDTH,
+            BATTERY_THICKNESS,
+            FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_BATTERY_FLOOR_Z,
+            FAN_CASE_PAIR_INSERT_INSTALLED_Z
+            + FAN_CASE_BATTERY_FLOOR_Z
+            + BATTERY_HEIGHT,
+            1.6,
+            battery_center,
+        )
+        assign_material(battery, battery_material)
+        objects.append(battery)
+
+    for door_index, center in enumerate(
+        FAN_CASE_BATTERY_DOOR_CENTERS,
+        start=1,
+    ):
+        door = add_rounded_prism(
+            f"REFERENCE_ONLY_Fan_Case_Battery_Door_{door_index}",
+            BATTERY_DOOR_SIZE[0],
+            BATTERY_DOOR_SIZE[1],
+            FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_BATTERY_DOOR_FLOOR_Z,
+            FAN_CASE_PAIR_INSERT_INSTALLED_Z
+            + FAN_CASE_BATTERY_DOOR_FLOOR_Z
+            + BATTERY_DOOR_SIZE[2],
+            1.3,
+            center,
+        )
+        assign_material(door, battery_material)
+        objects.append(door)
     return objects
 
 
@@ -10534,6 +10994,7 @@ def create_reference_mockups(materials, parts):
         create_fan_case_pair_reference_mockups(
             fan_case_material,
             camera_material,
+            battery_material,
             fan_material,
             fan_case_cover_material,
             cable_material,
@@ -10826,33 +11287,65 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
                 second_rotation=obj.rotation_euler.copy(),
             )
             base_overlap += volume
-    accessory_objects = [
+    cable_objects = [
         obj
         for obj in reference_objects
         if obj.name.startswith("REFERENCE_ONLY_Fan_Case_Cable_Coil_")
         or obj.name.startswith("REFERENCE_ONLY_Fan_Case_Cable_Lead_")
-        or obj.name.startswith("REFERENCE_ONLY_Fan_Case_PWM_Plug_")
     ]
-    if len(accessory_objects) != 3 * FAN_CASE_STORAGE_COUNT:
-        raise ValueError("Fan-case cable/PWM reference set is incomplete")
+    plug_objects = [
+        obj
+        for obj in reference_objects
+        if obj.name.startswith("REFERENCE_ONLY_Fan_Case_PWM_Plug_")
+    ]
+    battery_objects = [
+        obj
+        for obj in reference_objects
+        if obj.name.startswith("REFERENCE_ONLY_Fan_Case_Enduro_Battery_")
+    ]
+    door_objects = [
+        obj
+        for obj in reference_objects
+        if obj.name.startswith("REFERENCE_ONLY_Fan_Case_Battery_Door_")
+    ]
+    if not (
+        len(cable_objects) == 2 * FAN_CASE_STORAGE_COUNT
+        and len(plug_objects) == FAN_CASE_STORAGE_COUNT
+        and len(battery_objects) == FAN_CASE_BATTERY_COUNT
+        and len(door_objects) == FAN_CASE_BATTERY_DOOR_COUNT
+    ):
+        raise ValueError("Fan-case alternate accessory reference set is incomplete")
+    accessory_objects = (
+        *cable_objects,
+        *plug_objects,
+        *battery_objects,
+        *door_objects,
+    )
     cable_overlap = 0.0
     accessory_base_overlap = 0.0
     plug_retention = []
+    battery_retention = []
+    door_retention = []
     accessory_overlap_details = {}
     for obj in accessory_objects:
-        _faces, volume = exact_transformed_intersection(
+        _faces, volume, overlap_bounds = exact_transformed_intersection(
             parts["fan_case_pair_insert"],
             obj,
             first_location=parts["fan_case_pair_insert"].location.copy(),
             first_rotation=parts["fan_case_pair_insert"].rotation_euler.copy(),
             second_location=obj.location.copy(),
             second_rotation=obj.rotation_euler.copy(),
+            return_bounds=True,
         )
-        accessory_overlap_details[obj.name] = volume
-        if "Cable_" in obj.name:
+        accessory_overlap_details[obj.name] = (volume, overlap_bounds)
+        if obj in cable_objects:
             cable_overlap += volume
-        else:
+        elif obj in plug_objects:
             plug_retention.append(volume)
+        elif obj in battery_objects:
+            battery_retention.append(volume)
+        else:
+            door_retention.append(volume)
         _faces, base_volume = exact_transformed_intersection(
             parts["base"],
             obj,
@@ -10862,24 +11355,146 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
             second_rotation=obj.rotation_euler.copy(),
         )
         accessory_base_overlap += base_volume
+    packed_accessory_overlap = 0.0
+    packed_accessory_overlap_details = {}
+    newly_packed_objects = (*battery_objects, *door_objects)
+    comparison_objects = (
+        *cable_objects,
+        *plug_objects,
+    )
+    for packed_index, packed in enumerate(newly_packed_objects):
+        for other in (
+            *comparison_objects,
+            *newly_packed_objects[packed_index + 1 :],
+        ):
+            _faces, volume = exact_transformed_intersection(
+                packed,
+                other,
+                first_location=packed.location.copy(),
+                first_rotation=packed.rotation_euler.copy(),
+                second_location=other.location.copy(),
+                second_rotation=other.rotation_euler.copy(),
+            )
+            packed_accessory_overlap += volume
+            if volume > 1e-7:
+                packed_accessory_overlap_details[f"{packed.name}/{other.name}"] = volume
     if max(
         insert_overlap,
         base_overlap,
         cable_overlap,
         accessory_base_overlap,
-    ) > 1e-5 or any(
-        not 0.02 <= volume <= 20.0 for volume in plug_retention
+        packed_accessory_overlap,
+    ) > 1e-5 or any(not 0.02 <= volume <= 20.0 for volume in plug_retention) or any(
+        not 0.1 <= volume <= 12.0 for volume in (*battery_retention, *door_retention)
     ):
         raise ValueError(
             "Fan-case alternate loadout collides before lid preload: "
             f"insert={insert_overlap:.6f} base={base_overlap:.6f} "
             f"cables={cable_overlap:.6f} accessory_base={accessory_base_overlap:.6f} "
-            f"details={accessory_overlap_details}"
+            f"packed={packed_accessory_overlap:.6f} "
+            f"details={accessory_overlap_details} "
+            f"packed_details={packed_accessory_overlap_details}"
         )
 
     installed_lid_inner_face = BASE_HEIGHT + (
         LID_WALL_HEIGHT - LID_PLATE_THICKNESS
     )
+    inner_half_width = (CASE_WIDTH - 2.0 * WALL_THICKNESS) / 2.0
+    inner_half_depth = (CASE_DEPTH - 2.0 * WALL_THICKNESS) / 2.0
+    for obj in (*battery_objects, *door_objects):
+        minimum, maximum = object_world_bounds(obj)
+        if (
+            minimum.x <= -inner_half_width
+            or maximum.x >= inner_half_width
+            or minimum.y <= -inner_half_depth
+            or maximum.y >= inner_half_depth
+            or maximum.z >= installed_lid_inner_face
+        ):
+            raise ValueError(f"Packed accessory exceeds the closed case: {obj.name}")
+
+    guide_air = {}
+    guide_fill = {}
+    guide_probe_z = FAN_CASE_PAIR_INSERT_INSTALLED_Z + 20.0
+    guide_probe_size = (0.8, 0.8, 0.8)
+    minimum_guide_fill = math.prod(guide_probe_size) * 0.88
+    for index, bounds in enumerate(
+        FAN_CASE_PAIR_STORAGE["cavity_bounds"],
+        start=1,
+    ):
+        x0, x1, y0, y1 = bounds
+        center_x = (x0 + x1) / 2.0
+        # Sample both sides of the front and rear release gaps.  These four
+        # locations correspond to the four independent corner-guide segments;
+        # paired cavity-side probes also prove their lead-in openings remain
+        # clear at the same height.
+        for corner_name, probe_x, edge_y, cavity_sign in (
+            (
+                "Front_Left",
+                center_x - FAN_CASE_PAIR_GUIDE_FRONT_GAP_WIDTH / 2.0 - 8.0,
+                y0,
+                1.0,
+            ),
+            (
+                "Front_Right",
+                center_x + FAN_CASE_PAIR_GUIDE_FRONT_GAP_WIDTH / 2.0 + 8.0,
+                y0,
+                1.0,
+            ),
+            (
+                "Rear_Left",
+                center_x - FAN_CASE_PAIR_GUIDE_REAR_GAP_WIDTH / 2.0 - 8.0,
+                y1,
+                -1.0,
+            ),
+            (
+                "Rear_Right",
+                center_x + FAN_CASE_PAIR_GUIDE_REAR_GAP_WIDTH / 2.0 + 8.0,
+                y1,
+                -1.0,
+            ),
+        ):
+            probe_locations = (
+                ("Air", edge_y + cavity_sign, guide_air),
+                (
+                    "Wall",
+                    edge_y
+                    - cavity_sign * FAN_CASE_PAIR_GUIDE_WALL / 2.0,
+                    guide_fill,
+                ),
+            )
+            for probe_name, probe_y, collection in probe_locations:
+                probe_key = f"{index}_{corner_name}"
+                probe = add_rounded_box(
+                    f"TEMPORARY_Fan_Case_{index}_Guide_{corner_name}_{probe_name}_Probe",
+                    guide_probe_size,
+                    (probe_x, probe_y, guide_probe_z),
+                    bevel=0.0,
+                )
+                try:
+                    _faces, volume = exact_transformed_intersection(
+                        parts["fan_case_pair_insert"],
+                        probe,
+                        first_location=parts[
+                            "fan_case_pair_insert"
+                        ].location.copy(),
+                        first_rotation=parts[
+                            "fan_case_pair_insert"
+                        ].rotation_euler.copy(),
+                        second_location=probe.location.copy(),
+                        second_rotation=probe.rotation_euler.copy(),
+                    )
+                finally:
+                    bpy.data.objects.remove(probe, do_unlink=True)
+                collection[probe_key] = volume
+    if (
+        max(guide_air.values()) > 1e-7
+        or min(guide_fill.values()) < minimum_guide_fill
+    ):
+        raise ValueError(
+            "Built segmented fan-case guide is obstructed or incomplete: "
+            f"air={guide_air} fill={guide_fill}"
+        )
+
     pad_contacts = []
     for group in assembly_groups:
         contact = 0.0
@@ -10907,6 +11522,11 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
             )
         pad_contacts.append(contact)
 
+    actual_guide_engagement = (
+        FAN_CASE_PAIR_INSERT_INSTALLED_Z
+        + FAN_CASE_PAIR_GUIDE_HEIGHT
+        - actual_bounds[0][4]
+    )
     print(
         "FIELD_CASE_FAN_CASE_PAIR_LOADOUT_VALID "
         f"assemblies={FAN_CASE_STORAGE_COUNT} "
@@ -10921,15 +11541,22 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         f"{FAN_CASE_THUMB_NUT_DIAMETER:.0f}x{FAN_CASE_THUMB_NUT_THICKNESS:.1f} "
         f"cable_capacity={FAN_CASE_CABLE_LENGTH:.1f}mm_each "
         f"pwm_docks={FAN_CASE_STORAGE_COUNT} "
+        f"batteries={len(battery_objects)} doors={len(door_objects)} "
+        f"guide_engagement={actual_guide_engagement:.2f}mm "
         f"pair_overlap={pair_overlap:.6f} insert_overlap={insert_overlap:.6f} "
         f"base_overlap={base_overlap:.6f} cable_overlap={cable_overlap:.6f} "
         f"accessory_base_overlap={accessory_base_overlap:.6f} "
+        f"packed_overlap={packed_accessory_overlap:.6f} "
         "cable_assembly_overlap="
         f"{','.join(f'{value:.6f}' for value in cable_lead_assembly_overlaps)} "
         f"lower_hardware_floor_clearance="
         f"{FAN_CASE_PAIR_STORAGE['lower_hardware_floor_clearance']:.3f} "
         "fastener_orientation=2-down/1-up "
         f"pwm_retention={','.join(f'{value:.3f}' for value in plug_retention)} "
+        f"battery_retention={','.join(f'{value:.3f}' for value in battery_retention)} "
+        f"door_retention={','.join(f'{value:.3f}' for value in door_retention)} "
+        f"guide_air={max(guide_air.values()):.6f} "
+        f"guide_fill={min(guide_fill.values()):.3f} "
         f"lid_pad_contacts={','.join(f'{value:.3f}' for value in pad_contacts)}"
     )
 
