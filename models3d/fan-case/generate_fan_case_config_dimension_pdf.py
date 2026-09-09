@@ -140,12 +140,14 @@ CATEGORY_PREFIXES = (
 
 
 EXACT_DESCRIPTIONS = {
+    "FAN_ANGLE_HORIZONTAL_DEG": "Signed fan-axis angle in the X/Y projection, from rearward (-Y) toward +X. Range -45 to +45 degrees; both mounting faces and all four through-bores rotate together.",
+    "FAN_ANGLE_VERTICAL_DEG": "Signed fan-axis angle in the Y/Z projection, from rearward (-Y) toward +Z. Range -45 to +45 degrees. Both angles apply together without added roll.",
     "REAR_FAN_ADAPTER_ENABLED": "Builds and exports the separate case-pattern to standard-fan offset horn adapter.",
     "REAR_FAN_SIZE_MM": "Nominal standard square-fan frame size selected from fan_size_presets.py: 40, 60, 80 or 120 mm.",
-    "REAR_FAN_OFFSET_X_MM": "Horizontal shift from the existing case-fan center to the rear-fan center; use opposite signs on left/right camera cases.",
-    "REAR_FAN_OFFSET_Z_MM": "Vertical shift from the existing case-fan center to the rear-fan center.",
+    "REAR_FAN_OFFSET_X_MM": "Horizontal shift from the case-fan center to the rear-fan center in the adapter's local X frame; it rotates with the angled mount.",
+    "REAR_FAN_OFFSET_Z_MM": "Vertical shift from the case-fan center to the rear-fan center in the adapter's local Z frame; it rotates with the angled mount.",
     "REAR_FAN_ADAPTER_DUCT_LENGTH_Y": "Clear axial transition length between the case-side and rear-fan flange inner faces.",
-    "REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED": "Uses side-loaded captive M3 nuts at the case/source flange; False selects back-case-style self-tapping fan-screw pilots.",
+    "REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED": "Uses side-loaded captive M3 nuts at the case/source flange. False selects self-tapping pilots. Source screws enter from inside the open case at every fan angle.",
     "REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED": "Uses side-loaded captive M3 nuts at the fan/target flange; False selects back-case-style self-tapping fan-screw pilots.",
     "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y": "Axial thickness of each captive-nut flange; self-tapping ends instead mirror the back face plus short fan-hole boss depth.",
     "REAR_FAN_ADAPTER_HORN_WALL_THICKNESS": "Radial thickness of the hollow circular transition wall.",
@@ -648,6 +650,10 @@ SETTINGS_PER_PAGE = 9
 
 def drawing_view_for(entry: ConfigEntry) -> str:
     name = entry.name
+    if name == "FAN_ANGLE_HORIZONTAL_DEG":
+        return "fan_angle_horizontal"
+    if name == "FAN_ANGLE_VERTICAL_DEG":
+        return "fan_angle_vertical"
     if name.startswith("REAR_FAN_"):
         if name in {
             "REAR_FAN_SIZE_MM",
@@ -832,6 +838,8 @@ def drawing_view_for(entry: ConfigEntry) -> str:
 DRAWING_VIEW_ORDER = (
     "back_front",
     "back_side",
+    "fan_angle_horizontal",
+    "fan_angle_vertical",
     "rear_fan_adapter_front",
     "rear_fan_adapter_side",
     "baffle_front",
@@ -1875,8 +1883,10 @@ def page_baffle_cartridge(pdf):
 VIEW_TITLES = {
     "back_front": "BACK SHELL / DOME — ACTUAL FRONT PROJECTION",
     "back_side": "BACK SHELL / DOME — ACTUAL SIDE PROJECTION",
-    "rear_fan_adapter_front": "OFFSET REAR FAN ADAPTER — ACTUAL FRONT PROJECTION",
-    "rear_fan_adapter_side": "OFFSET REAR FAN ADAPTER / HORN — ACTUAL SIDE SECTION",
+    "fan_angle_horizontal": "FAN DIRECTION — SIGNED HORIZONTAL ANGLE IN X/Y",
+    "fan_angle_vertical": "FAN DIRECTION — SIGNED VERTICAL ANGLE IN Y/Z",
+    "rear_fan_adapter_front": "REAR FAN ADAPTER — FRONT PROJECTION IN ITS LOCAL FRAME",
+    "rear_fan_adapter_side": "REAR FAN ADAPTER / HORN — SIDE SECTION IN ITS LOCAL FRAME",
     "baffle_front": "BAFFLE CARTRIDGE — ACTUAL ASSEMBLED FRONT PROJECTION",
     "baffle_snap_front": "RIGID-BACK SNAP RETENTION — ACTUAL FRONT REFERENCE",
     "baffle_side": "BAFFLE CARTRIDGE — ACTUAL ASSEMBLED SIDE PROJECTION",
@@ -2154,7 +2164,7 @@ def projected_baffle_assembly_geometry(part: str, plane: str):
 
 
 @lru_cache(maxsize=None)
-def rear_fan_adapter_assembly_triangles() -> np.ndarray:
+def rear_fan_adapter_local_triangles() -> np.ndarray:
     """Undo the adapter's source-flange-down canonical STL rotation."""
     face_down = rotation_matrix_between_vectors(
         (0.0, 1.0, 0.0),
@@ -2172,11 +2182,40 @@ def rear_fan_adapter_assembly_triangles() -> np.ndarray:
     return triangles
 
 
+def fan_mount_placement_for_drawings():
+    """Keep the pad centered laterally and its nearest corner at the old depth."""
+    direction = np.asarray((
+        math.tan(math.radians(float(C["FAN_ANGLE_HORIZONTAL_DEG"]))),
+        -1.0,
+        math.tan(math.radians(float(C["FAN_ANGLE_VERTICAL_DEG"]))),
+    ))
+    direction /= np.linalg.norm(direction)
+    rotation = rotation_matrix_between_vectors((0.0, -1.0, 0.0), direction)
+    rear_shift = (
+        abs(rotation[1, 0]) * float(C["BACK_DOME_FAN_PAD_WIDTH"]) / 2.0
+        + abs(rotation[1, 2]) * float(C["BACK_DOME_FAN_PAD_HEIGHT"]) / 2.0
+    )
+    exterior_y = -float(C["BACK_DOME_DEPTH"]) if C["BACK_DOME_ENABLED"] else 0.0
+    pivot = np.asarray((float(C["FAN_CENTER_X"]), exterior_y, float(C["FAN_CENTER_Z"])))
+    center = pivot + np.asarray((0.0, -rear_shift, 0.0))
+    return rotation, center - rotation @ pivot, center, direction
+
+
 @lru_cache(maxsize=None)
-def projected_rear_fan_adapter_assembly_geometry(plane: str):
+def rear_fan_adapter_assembly_triangles() -> np.ndarray:
+    rotation, translation, _center, _direction = fan_mount_placement_for_drawings()
+    return rear_fan_adapter_local_triangles() @ rotation.T + translation
+
+
+@lru_cache(maxsize=None)
+def projected_rear_fan_adapter_assembly_geometry(plane: str, local_frame: bool = False):
     coordinate_axes = PROJECTION_AXES[plane]
     polygons = []
-    for triangle in rear_fan_adapter_assembly_triangles():
+    triangles = (
+        rear_fan_adapter_local_triangles()
+        if local_frame else rear_fan_adapter_assembly_triangles()
+    )
+    for triangle in triangles:
         points = triangle[:, coordinate_axes]
         area_twice = abs(
             (points[1, 0] - points[0, 0])
@@ -2753,6 +2792,28 @@ def draw_rear_fan_adapter_reference(ax, view: str):
 
 def draw_actual_view(ax, view: str):
     """Draw an STL-derived orthographic projection and return its bounds."""
+    if view in {"fan_angle_horizontal", "fan_angle_vertical"}:
+        plane = "xy" if view == "fan_angle_horizontal" else "yz"
+        back = projected_part_geometry("back", plane)
+        draw_projected_geometry(ax, back, "#dceaf3", BLUE, alpha=0.85)
+        geometries = [back]
+        if C["REAR_FAN_ADAPTER_ENABLED"]:
+            adapter = projected_rear_fan_adapter_assembly_geometry(plane)
+            draw_projected_geometry(ax, adapter, "#d8e9db", GREEN, alpha=0.65)
+            geometries.append(adapter)
+        bounds = union_bounds(geometries)
+        _rotation, _translation, center, _direction = fan_mount_placement_for_drawings()
+        anchor = center[list(PROJECTION_AXES[plane])]
+        bounds = (
+            min(bounds[0], anchor[0] - 32.0), min(bounds[1], anchor[1] - 32.0),
+            max(bounds[2], anchor[0] + 32.0), max(bounds[3], anchor[1] + 32.0),
+        )
+        ax.text(
+            0.02, 0.98,
+            "Horizontal +X right / +Y up" if plane == "xy" else "Horizontal +Y right / +Z up",
+            transform=ax.transAxes, va="top", fontsize=5.2, color=GRAY,
+        )
+        return bounds
     if view.startswith("baffle_") and not C["BAFFLE_CARTRIDGE_ENABLED"]:
         return draw_disabled_baffle_reference(ax, view)
     if view.startswith("rear_fan_adapter_") and not C[
@@ -2761,7 +2822,7 @@ def draw_actual_view(ax, view: str):
         return draw_rear_fan_adapter_reference(ax, view)
     if view in {"rear_fan_adapter_front", "rear_fan_adapter_side"}:
         plane = "xz" if view == "rear_fan_adapter_front" else "yz"
-        adapter = projected_rear_fan_adapter_assembly_geometry(plane)
+        adapter = projected_rear_fan_adapter_assembly_geometry(plane, local_frame=True)
         draw_projected_geometry(ax, adapter, "#dceaf3", BLUE, alpha=0.88)
         values = rear_fan_adapter_drawing_values()
         bounds = adapter.bounds
@@ -5055,6 +5116,54 @@ def draw_specific_graphical_annotation(
         record_graphical_primitive(entry, primitive_kind, anchor, text_position)
         return True
 
+    if view in {"fan_angle_horizontal", "fan_angle_vertical"}:
+        horizontal = view == "fan_angle_horizontal"
+        plane = "xy" if horizontal else "yz"
+        axes = list(PROJECTION_AXES[plane])
+        _rotation, _translation, center, direction = fan_mount_placement_for_drawings()
+        anchor = center[axes]
+        projected_direction = direction[axes]
+        projected_direction /= np.linalg.norm(projected_direction)
+        reference = np.asarray((0.0, -1.0) if horizontal else (-1.0, 0.0))
+        radius_value = 15.0
+        reference_end = anchor + reference * radius_value
+        direction_end = anchor + projected_direction * radius_value
+        baseline_angle = -90.0 if horizontal else 180.0
+        signed_sweep = float(entry.value) * (1.0 if horizontal else -1.0)
+        fan_angle = baseline_angle + signed_sweep
+        ax.plot(
+            (anchor[0], reference_end[0]), (anchor[1], reference_end[1]),
+            color=GRAY, linewidth=0.9, linestyle="--", zorder=17,
+        )
+        axis_end = anchor + projected_direction * 27.0
+        ax.annotate(
+            "", xy=axis_end, xytext=anchor,
+            arrowprops={"arrowstyle": "->", "color": RED, "linewidth": 1.1},
+            zorder=18,
+        )
+        if abs(signed_sweep) > 1.0e-9:
+            ax.add_patch(Arc(
+                anchor, 2.0 * radius_value, 2.0 * radius_value,
+                theta1=min(baseline_angle, fan_angle), theta2=max(baseline_angle, fan_angle),
+                color=RED, linewidth=1.0, zorder=18,
+            ))
+        label_angle = math.radians(baseline_angle + signed_sweep / 2.0)
+        label_position = anchor + 22.0 * np.asarray((math.cos(label_angle), math.sin(label_angle)))
+        ax.text(
+            *label_position, label, fontsize=5.4, weight="bold", color=RED,
+            ha="center", va="center",
+            bbox={"facecolor": WHITE, "edgecolor": "none", "alpha": 0.95, "pad": 1.0},
+            zorder=20,
+        )
+        ax.text(
+            0.02, 0.02,
+            "Dashed: rearward -Y datum. Arrow: outward fan axis.\n"
+            "Blue: back shell. Green: assembled adapter (when enabled).",
+            transform=ax.transAxes, fontsize=5.0, color=GRAY, va="bottom",
+        )
+        record_graphical_primitive(entry, "arc", anchor, reference_end, direction_end)
+        return True
+
     if view in {"rear_fan_adapter_front", "rear_fan_adapter_side"}:
         values = rear_fan_adapter_drawing_values()
         if view == "rear_fan_adapter_front":
@@ -7016,6 +7125,28 @@ def validate_baffle_feature_annotation_records() -> None:
         )
 
 
+def validate_fan_angle_annotation_records() -> None:
+    """Check that the recorded projected rays retain the configured signs."""
+    for name, sign, plane in (
+        ("FAN_ANGLE_HORIZONTAL_DEG", 1.0, "xy"),
+        ("FAN_ANGLE_VERTICAL_DEG", -1.0, "yz"),
+    ):
+        _kind, points = GRAPHICAL_PRIMITIVE_RECORDS[name]
+        anchor, reference_end, direction_end = np.asarray(points)
+        reference = reference_end - anchor
+        direction = direction_end - anchor
+        measured = sign * math.degrees(math.atan2(
+            reference[0] * direction[1] - reference[1] * direction[0],
+            float(np.dot(reference, direction)),
+        ))
+        _rotation, _translation, center, _direction = fan_mount_placement_for_drawings()
+        if (
+            abs(measured - float(C[name])) > 1.0e-6
+            or not np.allclose(anchor, center[list(PROJECTION_AXES[plane])], atol=1.0e-6)
+        ):
+            raise RuntimeError(f"Fan angle callout is detached or has the wrong sign: {name}")
+
+
 def validate_rendered_coverage() -> None:
     expected_visual = {entry.name for entry in VISUAL_DIMENSION_ENTRIES}
     expected_settings = {entry.name for entry in NON_DIMENSION_SETTING_ENTRIES}
@@ -7051,6 +7182,7 @@ def validate_rendered_coverage() -> None:
             + ", ".join(invalid_primitives)
         )
     validate_baffle_feature_annotation_records()
+    validate_fan_angle_annotation_records()
     invalid_kinds = sorted(
         name
         for name in expected_visual

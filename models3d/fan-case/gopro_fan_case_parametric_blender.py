@@ -3,6 +3,13 @@
 Run inside Blender:
 
     blender --background --python gopro_fan_case_parametric_blender.py
+    blender --background --python gopro_fan_case_parametric_blender.py -- \
+        --fan-angle-horizontal 30 --fan-angle-vertical -15
+
+Fan angles are degrees in [-45, 45], measured from rearward (-Y) toward
++X (horizontal) and +Z (vertical). Both default to zero. The pad, pilot bores,
+and assembled rear adapter follow this direction. Both mounting faces rotate
+together, with a curved dome transition to the original camera socket.
 
 All dimensions are millimeters. The defaults follow ``gopro-fan-case.stl``
 without reproducing its internal scraps or jagged hole edges. The generated
@@ -20,13 +27,16 @@ Axes:
 
 from __future__ import annotations
 
+import argparse
 import math
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import bmesh
 import bpy
-from mathutils import Vector
+import numpy as np
+from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
 
@@ -178,8 +188,8 @@ BACK_DEPTH = 21.2
 BACK_CORNER_RADIUS = 10.0
 BACK_FACE_THICKNESS = 3.0
 
-# Optional smooth exterior dome. The central fan pad remains an exact flat
-# rectangle at the dome's rearmost Y position. The full-width front rim ends
+# Optional smooth dome. Both faces of the central fan pad remain exact flat
+# rectangles, perpendicular to the configured fan direction. The front rim ends
 # just behind the camera stops so adjacent cases have more swivel clearance.
 BACK_DOME_ENABLED = True
 BACK_DOME_DEPTH = 10.0
@@ -224,6 +234,14 @@ FAN_HOLE_BOSSES_ENABLED = True
 FAN_HOLE_BOSS_DIAMETER = 7.0
 FAN_HOLE_BOSS_HEIGHT = 1.0
 
+# Independent projected angles of the outward fan axis: positive horizontal
+# points toward +X; positive vertical points toward +Z. The combined direction
+# is normalize((tan(horizontal), -1, tan(vertical))), with no added roll.
+# Both mounting faces, the screw bosses and through-bores rotate together.
+# The dome transitions to the fixed front socket and camera contacts.
+FAN_ANGLE_HORIZONTAL_DEG = 0.0
+FAN_ANGLE_VERTICAL_DEG = 0.0
+
 # Optional separate horn adapter that bolts to the case's existing 40 mm fan
 # pattern and carries a standard square fan behind it.  REAR_FAN_SIZE_MM uses
 # fan_size_presets.py (40/60/80/120 mm).  The target fan center can shift in
@@ -251,9 +269,8 @@ REAR_FAN_ADAPTER_HORN_WALL_THICKNESS = 1.8
 # Diametral clearance applies only to captive-nut clearance bores. A
 # self-tapping end deliberately uses FAN_HOLE_DIAMETER without this clearance.
 REAR_FAN_ADAPTER_HOLE_CLEARANCE = 0.4
-# Side-loaded captive M3 nut chambers. Slide each nut through the exposed edge
-# tunnel before mating the adapter to the case or fan. Source screws enter from
-# inside the open case; target screws enter from the fan's exposed rear face.
+# Side-loaded captive M3 nut chambers. Source screws enter from inside the
+# open case at every fan angle. Target screws enter through the fan frame.
 # Tightening pulls every nut against a printed interface-side shoulder, so the
 # shoulder transfers bolt tension into the adapter flange instead of letting
 # the nut escape toward its mating face.  Both switches are literal: enabling
@@ -283,7 +300,7 @@ REAR_FAN_ADAPTER_MAX_PRINT_ANGLE_DEG = 45.0
 # L-tabs rooted into the shell that overlap solid shoulders on the cartridge's
 # camera-facing end.  The TPU shell is deliberately flexed apart for insertion;
 # no snap hook or interference fit is asked to resist long-term TPU creep.
-BAFFLE_CARTRIDGE_ENABLED = True
+BAFFLE_CARTRIDGE_ENABLED = False
 BAFFLE_REAR_Y = -5.20
 BAFFLE_FRONT_Y = 14.00
 BAFFLE_REAR_WIDTH = 44.0
@@ -1008,6 +1025,234 @@ def fan_pad_inner_y() -> float:
 
 def fan_boss_end_y() -> float:
     return fan_pad_inner_y() + FAN_HOLE_BOSS_HEIGHT
+
+
+def fan_mount_is_angled() -> bool:
+    return FAN_ANGLE_HORIZONTAL_DEG != 0.0 or FAN_ANGLE_VERTICAL_DEG != 0.0
+
+
+def fan_mount_direction():
+    return Vector((
+        math.tan(math.radians(FAN_ANGLE_HORIZONTAL_DEG)),
+        -1.0,
+        math.tan(math.radians(FAN_ANGLE_VERTICAL_DEG)),
+    )).normalized()
+
+
+def fan_deformation_y_planes():
+    """Keep the pad and inlet rigid, with all forward hardware unchanged."""
+    # Rotate the complete mounting plate and bosses as one rigid region.
+    rigid_end = fan_boss_end_y()
+    # Leave the fixed chimney's thin Boolean overlap untouched.
+    blend_end = -0.5
+    if BAFFLE_CARTRIDGE_ENABLED:
+        rigid_end = max(rigid_end, BAFFLE_REAR_Y + BAFFLE_WALL_THICKNESS)
+        blend_end = min(blend_end, BAFFLE_FIRST_Y - BAFFLE_INTERNAL_THICKNESS_Y / 2.0 - BOOLEAN_OVERLAP)
+    if rigid_end >= blend_end:
+        raise ValueError("The fan inlet needs space to blend before the first baffle and perimeter hardware")
+    return rigid_end, blend_end
+
+
+def fan_mount_transform():
+    """Tilt the pad with its near edge at the original rear surface depth."""
+    rotation = Vector((0.0, -1.0, 0.0)).rotation_difference(fan_mount_direction()).to_matrix()
+    rear_shift = (
+        abs(rotation[1][0]) * BACK_DOME_FAN_PAD_WIDTH / 2.0
+        + abs(rotation[1][2]) * BACK_DOME_FAN_PAD_HEIGHT / 2.0
+    )
+    pivot = Vector((FAN_CENTER_X, back_exterior_y(), FAN_CENTER_Z))
+    return (Matrix.Translation(pivot + Vector((0.0, -rear_shift, 0.0)))
+            @ rotation.to_4x4() @ Matrix.Translation(-pivot))
+
+
+def deform_fan_points(points):
+    """Bend the dome around a rigid pad, leaving the front hardware fixed.
+
+    Advance a smoothly weighted rigid motion in small steps. Blending only
+    the final positions can fold the inner and outer walls through each other
+    when a compact mounting plate tilts through a large angle.
+    """
+    result = np.asarray(points, dtype=float).reshape((-1, 3)).copy()
+    if not fan_mount_is_angled() or not len(result):
+        return result
+    rigid_end, blend_end = fan_deformation_y_planes()
+    half_width = BACK_DOME_FAN_PAD_WIDTH / 2.0
+    half_height = BACK_DOME_FAN_PAD_HEIGHT / 2.0
+    width, height, _radius = effective_back_outer_dimensions()
+    pivot = np.asarray((FAN_CENTER_X, back_exterior_y(), FAN_CENTER_Z))
+    horizontal = math.tan(math.radians(FAN_ANGLE_HORIZONTAL_DEG))
+    vertical = math.tan(math.radians(FAN_ANGLE_VERTICAL_DEG))
+    magnitude = math.hypot(horizontal, vertical)
+    horizontal /= magnitude
+    vertical /= magnitude
+    angle = math.atan(magnitude)
+    axis = np.asarray((-vertical, 0.0, horizontal))
+    cross = np.asarray(((0.0, -axis[2], axis[1]),
+                        (axis[2], 0.0, -axis[0]),
+                        (-axis[1], axis[0], 0.0)))
+    cross_squared = cross @ cross
+    hinge_extent = abs(horizontal) * half_width + abs(vertical) * half_height
+
+    fixed = result[:, 1] >= blend_end
+    rigid = ((np.abs(result[:, 0] - FAN_CENTER_X) <= half_width)
+             & (np.abs(result[:, 2] - FAN_CENTER_Z) <= half_height)
+             & (result[:, 1] <= rigid_end))
+    # These points follow exact rigid trajectories, avoiding integration
+    # residue on the seating faces, cylindrical bores and printed datums.
+    transform = np.asarray(fan_mount_transform(), dtype=float)
+    result[rigid] = result[rigid] @ transform[:3, :3].T + transform[:3, 3]
+    active = ~(fixed | rigid)
+    moving = result[active].copy()
+    if not len(moving):
+        return result
+
+    def velocity(positions, fraction):
+        theta = angle * fraction
+        rotation = np.eye(3) + math.sin(theta) * cross + (1.0 - math.cos(theta)) * cross_squared
+        centered = positions - pivot
+        centered[:, 1] += hinge_extent * math.sin(theta)
+        local = centered @ rotation + pivot
+        radial = np.maximum(
+            (np.abs(local[:, 0] - FAN_CENTER_X) - half_width) / (width / 2.0 - half_width),
+            (np.abs(local[:, 2] - FAN_CENTER_Z) - half_height) / (height / 2.0 - half_height),
+        )
+        radial = np.clip(radial, 0.0, 1.0)
+        axial = np.clip((positions[:, 1] - rigid_end) / (blend_end - rigid_end), 0.0, 1.0)
+        weight = (1.0 - radial * radial * (3.0 - 2.0 * radial)) * (1.0 - axial * axial * (3.0 - 2.0 * axial))
+        motion = angle * (centered @ cross.T)
+        motion[:, 1] -= hinge_extent * angle * math.cos(theta)
+        return weight[:, None] * motion
+
+    steps = 128
+    step = 1.0 / steps
+    for index in range(steps):
+        fraction = index * step
+        first = velocity(moving, fraction)
+        second = velocity(moving + step / 2.0 * first, fraction + step / 2.0)
+        third = velocity(moving + step / 2.0 * second, fraction + step / 2.0)
+        fourth = velocity(moving + step * third, fraction + step)
+        moving += step / 6.0 * (first + 2.0 * second + 2.0 * third + fourth)
+    result[active] = moving
+    return result
+
+
+def deform_fan_point(point):
+    return Vector(deform_fan_points([point])[0])
+
+
+def deform_fan_mesh(obj):
+    """Sample the curved rear wall finely without splitting fixed hardware."""
+    if not fan_mount_is_angled():
+        return obj
+    _rigid_end, blend_end = fan_deformation_y_planes()
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    # Separate the moving surface before transverse cuts. Splitting the
+    # untouched front nut chambers can create near-coincident slivers when
+    # the final fastener Boolean cleans its result.
+    bmesh.ops.bisect_plane(
+        bm, geom=[*bm.verts, *bm.edges, *bm.faces], dist=1.0e-6,
+        plane_co=(0.0, blend_end, 0.0), plane_no=(0.0, 1.0, 0.0),
+    )
+    faces = [face for face in bm.faces
+             if max(vertex.co.y for vertex in face.verts) <= blend_end + 1.0e-6
+             and min(vertex.co.y for vertex in face.verts) < blend_end - 1.0e-6]
+    edges = {edge for face in faces for edge in face.edges}
+    vertices = {vertex for face in faces for vertex in face.verts}
+    geometry = [*vertices, *edges, *faces]
+    if vertices:
+        bounds = [(min(vertex.co[axis] for vertex in vertices),
+                   max(vertex.co[axis] for vertex in vertices)) for axis in range(3)]
+        # Closely spaced axial stations retain the thin joins where the dome
+        # meets camera-stop roots; transverse stations follow its curved sides.
+        for axis, spacing in ((0, 1.0), (2, 1.0), (1, 0.0625)):
+            low, high = bounds[axis]
+            for station in range(math.ceil(low / spacing), math.floor(high / spacing) + 1):
+                coordinate, normal = [0.0] * 3, [0.0] * 3
+                coordinate[axis] = station * spacing
+                normal[axis] = 1.0
+                geometry = bmesh.ops.bisect_plane(
+                    bm, geom=geometry, dist=1.0e-6, plane_co=coordinate, plane_no=normal,
+                )["geom"]
+        # The final fraction of the bend meets very thin Boolean joins at
+        # camera stops. Resolve their curvature before applying the flow;
+        # coarse triangles here can cross despite a continuous solid bend.
+        spacing = 0.0078125
+        low = max(bounds[1][0], blend_end - 0.75)
+        for station in range(math.ceil(low / spacing), math.floor(blend_end / spacing) + 1):
+            if station % 8 == 0:
+                continue  # Already split by the ordinary axial stations.
+            geometry = bmesh.ops.bisect_plane(
+                bm, geom=geometry, dist=1.0e-6,
+                plane_co=(0.0, station * spacing, 0.0), plane_no=(0.0, 1.0, 0.0),
+            )["geom"]
+    bmesh.ops.triangulate(bm, faces=list(bm.faces))
+    points = deform_fan_points([tuple(vertex.co) for vertex in bm.verts])
+    for vertex, point in zip(bm.verts, points):
+        vertex.co = point
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+    return obj
+
+
+@contextmanager
+def canonical_fan_geometry():
+    """Construct and validate the original assembly before its shared bend."""
+    global FAN_ANGLE_HORIZONTAL_DEG, FAN_ANGLE_VERTICAL_DEG
+    angles = FAN_ANGLE_HORIZONTAL_DEG, FAN_ANGLE_VERTICAL_DEG
+    try:
+        FAN_ANGLE_HORIZONTAL_DEG = FAN_ANGLE_VERTICAL_DEG = 0.0
+        yield
+    finally:
+        FAN_ANGLE_HORIZONTAL_DEG, FAN_ANGLE_VERTICAL_DEG = angles
+
+
+def create_back_shell():
+    with canonical_fan_geometry():
+        back = create_canonical_back_shell()
+    return finish_angled_back(back)
+
+
+def finish_angled_back(back):
+    deform_fan_mesh(back)
+    if fan_mount_is_angled() and CASE_FASTENERS_ENABLED:
+        # These three screws remain on the fixed front datum. Their rear
+        # approach must stay straight after the surrounding dome bends.
+        start_y = min(vertex.co.y for vertex in back.data.vertices) - BOOLEAN_OVERLAP
+        for index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
+            if BACK_FASTENER_HEX_RETENTION_ENABLED:
+                cutter = polygon_prism_y(
+                    f"Rear_Fastener_Straight_Access_{index}",
+                    [(px + x, pz + z) for px, pz in back_fastener_hex_loop()],
+                    start_y, BOOLEAN_OVERLAP,
+                )
+            else:
+                cutter = add_cylinder_y(
+                    f"Rear_Fastener_Straight_Access_{index}",
+                    BACK_FASTENER_HOLE_DIAMETER / 2.0,
+                    start_y, BOOLEAN_OVERLAP, x=x, z=z,
+                )
+            apply_boolean(back, cutter, "DIFFERENCE", "Rear_Fastener_Straight_Access",
+                          solver=WATERTIGHT_DETAIL_UNION_SOLVER)
+    return back
+
+
+def back_cut_start_y() -> float:
+    """Start access/vent cuts behind every corner of the tilted dome pad."""
+    if not fan_mount_is_angled():
+        return back_exterior_y()
+    transform = fan_mount_transform()
+    return min(
+        (transform @ Vector((
+            FAN_CENTER_X + x_sign * BACK_DOME_FAN_PAD_WIDTH / 2.0,
+            back_exterior_y(),
+            FAN_CENTER_Z + z_sign * BACK_DOME_FAN_PAD_HEIGHT / 2.0,
+        ))).y
+        for x_sign in (-1.0, 1.0)
+        for z_sign in (-1.0, 1.0)
+    )
 
 
 def back_fastener_hex_seat_y() -> float:
@@ -2539,6 +2784,14 @@ def validate_baffle_cartridge_config() -> None:
 
 
 def validate_config() -> None:
+    for name, angle in (
+        ("FAN_ANGLE_HORIZONTAL_DEG", FAN_ANGLE_HORIZONTAL_DEG),
+        ("FAN_ANGLE_VERTICAL_DEG", FAN_ANGLE_VERTICAL_DEG),
+    ):
+        if not math.isfinite(angle) or not -45.0 <= angle <= 45.0:
+            raise ValueError(f"{name} must be finite and between -45 and 45 degrees")
+    if fan_mount_is_angled() and not BACK_DOME_ENABLED:
+        raise ValueError("Nonzero fan angles require BACK_DOME_ENABLED=True")
     material_choices = {"RIGID", "TPU"}
     for name, mode in (
         ("BACK_MATERIAL_MODE", BACK_MATERIAL_MODE),
@@ -4232,6 +4485,8 @@ def create_back_dome():
     return create_mesh_object("Rear_Exterior_Dome", vertices, faces)
 
 
+
+
 def create_back_dome_cavity(
     socket_radius: float,
     inner_surface_offset_y: float = 0.0,
@@ -4695,6 +4950,10 @@ def rear_fan_adapter_source_hole_radius() -> float:
         else 0.0
     )
     return (FAN_HOLE_DIAMETER + clearance) / 2.0
+
+
+
+
 
 
 def rear_fan_adapter_target_hole_radius() -> float:
@@ -5364,7 +5623,7 @@ def create_back_fastener_opening_cutters(index, x, z):
             add_cylinder_y(
                 f"Rear_Fastener_Hole_{index}",
                 BACK_FASTENER_HOLE_DIAMETER / 2.0,
-                back_exterior_y() - 2.0 * BOOLEAN_OVERLAP,
+                back_cut_start_y() - 2.0 * BOOLEAN_OVERLAP,
                 BACK_DEPTH + BOOLEAN_OVERLAP,
                 x=x,
                 z=z,
@@ -5386,7 +5645,7 @@ def create_back_fastener_opening_cutters(index, x, z):
             f"Rear_Fastener_Hex_And_Bore_{index}",
             (hex_loop, hex_loop, circle_loop, circle_loop),
             (
-                back_exterior_y() - 2.0 * BOOLEAN_OVERLAP,
+                back_cut_start_y() - 2.0 * BOOLEAN_OVERLAP,
                 seat_y,
                 bore_start_y,
                 BACK_DEPTH + BOOLEAN_OVERLAP,
@@ -5656,7 +5915,7 @@ def add_baffle_retention_to_back(back):
     return back
 
 
-def create_back_shell():
+def create_canonical_back_shell():
     back_width, back_height, back_radius = effective_back_outer_dimensions()
     back = rounded_rectangle_prism_y(
         "Rear_Fan_Shell",
@@ -7538,32 +7797,60 @@ def face_down_contact_area(obj, outward_normal) -> float:
 
 
 def bvh_point_is_inside(bvh, point) -> bool:
-    """Classify a point by majority parity along three non-axial rays."""
+    """Classify by agreeing ray parities, retrying numerically grazing rays."""
     votes = []
     for coordinates in (
         (0.87317, 0.39821, 0.27943),
         (-0.71311, 0.49137, 0.25719),
         (0.18329, -0.92317, 0.33741),
+        (0.371, 0.811, 0.431),
+        (-0.271, -0.911, 0.241),
+        (0.221, -0.751, -0.491),
     ):
         direction = Vector(coordinates).normalized()
         origin = Vector(point)
         intersections = 0
+        previous_face = None
+        previous_location = None
+        repeated_hits = 0
+        ambiguous = False
         for _ in range(256):
-            location, _normal, _face_index, _distance = bvh.ray_cast(
+            location, _normal, face_index, _distance = bvh.ray_cast(
                 origin,
                 direction,
                 1000.0,
             )
             if location is None:
                 break
-            intersections += 1
+            # Float precision can report the same face again just beyond the
+            # advanced origin. Count that crossing once, while still advancing
+            # the ray. Keep distinct faces (including thin walls) separate.
+            repeated_crossing = (
+                face_index == previous_face
+                and previous_location is not None
+                and (location - previous_location).length <= 1.0e-3
+            )
+            repeated_hits = repeated_hits + 1 if repeated_crossing else 0
+            if repeated_hits >= 4:
+                # A grazing float32 ray can report hundreds of advances along
+                # one face. Its parity is unreliable; use another direction.
+                ambiguous = True
+                break
+            if not repeated_crossing:
+                intersections += 1
+            previous_face = face_index
+            previous_location = location
             origin = location + direction * 1.0e-4
         else:
-            raise RuntimeError(
-                "Mesh point-classification ray did not leave the model"
-            )
+            ambiguous = True
+        if ambiguous:
+            continue
         votes.append(bool(intersections % 2))
-    return sum(votes) >= 2
+        if votes.count(True) >= 2:
+            return True
+        if votes.count(False) >= 2:
+            return False
+    raise RuntimeError("Mesh point classification has insufficient unambiguous rays")
 
 
 def sampled_fastener_datum_contact_area(back_bvh, insert_bvh, x, z) -> float:
@@ -7903,6 +8190,84 @@ def validate_object(obj) -> None:
         raise RuntimeError(f"{obj.name} has {shells} disconnected shells")
 
 
+def validate_fan_mount(back) -> None:
+    """Measure both mounting faces, open bores, and inside head clearance."""
+    if not fan_mount_is_angled():
+        return
+    transform = fan_mount_transform()
+    outward = fan_mount_direction()
+    bvh = mesh_bvh(back)
+    failures = []
+    for x_sign in (-1.0, 1.0):
+        for z_sign in (-1.0, 1.0):
+            point = transform @ Vector((
+                FAN_CENTER_X + x_sign * (BACK_DOME_FAN_PAD_WIDTH / 2.0 - 1.0),
+                back_exterior_y(),
+                FAN_CENTER_Z + z_sign * (BACK_DOME_FAN_PAD_HEIGHT / 2.0 - 1.0),
+            ))
+            hit, normal, _index, _distance = bvh.ray_cast(point + outward, -outward, 2.0)
+            if hit is None or (hit - point).length > 0.002 or normal.dot(outward) < 0.999:
+                failures.append(f"pad_corner_{x_sign:g}_{z_sign:g}")
+    for dx, dz in (
+        (-BACK_DOME_FAN_PAD_WIDTH / 2.0 + 1.0, 0.0),
+        (BACK_DOME_FAN_PAD_WIDTH / 2.0 - 1.0, 0.0),
+        (0.0, -BACK_DOME_FAN_PAD_HEIGHT / 2.0 + 1.0),
+        (0.0, BACK_DOME_FAN_PAD_HEIGHT / 2.0 - 1.0),
+    ):
+        for depth, normal_expected in ((0.0, outward), (BACK_FACE_THICKNESS, -outward)):
+            point = transform @ Vector((FAN_CENTER_X + dx, back_exterior_y() + depth, FAN_CENTER_Z + dz))
+            hit, normal, _index, _distance = bvh.ray_cast(point + normal_expected, -normal_expected, 2.0)
+            if hit is None or (hit - point).length > 0.002 or normal.dot(normal_expected) < 0.999:
+                failures.append(f"mounting_face_{dx:g}_{dz:g}_{depth:g}")
+    if FAN_OPENING_ENABLED:
+        for index, (x, z) in enumerate(fan_hole_positions(), start=1):
+            for angle_index in range(12):
+                angle = 2.0 * math.pi * angle_index / 12.0
+                radius = FAN_HOLE_DIAMETER / 2.0 - 0.15
+                dx, dz = radius * math.cos(angle), radius * math.sin(angle)
+                start = transform @ Vector((x + dx, back_exterior_y() - 0.1, z + dz))
+                end = transform @ Vector((x + dx, fan_boss_end_y() + 0.1, z + dz))
+                if bvh_segment_is_blocked((bvh,), start, end):
+                    failures.append(f"through_bore_{index}_{angle_index}")
+                # A typical M3 socket head: 5.5 mm diameter, 2.5 mm tall.
+                for head_depth in (0.1, 1.25, 2.5):
+                    head = transform @ Vector((
+                        x + 2.75 * math.cos(angle), fan_boss_end_y() + head_depth,
+                        z + 2.75 * math.sin(angle),
+                    ))
+                    if bvh_point_is_inside(bvh, head):
+                        failures.append(f"inside_head_{index}_{angle_index}_{head_depth:g}")
+            for depth in (
+                0.2, BACK_FACE_THICKNESS - 0.2,
+                BACK_FACE_THICKNESS + (FAN_HOLE_BOSS_HEIGHT if FAN_HOLE_BOSSES_ENABLED else 0.0) - 0.2,
+            ):
+                center = transform @ Vector((x, back_exterior_y() + depth, z))
+                if bvh_point_is_inside(bvh, center):
+                    failures.append(f"pilot_{index}_depth_{depth:g}")
+                for angle_index in range(8):
+                    angle = 2.0 * math.pi * angle_index / 8.0
+                    radius = FAN_HOLE_DIAMETER / 2.0 + 0.4
+                    wall = transform @ Vector((
+                        x + radius * math.cos(angle), back_exterior_y() + depth,
+                        z + radius * math.sin(angle),
+                    ))
+                    if not bvh_point_is_inside(bvh, wall):
+                        failures.append(f"pilot_wall_{index}_{depth:g}_{angle_index}")
+        start = transform @ Vector((FAN_CENTER_X, fan_pad_inner_y(), FAN_CENTER_Z))
+        end = transform @ Vector((FAN_CENTER_X, back_exterior_y() - 0.2, FAN_CENTER_Z))
+        if bvh_segment_is_blocked((bvh,), start, end):
+            failures.append("airway_center")
+    if CASE_FASTENERS_ENABLED:
+        for index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
+            if bvh_segment_is_blocked(
+                (bvh,), (x, back_cut_start_y() - 0.2, z), (x, BACK_DEPTH + 0.2, z),
+            ):
+                failures.append(f"perimeter_fastener_access_{index}")
+    if failures:
+        raise RuntimeError("Angled fan mount validation failed: " + ", ".join(failures))
+    print("ANGLED_FAN_MOUNT PASS both_faces_aligned=True thickness_preserved=True through_bores=True inside_heads_clear=True airway_open=True")
+
+
 def validate_rear_fan_adapter(adapter) -> None:
     if adapter is None:
         print("REAR_FAN_ADAPTER DISABLED")
@@ -8214,6 +8579,8 @@ def validate_rear_fan_adapter(adapter) -> None:
         "internal_supports=none_side_slots_are_externally_accessible_bridges "
         "external_supports=far_flange_corners_recommended"
     )
+
+
 
 
 def validate_baffle_line_of_sight(back, tray, lid) -> None:
@@ -10043,10 +10410,10 @@ def build_gopro_fan_case():
         "MATERIAL_MODES "
         f"back={BACK_MATERIAL_MODE} sleeve={SLEEVE_MATERIAL_MODE} "
         f"retainer={RETAINER_MATERIAL_MODE} "
-        f"baffle={BAFFLE_CARTRIDGE_MATERIAL_MODE} buttons=TPU "
-        f"seal={'integral_TPU' if baffle_gasket_is_integral() else 'separate_TPU'} "
+        f"baffle={BAFFLE_CARTRIDGE_MATERIAL_MODE if BAFFLE_CARTRIDGE_ENABLED else 'disabled'} buttons=TPU "
+        f"seal={('integral_TPU' if baffle_gasket_is_integral() else 'separate_TPU') if BAFFLE_CARTRIDGE_ENABLED else 'none'} "
         "baffle_retention="
-        f"{'TPU_BACK_SQUARE_TABS' if baffle_uses_tpu_back_tabs() else baffle_retention_material_profile_name()}"
+        f"{('TPU_BACK_SQUARE_TABS' if baffle_uses_tpu_back_tabs() else baffle_retention_material_profile_name()) if BAFFLE_CARTRIDGE_ENABLED else 'none'}"
     )
     print(
         f"FRONT_CAMERA_RETAINER enabled={RETAINER_ENABLED} "
@@ -10108,23 +10475,41 @@ def build_gopro_fan_case():
         clear_scene()
     set_units()
 
-    back = create_back_shell()
-    rear_fan_adapter = create_rear_fan_adapter()
-    insert = create_insert_frame()
-    buttons = create_captive_buttons()
-    baffle_components = create_baffle_cartridge()
-    gate = create_front_retainer() if RETAINER_ENABLED else None
-    keepers = create_rotating_keepers() if RETAINER_ENABLED else ()
-    validate_object(back)
-    validate_rear_fan_adapter(rear_fan_adapter)
-    validate_object(insert)
-    validate_captive_buttons(buttons)
-    validate_baffle_cartridge(back, baffle_components)
-    if gate is not None:
-        validate_front_retainer(gate)
-        validate_retainer_index_keys(insert)
-        validate_rotating_keepers(keepers)
-    validate_sleeve_capture_mesh(back, insert)
+    with canonical_fan_geometry():
+        back = create_back_shell()
+        rear_fan_adapter = create_rear_fan_adapter()
+        insert = create_insert_frame()
+        buttons = create_captive_buttons()
+        baffle_components = create_baffle_cartridge()
+        gate = create_front_retainer() if RETAINER_ENABLED else None
+        keepers = create_rotating_keepers() if RETAINER_ENABLED else ()
+        validate_object(back)
+        validate_fan_mount(back)
+        validate_rear_fan_adapter(rear_fan_adapter)
+        validate_object(insert)
+        validate_captive_buttons(buttons)
+        validate_baffle_cartridge(back, baffle_components)
+        if gate is not None:
+            validate_front_retainer(gate)
+            validate_retainer_index_keys(insert)
+            validate_rotating_keepers(keepers)
+        validate_sleeve_capture_mesh(back, insert)
+    if fan_mount_is_angled():
+        finish_angled_back(back)
+        validate_object(back)
+        for component in baffle_components:
+            deform_fan_mesh(component)
+            validate_object(component)
+        validate_fan_mount(back)
+    if rear_fan_adapter is not None and fan_mount_is_angled():
+        # Keep mesh coordinates canonical for flange-down STL export/layout.
+        rear_fan_adapter.matrix_world = fan_mount_transform()
+    print(
+        "FAN_MOUNT_ANGLE "
+        f"horizontal={FAN_ANGLE_HORIZONTAL_DEG:g}deg "
+        f"vertical={FAN_ANGLE_VERTICAL_DEG:g}deg "
+        f"outward_axis={tuple(round(value, 6) for value in fan_mount_direction())}"
+    )
     assign_material(back, f"Rear_Shell_{BACK_MATERIAL_MODE}", BACK_COLOR)
     if rear_fan_adapter is not None:
         assign_material(
@@ -10269,5 +10654,40 @@ def build_gopro_fan_case():
     return back, insert
 
 
+def apply_command_line_arguments(argv=None) -> None:
+    """Parse only arguments after Blender's '--'; imports retain CONFIG values."""
+    global FAN_ANGLE_HORIZONTAL_DEG, FAN_ANGLE_VERTICAL_DEG
+    if argv is None:
+        argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    parser = argparse.ArgumentParser(
+        prog=Path(__file__).name,
+        description="Build a GoPro fan case with a rear fan pad angled up to 45 degrees per axis.",
+    )
+
+    def angle_degrees(value):
+        try:
+            angle = float(value)
+        except ValueError as error:
+            raise argparse.ArgumentTypeError("expected an angle in degrees") from error
+        if not math.isfinite(angle) or not -45.0 <= angle <= 45.0:
+            raise argparse.ArgumentTypeError("angle must be finite and between -45 and 45 degrees")
+        return angle
+
+    parser.add_argument(
+        "--fan-angle-horizontal", type=angle_degrees,
+        default=FAN_ANGLE_HORIZONTAL_DEG, metavar="DEGREES",
+        help="rearward fan angle toward +X, -45 to 45 (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--fan-angle-vertical", type=angle_degrees,
+        default=FAN_ANGLE_VERTICAL_DEG, metavar="DEGREES",
+        help="rearward fan angle toward +Z, -45 to 45 (default: %(default)s)",
+    )
+    args = parser.parse_args(argv)
+    FAN_ANGLE_HORIZONTAL_DEG = args.fan_angle_horizontal
+    FAN_ANGLE_VERTICAL_DEG = args.fan_angle_vertical
+
+
 if __name__ == "__main__":
+    apply_command_line_arguments()
     build_gopro_fan_case()
