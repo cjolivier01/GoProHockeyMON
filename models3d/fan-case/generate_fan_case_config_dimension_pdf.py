@@ -140,15 +140,14 @@ CATEGORY_PREFIXES = (
 
 
 EXACT_DESCRIPTIONS = {
-    "FAN_ANGLE_HORIZONTAL_DEG": "Signed fan-axis angle in the X/Y projection, from rearward (-Y) toward +X. Range -45 to +45 degrees; the inner cartridge seal remains fixed.",
+    "FAN_ANGLE_HORIZONTAL_DEG": "Signed fan-axis angle in the X/Y projection, from rearward (-Y) toward +X. Range -45 to +45 degrees; both mounting faces and all four through-bores rotate together.",
     "FAN_ANGLE_VERTICAL_DEG": "Signed fan-axis angle in the Y/Z projection, from rearward (-Y) toward +Z. Range -45 to +45 degrees. Both angles apply together without added roll.",
     "REAR_FAN_ADAPTER_ENABLED": "Builds and exports the separate case-pattern to standard-fan offset horn adapter.",
-    "REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER": "Diameter of the straight head/driver access sleeves used with nonzero fan angles. Screws enter from outside and engage the shell's blind pilots; inactive for a straight mount.",
     "REAR_FAN_SIZE_MM": "Nominal standard square-fan frame size selected from fan_size_presets.py: 40, 60, 80 or 120 mm.",
     "REAR_FAN_OFFSET_X_MM": "Horizontal shift from the case-fan center to the rear-fan center in the adapter's local X frame; it rotates with the angled mount.",
     "REAR_FAN_OFFSET_Z_MM": "Vertical shift from the case-fan center to the rear-fan center in the adapter's local Z frame; it rotates with the angled mount.",
     "REAR_FAN_ADAPTER_DUCT_LENGTH_Y": "Clear axial transition length between the case-side and rear-fan flange inner faces.",
-    "REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED": "Uses side-loaded captive M3 nuts at the case/source flange. False selects self-tapping pilots for a straight mount, or clearance bores with exterior screw access for an angled mount.",
+    "REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED": "Uses side-loaded captive M3 nuts at the case/source flange. False selects self-tapping pilots. Source screws enter from inside the open case at every fan angle.",
     "REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED": "Uses side-loaded captive M3 nuts at the fan/target flange; False selects back-case-style self-tapping fan-screw pilots.",
     "REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y": "Axial thickness of each captive-nut flange; self-tapping ends instead mirror the back face plus short fan-hole boss depth.",
     "REAR_FAN_ADAPTER_HORN_WALL_THICKNESS": "Radial thickness of the hollow circular transition wall.",
@@ -664,7 +663,6 @@ def drawing_view_for(entry: ConfigEntry) -> str:
             "REAR_FAN_ADAPTER_NUT_ACROSS_FLATS",
             "REAR_FAN_ADAPTER_NUT_SLOT_CLEARANCE",
             "REAR_FAN_ADAPTER_NUT_MIN_WALL",
-            "REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER",
         }:
             return "rear_fan_adapter_front"
         return "rear_fan_adapter_side"
@@ -2185,7 +2183,7 @@ def rear_fan_adapter_local_triangles() -> np.ndarray:
 
 
 def fan_mount_placement_for_drawings():
-    """Resolve the model's rigid mount rotation and rearward translation."""
+    """Keep the pad centered laterally and its nearest corner at the old depth."""
     direction = np.asarray((
         math.tan(math.radians(float(C["FAN_ANGLE_HORIZONTAL_DEG"]))),
         -1.0,
@@ -2196,8 +2194,6 @@ def fan_mount_placement_for_drawings():
     rear_shift = (
         abs(rotation[1, 0]) * float(C["BACK_DOME_FAN_PAD_WIDTH"]) / 2.0
         + abs(rotation[1, 2]) * float(C["BACK_DOME_FAN_PAD_HEIGHT"]) / 2.0
-        + (float(C["BACK_FACE_THICKNESS"]) + float(C["FAN_HOLE_BOSS_HEIGHT"]))
-        * math.hypot(rotation[1, 0], rotation[1, 2])
     )
     exterior_y = -float(C["BACK_DOME_DEPTH"]) if C["BACK_DOME_ENABLED"] else 0.0
     pivot = np.asarray((float(C["FAN_CENTER_X"]), exterior_y, float(C["FAN_CENTER_Z"])))
@@ -2685,10 +2681,6 @@ def rear_fan_adapter_drawing_values():
             C["REAR_FAN_ADAPTER_NUT_SLOT_CLEARANCE"]
         ),
         "source_captive_nuts": source_captive_nuts,
-        "external_source_screws": any(
-            float(C[name]) != 0.0
-            for name in ("FAN_ANGLE_HORIZONTAL_DEG", "FAN_ANGLE_VERTICAL_DEG")
-        ),
         "target_captive_nuts": target_captive_nuts,
         "source_nut_active": source_nut_active,
         "target_nut_active": target_nut_active,
@@ -2835,18 +2827,6 @@ def draw_actual_view(ax, view: str):
         values = rear_fan_adapter_drawing_values()
         bounds = adapter.bounds
         if view == "rear_fan_adapter_front":
-            access_radius = float(C["REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER"]) / 2.0
-            for x_sign in (-1.0, 1.0):
-                for z_sign in (-1.0, 1.0):
-                    ax.add_patch(Circle(
-                        (
-                            values["source_x"] + x_sign * float(C["FAN_HOLE_SPACING_X"]) / 2.0,
-                            values["source_z"] + z_sign * float(C["FAN_HOLE_SPACING_Z"]) / 2.0,
-                        ),
-                        access_radius, fill=False, edgecolor=ORANGE,
-                        linestyle="-" if values["external_source_screws"] else "--",
-                        linewidth=0.8, zorder=9,
-                    ))
             ax.plot(
                 (values["source_x"], values["target_x"]),
                 (values["source_z"], values["target_z"]),
@@ -3067,7 +3047,7 @@ def draw_actual_view(ax, view: str):
                     )
                 )
             self_tapping_ends = []
-            if not values["source_captive_nuts"] and not values["external_source_screws"]:
+            if not values["source_captive_nuts"]:
                 self_tapping_ends.append("SOURCE / CASE")
             if not values["target_captive_nuts"]:
                 self_tapping_ends.append("TARGET / FAN")
@@ -5190,18 +5170,6 @@ def draw_specific_graphical_annotation(
             target_x = values["target_x"]
             target_z = values["target_z"]
             target_half = values["target_frame"] / 2.0
-            if name == "REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER":
-                center = (
-                    values["source_x"] - float(C["FAN_HOLE_SPACING_X"]) / 2.0,
-                    values["source_z"] - float(C["FAN_HOLE_SPACING_Z"]) / 2.0,
-                )
-                radius_value = float(entry.value) / 2.0
-                state = "" if values["external_source_screws"] else "INACTIVE REF · "
-                return linear(
-                    (center[0] - radius_value, center[1]),
-                    (center[0] + radius_value, center[1]),
-                    False, -6.0, f"{label} {state}HEAD / DRIVER DIA",
-                )
             if name == "REAR_FAN_SIZE_MM":
                 return linear(
                     (target_x - target_half, target_z + target_half),

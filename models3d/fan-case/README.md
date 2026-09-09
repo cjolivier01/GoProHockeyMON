@@ -21,47 +21,55 @@ X/Y or Z/Y projection: its direction is
 `normalize((tan(horizontal), -1, tan(vertical)))`. Combining +45° on both axes
 therefore produces a 54.74° total tilt. There is no extra roll.
 
-The dome transitions into a rigid, flat mounting pad perpendicular to this
-axis. Its opening, circular screw pilots, and screw bosses follow the pad.
-The optional rear fan adapter rotates with it in the assembled scene; its
-separate STL remains in the original flange-down print orientation. Fan-size
-and offset settings remain in the adapter's local frame.
+Both faces of the mounting square rotate together. The pad keeps its configured
+thickness, and its four through-bores and inner screw bosses follow the same
+rotation. The dome bends into the fixed front socket; the camera contact faces,
+sleeve joint, and perimeter fastener seats retain their original positions.
+The mounting square stays centered horizontally and vertically. Its near edge
+stays at the original rear-surface depth while the opposite side tilts outward
+into the curved dome. With both angles set, the nearest corner stays at that
+depth. The transition spreads across the dome around the square.
+The optional fan adapter follows the pad. Its separate STL still uses the
+original flange-down orientation, and fan-size/offset settings stay local to it.
 
-For angled mounts, install the adapter **from the fan side before fitting the
-fan**. Its four 4.3 mm source clearance bores accept screws that thread into the
-case's 3.6 mm blind pilots. Sealed sleeves through the horn provide 8.6 mm
-head/driver clearance, suitable for heads up to 8 mm. With the default 4 mm
-adapter flange and 4 mm case engagement, use at most 7.5 mm under-head screw
-length to retain 0.5 mm bottom clearance. Measure the selected hardware.
-`REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER` adjusts head clearance. Source captive
-nuts are unsupported at nonzero angles, and the script rejects fan-size/offset
-combinations whose head-access sleeves overlap the target mounting hardware.
-The 0° adapter retains its original fastening arrangement.
+Install the fan or adapter screws **from inside the open case**, before fitting
+the sleeve. The holes pass through the pad. The checks include clearance for
+5.5 mm diameter, 2.5 mm tall screw heads; measure your chosen hardware.
+Steep angles can require a compact angled driver because the front rim limits
+a straight screwdriver's approach. Source captive nuts use the same settings
+at every angle and require sufficient flange thickness (4.5 mm with the default
+nut chamber).
 
-Angled settings add rearward depth and material. The inner cartridge sealing
-surface, cartridge parts, camera stops, sleeve joint, and perimeter screw seats
-retain their original positions. The original solid dome forms the minimum
-wall envelope around the tilted dome, preventing the fixed cavity from
-breaking through at steep angles. A bent circular passage connects the tilted
-opening to the cartridge inlet, and the perimeter screw-access cuts extend
-through the deeper dome. Nonzero angles require `BACK_DOME_ENABLED = True`.
+The acoustic baffle has been removed from the default case, including its
+retaining tabs, tray, lid, gasket, and generated STLs. The cavity is open.
+Angled configurations add rearward projection on the tilted-out side. Nonzero angles
+require `BACK_DOME_ENABLED = True`.
 
-These are geometry and assembly checks; the angled variants have not yet been
-physically printed or tested for airflow.
+The previews below show the bare back from both sides, including the 15°
+horizontal setting. The outside camera and scale stay fixed between options.
+Each option builds and validates the complete assembly.
+The inside images are mounting-face close-ups, with the camera inside the
+cavity so the foreground rim does not hide the holes. Each row also links to
+a whole-cavity view. The larger corner blocks are camera stops.
 
-The following previews use the default TPU back. Inside views hide the
-removable cartridge and sleeve to expose the fixed interior and the changing
-airflow passage. All seven options build and validate the complete assembly.
-
-| Horizontal / vertical | Outside | Inside |
+| Horizontal / vertical | Outside | Inside mounting face |
 | --- | --- | --- |
-| 0° / 0° | ![Straight outside](renderings/fan_angle_straight_outside.png) | ![Straight inside](renderings/fan_angle_straight_inside.png) |
-| −45° / 0° | ![Left outside](renderings/fan_angle_left_45_outside.png) | ![Left inside](renderings/fan_angle_left_45_inside.png) |
-| +45° / 0° | ![Right outside](renderings/fan_angle_right_45_outside.png) | ![Right inside](renderings/fan_angle_right_45_inside.png) |
-| 0° / −45° | ![Down outside](renderings/fan_angle_down_45_outside.png) | ![Down inside](renderings/fan_angle_down_45_inside.png) |
-| 0° / +45° | ![Up outside](renderings/fan_angle_up_45_outside.png) | ![Up inside](renderings/fan_angle_up_45_inside.png) |
-| +30° / −20° | ![Compound outside](renderings/fan_angle_right_30_down_20_outside.png) | ![Compound inside](renderings/fan_angle_right_30_down_20_inside.png) |
-| +45° / +45° | ![Maximum compound outside](renderings/fan_angle_right_45_up_45_outside.png) | ![Maximum compound inside](renderings/fan_angle_right_45_up_45_inside.png) |
+| 0° / 0° | ![Straight outside](renderings/fan_angle_straight_outside.png) | ![Straight inside](renderings/fan_angle_straight_mount_inside.png) [Whole cavity](renderings/fan_angle_straight_inside.png) |
+| +15° / 0° | ![15 degrees outside](renderings/fan_angle_right_15_outside.png) | ![15 degrees inside](renderings/fan_angle_right_15_mount_inside.png) [Whole cavity](renderings/fan_angle_right_15_inside.png) |
+| −45° / 0° | ![Left outside](renderings/fan_angle_left_45_outside.png) | ![Left inside](renderings/fan_angle_left_45_mount_inside.png) [Whole cavity](renderings/fan_angle_left_45_inside.png) |
+| +45° / 0° | ![Right outside](renderings/fan_angle_right_45_outside.png) | ![Right inside](renderings/fan_angle_right_45_mount_inside.png) [Whole cavity](renderings/fan_angle_right_45_inside.png) |
+| 0° / −45° | ![Down outside](renderings/fan_angle_down_45_outside.png) | ![Down inside](renderings/fan_angle_down_45_mount_inside.png) [Whole cavity](renderings/fan_angle_down_45_inside.png) |
+| 0° / +45° | ![Up outside](renderings/fan_angle_up_45_outside.png) | ![Up inside](renderings/fan_angle_up_45_mount_inside.png) [Whole cavity](renderings/fan_angle_up_45_inside.png) |
+| +30° / −20° | ![Compound outside](renderings/fan_angle_right_30_down_20_outside.png) | ![Compound inside](renderings/fan_angle_right_30_down_20_mount_inside.png) [Whole cavity](renderings/fan_angle_right_30_down_20_inside.png) |
+| +45° / +45° | ![Maximum compound outside](renderings/fan_angle_right_45_up_45_outside.png) | ![Maximum compound inside](renderings/fan_angle_right_45_up_45_mount_inside.png) [Whole cavity](renderings/fan_angle_right_45_up_45_inside.png) |
+
+Side profiles use the same camera and scale to show the curved projection:
+
+| 0° / 0° | +15° / 0° |
+| --- | --- |
+| ![Straight profile](renderings/fan_angle_straight_profile.png) | ![15 degree profile](renderings/fan_angle_right_15_profile.png) |
+| +45° / 0° | +45° / +45° |
+| ![45 degree profile](renderings/fan_angle_right_45_profile.png) | ![Compound profile](renderings/fan_angle_right_45_up_45_profile.png) |
 
 The default 60 mm adapter mounted at +30° horizontal and −20° vertical:
 
@@ -76,9 +84,8 @@ blender --background --factory-startup --threads 8 --python-exit-code 1 \
   --python models3d/fan-case/render_fan_angle_previews.py
 ```
 
-The checks cover CLI bounds and invalid values, small and maximum angles on
-both axes, all four compound limits, pad normals and pilot walls, perimeter
-screw access, preserved material at more than 21,000 cavity-wall locations,
-complete TPU/rigid assemblies, cartridge clearance and retention,
-adapter clearance, the full screw-head/driver installation path and sealed
-access sleeves, and flange-down STL export and print-bed layout.
+The checks cover CLI limits and invalid values, compact pad placement, small and maximum angles,
+all four compound limits, both mounting faces, pad thickness, through-bores,
+inside screw-head clearance, wall material, perimeter screw access, TPU/rigid
+backs, adapter clearance, absence of baffle parts and tabs, STL reimport, and
+adapter print-bed placement.

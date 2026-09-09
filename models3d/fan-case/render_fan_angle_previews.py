@@ -4,8 +4,8 @@
         --python models3d/fan-case/render_fan_angle_previews.py
 
 Each option runs the complete assembly validation before rendering the bare
-rear shell. The cartridge is hidden in inside views so its sealing surface,
-the fixed camera stops, and the changing airflow passage can be inspected.
+rear shell. Both faces of the mounting square, the open screw bores and
+the fixed camera stops can be inspected without a baffle.
 """
 
 from pathlib import Path
@@ -22,6 +22,7 @@ import gopro_fan_case_parametric_blender as case
 
 OPTIONS = (
     ("straight", 0, 0),
+    ("right_15", 15, 0),
     ("left_45", -45, 0),
     ("right_45", 45, 0),
     ("down_45", 0, -45),
@@ -72,7 +73,19 @@ def studio():
     return camera
 
 
-def main():
+def frame(camera, objects, view_offset):
+    points = [obj.matrix_world @ vertex.co for obj in objects for vertex in obj.data.vertices]
+    center = Vector(tuple((min(p[axis] for p in points) + max(p[axis] for p in points)) / 2.0 for axis in range(3)))
+    camera.location = center + Vector(view_offset)
+    aim(camera, center)
+    inverse = camera.rotation_euler.to_matrix().transposed()
+    projected = [inverse @ (point - center) for point in points]
+    width = max(p.x for p in projected) - min(p.x for p in projected)
+    height = max(p.y for p in projected) - min(p.y for p in projected)
+    camera.data.ortho_scale = max(width, height * 1.25) * 1.18
+
+
+def main(mount_details_only=False):
     OUTPUT.mkdir(exist_ok=True)
     for name, horizontal, vertical in OPTIONS:
         case.FAN_ANGLE_HORIZONTAL_DEG = horizontal
@@ -92,24 +105,49 @@ def main():
         back.data.materials.clear()
         back.data.materials.append(material)
         camera = studio()
-        for view, position, target in (
-            ("outside", (65, -210, 95), (0, -16, 0)),
-            ("inside", (60, 210, 100), (0, -8, 0)),
+        for view, position in (
+            ("outside", (65, -210, 95)),
+            ("inside", (35, 210, 60)),
         ):
-            camera.location = position
-            aim(camera, target)
+            # Look along the inner pad's axis so steep options still reveal
+            # the mounting face and screw bores through the open socket.
+            if view == "inside":
+                position = case.fan_mount_transform().to_3x3() @ Vector(position)
+                frame(camera, (back,), position)
+            else:
+                # Match the camera and scale across options so the curved
+                # protrusion can be compared directly with the straight case.
+                camera.location = position
+                aim(camera, (0, -15, 0))
+                camera.data.ortho_scale = 150
             bpy.context.scene.render.filepath = str(OUTPUT / f"fan_angle_{name}_{view}.png")
+            if not mount_details_only:
+                bpy.ops.render.render(write_still=True)
+        # Place the camera inside the cavity for an unobstructed look at both
+        # the mounting face and its bores, even behind the deep 45-degree rim.
+        target = case.fan_mount_transform() @ Vector((
+            case.FAN_CENTER_X, case.fan_pad_inner_y(), case.FAN_CENTER_Z,
+        ))
+        camera.location = target - case.fan_mount_direction() * 12.0
+        aim(camera, target)
+        camera.data.ortho_scale = max(case.BACK_DOME_FAN_PAD_WIDTH,
+                                      case.BACK_DOME_FAN_PAD_HEIGHT * 1.25) * 1.2
+        bpy.context.scene.render.filepath = str(OUTPUT / f"fan_angle_{name}_mount_inside.png")
+        bpy.ops.render.render(write_still=True)
+        if name in ("straight", "right_15", "right_45", "right_45_up_45") and not mount_details_only:
+            camera.location = (200, -25, 0)
+            aim(camera, (0, -25, 0))
+            camera.data.ortho_scale = 130
+            bpy.context.scene.render.filepath = str(OUTPUT / f"fan_angle_{name}_profile.png")
             bpy.ops.render.render(write_still=True)
-        if name == "right_30_down_20":
+        if name == "right_30_down_20" and not mount_details_only:
             # One assembled example verifies how the unchanged adapter sits
             # on the tilted pad. Its canonical STL still prints flange-down.
             adapter = bpy.data.objects.get("GoPro_Fan_Case_Rear_Fan_Adapter")
             if adapter is None:
                 raise RuntimeError("The default rear adapter is missing")
             adapter.hide_render = False
-            camera.location = (170, -180, 100)
-            camera.data.ortho_scale = 170
-            aim(camera, (0, -30, 0))
+            frame(camera, (back, adapter), (170, -180, 100))
             bpy.context.scene.render.filepath = str(OUTPUT / "fan_angle_adapter_assembled.png")
             bpy.ops.render.render(write_still=True)
 
