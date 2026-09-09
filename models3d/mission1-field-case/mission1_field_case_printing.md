@@ -137,21 +137,17 @@ direct-mounted 40 x 40 x 20 mm rear fan, and the current
 and their 10 mm-diameter, nominally 2.5 mm-thick low-profile thumb-nuts.
 Generation temporarily disables the fan-case generator's
 optional 60 mm rear adapter because the 40 mm fan uses the shell's direct
-32 x 32 mm mounting pattern. With the current angled companion generator,
+32 x 32 mm mounting pattern. Using the current angled companion generator,
 the left fan points 15 degrees left and the right fan 15 degrees right.
-The angle magnitude follows its `FAN_ANGLE_HORIZONTAL_DEG`; storage uses
-opposite horizontal signs and zero vertical tilt. Each shell is built separately,
+Storage explicitly sets -15/+15 degrees and zero vertical tilt, independently
+of the companion's default angle. Each shell is built separately at runtime,
 and its fan, cover, and cable exit use that shell's actual pad transform.
 Temporary source settings are restored even when generation fails.
 The complete envelope with the tested 15-degree companion is approximately
 97.77 x 103.98 x 68.57 mm per assembly.
 Both fit side-by-side with the existing internal width, depth, and height
-unchanged. Older companion generators without angled mounts retain the
-straight 97.77 x 93.40 x 68.57 mm loadout.
-The handed measurements and renderings in this guide use the separately
-updated local angled-mount companion; this field-case revision does not bundle
-or change that companion's configuration. The committed default companion
-configuration builds the straight loadout instead. Both variants are regression-tested.
+unchanged. The angle-capable companion is included in this revision, so a clean
+checkout generates the same handed loadout without editing its default pose.
 
 The bolt length is resolved from the fan-case geometry rather than represented
 by a generic front allowance. The current captured hex-head bearing seat is at
@@ -168,14 +164,19 @@ physical bottom and the single fastener is at the top. Only each wrapping cover
 turns half a rotation around its local fan axis, placing the current TOP wire
 notch upward before the complete fan/cover pair is yawed. The camera and case
 remain upright. The 12 mm base deck retains the 3 mm assembly floors. The
-cradles rise to 58 mm and engage 54.5 mm of each assembly. Continuous side
-guides wrap both outer sides and the lane between cameras; wide front/rear
-openings and about 14 mm of exposed assembly provide lifting access. The
-original 1 mm plan clearance and 0.8 mm tapered lead-in remain. The low locator
-footprint stays unchanged; only the fan-side guide openings widen and shift
-to clear the yawed covers. Their lower edges remain above the deck, so the
-extra fan projection does not require extending the guides into the cable
-wells or moving the batteries. Local 1.4 mm-floor
+cradles rise to 58 mm and engage 54.5 mm of each assembly. Broad, curved support
+masses fill all four spaces beside the rear domes, on the outer sides and
+between cameras. They grow continuously from the deck rather than forming
+thin rings around rectangular voids. The cavity is cut from the evaluated
+meshes of each complete generated assembly: its curved, non-convex XY outline
+is expanded by 1 mm and extended vertically for straight-up removal. Internal
+shell/grille holes are filled in the cutting profile, preventing TPU posts
+inside hollow components. A 6 mm rolling-diameter cleanup rounds out narrow
+gaps between projecting components, preventing tall thin TPU fingers while
+preserving the much larger dome-side curves. No dome dimensions or contour
+points are copied into the field-case generator. Source dimension changes rebuild the mold; changes
+that cannot fit the preserved case fail validation instead of resizing it.
+About 14 mm of assembly remains exposed for lifting. Local 1.4 mm-floor
 reliefs still leave more than 0.5 mm of air beneath the two low 10 mm thumb-nuts
 so the thin hardware does not carry the case weight.
 
@@ -183,7 +184,7 @@ Two 64 x 36 mm rounded wells each carry one coiled fan lead. The modeled cable
 centerline is 52 x 28 mm with a 4 mm corner radius, for 153.1 mm of path around
 the loop versus the required 152.4 mm (6 inches). Each 8 mm route is derived
 from the wrapping cover's current `CABLE_NOTCH_SIDE` and `CABLE_NOTCH_OFFSET`
-and cuts through the full-height front guide; the exact scene reference follows
+and cuts through the bulk cradle; the exact scene reference follows
 the transformed notch through that throat to its well. Each lead rises above
 its own cover and descends beyond the actual angled assembly envelope,
 not the former straight-fan outline. Raised flexible docks
@@ -205,9 +206,10 @@ Approximately 18.8 mm of each battery remains exposed for removal; small
 opposed nubs create only 0.15 mm nominal local interference instead of making
 the full pocket a friction fit. Two 11 x 50.8 x 11 mm battery-door pockets run
 lengthwise on opposite sides of the center spine. They store two 50 x 10 x 18 mm doors,
-leave 7 mm proud, and use the same 0.15 mm local retention. The front/rear
-guide openings and cable wells give direct hand access to the assemblies and
-insert.
+leave 7 mm proud, and use the same 0.15 mm local retention. The exposed
+camera tops and cable wells give access for lifting the assemblies and
+insert. Unclip the PWM plugs and free the coiled leads before lifting a camera
+assembly; the cables travel with it.
 
 The lower insert keeps both assemblies at their original height. Its outer
 supports now merge directly into the wrapping cradle sides: approximately
@@ -242,9 +244,7 @@ With the tested handed 15-degree fan configuration, the rear tray's nominal
 usable interior is 217 x 106.98 x 23.13 mm (537 mL); the front tray's is
 217 x 26.52 x 50.84 mm (293 mL). Together they provide approximately 830 mL
 to the rims, before allowing for rounded corners and the open finger scallops.
-With straight fan mounts, the rear interior is 217 x 96.40 x 23.13 mm
-(484 mL), and the front interior is 217 x 37.10 x 50.84 mm (409 mL),
-for approximately 893 mL total. The split follows the generated fan/cable route.
+The split follows the generated fan/cable route.
 The legacy `overhead_carrier` filename now contains the complete shallow rear
 tray, not a flat carrier panel.
 
@@ -263,12 +263,18 @@ regions, the connected center/outer cradle sides, both usable tray cavities,
 floors, walls and coplanar bottom patches, each tray's independent lift path,
 the lower insert's rail clearance throughout removal, continuous vertical
 headroom for both batteries and doors, and lid-pad opening.
+Profile-derived probes require substantial infill in each of the four concave
+dome-side wedges at three heights, including below the old deck top. A complete
+continuous straight-up assembly sweep must clear the finished cradle, base,
+and the other seated assembly, allowing only the four measured flexible
+retention ribs. Generating these molds requires Shapely 2.1 or newer in Blender's
+Python environment (also used by the lid lettering).
 A source change that no longer fits the preserved shell fails generation
 instead of silently producing an incompatible storage insert.
 
 Finished-mesh probes check both fans' seating planes, all eight shell-pad
 corners, and both cover grille planes against their handed mount transforms.
-Run the straight/15-degree loadout regression, including intentional bad fan
+Run the handed-loadout regression, including intentional bad fan
 placement, an intentionally blocked door-removal path, and source-setting
 restoration after a build failure, with:
 

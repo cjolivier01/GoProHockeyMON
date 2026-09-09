@@ -398,7 +398,7 @@ def render_fan_case_loadout(camera):
 
 
 def render_handed_fan_loadout(camera):
-    """Expose the independently angled fans, their guides, and cable routes."""
+    """Expose the independently angled fans, contoured bulk, and cable routes."""
     set_visible(
         ("fan_case_pair_insert",),
         (
@@ -502,7 +502,7 @@ def render_fan_side_closed_stack(camera):
 
 
 def render_fan_case_insert_detail(camera):
-    """Expose the two coil wells, cable routes, and retained PWM plugs."""
+    """Expose both actual curved mold cavities and the accessory storage."""
     set_visible(
         ("fan_case_pair_insert",),
         (
@@ -513,9 +513,9 @@ def render_fan_case_insert_detail(camera):
             "REFERENCE_ONLY_Fan_Case_Battery_Door_",
         ),
     )
-    camera.data.lens = 60.0
-    camera.location = (0.0, -330.0, 380.0)
-    aim_object(camera, (0.0, -8.0, 6.0))
+    camera.data.lens = 55.0
+    camera.location = (0.0, -285.0, 330.0)
+    aim_object(camera, (0.0, -5.0, 38.0))
     bpy.context.scene.render.filepath = str(
         RENDER_DIRECTORY / "mission1_field_case_fan_case_insert_detail.png"
     )

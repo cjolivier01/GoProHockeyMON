@@ -352,10 +352,9 @@ EQUIPMENT_TRAY_LIFT_NOTCH_X_CENTERS = (-96.0, 96.0)
 FAN_CASE_STORAGE_COUNT = 2
 FAN_CASE_STORAGE_CENTERS_X = (-52.0, 52.0)
 # The two upright cameras use outward-facing fan pads: left negative X,
-# right positive X. Older companion generators have only the straight pad.
-FAN_CASE_STORAGE_FAN_YAW_DEGREES = abs(
-    getattr(fan_case, "FAN_ANGLE_HORIZONTAL_DEG", 0.0)
-)
+# right positive X. This loadout deliberately overrides the companion's
+# default pose; every other source dimension still comes from its live build.
+FAN_CASE_STORAGE_FAN_YAW_DEGREES = 15.0
 FAN_CASE_STORAGE_FAN_ANGLES = (
     (-FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
     (FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
@@ -373,14 +372,10 @@ FAN_CASE_PAIR_INSERT_FLOOR = 3.0
 FAN_CASE_PAIR_INSERT_INSTALLED_Z = BASE_FLOOR_THICKNESS
 FAN_CASE_PAIR_BODY_FLOOR_CLEARANCE = 0.5
 FAN_CASE_PAIR_HARDWARE_RELIEF_FLOOR = 1.4
-FAN_CASE_PAIR_CAVITY_CORNER_RADIUS = 5.0
 FAN_CASE_PAIR_GUIDE_HEIGHT = 58.0
-FAN_CASE_PAIR_GUIDE_WALL = 3.2
-FAN_CASE_PAIR_GUIDE_LEAD_IN_HEIGHT = 2.0
-FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION = 0.8
-FAN_CASE_PAIR_GUIDE_FRONT_GAP_WIDTH = 34.0
-FAN_CASE_PAIR_GUIDE_REAR_GAP_WIDTH = 40.0
-FAN_CASE_PAIR_GUIDE_SIDE_GAP_DEPTH = 0.0
+# Do not reproduce narrow gaps between source buttons/gate parts as tall TPU
+# fingers. Round them out of the negative while retaining the large dome curves.
+FAN_CASE_PAIR_CRADLE_MIN_FEATURE = 6.0
 FAN_CASE_CABLE_LENGTH = 152.4
 FAN_CASE_CABLE_DIAMETER = 4.0
 FAN_CASE_CABLE_WELL_SIZE = (64.0, 36.0)
@@ -785,7 +780,6 @@ def fan_case_pair_storage_geometry():
     placements = []
     cavity_bounds = []
     installed_reference_bounds = []
-    fan_side_guide_openings = []
     for center_x, reference_bounds in zip(
         FAN_CASE_STORAGE_CENTERS_X, reference_bounds_by_assembly
     ):
@@ -822,24 +816,6 @@ def fan_case_pair_storage_geometry():
                 reference_bounds[5] + translation_z,
             )
         )
-        bounds = cover_bounds[len(placements) - 1]
-        old_opening_center = (storage_bounds[0] + storage_bounds[1]) / 2.0
-        opening_x0 = min(
-            old_opening_center - FAN_CASE_PAIR_GUIDE_FRONT_GAP_WIDTH / 2.0,
-            bounds[0] - FAN_CASE_STORAGE_CLEARANCE
-            - FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION,
-        )
-        opening_x1 = max(
-            old_opening_center + FAN_CASE_PAIR_GUIDE_FRONT_GAP_WIDTH / 2.0,
-            bounds[1] + FAN_CASE_STORAGE_CLEARANCE
-            + FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION,
-        )
-        if not FAN_CASE_STORAGE_FAN_YAW_DEGREES:
-            opening_x0 = old_opening_center - FAN_CASE_PAIR_GUIDE_FRONT_GAP_WIDTH / 2.0
-            opening_x1 = old_opening_center + FAN_CASE_PAIR_GUIDE_FRONT_GAP_WIDTH / 2.0
-        fan_side_guide_openings.append((
-            opening_x0 + translation_x, opening_x1 + translation_x
-        ))
     assembly_top_z = max(bounds[5] for bounds in installed_reference_bounds)
     broad_shell_top_z = translation_z + back_height / 2.0
     installed_lid_inner_face = BASE_HEIGHT + (
@@ -920,7 +896,6 @@ def fan_case_pair_storage_geometry():
         "fan_transforms": fan_transforms,
         "straight_cover_bounds": straight_cover_bounds,
         "cover_source_bounds": cover_bounds,
-        "fan_side_guide_openings": tuple(fan_side_guide_openings),
         "placements": tuple(placements),
         "cavity_bounds": tuple(cavity_bounds),
         "installed_reference_bounds": tuple(installed_reference_bounds),
@@ -4526,9 +4501,6 @@ def validate_configuration() -> None:
     alternate_insert_half_depth = cradle_depth / 2.0
     for index, bounds in enumerate(FAN_CASE_PAIR_STORAGE["cavity_bounds"], start=1):
         x0, x1, y0, y1 = bounds
-        opening_x0, opening_x1 = FAN_CASE_PAIR_STORAGE["fan_side_guide_openings"][index - 1]
-        if min(opening_x0 - x0, x1 - opening_x1) < 12.0:
-            raise ValueError("Angled fan leaves too little front corner-guide material")
         cover_bottom_z = (
             FAN_CASE_PAIR_STORAGE["cover_source_bounds"][index - 1][4]
             + FAN_CASE_PAIR_STORAGE["placements"][index - 1][2]
@@ -4559,14 +4531,13 @@ def validate_configuration() -> None:
     if guide_engagement < 50.0 or assembly_height - guide_engagement < 12.0:
         raise ValueError(
             "Full-height fan-case cradles need at least 50 mm engagement and "
-            "12 mm of exposed assembly plus the front/rear lifting gaps"
+            "12 mm of exposed assembly for lifting"
         )
     if not (
-        FAN_CASE_PAIR_GUIDE_WALL >= 3.0
-        and FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION >= 0.5
+        FAN_CASE_STORAGE_CLEARANCE >= 0.5
         and FAN_CASE_PAIR_GUIDE_HEIGHT > FAN_CASE_PAIR_INSERT_HEIGHT
     ):
-        raise ValueError("Raised fan-case guides lack wall or lead-in allowance")
+        raise ValueError("Contoured fan-case cradles lack height or running clearance")
 
     dock_support = FAN_CASE_PAIR_PWM_DOCK_SUPPORT
     cable_centerline_size = tuple(
@@ -4599,22 +4570,6 @@ def validate_configuration() -> None:
             > alternate_insert_half_depth
         ):
             raise ValueError("A cable well exceeds the alternate insert")
-        for cavity in FAN_CASE_PAIR_STORAGE["cavity_bounds"]:
-            cavity_center = (
-                (cavity[0] + cavity[1]) / 2.0,
-                (cavity[2] + cavity[3]) / 2.0,
-            )
-            guide_size = (
-                cavity[1] - cavity[0] + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
-                cavity[3] - cavity[2] + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
-            )
-            if rectangles_overlap(
-                well_center,
-                FAN_CASE_CABLE_WELL_SIZE,
-                cavity_center,
-                guide_size,
-            ):
-                raise ValueError("A cable well enters a raised assembly guide")
     coil_inner_size = dock_support["coil_inner_size"]
     battery_tower_size = tuple(
         value + 2.0 * FAN_CASE_BATTERY_TOWER_WALL
@@ -6932,8 +6887,104 @@ def create_fan_case_shell_retention_rib(spec, local=False):
     return create_mesh_object("Fan_Case_Broad_Shell_45_Degree_Retention_Rib", vertices, faces)
 
 
-def create_fan_case_pair_insert(material):
+def fan_case_assembly_extraction_profile(objects, clearance=FAN_CASE_STORAGE_CLEARANCE):
+    """Project the evaluated assembly, not an envelope or a convex hull.
+
+    Filling internal holes prevents TPU posts inside hollow shells or fan
+    grilles. The non-convex exterior retains the generated dome/fan curves.
+    Extruding this silhouette upward gives a conservative, undercut-free mold.
+    """
+    from shapely import set_precision, union_all
+    from shapely.geometry import Polygon
+
+    bpy.context.view_layer.update()
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    footprints = []
+    for obj in objects:
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh()
+        try:
+            mesh.calc_loop_triangles()
+            coordinates = [evaluated.matrix_world @ vertex.co for vertex in mesh.vertices]
+            triangles = []
+            for triangle in mesh.loop_triangles:
+                polygon = Polygon([(coordinates[i].x, coordinates[i].y)
+                                   for i in triangle.vertices])
+                if polygon.area > 1e-9:
+                    triangles.append(polygon)
+            if triangles:
+                # Normalize each input before overlay. Dense angled-shell
+                # projections contain almost-collapsed triangles; asking the
+                # overlay itself to snap all of them can produce GEOS side
+                # location conflicts on otherwise valid generated meshes.
+                triangles = set_precision(triangles, grid_size=0.001, mode="valid_output")
+                footprints.append(union_all(triangles))
+        finally:
+            evaluated.to_mesh_clear()
+    if not footprints:
+        raise ValueError("Cannot mold an empty fan-case assembly")
+    silhouette = union_all(footprints, grid_size=0.001)
+    polygons = list(silhouette.geoms) if silhouette.geom_type == "MultiPolygon" else [silhouette]
+    filled = union_all([Polygon(p.exterior) for p in polygons])
+    radius = FAN_CASE_PAIR_CRADLE_MIN_FEATURE / 2.0
+    filled = filled.buffer(radius, quad_segs=12).buffer(-radius, quad_segs=12)
+    # Simplification is much smaller than the running clearance; the tiny
+    # additional buffer guarantees it cannot consume that clearance.
+    return filled.buffer(clearance + 0.01, quad_segs=12).simplify(0.005)
+
+
+def extrude_planar_region(name, region, z0, z1):
+    """Manifold extrusion of a curved polygon, including any interior rings."""
+    from shapely import constrained_delaunay_triangles
+
+    polygons = list(region.geoms) if region.geom_type == "MultiPolygon" else [region]
+    vertices, faces, indices = [], [], {}
+
+    def index(x, y, z):
+        key = (round(x, 8), round(y, 8), round(z, 8))
+        if key not in indices:
+            indices[key] = len(vertices)
+            vertices.append(key)
+        return indices[key]
+
+    for polygon in polygons:
+        for triangle in constrained_delaunay_triangles(polygon).geoms:
+            points = list(triangle.exterior.coords)[:-1]
+            faces.append(tuple(index(x, y, z0) for x, y in reversed(points)))
+            faces.append(tuple(index(x, y, z1) for x, y in points))
+        for ring in (polygon.exterior, *polygon.interiors):
+            points = list(ring.coords)[:-1]
+            for (x0, y0), (x1, y1) in zip(points, points[1:] + points[:1]):
+                faces.append((index(x0, y0, z0), index(x1, y1, z0),
+                              index(x1, y1, z1), index(x0, y0, z1)))
+    return create_mesh_object(name, vertices, faces)
+
+
+def fan_case_pair_extraction_profiles(reference_objects):
+    profiles = []
+    for index in range(1, FAN_CASE_STORAGE_COUNT + 1):
+        group = [obj for obj in reference_objects
+                 if obj.name.startswith(f"REFERENCE_ONLY_Fan_Case_Assembly_{index}_")]
+        profile = fan_case_assembly_extraction_profile(group)
+        profiles.append(profile)
+        print(f"FIELD_CASE_RUNTIME_CONTOUR assembly={index} objects={len(group)} "
+              f"yaw={FAN_CASE_STORAGE_FAN_ANGLES[index - 1][0]:+.1f} "
+              f"area={profile.area:.3f} bounds={profile.bounds}", flush=True)
+    return profiles
+
+
+def create_fan_case_pair_insert(material, reference_objects=None):
     """Create the optional lower insert for two complete fan-case assemblies."""
+    # Geometry generation must not depend on whether preview mockups are shown.
+    own_references = reference_objects is None
+    if own_references:
+        reference_objects = create_fan_case_pair_reference_mockups(*([material] * 7))
+    try:
+        profiles = fan_case_pair_extraction_profiles(reference_objects)
+    finally:
+        if own_references:
+            for obj in reference_objects:
+                bpy.data.objects.remove(obj, do_unlink=True)
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     insert_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
@@ -6947,25 +6998,9 @@ def create_fan_case_pair_insert(material):
         INSERT_CORNER_RADIUS,
     )
 
-    for index, bounds in enumerate(
-        FAN_CASE_PAIR_STORAGE["cavity_bounds"],
-        start=1,
+    for index, (placement_x, placement_y, _placement_z) in enumerate(
+        FAN_CASE_PAIR_STORAGE["placements"], start=1
     ):
-        x0, x1, y0, y1 = bounds
-        cavity = add_rounded_prism(
-            f"Complete_Fan_Case_Assembly_{index}_Locator_Pocket",
-            x1 - x0,
-            y1 - y0,
-            FAN_CASE_PAIR_INSERT_FLOOR,
-            FAN_CASE_PAIR_INSERT_HEIGHT + 0.3,
-            FAN_CASE_PAIR_CAVITY_CORNER_RADIUS,
-            ((x0 + x1) / 2.0, (y0 + y1) / 2.0),
-        )
-        difference_from(insert, cavity)
-
-        placement_x, placement_y, _placement_z = FAN_CASE_PAIR_STORAGE[
-            "placements"
-        ][index - 1]
         # The assembly remains upright, so the source row of two fasteners is
         # at the bottom.  Cut only beneath those low-profile thumb nuts: the
         # broad shell remains the support datum and the hardware retains more
@@ -6993,75 +7028,22 @@ def create_fan_case_pair_insert(material):
             )
             difference_from(insert, hardware_relief)
 
-        cavity_width = x1 - x0
-        cavity_depth = y1 - y0
-        cavity_center = ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
-        guide = rounded_ring_inner_lead_in(
-            f"Complete_Fan_Case_Assembly_{index}_Segmented_Guide",
-            (
-                cavity_width + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
-                cavity_depth + 2.0 * FAN_CASE_PAIR_GUIDE_WALL,
-            ),
-            (cavity_width, cavity_depth),
-            FAN_CASE_PAIR_INSERT_HEIGHT - 0.2,
-            FAN_CASE_PAIR_GUIDE_HEIGHT,
-            FAN_CASE_PAIR_CAVITY_CORNER_RADIUS + FAN_CASE_PAIR_GUIDE_WALL,
-            FAN_CASE_PAIR_CAVITY_CORNER_RADIUS,
-            FAN_CASE_PAIR_GUIDE_LEAD_IN_HEIGHT,
-            FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION,
-            cavity_center,
-        )
-        union_into(insert, guide)
-
-        # Break the raised ring into four low-friction corner guides.  The
-        # wide front gap is a direct grip on the assembly, while the other
-        # three gaps prevent long TPU walls from dragging during extraction.
-        guide_gap_span = (
-            2.0 * FAN_CASE_PAIR_GUIDE_WALL
-            + 2.0 * FAN_CASE_PAIR_GUIDE_LEAD_IN_EXPANSION
-            + 2.0
-        )
-        guide_gap_z0 = FAN_CASE_PAIR_INSERT_HEIGHT - 0.3
-        guide_gap_z1 = FAN_CASE_PAIR_GUIDE_HEIGHT + 0.3
-        front_x0, front_x1 = FAN_CASE_PAIR_STORAGE["fan_side_guide_openings"][index - 1]
-        for gap_name, width, depth, center in (
-            (
-                "Front_Lift",
-                front_x1 - front_x0,
-                guide_gap_span,
-                ((front_x0 + front_x1) / 2.0, y0),
-            ),
-            (
-                "Rear_Release",
-                FAN_CASE_PAIR_GUIDE_REAR_GAP_WIDTH,
-                guide_gap_span,
-                (cavity_center[0], y1),
-            ),
-            (
-                "Left_Release",
-                guide_gap_span,
-                FAN_CASE_PAIR_GUIDE_SIDE_GAP_DEPTH,
-                (x0, cavity_center[1]),
-            ),
-            (
-                "Right_Release",
-                guide_gap_span,
-                FAN_CASE_PAIR_GUIDE_SIDE_GAP_DEPTH,
-                (x1, cavity_center[1]),
-            ),
-        ):
-            if width <= 0.0 or depth <= 0.0:
-                continue
-            gap = add_rounded_prism(
-                f"Fan_Case_{index}_{gap_name}_Guide_Gap",
-                width,
-                depth,
-                guide_gap_z0,
-                guide_gap_z1,
-                min(3.0, width / 2.1, depth / 2.1),
-                center,
-            )
-            difference_from(insert, gap)
+    # Fill the entire unused rear footprint with a single bonded mass, then
+    # mold the actual handed shells out of it. This fills all four dome-side
+    # wedges, continuously joining the outer ledges and the center support.
+    # The front boundary is the independently removable deep tray's rear edge.
+    bulk_y0 = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][2]
+    bulk_y1 = insert_depth / 2.0
+    bulk = add_rounded_prism(
+        "Fan_Case_Runtime_Contoured_Bulk_Cradle", insert_width, bulk_y1 - bulk_y0,
+        FAN_CASE_PAIR_INSERT_HEIGHT - 0.2, FAN_CASE_PAIR_GUIDE_HEIGHT,
+        INSERT_CORNER_RADIUS, (0.0, (bulk_y0 + bulk_y1) / 2.0))
+    union_into(insert, bulk)
+    for index, profile in enumerate(profiles, 1):
+        mold = extrude_planar_region(
+            f"Fan_Case_{index}_Actual_Assembly_Straight_Lift_Mold", profile,
+            FAN_CASE_PAIR_INSERT_FLOOR, FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 1.0)
+        difference_from(insert, mold)
 
     for index, (center_x, center_y) in enumerate(
         FAN_CASE_CABLE_WELL_CENTERS,
@@ -7072,7 +7054,7 @@ def create_fan_case_pair_insert(material):
             FAN_CASE_CABLE_WELL_SIZE[0],
             FAN_CASE_CABLE_WELL_SIZE[1],
             FAN_CASE_CABLE_WELL_FLOOR,
-            FAN_CASE_PAIR_INSERT_HEIGHT + 0.3,
+            FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 0.3,
             FAN_CASE_CABLE_WELL_CORNER_RADIUS,
             (center_x, center_y),
         )
@@ -12112,7 +12094,7 @@ def create_fan_case_pair_reference_mockups(
     return objects
 
 
-def create_reference_mockups(materials, parts):
+def create_reference_mockups(materials, parts, fan_case_references=None):
     objects = []
     (
         camera_material,
@@ -12213,7 +12195,7 @@ def create_reference_mockups(materials, parts):
         assign_material(mockup, fan_material)
         objects.append(mockup)
     objects.extend(
-        create_fan_case_pair_reference_mockups(
+        fan_case_references if fan_case_references is not None else create_fan_case_pair_reference_mockups(
             fan_case_material,
             camera_material,
             battery_material,
@@ -12468,6 +12450,97 @@ def validate_fan_case_accessory_lift_paths(accessories, obstacles):
         finally:
             bpy.data.objects.remove(sweep, do_unlink=True)
     return accessory_withdrawal_overlap
+
+
+def validate_fan_case_contoured_cradle(parts, assembly_groups):
+    """Check real concave infill and the continuous upward removal volume."""
+    from shapely.geometry import box
+    from shapely import union_all
+    from shapely.ops import polylabel
+
+    profiles = [fan_case_assembly_extraction_profile(group) for group in assembly_groups]
+    insert = parts["fan_case_pair_insert"]
+    infill_volumes, lift_overlaps = [], []
+    # Only the four explicitly validated TPU squeeze ribs may flex during
+    # removal. No other part of the molded cavity may enter the lift volume.
+    rigid_cradle = insert.copy()
+    rigid_cradle.data = insert.data.copy()
+    bpy.context.collection.objects.link(rigid_cradle)
+    try:
+        for spec in fan_case_pair_shell_retention_specs():
+            difference_from(rigid_cradle, create_fan_case_shell_retention_rib(spec))
+        for index, (profile, group) in enumerate(zip(profiles, assembly_groups)):
+            minimum_z = min(object_world_bounds(obj)[0].z for obj in group)
+            lift = extrude_planar_region(
+                "TEMPORARY_Complete_Assembly_Continuous_Lift",
+                profile.buffer(-FAN_CASE_STORAGE_CLEARANCE),
+                minimum_z, BASE_HEIGHT + 100.0)
+            try:
+                for obstacle in (rigid_cradle, parts["base"], *assembly_groups[1 - index]):
+                    _faces, volume = exact_transformed_intersection(
+                        lift, obstacle, first_location=lift.location.copy(),
+                        first_rotation=lift.rotation_euler.copy(),
+                        second_location=obstacle.location.copy(),
+                        second_rotation=obstacle.rotation_euler.copy())
+                    if volume > 1e-5:
+                        raise ValueError(f"Contoured assembly lift is obstructed: "
+                                         f"assembly={index + 1} {obstacle.name} volume={volume}")
+                    lift_overlaps.append(volume)
+            finally:
+                bpy.data.objects.remove(lift, do_unlink=True)
+
+            # A bounding rectangle is used ONLY to find test points in the
+            # dome-side wedges, never as the mold. Erode by 3 mm to demand
+            # broad filled regions rather than narrow cosmetic fins.
+            center_x = FAN_CASE_PAIR_STORAGE["placements"][index][0]
+            xmin, ymin, xmax, ymax = profile.bounds
+            wedge_area = box(
+                xmin, FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][2] + 3.0,
+                xmax, FAN_CASE_PAIR_STORAGE["shell_contact_base_y"]).difference(profile)
+            # These functional openings intentionally interrupt the infill;
+            # probe the remaining support, not a door slot or cable throat.
+            openings = []
+            for center, size in (
+                *((center, FAN_CASE_BATTERY_DOOR_SLOT_SIZE) for center in FAN_CASE_BATTERY_DOOR_CENTERS),
+                *((center, FAN_CASE_CABLE_WELL_SIZE) for center in FAN_CASE_CABLE_WELL_CENTERS),
+            ):
+                openings.append(box(center[0] - size[0] / 2.0, center[1] - size[1] / 2.0,
+                                    center[0] + size[0] / 2.0, center[1] + size[1] / 2.0))
+            for well_center, route in zip(FAN_CASE_CABLE_WELL_CENTERS,
+                                          FAN_CASE_PAIR_STORAGE["cable_route_points"]):
+                half_width = FAN_CASE_CABLE_THROAT_WIDTH / 2.0
+                well_y1 = well_center[1] + FAN_CASE_CABLE_WELL_SIZE[1] / 2.0
+                openings.append(box(route[-1][0] - half_width, well_y1 - half_width,
+                                    route[-1][0] + half_width,
+                                    max(route[-2][1], well_y1) + half_width))
+            wedge_area = wedge_area.difference(union_all(openings))
+            for side_x0, side_x1 in ((xmin, center_x), (center_x, xmax)):
+                region = wedge_area.intersection(box(side_x0, ymin, side_x1, ymax)).buffer(-3.0)
+                if region.is_empty:
+                    raise ValueError(f"Fan-case {index + 1} lacks a substantial dome-side wedge")
+                polygons = list(region.geoms) if region.geom_type == "MultiPolygon" else [region]
+                point = polylabel(max(polygons, key=lambda p: p.area), tolerance=0.1)
+                size = (4.0, 4.0, 8.0)
+                for fraction in (0.12, 0.45, 0.8):
+                    z = FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_PAIR_INSERT_FLOOR + (
+                        FAN_CASE_PAIR_GUIDE_HEIGHT - FAN_CASE_PAIR_INSERT_FLOOR) * fraction
+                    probe = add_rounded_box("TEMPORARY_Curved_Dome_Infill", size,
+                                            (point.x, point.y, z), bevel=0.0)
+                    try:
+                        _faces, fill = exact_transformed_intersection(
+                            insert, probe, first_location=insert.location.copy(),
+                            first_rotation=insert.rotation_euler.copy(),
+                            second_location=probe.location.copy(),
+                            second_rotation=probe.rotation_euler.copy())
+                    finally:
+                        bpy.data.objects.remove(probe, do_unlink=True)
+                    if fill < math.prod(size) * 0.99:
+                        raise ValueError(f"Dome-side bulk infill is missing: "
+                                         f"assembly={index + 1} x={point.x} y={point.y} z={z} fill={fill}")
+                    infill_volumes.append(fill)
+    finally:
+        bpy.data.objects.remove(rigid_cradle, do_unlink=True)
+    return max(lift_overlaps), min(infill_volumes)
 
 
 def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
@@ -12769,89 +12842,8 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         (parts["base"], parts["fan_case_pair_insert"],
          *(obj for group in assembly_groups for obj in group), *accessory_objects))
 
-    guide_air = {}
-    guide_fill = {}
-    guide_probe_z = FAN_CASE_PAIR_INSERT_INSTALLED_Z + 20.0
-    guide_probe_size = (0.8, 0.8, 0.8)
-    minimum_guide_fill = math.prod(guide_probe_size) * 0.88
-    for index, bounds in enumerate(
-        FAN_CASE_PAIR_STORAGE["cavity_bounds"],
-        start=1,
-    ):
-        x0, x1, y0, y1 = bounds
-        center_x = (x0 + x1) / 2.0
-        front_x0, front_x1 = FAN_CASE_PAIR_STORAGE["fan_side_guide_openings"][index - 1]
-        # Sample both sides of the front and rear release gaps.  These four
-        # locations correspond to the four independent corner-guide segments;
-        # paired cavity-side probes also prove their lead-in openings remain
-        # clear at the same height.
-        for corner_name, probe_x, edge_y, cavity_sign in (
-            (
-                "Front_Left",
-                front_x0 - 8.0,
-                y0,
-                1.0,
-            ),
-            (
-                "Front_Right",
-                front_x1 + 8.0,
-                y0,
-                1.0,
-            ),
-            (
-                "Rear_Left",
-                center_x - FAN_CASE_PAIR_GUIDE_REAR_GAP_WIDTH / 2.0 - 8.0,
-                y1,
-                -1.0,
-            ),
-            (
-                "Rear_Right",
-                center_x + FAN_CASE_PAIR_GUIDE_REAR_GAP_WIDTH / 2.0 + 8.0,
-                y1,
-                -1.0,
-            ),
-        ):
-            probe_locations = (
-                ("Air", edge_y + cavity_sign, guide_air),
-                (
-                    "Wall",
-                    edge_y
-                    - cavity_sign * FAN_CASE_PAIR_GUIDE_WALL / 2.0,
-                    guide_fill,
-                ),
-            )
-            for probe_name, probe_y, collection in probe_locations:
-                probe_key = f"{index}_{corner_name}"
-                probe = add_rounded_box(
-                    f"TEMPORARY_Fan_Case_{index}_Guide_{corner_name}_{probe_name}_Probe",
-                    guide_probe_size,
-                    (probe_x, probe_y, guide_probe_z),
-                    bevel=0.0,
-                )
-                try:
-                    _faces, volume = exact_transformed_intersection(
-                        parts["fan_case_pair_insert"],
-                        probe,
-                        first_location=parts[
-                            "fan_case_pair_insert"
-                        ].location.copy(),
-                        first_rotation=parts[
-                            "fan_case_pair_insert"
-                        ].rotation_euler.copy(),
-                        second_location=probe.location.copy(),
-                        second_rotation=probe.rotation_euler.copy(),
-                    )
-                finally:
-                    bpy.data.objects.remove(probe, do_unlink=True)
-                collection[probe_key] = volume
-    if (
-        max(guide_air.values()) > 1e-7
-        or min(guide_fill.values()) < minimum_guide_fill
-    ):
-        raise ValueError(
-            "Built segmented fan-case guide is obstructed or incomplete: "
-            f"air={guide_air} fill={guide_fill}"
-        )
+    contour_lift_overlap, contour_infill_min = validate_fan_case_contoured_cradle(
+        parts, assembly_groups)
 
     def probe_fill_volume(part, probe):
         """Return how much of a temporary validation probe is solid part."""
@@ -13196,8 +13188,8 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         f"pwm_retention={','.join(f'{value:.3f}' for value in plug_retention)} "
         f"battery_retention={','.join(f'{value:.3f}' for value in battery_retention)} "
         f"door_retention={','.join(f'{value:.3f}' for value in door_retention)} "
-        f"guide_air={max(guide_air.values()):.6f} "
-        f"guide_fill={min(guide_fill.values()):.3f} "
+        f"contour_lift_overlap={contour_lift_overlap:.6f} "
+        f"contour_infill_min={contour_infill_min:.3f} "
         f"shell_squeeze_contacts={','.join(f'{value:.3f}' for value in shell_retention_contacts)} "
         f"independent_tray_bearings={','.join(f'{value:.3f}' for value in tray_bearing_contacts)} "
         f"cradle_side_bond_min={min(cradle_bond_fills):.3f} "
@@ -15721,7 +15713,6 @@ def build_mission1_field_case():
     parts["base"] = create_base(shell_material)
     parts["fan_cradle"] = create_fan_cradle(tpu_material)
     translate_object(parts["fan_cradle"], (0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
-    parts["fan_case_pair_insert"] = create_fan_case_pair_insert(tpu_material)
     parts["fan_case_pair_carrier"] = create_fan_case_pair_overhead_carrier(
         tpu_material
     )
@@ -15771,7 +15762,18 @@ def build_mission1_field_case():
                 cable_reference_material,
             ),
             parts,
+            [],  # Build the dense handed references only once, below.
         )
+
+    # Keep the high-resolution companion meshes out of unrelated part-building
+    # operations. Generate them once, immediately before molding the cradle.
+    fan_case_references = create_fan_case_pair_reference_mockups(
+        fan_case_reference_material, camera_material, battery_material,
+        fan_reference_material, fan_case_cover_reference_material,
+        cable_reference_material, latch_rod_reference_material)
+    parts["fan_case_pair_insert"] = create_fan_case_pair_insert(tpu_material, fan_case_references)
+    if BUILD_REFERENCE_MOCKUPS:
+        reference_objects.extend(fan_case_references)
 
     for name, obj in parts.items():
         validate_built_part(name, obj)
@@ -15787,7 +15789,10 @@ def build_mission1_field_case():
     validate_built_fan_cradle(parts["fan_cradle"])
     if reference_objects:
         validate_stored_dual_fan_reference(parts, reference_objects)
-        validate_fan_case_pair_loadout(parts, reference_objects)
+    validate_fan_case_pair_loadout(parts, fan_case_references)
+    if not BUILD_REFERENCE_MOCKUPS:
+        for obj in fan_case_references:
+            bpy.data.objects.remove(obj, do_unlink=True)
     validate_built_base_hinge_gussets(parts["base"])
     validate_built_lid_hinge_receivers(parts["lid"])
     validate_lid_hinge_reinforcement(
