@@ -3,6 +3,13 @@
 Run inside Blender:
 
     blender --background --python gopro_fan_case_parametric_blender.py
+    blender --background --python gopro_fan_case_parametric_blender.py -- \
+        --fan-angle-horizontal 30 --fan-angle-vertical -15
+
+Fan angles are degrees in [-45, 45], measured from rearward (-Y) toward
++X (horizontal) and +Z (vertical). Both default to zero. The pad, pilot bores,
+and assembled rear adapter follow this direction; the dome grows rearward to
+retain the original camera socket and acoustic-cartridge sealing surface.
 
 All dimensions are millimeters. The defaults follow ``gopro-fan-case.stl``
 without reproducing its internal scraps or jagged hole edges. The generated
@@ -20,13 +27,14 @@ Axes:
 
 from __future__ import annotations
 
+import argparse
 import math
 import sys
 from pathlib import Path
 
 import bmesh
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
 
@@ -179,7 +187,7 @@ BACK_CORNER_RADIUS = 10.0
 BACK_FACE_THICKNESS = 3.0
 
 # Optional smooth exterior dome. The central fan pad remains an exact flat
-# rectangle at the dome's rearmost Y position. The full-width front rim ends
+# rectangle, perpendicular to the configured fan direction. The front rim ends
 # just behind the camera stops so adjacent cases have more swivel clearance.
 BACK_DOME_ENABLED = True
 BACK_DOME_DEPTH = 10.0
@@ -223,6 +231,14 @@ FAN_HOLE_DIAMETER = 3.6
 FAN_HOLE_BOSSES_ENABLED = True
 FAN_HOLE_BOSS_DIAMETER = 7.0
 FAN_HOLE_BOSS_HEIGHT = 1.0
+
+# Independent projected angles of the outward fan axis: positive horizontal
+# points toward +X; positive vertical points toward +Z. The combined direction
+# is normalize((tan(horizontal), -1, tan(vertical))), with no added roll.
+# Angling adds rear projection/material while preserving the existing inner
+# cartridge, seal, camera stops, and perimeter hardware. Requires the dome.
+FAN_ANGLE_HORIZONTAL_DEG = 0.0
+FAN_ANGLE_VERTICAL_DEG = 0.0
 
 # Optional separate horn adapter that bolts to the case's existing 40 mm fan
 # pattern and carries a standard square fan behind it.  REAR_FAN_SIZE_MM uses
@@ -1008,6 +1024,58 @@ def fan_pad_inner_y() -> float:
 
 def fan_boss_end_y() -> float:
     return fan_pad_inner_y() + FAN_HOLE_BOSS_HEIGHT
+
+
+def fan_mount_is_angled() -> bool:
+    return FAN_ANGLE_HORIZONTAL_DEG != 0.0 or FAN_ANGLE_VERTICAL_DEG != 0.0
+
+
+def fan_mount_direction():
+    return Vector((
+        math.tan(math.radians(FAN_ANGLE_HORIZONTAL_DEG)),
+        -1.0,
+        math.tan(math.radians(FAN_ANGLE_VERTICAL_DEG)),
+    )).normalized()
+
+
+def fan_mount_transform():
+    """Rigid pad/adapter placement, leaving the original inner seal datum fixed.
+
+    Move the whole tilted pad behind its former plane. Additional clearance
+    grows continuously from zero and leaves space for its straight bore neck
+    before the airflow passage returns to the existing circular cartridge inlet.
+    """
+    rotation = Vector((0.0, -1.0, 0.0)).rotation_difference(
+        fan_mount_direction()
+    ).to_matrix()
+    rear_shift = (
+        abs(rotation[1][0]) * BACK_DOME_FAN_PAD_WIDTH / 2.0
+        + abs(rotation[1][2]) * BACK_DOME_FAN_PAD_HEIGHT / 2.0
+        + (BACK_FACE_THICKNESS + FAN_HOLE_BOSS_HEIGHT)
+        * math.hypot(rotation[1][0], rotation[1][2])
+    )
+    pivot = Vector((FAN_CENTER_X, back_exterior_y(), FAN_CENTER_Z))
+    return (
+        Matrix.Translation(pivot + Vector((0.0, -rear_shift, 0.0)))
+        @ rotation.to_4x4()
+        @ Matrix.Translation(-pivot)
+    )
+
+
+def back_cut_start_y() -> float:
+    """Start access/vent cuts behind every corner of the tilted dome pad."""
+    if not fan_mount_is_angled():
+        return back_exterior_y()
+    transform = fan_mount_transform()
+    return min(
+        (transform @ Vector((
+            FAN_CENTER_X + x_sign * BACK_DOME_FAN_PAD_WIDTH / 2.0,
+            back_exterior_y(),
+            FAN_CENTER_Z + z_sign * BACK_DOME_FAN_PAD_HEIGHT / 2.0,
+        ))).y
+        for x_sign in (-1.0, 1.0)
+        for z_sign in (-1.0, 1.0)
+    )
 
 
 def back_fastener_hex_seat_y() -> float:
@@ -2539,6 +2607,14 @@ def validate_baffle_cartridge_config() -> None:
 
 
 def validate_config() -> None:
+    for name, angle in (
+        ("FAN_ANGLE_HORIZONTAL_DEG", FAN_ANGLE_HORIZONTAL_DEG),
+        ("FAN_ANGLE_VERTICAL_DEG", FAN_ANGLE_VERTICAL_DEG),
+    ):
+        if not math.isfinite(angle) or not -45.0 <= angle <= 45.0:
+            raise ValueError(f"{name} must be finite and between -45 and 45 degrees")
+    if fan_mount_is_angled() and not BACK_DOME_ENABLED:
+        raise ValueError("Nonzero fan angles require BACK_DOME_ENABLED=True")
     material_choices = {"RIGID", "TPU"}
     for name, mode in (
         ("BACK_MATERIAL_MODE", BACK_MATERIAL_MODE),
@@ -4155,7 +4231,7 @@ def loft_through_loops_y(
     return create_mesh_object(name, vertices, faces)
 
 
-def create_back_dome():
+def create_back_dome(angled=False):
     if not BACK_DOME_ENABLED:
         return None
 
@@ -4182,6 +4258,7 @@ def create_back_dome():
         BACK_DOME_LOOP_POINTS,
     )
 
+    transform = fan_mount_transform() if angled else Matrix.Identity(4)
     vertices = []
     for section in range(BACK_DOME_SECTIONS + 1):
         radial_t = section / BACK_DOME_SECTIONS
@@ -4194,7 +4271,12 @@ def create_back_dome():
         for inner_point, outer_point in zip(inner_loop, outer_loop):
             x = inner_point[0] + (outer_point[0] - inner_point[0]) * radial_t
             z = inner_point[1] + (outer_point[1] - inner_point[1]) * radial_t
-            vertices.append((x, y, z))
+            point = Vector((x, y, z))
+            pad_point = Vector((inner_point[0], back_exterior_y(), inner_point[1]))
+            # Fade the rigid pad displacement into the unchanged perimeter.
+            # The zero slope of smoothstep keeps a smooth join at either end.
+            point += (transform @ pad_point - pad_point) * (1.0 - height_t)
+            vertices.append(point)
 
     loop_count = BACK_DOME_LOOP_POINTS
 
@@ -4215,7 +4297,7 @@ def create_back_dome():
             )
 
     inner_center = len(vertices)
-    vertices.append((FAN_CENTER_X, back_exterior_y(), FAN_CENTER_Z))
+    vertices.append(transform @ Vector((FAN_CENTER_X, back_exterior_y(), FAN_CENTER_Z)))
     outer_center = len(vertices)
     vertices.append((0.0, dome_outer_transition_y() + BOOLEAN_OVERLAP, 0.0))
     last_section = BACK_DOME_SECTIONS
@@ -4230,6 +4312,41 @@ def create_back_dome():
             ]
         )
     return create_mesh_object("Rear_Exterior_Dome", vertices, faces)
+
+
+def create_angled_fan_airway():
+    """Join the circular, normal-to-pad mouth to the unchanged cartridge inlet."""
+    transform = fan_mount_transform()
+    radius = FAN_OPENING_DIAMETER / 2.0
+    loops = []
+    for depth in (-BOOLEAN_OVERLAP, BACK_FACE_THICKNESS):
+        loops.append([
+            transform @ Vector((
+                FAN_CENTER_X + radius * math.cos(2.0 * math.pi * i / CYLINDER_SEGMENTS),
+                back_exterior_y() + depth,
+                FAN_CENTER_Z + radius * math.sin(2.0 * math.pi * i / CYLINDER_SEGMENTS),
+            ))
+            for i in range(CYLINDER_SEGMENTS)
+        ])
+    loops.append([
+        Vector((
+            FAN_CENTER_X + radius * math.cos(2.0 * math.pi * i / CYLINDER_SEGMENTS),
+            fan_pad_inner_y() + BOOLEAN_OVERLAP,
+            FAN_CENTER_Z + radius * math.sin(2.0 * math.pi * i / CYLINDER_SEGMENTS),
+        ))
+        for i in range(CYLINDER_SEGMENTS)
+    ])
+    vertices = [point for loop in loops for point in loop]
+    faces = []
+    count = CYLINDER_SEGMENTS
+    for section in range(len(loops) - 1):
+        for i in range(count):
+            j = (i + 1) % count
+            a, b = section * count, (section + 1) * count
+            # Tilted loops produce nonplanar quads; explicitly triangulate.
+            faces.extend(((a + i, b + i, b + j), (a + i, b + j, a + j)))
+    faces.extend((tuple(reversed(range(count))), tuple(range(2 * count, 3 * count))))
+    return create_mesh_object("Angled_Fan_Airway", vertices, faces)
 
 
 def create_back_dome_cavity(
@@ -5364,7 +5481,7 @@ def create_back_fastener_opening_cutters(index, x, z):
             add_cylinder_y(
                 f"Rear_Fastener_Hole_{index}",
                 BACK_FASTENER_HOLE_DIAMETER / 2.0,
-                back_exterior_y() - 2.0 * BOOLEAN_OVERLAP,
+                back_cut_start_y() - 2.0 * BOOLEAN_OVERLAP,
                 BACK_DEPTH + BOOLEAN_OVERLAP,
                 x=x,
                 z=z,
@@ -5386,7 +5503,7 @@ def create_back_fastener_opening_cutters(index, x, z):
             f"Rear_Fastener_Hex_And_Bore_{index}",
             (hex_loop, hex_loop, circle_loop, circle_loop),
             (
-                back_exterior_y() - 2.0 * BOOLEAN_OVERLAP,
+                back_cut_start_y() - 2.0 * BOOLEAN_OVERLAP,
                 seat_y,
                 bore_start_y,
                 BACK_DEPTH + BOOLEAN_OVERLAP,
@@ -5666,7 +5783,7 @@ def create_back_shell():
         rear_shell_start_y(),
         BACK_DEPTH,
     )
-    dome = create_back_dome()
+    dome = create_back_dome(angled=fan_mount_is_angled())
     if dome is not None:
         boolean_union(back, dome, "Rear_Dome_Union")
     socket_radius = socket_corner_radius()
@@ -5711,11 +5828,27 @@ def create_back_shell():
             "Rear_Fastener_Boss_Group",
             back_fastener_bosses,
         )
-        boolean_union(back, back_fastener_boss_group, "Rear_Fastener_Bosses_Union")
+        boolean_union(
+            back, back_fastener_boss_group, "Rear_Fastener_Bosses_Union",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER if fan_mount_is_angled() else None,
+        )
 
     cuts = []
+    angled_fan_cuts = []
     insert_boss_socket_cutters = []
     if FAN_OPENING_ENABLED:
+        if fan_mount_is_angled():
+            angled_fan_cuts.append(create_angled_fan_airway())
+            for index, (x, z) in enumerate(fan_hole_positions(), start=1):
+                if FAN_HOLE_BOSSES_ENABLED:
+                    continue  # Bore once, after adding its rotated boss below.
+                cutter = add_cylinder_y(
+                    f"Angled_Fan_Hole_{index}", FAN_HOLE_DIAMETER / 2.0,
+                    back_exterior_y() - BOOLEAN_OVERLAP,
+                    fan_boss_end_y() + BOOLEAN_OVERLAP, x=x, z=z,
+                )
+                cutter.matrix_world = fan_mount_transform() @ cutter.matrix_world
+                angled_fan_cuts.append(cutter)
         cuts.append(
             add_cylinder_y(
                 "Fan_Opening",
@@ -5731,7 +5864,8 @@ def create_back_shell():
                 add_cylinder_y(
                     f"Fan_Hole_{index}",
                     FAN_HOLE_DIAMETER / 2.0,
-                    back_exterior_y() - BOOLEAN_OVERLAP,
+                    (fan_pad_inner_y() if fan_mount_is_angled() else back_exterior_y())
+                    - BOOLEAN_OVERLAP,
                     fan_boss_end_y() + BOOLEAN_OVERLAP,
                     x=x,
                     z=z,
@@ -5745,7 +5879,7 @@ def create_back_shell():
                 VENT_WIDTH,
                 VENT_HEIGHT,
                 VENT_CORNER_RADIUS,
-                back_exterior_y() - BOOLEAN_OVERLAP,
+                back_cut_start_y() - BOOLEAN_OVERLAP,
                 BACK_FACE_THICKNESS + BOOLEAN_OVERLAP,
                 center_x=VENT_CENTER_X,
                 center_z=VENT_CENTER_Z,
@@ -5761,11 +5895,19 @@ def create_back_shell():
     cuts.extend(create_snap_pocket_cutters())
     if cuts:
         boolean_difference(back, cuts, "Rear_Openings")
+    # The new passage overlaps the existing inlet and can meet pilot bores.
+    # Apply each closed cutter independently: joining intersecting cutters
+    # would feed a self-intersecting operand to the Boolean solver.
+    for cutter in angled_fan_cuts:
+        apply_boolean(
+            back, cutter, "DIFFERENCE", "Angled_Fan_Opening",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+        )
     if insert_boss_socket_cutters:
-        boolean_difference(
-            back,
-            insert_boss_socket_cutters,
-            "Insert_Boss_Sockets",
+        apply_boolean(
+            back, join_disconnected_tools("Insert_Boss_Socket_Tools", insert_boss_socket_cutters),
+            "DIFFERENCE", "Insert_Boss_Sockets",
+            solver=WATERTIGHT_DETAIL_UNION_SOLVER if fan_mount_is_angled() else None,
         )
         if not BACK_DOME_ENABLED:
             fill_tiny_triangular_boundary_loops(
@@ -5839,6 +5981,32 @@ def create_back_shell():
             solver=WATERTIGHT_DETAIL_UNION_SOLVER,
             require_geometry_change=True,
         )
+        if fan_mount_is_angled():
+            # The old bosses still locate the cartridge gasket. Add the
+            # rotated bosses separately to retain full screw engagement
+            # where the bent airflow passage passes behind a pad corner.
+            for index, (x, z) in enumerate(fan_hole_positions(), start=1):
+                boss = add_cylinder_y(
+                    f"Angled_Fan_Boss_{index}", FAN_HOLE_BOSS_DIAMETER / 2.0,
+                    fan_pad_inner_y() - BOOLEAN_OVERLAP, fan_boss_end_y(),
+                    x=x, z=z,
+                )
+                boss.matrix_world = fan_mount_transform() @ boss.matrix_world
+                boolean_union(
+                    back, boss, "Angled_Fan_Boss_Union",
+                    solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+                )
+                if FAN_OPENING_ENABLED:
+                    bore = add_cylinder_y(
+                        f"Angled_Fan_Boss_Bore_{index}", FAN_HOLE_DIAMETER / 2.0,
+                        back_exterior_y() - BOOLEAN_OVERLAP,
+                        fan_boss_end_y() + BOOLEAN_OVERLAP, x=x, z=z,
+                    )
+                    bore.matrix_world = fan_mount_transform() @ bore.matrix_world
+                    apply_boolean(
+                        back, bore, "DIFFERENCE", "Angled_Fan_Boss_Bore",
+                        solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+                    )
 
     add_baffle_retention_to_back(back)
 
@@ -7901,6 +8069,57 @@ def validate_object(obj) -> None:
         raise RuntimeError(f"{obj.name} has {non_manifold} non-manifold edges")
     if shells != 1:
         raise RuntimeError(f"{obj.name} has {shells} disconnected shells")
+
+
+def validate_fan_mount(back) -> None:
+    """Measure the actual seating plane, normal, and circular pilot bores."""
+    if not fan_mount_is_angled():
+        return
+    transform = fan_mount_transform()
+    outward = fan_mount_direction()
+    bvh = mesh_bvh(back)
+    failures = []
+    for x_sign in (-1.0, 1.0):
+        for z_sign in (-1.0, 1.0):
+            point = transform @ Vector((
+                FAN_CENTER_X + x_sign * (BACK_DOME_FAN_PAD_WIDTH / 2.0 - 1.0),
+                back_exterior_y(),
+                FAN_CENTER_Z + z_sign * (BACK_DOME_FAN_PAD_HEIGHT / 2.0 - 1.0),
+            ))
+            hit, normal, _index, _distance = bvh.ray_cast(point + outward, -outward, 2.0)
+            if hit is None or (hit - point).length > 0.002 or normal.dot(outward) < 0.999:
+                failures.append(f"pad_corner_{x_sign:g}_{z_sign:g}")
+    if FAN_OPENING_ENABLED:
+        for index, (x, z) in enumerate(fan_hole_positions(), start=1):
+            for depth in (
+                0.2, BACK_FACE_THICKNESS - 0.2,
+                BACK_FACE_THICKNESS + (FAN_HOLE_BOSS_HEIGHT if FAN_HOLE_BOSSES_ENABLED else 0.0) - 0.2,
+            ):
+                center = transform @ Vector((x, back_exterior_y() + depth, z))
+                if bvh_point_is_inside(bvh, center):
+                    failures.append(f"pilot_{index}_depth_{depth:g}")
+                for angle_index in range(8):
+                    angle = 2.0 * math.pi * angle_index / 8.0
+                    radius = FAN_HOLE_DIAMETER / 2.0 + 0.4
+                    wall = transform @ Vector((
+                        x + radius * math.cos(angle), back_exterior_y() + depth,
+                        z + radius * math.sin(angle),
+                    ))
+                    if not bvh_point_is_inside(bvh, wall):
+                        failures.append(f"pilot_wall_{index}_{depth:g}_{angle_index}")
+        start = transform @ Vector((FAN_CENTER_X, fan_pad_inner_y(), FAN_CENTER_Z))
+        end = Vector((FAN_CENTER_X, fan_pad_inner_y() + 0.2, FAN_CENTER_Z))
+        if bvh_segment_is_blocked((bvh,), start, end):
+            failures.append("airway_center")
+    if CASE_FASTENERS_ENABLED:
+        for index, (x, z) in enumerate(CASE_FASTENER_POSITIONS_XZ, start=1):
+            if bvh_segment_is_blocked(
+                (bvh,), (x, back_cut_start_y() - 0.2, z), (x, BACK_DEPTH + 0.2, z),
+            ):
+                failures.append(f"perimeter_fastener_access_{index}")
+    if failures:
+        raise RuntimeError("Angled fan mount validation failed: " + ", ".join(failures))
+    print("ANGLED_FAN_MOUNT PASS flat_pad=True normal_aligned=True pilots_round=True airway_open=True")
 
 
 def validate_rear_fan_adapter(adapter) -> None:
@@ -10116,6 +10335,7 @@ def build_gopro_fan_case():
     gate = create_front_retainer() if RETAINER_ENABLED else None
     keepers = create_rotating_keepers() if RETAINER_ENABLED else ()
     validate_object(back)
+    validate_fan_mount(back)
     validate_rear_fan_adapter(rear_fan_adapter)
     validate_object(insert)
     validate_captive_buttons(buttons)
@@ -10125,6 +10345,15 @@ def build_gopro_fan_case():
         validate_retainer_index_keys(insert)
         validate_rotating_keepers(keepers)
     validate_sleeve_capture_mesh(back, insert)
+    if rear_fan_adapter is not None and fan_mount_is_angled():
+        # Keep mesh coordinates canonical for flange-down STL export/layout.
+        rear_fan_adapter.matrix_world = fan_mount_transform()
+    print(
+        "FAN_MOUNT_ANGLE "
+        f"horizontal={FAN_ANGLE_HORIZONTAL_DEG:g}deg "
+        f"vertical={FAN_ANGLE_VERTICAL_DEG:g}deg "
+        f"outward_axis={tuple(round(value, 6) for value in fan_mount_direction())}"
+    )
     assign_material(back, f"Rear_Shell_{BACK_MATERIAL_MODE}", BACK_COLOR)
     if rear_fan_adapter is not None:
         assign_material(
@@ -10269,5 +10498,40 @@ def build_gopro_fan_case():
     return back, insert
 
 
+def apply_command_line_arguments(argv=None) -> None:
+    """Parse only arguments after Blender's '--'; imports retain CONFIG values."""
+    global FAN_ANGLE_HORIZONTAL_DEG, FAN_ANGLE_VERTICAL_DEG
+    if argv is None:
+        argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    parser = argparse.ArgumentParser(
+        prog=Path(__file__).name,
+        description="Build a GoPro fan case with a rear fan pad angled up to 45 degrees per axis.",
+    )
+
+    def angle_degrees(value):
+        try:
+            angle = float(value)
+        except ValueError as error:
+            raise argparse.ArgumentTypeError("expected an angle in degrees") from error
+        if not math.isfinite(angle) or not -45.0 <= angle <= 45.0:
+            raise argparse.ArgumentTypeError("angle must be finite and between -45 and 45 degrees")
+        return angle
+
+    parser.add_argument(
+        "--fan-angle-horizontal", type=angle_degrees,
+        default=FAN_ANGLE_HORIZONTAL_DEG, metavar="DEGREES",
+        help="rearward fan angle toward +X, -45 to 45 (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--fan-angle-vertical", type=angle_degrees,
+        default=FAN_ANGLE_VERTICAL_DEG, metavar="DEGREES",
+        help="rearward fan angle toward +Z, -45 to 45 (default: %(default)s)",
+    )
+    args = parser.parse_args(argv)
+    FAN_ANGLE_HORIZONTAL_DEG = args.fan_angle_horizontal
+    FAN_ANGLE_VERTICAL_DEG = args.fan_angle_vertical
+
+
 if __name__ == "__main__":
+    apply_command_line_arguments()
     build_gopro_fan_case()
