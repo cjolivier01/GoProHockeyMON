@@ -146,6 +146,21 @@ def set_reference_materials():
         (1.0, 0.19, 0.025),
         roughness=0.44,
     )
+    carrier = make_principled_material(
+        "Preview_TPU_Carrier_Amber",
+        (1.0, 0.42, 0.035),
+        roughness=0.43,
+    )
+    storage_bin = make_principled_material(
+        "Preview_TPU_Storage_Bin",
+        (0.93, 0.12, 0.018),
+        roughness=0.45,
+    )
+    closing_pad = make_principled_material(
+        "Preview_TPU_Flat_Closing_Pad",
+        (1.0, 0.68, 0.08),
+        roughness=0.46,
+    )
     fan_holder = make_principled_material(
         "Fan_Holder_Teal",
         (0.025, 0.34, 0.42),
@@ -191,7 +206,9 @@ def set_reference_materials():
     assign_material(PARTS["fan_cradle"], tray)
     assign_material(PARTS["equipment_tray"], tray)
     assign_material(PARTS["fan_case_pair_insert"], tray)
-    assign_material(PARTS["fan_case_pair_lid_pad"], tray)
+    assign_material(PARTS["fan_case_pair_carrier"], carrier)
+    assign_material(PARTS["fan_case_pair_storage_bin"], storage_bin)
+    assign_material(PARTS["fan_case_pair_lid_pad"], closing_pad)
     assign_material(PARTS["tpu_hinge_coupon"], tray)
     assign_material(PARTS["tpu_snap_lid"], tpu_lid)
     for obj in reference_objects("REFERENCE_ONLY_Stored_"):
@@ -355,9 +372,14 @@ def render_closed_latch_protectors(camera):
 
 
 def render_fan_case_loadout(camera):
-    """Show two complete camera/fan/cover assemblies and cable storage."""
+    """Show the two complete assemblies beneath the fan-side storage bin."""
     set_visible(
-        ("base", "fan_case_pair_insert"),
+        (
+            "base",
+            "fan_case_pair_insert",
+            "fan_case_pair_carrier",
+            "fan_case_pair_storage_bin",
+        ),
         (
             "REFERENCE_ONLY_Fan_Case_Assembly_",
             "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
@@ -373,6 +395,99 @@ def render_fan_case_loadout(camera):
         RENDER_DIRECTORY / "mission1_field_case_fan_case_loadout.png"
     )
     bpy.ops.render.render(write_still=True)
+
+
+def render_fan_side_storage(camera):
+    """Lift the removable bin to expose its short carrier and lower loadout."""
+    set_visible(
+        (
+            "base",
+            "fan_case_pair_insert",
+            "fan_case_pair_carrier",
+            "fan_case_pair_storage_bin",
+        ),
+        (
+            "REFERENCE_ONLY_Fan_Case_Assembly_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+            "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+            "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+            "REFERENCE_ONLY_Fan_Case_Battery_Door_",
+        ),
+    )
+    storage_bin = PARTS["fan_case_pair_storage_bin"]
+    storage_bin.location.z += 72.0
+    camera.location = (390.0, -510.0, 480.0)
+    aim_object(camera, (0.0, -12.0, 83.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_fan_side_storage.png"
+    )
+    bpy.ops.render.render(write_still=True)
+    storage_bin.location.z -= 72.0
+
+
+def render_fan_side_support_path(camera):
+    """Show continuous side webs beside the carrier's short underside pads."""
+    set_visible(
+        (
+            "fan_case_pair_insert",
+            "fan_case_pair_carrier",
+        )
+    )
+    lower_insert = PARTS["fan_case_pair_insert"]
+    carrier = PARTS["fan_case_pair_carrier"]
+    original_insert_location = lower_insert.location.copy()
+    original_carrier_location = carrier.location.copy()
+    original_carrier_rotation = carrier.rotation_euler.copy()
+
+    # Place the two load-path parts beside one another.  Turning the carrier
+    # over exposes all four short shell-locator pads without hiding the two
+    # continuous arched support webs on the lower insert.
+    lower_insert.location.x -= 128.0
+    carrier.rotation_euler.y = math.pi
+    carrier.location = (128.0, 0.0, 156.0)
+    camera.data.lens = 62.0
+    camera.location = (455.0, -650.0, 430.0)
+    aim_object(camera, (0.0, -16.0, 47.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_fan_side_support_path.png"
+    )
+    bpy.ops.render.render(write_still=True)
+
+    lower_insert.location = original_insert_location
+    carrier.location = original_carrier_location
+    carrier.rotation_euler = original_carrier_rotation
+    camera.data.lens = 58.0
+
+
+def render_fan_side_closed_stack(camera):
+    """Show the flat lid pad seated directly on the continuous bin rim."""
+    set_visible(
+        (
+            "fan_case_pair_insert",
+            "fan_case_pair_carrier",
+            "fan_case_pair_storage_bin",
+            "fan_case_pair_lid_pad",
+        )
+    )
+    lid_pad = PARTS["fan_case_pair_lid_pad"]
+    original_location = lid_pad.location.copy()
+    original_rotation = lid_pad.rotation_euler.copy()
+    lid_pad.location, lid_pad.rotation_euler = (
+        field_case.installed_flat_lid_pad_pose(0.0)
+    )
+
+    camera.data.lens = 68.0
+    camera.location = (360.0, -505.0, 155.0)
+    aim_object(camera, (0.0, -34.0, 79.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_fan_side_closed_stack.png"
+    )
+    bpy.ops.render.render(write_still=True)
+
+    lid_pad.location = original_location
+    lid_pad.rotation_euler = original_rotation
+    camera.data.lens = 58.0
 
 
 def render_fan_case_insert_detail(camera):
@@ -411,9 +526,15 @@ def render_fan_case_front_hardware(camera):
 
 
 def render_fan_case_loadout_exploded(camera):
-    """Explode the mutually exclusive insert, assemblies, and lid pad."""
+    """Explode the lower insert, assemblies, carrier, bin, and flat lid pad."""
     set_visible(
-        ("base", "fan_case_pair_insert", "fan_case_pair_lid_pad"),
+        (
+            "base",
+            "fan_case_pair_insert",
+            "fan_case_pair_carrier",
+            "fan_case_pair_storage_bin",
+            "fan_case_pair_lid_pad",
+        ),
         (
             "REFERENCE_ONLY_Fan_Case_Assembly_",
             "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
@@ -437,10 +558,13 @@ def render_fan_case_loadout_exploded(camera):
     for obj in reference_objects("REFERENCE_ONLY_Fan_Case_Assembly_"):
         obj.location.z += assembly_shift
 
+    PARTS["fan_case_pair_carrier"].location.z += 102.0
+    PARTS["fan_case_pair_storage_bin"].location.z += 152.0
+
     lid_pad = PARTS["fan_case_pair_lid_pad"]
-    # Face the contact columns upward in the documentation explosion so their
-    # lightweight structure is visible; they face downward when installed.
-    lid_pad.location = (0.0, 0.0, 210.0)
+    # The lid component is now a flat keyed closing pad; all short hold-down
+    # features remain on the carrier inside the base.
+    lid_pad.location = (0.0, 0.0, 300.0)
     lid_pad.rotation_euler = (0.0, 0.0, 0.0)
 
     camera.location = (570.0, -720.0, 520.0)
@@ -489,7 +613,7 @@ def render_tpu_snap_hinge(camera):
 
 
 def render_tpu_hinge_coupon(camera):
-    """Show the four dot-coded 68D throat samples."""
+    """Show four dot-coded 68D throat banks, including their shared roots."""
     set_visible(("tpu_hinge_coupon",))
     coupon = PARTS["tpu_hinge_coupon"]
     coupon.location = (0.0, 0.0, 0.0)
@@ -497,13 +621,63 @@ def render_tpu_hinge_coupon(camera):
     # oblique view into all four receiver mouths.
     coupon.rotation_euler = (0.0, 0.0, math.pi)
     camera.data.lens = 55.0
-    camera.location = (115.0, -145.0, 100.0)
-    aim_object(camera, (0.0, 2.0, 4.0))
+    bpy.context.view_layer.update()
+    framing_scale = max(coupon.dimensions.x / 59.0, 1.0)
+    camera.location = Vector((115.0, -145.0, 100.0)) * framing_scale
+    aim_object(camera, (0.0, 2.0, 7.0))
     bpy.context.scene.render.filepath = str(
         RENDER_DIRECTORY / "mission1_field_case_tpu_hinge_coupon.png"
     )
     bpy.ops.render.render(write_still=True)
     camera.data.lens = 58.0
+
+
+def render_reinforced_hinge_sections(camera):
+    """Show exact rigid/TPU jaw sections with their broad plate roots."""
+    set_visible(())
+    sections = []
+    for key, profile, display_x in (
+        ("lid", field_case.HINGE_PROFILE_RIGID_SLIDE, -13.0),
+        ("tpu_snap_lid", field_case.HINGE_PROFILE_TPU_68D_SNAP, 13.0),
+    ):
+        x0, x1 = field_case.lid_hinge_segments(profile)[0]
+        center_x = field_case.LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0
+        source = PARTS[key]
+        section = source.copy()
+        section.data = source.data.copy()
+        bpy.context.collection.objects.link(section)
+        section.name = f"PREVIEW_ONLY_Reinforced_{key}_Section"
+        clip = field_case.add_rounded_box(
+            "PREVIEW_ONLY_Hinge_Section_Cutter",
+            (2.0, 15.0, 20.0),
+            (center_x, -field_case.HINGE_AXIS_Y + 2.5, 8.0),
+            bevel=0.0,
+        )
+        field_case.boolean_apply(section, clip, "INTERSECT")
+        positions = [section.matrix_world @ v.co for v in section.data.vertices]
+        section.location = (0.0, 0.0, 0.0)
+        section.rotation_euler = (0.0, 0.0, 0.0)
+        section.scale = (1.0, 1.0, 1.0)
+        for vertex, position in zip(section.data.vertices, positions):
+            vertex.co = (
+                display_x + position.y + field_case.HINGE_AXIS_Y,
+                -(position.x - center_x),
+                position.z,
+            )
+        field_case.recalc_normals(section)
+        if key == "tpu_snap_lid":
+            assign_material(section, PARTS["fan_case_pair_insert"].data.materials[0])
+        section.hide_render = False
+        sections.append(section)
+    camera.data.lens = 58.0
+    camera.location = (22.0, -105.0, 50.0)
+    aim_object(camera, (1.5, 0.0, 7.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_reinforced_hinge_sections.png"
+    )
+    bpy.ops.render.render(write_still=True)
+    for section in sections:
+        bpy.data.objects.remove(section, do_unlink=True)
 
 
 field_case.BUILD_REFERENCE_MOCKUPS = True
@@ -518,9 +692,13 @@ render_loaded_compact_stack(CAMERA)
 render_exploded_stack(CAMERA)
 render_closed_latch_protectors(CAMERA)
 render_fan_case_loadout(CAMERA)
+render_fan_side_storage(CAMERA)
+render_fan_side_support_path(CAMERA)
+render_fan_side_closed_stack(CAMERA)
 render_fan_case_insert_detail(CAMERA)
 render_fan_case_front_hardware(CAMERA)
 render_fan_case_loadout_exploded(CAMERA)
+render_reinforced_hinge_sections(CAMERA)
 render_tpu_snap_hinge(CAMERA)
 render_tpu_hinge_coupon(CAMERA)
 print(f"FIELD_CASE_RENDERED_PREVIEWS {RENDER_DIRECTORY}")

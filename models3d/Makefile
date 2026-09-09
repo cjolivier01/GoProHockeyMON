@@ -76,7 +76,9 @@ MISSION1_FIELD_CASE_AUXILIARY_STLS := \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lid_tpu_68d_snap.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_tpu_68d_hinge_coupon.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_lower_insert_tpu.stl \
-	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_lid_pad_tpu.stl
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_lid_pad_tpu.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_overhead_carrier_tpu.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_fan_side_storage_bin_tpu.stl
 MISSION1_FIELD_CASE_3MF := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_ams_project.3mf
 MISSION1_FIELD_CASE_OUTPUTS := $(MISSION1_FIELD_CASE_STLS) \
 	$(MISSION1_FIELD_CASE_AUXILIARY_STLS) $(MISSION1_FIELD_CASE_3MF)

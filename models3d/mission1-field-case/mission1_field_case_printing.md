@@ -6,13 +6,13 @@ batteries, and the assembled parametric dual-fan holder with two installed
 80 x 80 x 25 mm nominal fans whose front/rear Noctua pads produce a 27 mm
 installed thickness. It reads no STL during generation, and every part fits
 within a 250 x 250 mm build area. The rigid shell is 234 x 158 x 97.8 mm;
-its largest print-bed footprints are the 244 x 187.8 mm lid and the
+its largest print-bed footprints are the 244 x 185.8 mm lid and the
 241.6 x 187.8 mm base. The latch lever and moving hook are derived from the
 mechanism in the user-supplied `pelican_case_blender_2.9.blend`; their processed
 mesh coordinates are embedded directly in the Python file, so generation does
 not load that `.blend` or any STL at runtime.
 
-Build the eleven-part default kit, four optional loadout/calibration STLs, and
+Build the eleven-part default kit, six optional loadout/calibration STLs, and
 the multicolor 3MF project with:
 
 ```sh
@@ -30,12 +30,14 @@ blender --background --factory-startup \
   --python models3d/mission1-field-case/render_mission1_field_case_previews.py
 ```
 
-This writes loaded and exploded views of both storage configurations, TPU
-snap-hinge and calibration-coupon close-ups, and the closed latch-protector PNG
-under `models3d/mission1-field-case/renderings/`. The steep default loaded view
-keeps the complete printable base protectors visible while looking down into
-the tray pass-through. The closed view shows the unsectioned base and lid
-protector walls with both installed latches.
+This writes loaded and exploded views of both storage configurations, separate
+fan-side support/carrier-underside and closed-bin load-path views, TPU snap-hinge
+and calibration-coupon close-ups, reinforced rigid/TPU hinge sections, and the
+closed latch-protector PNG under
+`models3d/mission1-field-case/renderings/`. The steep default loaded view keeps
+the complete printable base protectors visible while looking down into the tray
+pass-through. The closed view shows the unsectioned base and lid protector walls
+with both installed latches.
 
 ## Stacked TPU storage tiers
 
@@ -120,12 +122,14 @@ dependencies or print outputs.
 
 The fan-case loadout is an alternative to the complete dual-fan storage stack,
 not an additional tier. Remove the lower dual-fan cradle, upper equipment tray,
-normal lid pad, and dual-fan assembly before installing these two parts:
+normal lid pad, and dual-fan assembly before installing these four parts:
 
 - `mission1_field_case_fan_case_pair_lower_insert_tpu.stl`
+- `mission1_field_case_fan_case_pair_overhead_carrier_tpu.stl`
+- `mission1_field_case_fan_case_pair_fan_side_storage_bin_tpu.stl`
 - `mission1_field_case_fan_case_pair_lid_pad_tpu.stl`
 
-The 224 x 148 mm lower insert reuses the full preserved case interior for two
+The rail-relieved 222.08 x 148 mm lower insert reuses the preserved interior for two
 fully assembled fan-case objects. Each stored object includes its installed
 MISSION 1 camera, current fan-case shell/insert/buttons/baffle/front retainer, a
 direct-mounted 40 x 40 x 20 mm rear fan, and the current
@@ -160,20 +164,25 @@ reliefs still leave more than 0.5 mm of air beneath the two low 10 mm thumb-nuts
 so the thin hardware does not carry the case weight.
 
 Two 64 x 36 mm rounded wells each carry one coiled fan lead. The modeled cable
-centerline is 56 x 28 mm with a 6 mm corner radius, for 157.7 mm of path around
+centerline is 52 x 28 mm with a 4 mm corner radius, for 153.1 mm of path around
 the loop versus the required 152.4 mm (6 inches). Each 8 mm route is derived
 from the wrapping cover's current `CABLE_NOTCH_SIDE` and `CABLE_NOTCH_OFFSET`
 and cuts through the full-height front guide; the exact scene reference follows
 the transformed notch through that throat to its well. Raised flexible docks
 retain the two PWM plugs; the default user-tunable plug envelope is
 16 x 10 x 8 mm, its free channel is 11 mm wide (0.5 mm clearance per side),
-and only the 0.6 mm-per-side retention nubs enter that channel. Measure an
-unusually large molded plug and adjust `PWM_CONNECTOR_ENVELOPE` before printing
-if necessary.
+and only the 0.6 mm-per-side retention nubs enter that channel. Where the
+asymmetric left dock crosses the cable-well void, its inner wall grows a thin
+two-ended floor rib instead of printing as a 17 mm one-ended bridge. The rib's
+underside has one point, no horizontal segment, and two 45-degree faces; it
+stays outside the plug channel and leaves 0.3 mm below the connector envelope.
+The left reference coil shifts 2 mm inward and remains 1 mm from that rib.
+Measure an unusually large molded plug and adjust `PWM_CONNECTOR_ENVELOPE`
+before printing if necessary.
 
 The unused center of each cable loop contains one rotated 34.5 x 13.5 x 21.8 mm
 battery pocket, for exactly two batteries in this alternate loadout. The cable
-still has at least 3.25 mm clearance from each 38.5 x 17.5 mm battery tower.
+still has at least 2.75 mm clearance from each 38.5 x 17.5 mm battery tower.
 Approximately 18.8 mm of each battery remains exposed for removal; small
 opposed nubs create only 0.15 mm nominal local interference instead of making
 the full pocket a friction fit. Two 50.8 x 11 x 11 mm battery-door pockets use
@@ -182,20 +191,57 @@ leave 7 mm proud, and use the same 0.15 mm local retention. The front scallop,
 guide openings, and cable wells give direct hand access to the assemblies and
 insert.
 
-The lower insert's maximum printed height is now 28 mm at its segmented guides;
-its outer dimensions remain 224 x 148 mm. The keyed 224 x 148 x 31.57 mm lid
-pad replaces the normal camera pad. Four lightweight columns contact the broad
-rear-shell edges with 0.6 mm preload while clearing the cameras and controls.
-Do not stack either alternate part with any dual-fan-loadout insert.
+The lower insert keeps both assemblies at their original height and adds two
+continuous outer-side support webs beneath the overhead carrier. Each long web
+has a pointed teardrop lower edge over its PWM dock: exactly one peak, no flat
+ceiling, and two 45-degree faces. At both ends of the full 17 mm connector
+envelope that underside remains 1 mm above the configured connector top, so it
+is far stiffer and less vulnerable than isolated tall posts while remaining
+support-free to print.
+The web faces are derived from the removable-bin envelope and the existing
+rigid upper-tray rails, leaving 1 mm to each. Matching side reliefs through the
+lower deck let the complete empty insert move vertically past those fixed rails;
+full-width front and rear ears still locate it against the case. Bin weight
+therefore runs directly through the carrier and continuous webs to the lower
+insert instead of cantilevering through the fan cases. Four short compliant
+underside pads still locate the same broad rear-shell edges with 0.3 mm preload.
+The carrier stays in the base and prints deck-down, with the short pads facing
+upward.
+
+One removable open-top bin drops through the carrier. Its 204 x 54 mm body
+flares to 210 x 60 mm through a matching 206 x 56 to 212 x 62 mm carrier
+opening, preserving about 1 mm running clearance per side and a 45-degree
+printable transition. A 218 x 68 mm flange leaves a 3 mm continuous bearing
+land around the carrier opening. Its 198 x 48 x 31.43 mm usable cavity holds
+approximately 298.8 cm³. The dynamically derived floor is 2.25 mm above the
+highest current fan-cable envelope and more than 6 mm above the wrapping
+covers. The bin walls and upper
+rim are continuous, with no spill openings. Two rounded openings in the solid
+rear carrier bridge expose the underside of the bin's rear flange for a
+two-handed lift while leaving the shell-contact bridge intact. Lift the bin
+first whenever the batteries, doors, cable coils, plugs, or fan cases below it
+are needed.
+
+The alternate keyed lid pad is now a flat 224 x 148 x 3 mm plate with no long
+columns. The total nominal preload remains 0.6 mm: 0.3 mm at the continuous bin
+rim and 0.3 mm at the compliant shell locator pads. The structural load path is
+lid pad, bin walls/flange, carrier, continuous side webs, and lower insert. The
+flat pad closes the bin's uninterrupted upper rim so small contents cannot
+spill into the lower loadout. Do not stack any of these four alternate parts with a
+dual-fan-loadout insert.
 
 The exact references are built directly from the current local fan-case,
 MISSION 1 dummy, and wrapping-cover generators. The production Make target
 checks two cameras, two direct 40 x 40 x 20 mm fans, two wrapping covers, six
 M3 x 40 bolts, six 10 mm thumb-nuts, two batteries, two battery doors, both
 cable coils, and both PWM plugs for fit, guide engagement, retention, and
-collision before exporting. A
-source change that no longer fits the preserved shell therefore fails
-generation instead of silently producing an incompatible storage insert.
+collision before exporting. It also checks both web/carrier and every shell-pad
+contact independently, all four flange-bearing regions, unobstructed bin air,
+floor, and walls, 1 mm clearances from the bin and existing rigid-base rails,
+straight-up bin withdrawal through the tapered carrier, and the complete empty
+lower insert's vertical path through the rigid rails. A source change that no
+longer fits the preserved shell therefore fails generation instead of silently
+producing an incompatible storage insert.
 
 ## Lid logo
 
@@ -505,28 +551,40 @@ mm bore so the requested 4.1 mm bar can pass through all three base knuckles.
 Print the base upright as exported; the hinge webs are designed not to require
 support.
 
-The lid barrels are fused into the complete flared rim before their 4.8 mm
-round receivers are opened through the rear/outboard side by 4.6 mm slots.
-Each slot is parallel to the lid plate. The installed slots therefore face
-rearward and cannot lift off the bar while the lid is closed. The unchanged
-base remains in the true slot-aligned escape path through 65 degrees open; at
-70 degrees the complete lid can slide diagonally up and forward from the bar.
-The 0.5 mm slot clearance gives a nominal 4.1 mm bar cleanup allowance after
-support removal, while the 10 mm outside diameter retains 2.6 mm of radial
-barrel wall.
+Both replacement lids use 9.6 mm barrel arcs inside the existing base's 10.8 mm
+swing pockets, increasing nominal radial clearance from 0.4 to 0.6 mm. Their
+22 mm receiver banks leave 1 mm between adjacent base and lid knuckles. The
+base geometry, hinge axis, and rod dimensions are unchanged. Only the lids' pockets
+around the fixed base knuckles grow, to 0.7 mm radial and 0.6 mm axial clearance.
 
-Generation checks 224 slot-aligned path positions from 0 through 65 degrees
-and verifies at least 0.687214 mm3 of blocking intersection at every sampled
-angle. At 70 degrees it checks 17 travel positions with the complete 151 mm
+Each jaw ends at a blunt face 2.4 mm outward from the rod center. This removes
+the circular profile's thin, easily damaged tips: the rigid slot retains at
+least 1.85 mm of material at each jaw end, and the TPU mouth retains 1.65 mm.
+A broad tapered root joins each receiver to the lid plate; the TPU banks also
+have a continuous caseward spine between their independently flexing jaws.
+The unchanged 4.8 mm round receiver gives the 4.1 mm rod 0.35 mm radial play.
+These geometry improvements still need a physical fit and repeated-opening
+test with the chosen filament and print settings.
+
+The rigid lid's 4.6 mm slot remains parallel to the lid plate. The closed lid
+cannot lift vertically off the rod. With the increased running clearance, the
+removal path is checked as blocked through 60 degrees; 70 degrees remains the
+fully validated installation/removal position. Do not rely on the former
+65-degree retention threshold.
+
+Generation checks 208 slot-aligned path positions from 0 through 60 degrees.
+At 70 degrees it checks 17 travel positions with the complete 151 mm
 rod centered and within 0.05 mm of both axial-play extremes: all 51 full-rod
 samples and all base/lid samples clear. It also checks each finished receiver,
 the continuous seated rod path, and a 1-degree base/lid rotation sweep from 0
-through 110 degrees.
+through 110 degrees. Separate solid probes check both jaw ends and plate roots
+on every receiver, plus all four TPU root-spine connections. A barrel envelope
+expanded by 0.5 mm radially and axially must clear the unchanged base.
 
 Two 6 mm-diameter by 3 mm-long solid bosses are part of the lid just outside
 the outer faces of the base's end knuckles. The straight rod is cut to 151 mm,
-placing each end 0.5 mm inside its base-knuckle face. Each lid stop begins 0.3
-mm beyond that face, leaving 0.8 mm clearance at each rod end and 1.6 mm total
+placing each end 0.5 mm inside its base-knuckle face. Each lid stop begins 0.6
+mm beyond that face, leaving 1.1 mm clearance at each rod end and 2.2 mm total
 axial play. The stops therefore pass outside the rod during 70-degree slide-on
 assembly, then prevent it from walking out in either direction while the lid
 is attached. Their smaller diameter clears the base rear wall;
@@ -538,12 +596,15 @@ stops and retention.
 `mission1_field_case_lid_tpu_68d_snap.stl` is a complete alternative lid for
 TPU-for-AMS with a Shore rating of 68D. It replaces
 `mission1_field_case_lid.stl`; never stack the two lids. The default rigid lid
-and its deliberate 70-degree slide-off receiver remain unchanged. The TPU lid
+retains its deliberate 70-degree slide-off receiver. The TPU lid
 keeps the same case closure, latch protectors, gasket channel, and 4.8 mm seated
 rod receiver, but narrows the snap throat to 3.9 mm and flares it to a smooth
-5.5 mm mouth. Each of the two original 22.8 mm lid receivers is divided into
-three short clips with 1.2 mm axial relief gaps, allowing six local flex zones
-instead of bending one long barrel.
+5.0 mm mouth. Each of the two 22 mm lid receivers is divided into three
+6.53 mm clips with 1.2 mm axial relief gaps. Their jaws flex locally while a
+continuous spine joins their roots. The smooth lead reaches the full mouth
+width before the new blunt jaw ends. Its 1.5 mm straight throat extends past
+the round receiver before the 0.8 mm lead begins, preserving the configured
+3.8–4.1 mm coupon widths.
 
 With the 4.1 mm rod already centered in the three base knuckles, hold the TPU
 lid partly open, align both banks of mouths with the rod, and press the clips
@@ -553,18 +614,22 @@ peel it back off the rod; avoid sharply folding the lid plate or pulling one
 end of the full hinge at once.
 
 Print `mission1_field_case_tpu_68d_hinge_coupon.stl` before committing to the
-full TPU lid. It contains four breakaway, dot-coded clips with 3.8, 3.9, 4.0,
-and 4.1 mm throats: one dot is 3.8 mm, two dots is the nominal 3.9 mm, three
+full TPU lid. The 91 x 14.7 x 15.8 mm coupon contains four breakaway, dot-coded
+three-clip banks with 3.8, 3.9, 4.0, and 4.1 mm throats: one dot is 3.8 mm,
+two dots is the nominal 3.9 mm, three
 dots is 4.0 mm, and four dots is 4.1 mm. Test the actual 4.1 mm rod using the
 same filament, layer height, wall count, orientation, and dry-filament state as
-the lid. Each coupon receiver uses the actual 6.8 mm clip width and reproduces
-the lid's plate-to-flared-rim-to-barrel root cross-section in the same exported
-print orientation. Use the same removable support-interface settings inside
-all four coupon receivers that will be used inside the TPU lid clips; a changed
+the lid. Each coupon bank reproduces all three 6.53 mm clips, their 1.2 mm gaps,
+and the continuous shared root spine. The reinforced plate-to-barrel root,
+9.6 mm arc, blunt mouth, and exported print orientation match the lid through
+the same construction helper. Test progressive snapping, repeated opening, and
+removal on each complete bank. Use the same removable support-interface settings inside
+all twelve coupon receivers that will be used inside the TPU lid clips; a changed
 interface gap can distort the throat comparison. Choose the smallest throat
 that snaps repeatedly without whitening, cracking, or requiring excessive
 force, then set `TPU_HINGE_SNAP_THROAT_WIDTH` to that value if it differs from
-3.9 mm.
+3.9 mm. The 4.1 mm bank is a clearance control for the nominal 4.1 mm rod; the
+retaining snap-lid configuration requires positive throat interference.
 
 The optional TPU lid is not included on the default rigid-lid 3MF plate. Import
 its STL with `mission1_field_case_lid_logo_orange_inlay.stl` as aligned parts if
@@ -584,9 +649,11 @@ the separately printed Z = 0 gasket after the lid is complete.
   tray-style settings are not recommended for this load-bearing part.
 - Lower fan cradle, upper equipment tray, and lid pad: TPU 95A, two or three
   walls, and 15-20% infill.
-- Alternate fan-case lower insert and lid pad: TPU 95A or a comparably resilient
-  protective material, three walls, and 15-20% infill. Keep the PWM dock nubs
-  flexible; do not fill the plug channels with support.
+- Alternate fan-case lower insert, overhead carrier, removable storage bin,
+  and flat lid pad: TPU 95A or a comparably resilient protective material,
+  three walls, and 15-20% infill. Keep the PWM dock nubs flexible; do not fill
+  the plug channels with support. Print the carrier deck-down (short pads up)
+  and the bin open-side-up; neither needs long lid-mounted projections.
 - Optional snap-on lid and hinge coupon: TPU-for-AMS 68D, 0.20 mm layers, at
   least four walls around the hinge clips, and enough top/bottom layers to make
   the lid plate continuous. Print the coupon first with identical settings.
@@ -601,9 +668,10 @@ the separately printed Z = 0 gasket after the lid is complete.
   separate Z = 0 print.
 - The case-side latch and handle mounts rise on 45-degree lower webs and do not
   require support. Do not place support inside their teardrop pivot bores.
-- The rigid lid has two 22.8 mm hinge slots in its broad-face-down orientation;
-  add removable support in both. The optional TPU lid instead has six 6.8 mm
-  clip slots, and the coupon has four matching 6.8 mm receivers. Use the same
+- The rigid lid has two 22 mm hinge slots in its broad-face-down orientation;
+  add removable support in both. The optional TPU lid instead has six 6.53 mm
+  clip slots, and the coupon has twelve matching receivers in four complete
+  three-clip banks. Use the same
   removable support-interface settings for the TPU lid and coupon so support
   removal does not bias throat calibration. Remove support completely and
   verify the actual 4.1 mm bar moves through every selected receiver before
@@ -634,7 +702,7 @@ and can be regenerated without editing an STL.
    Hold the lid approximately 70 degrees open. Align both rearward-opening
    receivers with the installed bar and slide the lid diagonally down and rear
    along the slot direction, then rotate it closed. The base
-   blocks that same removal path through 65 degrees, while the two solid lid
+   blocks that same removal path through 60 degrees, while the two solid lid
    stops retain the bar axially.
 4. Install each latch with one M3 x 30 ISO 4762 / DIN 912 Allen socket-head cap
    screw, one standard M3 nut, and a moving-link rod cut to
@@ -651,10 +719,13 @@ route the visible lead from the upward wrapping-cover notch through the 8 mm
 throat, and slip the PWM plug into the matching outer dock. Press one battery
 into the tower inside each cable loop and place both battery doors in the two
 center slots. Lower each complete fan-case assembly upright between its four
-corner guides with its two-bolt row down and single bolt up. Fit the alternate
-keyed lid pad in place of the normal lid pad. The installed cameras, 40 mm fans,
-and wrapping covers remain on the fan cases during storage; the dual-fan
-assembly and all three of its TPU storage tiers stay out of the case.
+corner guides with its two-bolt row down and single bolt up. Set the overhead
+carrier over the assemblies with its short pads on their broad rear shells,
+then lower the empty storage bin through the carrier before filling it. Fit the
+flat alternate keyed lid pad in place of the normal lid pad. The installed
+cameras, 40 mm fans, and wrapping covers remain on the fan cases during
+storage; the dual-fan assembly and all three of its TPU storage tiers stay out
+of the case.
 
 ## Reference acknowledgments
 

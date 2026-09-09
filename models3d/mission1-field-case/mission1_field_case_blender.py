@@ -11,7 +11,7 @@ from disk.  The default kit holds:
 * a lower TPU cradle for the assembled parametric dual-80 mm-fan holder and
   its installed 80 x 80 x 27 mm padded fans,
 * a removable upper TPU equipment tray and a one-way-keyed TPU lid pad,
-* an alternate two-piece TPU loadout for two complete fan-case assemblies,
+* an alternate four-piece TPU loadout for two complete fan-case assemblies,
   including their cameras, direct 40 mm fans, wrapping covers, M3 hardware,
   cable coils, and PWM plugs,
 * a hollow TPU dust/splash gasket that prints into the lid by default, two
@@ -50,7 +50,7 @@ Run inside Blender::
 
 Set ``EXPORT_STL = True`` below, or use
 ``make -C models3d mission1-field-case`` from the repository root, to emit
-the eleven-part default kit, four optional loadout/calibration STLs, and
+the eleven-part default kit, six optional loadout/calibration STLs, and
 ``mission1_field_case_ams_project.3mf``.
 The 3MF contains the complete project; by default its lid is one compound object
 with a black shell, one flush orange text-and-block body, and one hollow TPU
@@ -225,6 +225,12 @@ FAN_CASE_PAIR_INSERT_STL_NAME = (
 FAN_CASE_PAIR_LID_PAD_STL_NAME = (
     "mission1_field_case_fan_case_pair_lid_pad_tpu.stl"
 )
+FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME = (
+    "mission1_field_case_fan_case_pair_overhead_carrier_tpu.stl"
+)
+FAN_CASE_PAIR_STORAGE_BIN_STL_NAME = (
+    "mission1_field_case_fan_case_pair_fan_side_storage_bin_tpu.stl"
+)
 
 PRINTABLE_STL_NAMES = (
     BASE_STL_NAME,
@@ -242,13 +248,16 @@ PRINTABLE_STL_NAMES = (
 
 # These mutually exclusive loadout/calibration parts are exported beside the
 # default kit but intentionally remain outside its rigidly validated 3MF.  The
-# alternate lid replaces LID_STL_NAME; the fan-case pair inserts replace the
-# dual-fan cradle, upper equipment tray, and normal lid pad.
+# alternate lid replaces LID_STL_NAME; the fan-case pair insert, carrier, bin,
+# and flat pad replace the dual-fan cradle, upper equipment tray, and normal
+# lid pad.
 AUXILIARY_STL_NAMES = (
     TPU_SNAP_LID_STL_NAME,
     TPU_HINGE_COUPON_STL_NAME,
     FAN_CASE_PAIR_INSERT_STL_NAME,
     FAN_CASE_PAIR_LID_PAD_STL_NAME,
+    FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME,
+    FAN_CASE_PAIR_STORAGE_BIN_STL_NAME,
 )
 
 
@@ -396,12 +405,54 @@ FAN_CASE_BATTERY_DOOR_NUB_INTRUSION = 0.65
 PWM_CONNECTOR_ENVELOPE = (16.0, 10.0, 8.0)
 PWM_CONNECTOR_CLEARANCE = 0.5
 PWM_CONNECTOR_RETENTION_PER_SIDE = 0.6
-PWM_CONNECTOR_DOCK_CENTERS = ((-104.0, -54.0), (104.0, -54.0))
+PWM_DOCK_WALL_THICKNESS = 1.5
+PWM_DOCK_BACKSTOP_OVERLAP = 0.2
+PWM_DOCK_SUPPORT_MAX_OVERHANG_DEGREES = 45.0
+PWM_DOCK_SUPPORT_FLOOR_OVERLAP = 0.2
+PWM_DOCK_SUPPORT_COIL_CLEARANCE = 1.0
+# The reference coil is inset far enough to pass the support-free rib required
+# where the asymmetric left dock crosses its cable well.  Its actual modeled
+# centerline still accepts the full configured six-inch cable.
+FAN_CASE_CABLE_COIL_REFERENCE_INSET = (4.0, 2.0)
+# Stay inside the removable lower insert's side-rail reliefs.  The plugs remain
+# immediately outside their cable wells, but the dock walls can now pass the
+# already-printed rigid upper-tray rails during insert installation/removal.
+PWM_CONNECTOR_DOCK_CENTERS = ((-98.0, -54.0), (98.0, -54.0))
 FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = 3.0
 FAN_CASE_PAIR_LID_PRELOAD = 0.6
+FAN_CASE_PAIR_SHELL_LOCATOR_PRELOAD = 0.3
+FAN_CASE_PAIR_BIN_RIM_PRELOAD = 0.3
 FAN_CASE_PAIR_LID_BOSS_SIZE = (14.0, 6.0)
 FAN_CASE_PAIR_LID_BOSS_X_OFFSETS = (-22.0, 22.0)
 FAN_CASE_PAIR_LID_PAD_DISPLAY_Y = 440.0
+# A shallow, base-mounted carrier replaces the previous long projections on
+# the lid pad.  Its opening accepts one asymmetric drop-in bin over the two
+# rear fans/cable routes, while the broad rear bridge bears on the same proven
+# fan-case shell locations through short underside pads.
+FAN_CASE_PAIR_CARRIER_THICKNESS = 3.0
+FAN_CASE_PAIR_CARRIER_REAR_Y = 30.0
+FAN_CASE_PAIR_CARRIER_ASSEMBLY_CLEARANCE = 0.70
+FAN_CASE_PAIR_CARRIER_PAD_MAX_LENGTH = 3.0
+FAN_CASE_PAIR_INSERT_WITHDRAWAL_CLEARANCE = 1.0
+FAN_CASE_PAIR_BIN_SUPPORT_WITHDRAWAL_CLEARANCE = 1.0
+FAN_CASE_PAIR_SUPPORT_GUIDE_CLEARANCE = 1.0
+FAN_CASE_PAIR_SUPPORT_ARCH_CLEARANCE = 1.0
+FAN_CASE_PAIR_SUPPORT_MAX_OVERHANG_DEGREES = 45.0
+FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE = (204.0, 54.0)
+FAN_CASE_PAIR_STORAGE_BIN_FLARE_SIZE = (210.0, 60.0)
+FAN_CASE_PAIR_STORAGE_BIN_OPENING_BOTTOM_SIZE = (206.0, 56.0)
+FAN_CASE_PAIR_STORAGE_BIN_OPENING_TOP_SIZE = (212.0, 62.0)
+FAN_CASE_PAIR_STORAGE_BIN_FLANGE_SIZE = (218.0, 68.0)
+FAN_CASE_PAIR_STORAGE_BIN_CENTER = (0.0, -38.0)
+FAN_CASE_PAIR_STORAGE_BIN_WALL = 3.0
+FAN_CASE_PAIR_STORAGE_BIN_FLOOR = 3.0
+FAN_CASE_PAIR_STORAGE_BIN_FLANGE_THICKNESS = 3.0
+FAN_CASE_PAIR_STORAGE_BIN_LOWER_CLEARANCE = 2.25
+FAN_CASE_PAIR_STORAGE_BIN_MIN_INNER_HEIGHT = 30.0
+FAN_CASE_PAIR_CARRIER_GRIP_CUTOUT_SIZE = (32.0, 12.0)
+FAN_CASE_PAIR_CARRIER_GRIP_CUTOUT_X_CENTERS = (-55.0, 55.0)
+FAN_CASE_PAIR_CARRIER_GRIP_OPENING_OVERLAP = 1.0
+FAN_CASE_PAIR_CARRIER_REAR_BRIDGE_MIN_WEB = 15.0
 
 
 def padded_fan_storage_depth(fan):
@@ -759,6 +810,15 @@ def fan_case_pair_storage_geometry():
                 (notch_x, coil_entry_y, cable_center_z),
             )
         )
+    cover_top_z = max(
+        placement[2] + fan_case.FAN_CENTER_Z + cover_outer_height / 2.0
+        for placement in placements
+    )
+    cable_top_z = max(
+        point[2]
+        for route in cable_route_points
+        for point in route
+    ) + FAN_CASE_CABLE_DIAMETER / 2.0
     return {
         "cover_values": cover_values,
         "reference_source_bounds": reference_bounds,
@@ -779,6 +839,8 @@ def fan_case_pair_storage_geometry():
             cover_notch_source_z,
         ),
         "cable_route_points": tuple(cable_route_points),
+        "cover_top_z": cover_top_z,
+        "cable_top_z": cable_top_z,
         "front_hardware": {
             "bolt_seat_y": bolt_seat_y,
             "bolt_tip_y": bolt_tip_y,
@@ -790,6 +852,310 @@ def fan_case_pair_storage_geometry():
 
 
 FAN_CASE_PAIR_STORAGE = fan_case_pair_storage_geometry()
+
+
+def fan_case_pair_overhead_storage_geometry():
+    """Resolve the asymmetric carrier/bin from the current stored loadout."""
+    inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
+    inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
+    carrier_width = inner_width - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE
+    carrier_front_y = -inner_depth / 2.0 + EQUIPMENT_TRAY_SIDE_CLEARANCE
+    carrier_bottom_z = (
+        FAN_CASE_PAIR_STORAGE["assembly_top_z"]
+        + FAN_CASE_PAIR_CARRIER_ASSEMBLY_CLEARANCE
+    )
+    carrier_top_z = carrier_bottom_z + FAN_CASE_PAIR_CARRIER_THICKNESS
+    installed_lid_inner_face = BASE_HEIGHT + (
+        LID_WALL_HEIGHT - LID_PLATE_THICKNESS
+    )
+    bin_bottom_z = max(
+        FAN_CASE_PAIR_STORAGE["cover_top_z"],
+        FAN_CASE_PAIR_STORAGE["cable_top_z"],
+    ) + FAN_CASE_PAIR_STORAGE_BIN_LOWER_CLEARANCE
+    bin_rim_z = (
+        installed_lid_inner_face
+        - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
+        + FAN_CASE_PAIR_BIN_RIM_PRELOAD
+    )
+    carrier_contact_z = (
+        FAN_CASE_PAIR_STORAGE["broad_shell_top_z"]
+        - FAN_CASE_PAIR_SHELL_LOCATOR_PRELOAD
+    )
+    opening_rear_y = (
+        FAN_CASE_PAIR_STORAGE_BIN_CENTER[1]
+        + FAN_CASE_PAIR_STORAGE_BIN_OPENING_TOP_SIZE[1] / 2.0
+    )
+    _grip_width, grip_depth = FAN_CASE_PAIR_CARRIER_GRIP_CUTOUT_SIZE
+    grip_center_y = (
+        opening_rear_y
+        + grip_depth / 2.0
+        - FAN_CASE_PAIR_CARRIER_GRIP_OPENING_OVERLAP
+    )
+    return {
+        "carrier_bounds": (
+            -carrier_width / 2.0,
+            carrier_width / 2.0,
+            carrier_front_y,
+            FAN_CASE_PAIR_CARRIER_REAR_Y,
+            carrier_bottom_z,
+            carrier_top_z,
+        ),
+        "carrier_opening_bottom_size": (
+            FAN_CASE_PAIR_STORAGE_BIN_OPENING_BOTTOM_SIZE
+        ),
+        "carrier_opening_top_size": FAN_CASE_PAIR_STORAGE_BIN_OPENING_TOP_SIZE,
+        "carrier_grip_centers": tuple(
+            (center_x, grip_center_y)
+            for center_x in FAN_CASE_PAIR_CARRIER_GRIP_CUTOUT_X_CENTERS
+        ),
+        "carrier_contact_z": carrier_contact_z,
+        "bin_bottom_z": bin_bottom_z,
+        "bin_rim_z": bin_rim_z,
+        "bin_flange_z": carrier_top_z,
+        "bin_inner_size": tuple(
+            value - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL
+            for value in FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE
+        ),
+    }
+
+
+FAN_CASE_PAIR_OVERHEAD_STORAGE = fan_case_pair_overhead_storage_geometry()
+
+
+def fan_case_pair_carrier_support_geometry():
+    """Derive removable side webs from the rigid rail and packed-bin limits."""
+    inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
+    inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
+    insert_depth = inner_depth - 2.0 * INSERT_SIDE_CLEARANCE
+    insert_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
+    rigid_rail_inner_x = inner_width / 2.0 - EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH
+    rigid_rail_depth = (
+        inner_depth - 2.0 * EQUIPMENT_TRAY_SIDE_CLEARANCE - 8.0
+    )
+    web_outer_x = (
+        rigid_rail_inner_x - FAN_CASE_PAIR_INSERT_WITHDRAWAL_CLEARANCE
+    )
+    web_inner_x = (
+        FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE[0] / 2.0
+        + FAN_CASE_PAIR_BIN_SUPPORT_WITHDRAWAL_CLEARANCE
+    )
+    web_y0 = -insert_depth / 2.0 + 0.25
+    web_y1 = min(FAN_CASE_PAIR_CARRIER_REAR_Y, insert_depth / 2.0 - 0.25)
+    assembly_cavity_outer_x = max(
+        abs(value)
+        for bounds in FAN_CASE_PAIR_STORAGE["cavity_bounds"]
+        for value in bounds[:2]
+    )
+
+    connector_length = PWM_CONNECTOR_ENVELOPE[0] + 2.0 * PWM_CONNECTOR_CLEARANCE
+    connector_y0 = min(
+        center[1] - connector_length / 2.0
+        for center in PWM_CONNECTOR_DOCK_CENTERS
+    )
+    connector_y1 = max(
+        center[1] + connector_length / 2.0
+        for center in PWM_CONNECTOR_DOCK_CENTERS
+    )
+    connector_height = PWM_CONNECTOR_ENVELOPE[2] + PWM_CONNECTOR_CLEARANCE
+    connector_top_z = (
+        FAN_CASE_PAIR_INSERT_INSTALLED_Z
+        + FAN_CASE_PAIR_INSERT_HEIGHT
+        + connector_height
+        + 0.3
+    )
+    web_base_z = (
+        FAN_CASE_PAIR_INSERT_INSTALLED_Z
+        + FAN_CASE_PAIR_INSERT_HEIGHT
+        - 0.2
+    )
+    arch_peak_y = (connector_y0 + connector_y1) / 2.0
+    maximum_underside_slope = math.tan(
+        math.radians(FAN_CASE_PAIR_SUPPORT_MAX_OVERHANG_DEGREES)
+    )
+    connector_half_length = (connector_y1 - connector_y0) / 2.0
+    # A pointed underside must rise by another half connector length so both
+    # ends of the full connector envelope retain the same vertical clearance
+    # that the former flat roof provided.  The two equal faces then descend at
+    # exactly the configured maximum printable slope to the insert deck.
+    arch_peak_z = (
+        connector_top_z
+        + FAN_CASE_PAIR_SUPPORT_ARCH_CLEARANCE
+        + connector_half_length * maximum_underside_slope
+    )
+    arch_run = (arch_peak_z - web_base_z) / maximum_underside_slope
+    arch_y0 = arch_peak_y - arch_run
+    arch_y1 = arch_peak_y + arch_run
+    arch_underside_yz = (
+        (arch_y0, web_base_z),
+        (arch_peak_y, arch_peak_z),
+        (arch_y1, web_base_z),
+    )
+    web_top_z = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][4]
+    web_yz = (
+        (web_y0, web_base_z),
+        (web_y0, web_top_z),
+        (web_y1, web_top_z),
+        (web_y1, web_base_z),
+        (arch_y1, web_base_z),
+        (arch_peak_y, arch_peak_z),
+        (arch_y0, web_base_z),
+    )
+    return {
+        "rigid_rail_inner_x": rigid_rail_inner_x,
+        "rigid_rail_half_depth": rigid_rail_depth / 2.0,
+        "rail_relief_half_depth": (
+            rigid_rail_depth / 2.0 + FAN_CASE_PAIR_INSERT_WITHDRAWAL_CLEARANCE
+        ),
+        "insert_half_width": insert_width / 2.0,
+        "web_inner_x": web_inner_x,
+        "web_outer_x": web_outer_x,
+        "web_x_bounds": (
+            (-web_outer_x, -web_inner_x),
+            (web_inner_x, web_outer_x),
+        ),
+        "web_y_bounds": (web_y0, web_y1),
+        "assembly_cavity_outer_x": assembly_cavity_outer_x,
+        "assembly_cavity_clearance": web_inner_x - assembly_cavity_outer_x,
+        "web_yz": web_yz,
+        "web_base_z": web_base_z,
+        "web_top_z": web_top_z,
+        "arch_peak_yz": (arch_peak_y, arch_peak_z),
+        "arch_underside_yz": arch_underside_yz,
+        "connector_y_bounds": (connector_y0, connector_y1),
+        "connector_top_z": connector_top_z,
+    }
+
+
+FAN_CASE_PAIR_CARRIER_SUPPORT = fan_case_pair_carrier_support_geometry()
+
+
+def fan_case_pair_pwm_dock_support_geometry():
+    """Derive support-free dock ribs and collision-free reference cable coils."""
+    connector_length = PWM_CONNECTOR_ENVELOPE[0] + 2.0 * PWM_CONNECTOR_CLEARANCE
+    connector_running_width = (
+        PWM_CONNECTOR_ENVELOPE[1] + 2.0 * PWM_CONNECTOR_CLEARANCE
+    )
+    connector_height = PWM_CONNECTOR_ENVELOPE[2] + PWM_CONNECTOR_CLEARANCE
+    dock_wall_bottom_z = FAN_CASE_PAIR_INSERT_HEIGHT - 0.1
+    dock_wall_top_z = (
+        FAN_CASE_PAIR_INSERT_HEIGHT + connector_height + 0.3
+    )
+    support_base_z = (
+        FAN_CASE_CABLE_WELL_FLOOR - PWM_DOCK_SUPPORT_FLOOR_OVERLAP
+    )
+    maximum_underside_slope = math.tan(
+        math.radians(PWM_DOCK_SUPPORT_MAX_OVERHANG_DEGREES)
+    )
+    support_half_run = (
+        dock_wall_bottom_z - support_base_z
+    ) / maximum_underside_slope
+    coil_outer_size = tuple(
+        size - 2.0 * inset
+        for size, inset in zip(
+            FAN_CASE_CABLE_WELL_SIZE,
+            FAN_CASE_CABLE_COIL_REFERENCE_INSET,
+        )
+    )
+    coil_inner_size = tuple(
+        size - 2.0 * FAN_CASE_CABLE_DIAMETER
+        for size in coil_outer_size
+    )
+    coil_outer_radius = (
+        FAN_CASE_CABLE_WELL_CORNER_RADIUS
+        - FAN_CASE_CABLE_COIL_REFERENCE_INSET[1]
+    )
+    coil_inner_radius = coil_outer_radius - FAN_CASE_CABLE_DIAMETER
+
+    supports = []
+    coil_centers = []
+    for dock_index, (dock_center, well_center) in enumerate(
+        zip(PWM_CONNECTOR_DOCK_CENTERS, FAN_CASE_CABLE_WELL_CENTERS),
+        start=1,
+    ):
+        dock_x, dock_y = dock_center
+        well_x, well_y = well_center
+        inner_side = -math.copysign(1.0, dock_x)
+        inner_wall_center_x = dock_x + inner_side * (
+            connector_running_width + PWM_DOCK_WALL_THICKNESS
+        ) / 2.0
+        inner_wall_x_bounds = (
+            inner_wall_center_x - PWM_DOCK_WALL_THICKNESS / 2.0,
+            inner_wall_center_x + PWM_DOCK_WALL_THICKNESS / 2.0,
+        )
+        wall_y_bounds = (
+            dock_y - connector_length / 2.0,
+            dock_y + connector_length / 2.0,
+        )
+        well_x_bounds = (
+            well_x - FAN_CASE_CABLE_WELL_SIZE[0] / 2.0,
+            well_x + FAN_CASE_CABLE_WELL_SIZE[0] / 2.0,
+        )
+        well_y_bounds = (
+            well_y - FAN_CASE_CABLE_WELL_SIZE[1] / 2.0,
+            well_y + FAN_CASE_CABLE_WELL_SIZE[1] / 2.0,
+        )
+        wall_crosses_well = (
+            inner_wall_x_bounds[1] > well_x_bounds[0]
+            and inner_wall_x_bounds[0] < well_x_bounds[1]
+            and wall_y_bounds[1] > well_y_bounds[0]
+            and wall_y_bounds[0] < well_y_bounds[1]
+        )
+        support = None
+        coil_center_x = well_x
+        if wall_crosses_well:
+            support_underside_yz = (
+                (dock_y - support_half_run, support_base_z),
+                (dock_y, dock_wall_bottom_z),
+                (dock_y + support_half_run, support_base_z),
+            )
+            support = {
+                "dock_index": dock_index,
+                "x_bounds": inner_wall_x_bounds,
+                "wall_y_bounds": wall_y_bounds,
+                "well_bounds": (*well_x_bounds, *well_y_bounds),
+                "underside_yz": support_underside_yz,
+                "profile_yz": (
+                    support_underside_yz[0],
+                    (support_underside_yz[0][0], dock_wall_top_z),
+                    (support_underside_yz[2][0], dock_wall_top_z),
+                    support_underside_yz[2],
+                    support_underside_yz[1],
+                ),
+                "wall_bottom_z": dock_wall_bottom_z,
+                "connector_bottom_z": FAN_CASE_PAIR_INSERT_HEIGHT + 0.2,
+                "channel_x_bounds": (
+                    dock_x - connector_running_width / 2.0,
+                    dock_x + connector_running_width / 2.0,
+                ),
+            }
+            supports.append(support)
+            if dock_x < well_x:
+                coil_center_x = max(
+                    coil_center_x,
+                    inner_wall_x_bounds[1]
+                    + PWM_DOCK_SUPPORT_COIL_CLEARANCE
+                    + coil_outer_size[0] / 2.0,
+                )
+            else:
+                coil_center_x = min(
+                    coil_center_x,
+                    inner_wall_x_bounds[0]
+                    - PWM_DOCK_SUPPORT_COIL_CLEARANCE
+                    - coil_outer_size[0] / 2.0,
+                )
+        coil_centers.append((coil_center_x, well_y))
+
+    return {
+        "supports": tuple(supports),
+        "coil_centers": tuple(coil_centers),
+        "coil_outer_size": coil_outer_size,
+        "coil_inner_size": coil_inner_size,
+        "coil_outer_radius": coil_outer_radius,
+        "coil_inner_radius": coil_inner_radius,
+    }
+
+
+FAN_CASE_PAIR_PWM_DOCK_SUPPORT = fan_case_pair_pwm_dock_support_geometry()
 
 # Exact reference slicing shows that only this compact front-center arm region
 # remains above the fan bodies.  The default dual-fan configuration is locked
@@ -910,10 +1276,20 @@ GASKET_INTERLOCK_BOUNDARY_AVOIDANCE = 0
 # Hinge axis is along X.  A 4.1 mm rod runs only through the base knuckles.
 # Each lid receiver opens rearward, parallel to the lid plate in print
 # orientation.  The closed case cannot lift off vertically; the unchanged base
-# remains in the actual slot escape path through 65 degrees, and the complete
+# remains in the actual slot escape path through 60 degrees, and the complete
 # lid slides diagonally up/forward off the rod at 70 degrees open.
 HINGE_AXIS_Y = CASE_DEPTH / 2.0 + 3.8
 HINGE_OUTER_DIAMETER = 10.0
+# These are lid-only refinements: the base axis, barrels, and R5.4 swing
+# pockets remain compatible with the already-printed shell.
+HINGE_LID_OUTER_DIAMETER = 9.6
+HINGE_LID_MOUTH_TIP_DISTANCE = 2.4
+HINGE_LID_SEGMENT_END_TRIM = 0.4
+HINGE_LID_ROOT_CASEWARD_OFFSET = 4.2
+HINGE_LID_ROOT_FLOOR_Z = 0.20
+HINGE_LID_ROOT_SPINE_OFFSET = 3.1
+HINGE_LID_RIM_RADIAL_CLEARANCE = 0.7
+HINGE_LID_RIM_AXIAL_CLEARANCE = 0.6
 HINGE_ROD_DIAMETER = 4.1
 HINGE_BASE_HOLE_DIAMETER = 4.5
 HINGE_LID_RECEIVER_DIAMETER = 4.8
@@ -922,18 +1298,18 @@ HINGE_LID_SLOT_TILT_DEGREES = 0.0
 HINGE_PROFILE_RIGID_SLIDE = "RIGID_SLIDE"
 HINGE_PROFILE_TPU_68D_SNAP = "TPU_68D_SNAP"
 TPU_HINGE_SNAP_THROAT_WIDTH = 3.9
-TPU_HINGE_SNAP_MOUTH_WIDTH = 5.5
-TPU_HINGE_SNAP_THROAT_LENGTH = 1.2
-TPU_HINGE_SNAP_LEAD_LENGTH = 2.0
+TPU_HINGE_SNAP_MOUTH_WIDTH = 5.0
+TPU_HINGE_SNAP_THROAT_LENGTH = 1.5
+TPU_HINGE_SNAP_LEAD_LENGTH = 0.8
 TPU_HINGE_SNAP_LEAD_RADIUS = 0.8
 TPU_HINGE_SNAP_LEAD_SAMPLES = 8
 TPU_HINGE_CLIPS_PER_SEGMENT = 3
 TPU_HINGE_CLIP_RELIEF_GAP = 1.2
 TPU_HINGE_COUPON_THROATS = (3.8, 3.9, 4.0, 4.1)
-TPU_HINGE_COUPON_BLOCK_SIZE = 14.0
+TPU_HINGE_COUPON_BLOCK_SIZE = 22.0
 TPU_HINGE_COUPON_BREAKAWAY_WIDTH = 0.4
 HINGE_LID_RELEASE_ANGLE_DEGREES = 70.0
-HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES = 65.0
+HINGE_LID_PRE_RELEASE_BLOCK_ANGLE_DEGREES = 60.0
 HINGE_LID_PRE_RELEASE_SWEEP_STEP_DEGREES = 5.0
 HINGE_LID_RELEASE_PATH_SAMPLES = 17
 HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES = 110.0
@@ -944,7 +1320,7 @@ HINGE_LID_SEGMENTS = ((-41.4, -18.6), (18.6, 41.4))
 HINGE_ROD_END_INSET = 0.5
 HINGE_ROD_X0 = HINGE_BASE_SEGMENTS[0][0] + HINGE_ROD_END_INSET
 HINGE_ROD_X1 = HINGE_BASE_SEGMENTS[-1][1] - HINGE_ROD_END_INSET
-HINGE_LID_END_STOP_BASE_CLEARANCE = 0.3
+HINGE_LID_END_STOP_BASE_CLEARANCE = 0.6
 HINGE_LID_END_STOP_LENGTH = 3.0
 HINGE_LID_END_STOP_DIAMETER = 6.0
 HINGE_RIM_RELIEF_RADIAL_CLEARANCE = 0.4
@@ -3500,6 +3876,34 @@ def rounded_ring_frustum(
     return create_mesh_object(name, vertices, faces)
 
 
+def rounded_prism_frustum(
+    name,
+    bottom_size,
+    top_size,
+    z0,
+    z1,
+    bottom_radius,
+    top_radius,
+    center=(0.0, 0.0),
+):
+    """Create a closed rounded frustum for a support-free tapered cutter."""
+    bottom = rounded_rectangle_loop(
+        bottom_size[0], bottom_size[1], bottom_radius
+    )
+    top = rounded_rectangle_loop(top_size[0], top_size[1], top_radius)
+    if len(bottom) != len(top):
+        raise ValueError("Rounded prism frustum loops must have equal resolution")
+    cx, cy = center
+    count = len(bottom)
+    vertices = [(cx + x, cy + y, z0) for x, y in bottom]
+    vertices.extend((cx + x, cy + y, z1) for x, y in top)
+    faces = [list(reversed(range(count))), list(range(count, 2 * count))]
+    for index in range(count):
+        next_index = (index + 1) % count
+        faces.append((index, next_index, count + next_index, count + index))
+    return create_mesh_object(name, vertices, faces)
+
+
 def rounded_ring_inner_lead_in(
     name,
     outer_size,
@@ -4035,13 +4439,18 @@ def validate_configuration() -> None:
     ):
         raise ValueError("Raised fan-case guides lack wall or lead-in allowance")
 
-    cable_centerline_size = (
-        FAN_CASE_CABLE_WELL_SIZE[0] - 2.0 * FAN_CASE_CABLE_DIAMETER,
-        FAN_CASE_CABLE_WELL_SIZE[1] - 2.0 * FAN_CASE_CABLE_DIAMETER,
+    dock_support = FAN_CASE_PAIR_PWM_DOCK_SUPPORT
+    cable_centerline_size = tuple(
+        (outer + inner) / 2.0
+        for outer, inner in zip(
+            dock_support["coil_outer_size"],
+            dock_support["coil_inner_size"],
+        )
     )
     cable_centerline_radius = (
-        FAN_CASE_CABLE_WELL_CORNER_RADIUS - FAN_CASE_CABLE_DIAMETER / 2.0
-    )
+        dock_support["coil_outer_radius"]
+        + dock_support["coil_inner_radius"]
+    ) / 2.0
     cable_centerline_perimeter = 2.0 * (
         cable_centerline_size[0]
         + cable_centerline_size[1]
@@ -4077,20 +4486,39 @@ def validate_configuration() -> None:
                 guide_size,
             ):
                 raise ValueError("A cable well enters a raised assembly guide")
-    coil_inner_size = (
-        FAN_CASE_CABLE_WELL_SIZE[0] - 3.0 * FAN_CASE_CABLE_DIAMETER,
-        FAN_CASE_CABLE_WELL_SIZE[1] - 3.0 * FAN_CASE_CABLE_DIAMETER,
-    )
+    coil_inner_size = dock_support["coil_inner_size"]
     battery_tower_size = tuple(
         value + 2.0 * FAN_CASE_BATTERY_TOWER_WALL
         for value in FAN_CASE_BATTERY_POCKET_SIZE
     )
+    battery_to_coil_clearances = []
+    for battery_center, coil_center in zip(
+        FAN_CASE_CABLE_WELL_CENTERS,
+        dock_support["coil_centers"],
+    ):
+        battery_to_coil_clearances.extend(
+            (
+                battery_center[axis]
+                - battery_tower_size[axis] / 2.0
+                - (coil_center[axis] - coil_inner_size[axis] / 2.0),
+                coil_center[axis]
+                + coil_inner_size[axis] / 2.0
+                - (battery_center[axis] + battery_tower_size[axis] / 2.0),
+            )
+            for axis in range(2)
+        )
+    battery_to_coil_clearances = [
+        clearance
+        for axis_clearances in battery_to_coil_clearances
+        for clearance in axis_clearances
+    ]
     if not (
         FAN_CASE_BATTERY_COUNT == FAN_CASE_STORAGE_COUNT
         and all(
             tower + 2.0 <= opening
             for tower, opening in zip(battery_tower_size, coil_inner_size)
         )
+        and min(battery_to_coil_clearances) >= 2.0
         and math.isclose(
             FAN_CASE_BATTERY_TOWER_HEIGHT - FAN_CASE_BATTERY_FLOOR_Z,
             BATTERY_POCKET_INSERTION_DEPTH,
@@ -4192,14 +4620,211 @@ def validate_configuration() -> None:
     )
     if connector_free_width <= PWM_CONNECTOR_ENVELOPE[1]:
         raise ValueError("PWM dock must provide positive connector side clearance")
+    for coil_center, well_center in zip(
+        dock_support["coil_centers"],
+        FAN_CASE_CABLE_WELL_CENTERS,
+    ):
+        if any(
+            abs(coil_center[axis] - well_center[axis])
+            + dock_support["coil_outer_size"][axis] / 2.0
+            > FAN_CASE_CABLE_WELL_SIZE[axis] / 2.0
+            for axis in range(2)
+        ):
+            raise ValueError("A modeled cable coil exceeds its cable well")
+    for dock_rib in dock_support["supports"]:
+        underside = dock_rib["underside_yz"]
+        maximum_z = max(point[1] for point in underside)
+        peaks = [point for point in underside if math.isclose(point[1], maximum_z)]
+        underside_slopes = [
+            abs(second[1] - first[1]) / abs(second[0] - first[0])
+            for first, second in zip(underside, underside[1:])
+        ]
+        channel_x0, channel_x1 = dock_rib["channel_x_bounds"]
+        rib_x0, rib_x1 = dock_rib["x_bounds"]
+        well_x0, well_x1, well_y0, well_y1 = dock_rib["well_bounds"]
+        if not (
+            len(underside) == 3
+            and len(peaks) == 1
+            and peaks[0] == underside[1]
+            and all(
+                not math.isclose(first[1], second[1], abs_tol=1e-9)
+                for first, second in zip(underside, underside[1:])
+            )
+            and max(underside_slopes)
+            <= math.tan(math.radians(PWM_DOCK_SUPPORT_MAX_OVERHANG_DEGREES))
+            + 1e-9
+            and math.isclose(
+                dock_rib["wall_bottom_z"],
+                underside[1][1],
+                abs_tol=1e-9,
+            )
+            and dock_rib["connector_bottom_z"] - dock_rib["wall_bottom_z"]
+            >= 0.25
+            and (rib_x1 <= channel_x0 or rib_x0 >= channel_x1)
+            and well_x0 < rib_x1
+            and rib_x0 < well_x1
+            and well_y0 <= underside[0][0]
+            and underside[-1][0] <= well_y1
+        ):
+            raise ValueError(
+                "A PWM dock cable-well rib is unsupported, too steep, or "
+                "obstructs its plug channel"
+            )
     if not (
         FAN_CASE_PAIR_HARDWARE_RELIEF_FLOOR >= 1.2
         and FAN_CASE_CABLE_WELL_FLOOR >= 2.0
         and FAN_CASE_PAIR_INSERT_FLOOR >= 3.0
     ):
         raise ValueError("Alternate fan-case insert floors are too thin")
-    if not 20.0 <= FAN_CASE_PAIR_STORAGE["lid_pad_height"] <= 40.0:
-        raise ValueError("Alternate fan-case lid pad no longer spans the loadout")
+    overhead = FAN_CASE_PAIR_OVERHEAD_STORAGE
+    carrier_x0, carrier_x1, carrier_y0, carrier_y1, carrier_z0, carrier_z1 = (
+        overhead["carrier_bounds"]
+    )
+    opening_width, opening_depth = overhead["carrier_opening_top_size"]
+    bin_x, bin_y = FAN_CASE_PAIR_STORAGE_BIN_CENTER
+    flange_width, flange_depth = FAN_CASE_PAIR_STORAGE_BIN_FLANGE_SIZE
+    if not (
+        carrier_x0 < bin_x - opening_width / 2.0
+        and carrier_x1 > bin_x + opening_width / 2.0
+        and carrier_y0 < bin_y - opening_depth / 2.0
+        and carrier_y1 > bin_y + opening_depth / 2.0
+        and carrier_x0 < bin_x - flange_width / 2.0
+        and carrier_x1 > bin_x + flange_width / 2.0
+        and carrier_y0 < bin_y - flange_depth / 2.0
+        and carrier_y1 > bin_y + flange_depth / 2.0
+    ):
+        raise ValueError("Fan-side storage opening or flange exceeds its carrier")
+    bottom_opening = overhead["carrier_opening_bottom_size"]
+    if not all(
+        math.isclose(opening - flare, 2.0, abs_tol=1e-6)
+        and math.isclose(bottom - body, 2.0, abs_tol=1e-6)
+        for opening, flare, bottom, body in zip(
+            overhead["carrier_opening_top_size"],
+            FAN_CASE_PAIR_STORAGE_BIN_FLARE_SIZE,
+            bottom_opening,
+            FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE,
+        )
+    ):
+        raise ValueError("Tapered bin opening needs 1 mm running clearance per side")
+    if min(
+        (flange_width - opening_width) / 2.0,
+        (flange_depth - opening_depth) / 2.0,
+    ) < 2.5:
+        raise ValueError("Storage-bin flange needs at least 2.5 mm bearing land")
+    if not math.isclose(
+        FAN_CASE_PAIR_SHELL_LOCATOR_PRELOAD + FAN_CASE_PAIR_BIN_RIM_PRELOAD,
+        FAN_CASE_PAIR_LID_PRELOAD,
+        abs_tol=1e-6,
+    ):
+        raise ValueError("Alternate serial preload must remain split across two stages")
+    if not (
+        overhead["bin_bottom_z"]
+        < overhead["bin_flange_z"]
+        < overhead["bin_rim_z"]
+        and overhead["bin_bottom_z"]
+        + FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+        < overhead["bin_rim_z"]
+        and carrier_z0 > FAN_CASE_PAIR_STORAGE["assembly_top_z"]
+        and carrier_z1 == overhead["bin_flange_z"]
+        and overhead["carrier_contact_z"]
+        < FAN_CASE_PAIR_STORAGE["broad_shell_top_z"]
+        < carrier_z0
+    ):
+        raise ValueError("Fan-side overhead storage lacks positive vertical fit")
+    if min(overhead["bin_inner_size"]) < 25.0:
+        raise ValueError("Fan-side storage bin has an unusably small opening")
+    pad_length = carrier_z0 - overhead["carrier_contact_z"]
+    inner_height = (
+        overhead["bin_rim_z"]
+        - overhead["bin_bottom_z"]
+        - FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+    )
+    if pad_length > FAN_CASE_PAIR_CARRIER_PAD_MAX_LENGTH:
+        raise ValueError("Compliant carrier shell locator pads are too long")
+    if inner_height < FAN_CASE_PAIR_STORAGE_BIN_MIN_INNER_HEIGHT:
+        raise ValueError("Fan-side storage bin interior is too shallow")
+    rear_flange_y = bin_y + flange_depth / 2.0
+    rear_opening_y = bin_y + opening_depth / 2.0
+    grip_width, grip_depth = FAN_CASE_PAIR_CARRIER_GRIP_CUTOUT_SIZE
+    grip_y1 = overhead["carrier_grip_centers"][0][1] + grip_depth / 2.0
+    if not (
+        len(overhead["carrier_grip_centers"]) == 2
+        and all(
+            abs(center_x) + grip_width / 2.0
+            < overhead["bin_inner_size"][0] / 2.0
+            for center_x, _center_y in overhead["carrier_grip_centers"]
+        )
+        and rear_opening_y < rear_flange_y < grip_y1
+        and FAN_CASE_PAIR_STORAGE["shell_contact_base_y"]
+        - FAN_CASE_PAIR_LID_BOSS_SIZE[1] / 2.0
+        - grip_y1
+        >= FAN_CASE_PAIR_CARRIER_REAR_BRIDGE_MIN_WEB
+    ):
+        raise ValueError("Rear carrier grips weaken the flange or shell-contact bridge")
+    support = FAN_CASE_PAIR_CARRIER_SUPPORT
+    support_width = support["web_outer_x"] - support["web_inner_x"]
+    rail_clearance = (
+        support["rigid_rail_inner_x"] - support["web_outer_x"]
+    )
+    bin_support_clearance = (
+        support["web_inner_x"] - FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE[0] / 2.0
+    )
+    arch_underside = support["arch_underside_yz"]
+    maximum_arch_z = max(point[1] for point in arch_underside)
+    arch_peaks = [
+        point
+        for point in arch_underside
+        if math.isclose(point[1], maximum_arch_z, abs_tol=1e-9)
+    ]
+    arch_segments = tuple(zip(arch_underside, arch_underside[1:]))
+    arch_slopes = tuple(
+        abs(second[1] - first[1]) / abs(second[0] - first[0])
+        for first, second in arch_segments
+    )
+
+    def arch_underside_z_at(y):
+        for first, second in arch_segments:
+            y0, z0 = first
+            y1, z1 = second
+            if y0 - 1e-9 <= y <= y1 + 1e-9:
+                interpolation = (y - y0) / (y1 - y0)
+                return z0 + interpolation * (z1 - z0)
+        raise ValueError("PWM connector lies outside its carrier-web arch")
+
+    connector_edge_clearances = tuple(
+        arch_underside_z_at(y) - support["connector_top_z"]
+        for y in support["connector_y_bounds"]
+    )
+    if not (
+        support_width >= 3.0
+        and rail_clearance >= 0.75
+        and bin_support_clearance >= 1.0
+        and support["assembly_cavity_clearance"]
+        >= FAN_CASE_PAIR_SUPPORT_GUIDE_CLEARANCE
+        and support["web_y_bounds"][0] >= carrier_y0 - INSERT_SIDE_CLEARANCE
+        and support["web_y_bounds"][1] <= carrier_y1
+        and math.isclose(support["web_top_z"], carrier_z0, abs_tol=1e-6)
+        and len(arch_underside) == 3
+        and len(arch_peaks) == 1
+        and arch_peaks[0] == support["arch_peak_yz"] == arch_underside[1]
+        and all(
+            not math.isclose(first[1], second[1], abs_tol=1e-9)
+            for first, second in arch_segments
+        )
+        and max(arch_slopes)
+        <= math.tan(
+            math.radians(FAN_CASE_PAIR_SUPPORT_MAX_OVERHANG_DEGREES)
+        )
+        + 1e-9
+        and min(connector_edge_clearances)
+        >= FAN_CASE_PAIR_SUPPORT_ARCH_CLEARANCE - 1e-9
+        and support["web_base_z"] < support["arch_peak_yz"][1]
+        < support["web_top_z"]
+    ):
+        raise ValueError(
+            "Continuous carrier webs lack a pointed printable PWM arch or "
+            "rail, bin, accessory, or bearing clearance"
+        )
 
     if not (
         math.isclose(BATTERY_POCKET_DEPTH, 34.5, abs_tol=1e-6)
@@ -4245,7 +4870,7 @@ def validate_configuration() -> None:
     ):
         raise ValueError("The installed fan cradle must rest on top of the base floor")
     hinge_segments = sorted(
-        (*HINGE_BASE_SEGMENTS, *HINGE_LID_SEGMENTS),
+        (*HINGE_BASE_SEGMENTS, *lid_hinge_segments()),
         key=lambda segment: segment[0],
     )
     minimum_hinge_axial_gap = min(
@@ -4255,6 +4880,29 @@ def validate_configuration() -> None:
         raise ValueError("Alternating hinge segments need clearance between barrels")
     if HINGE_RIM_RELIEF_RADIAL_CLEARANCE < LID_LATCH_LIP_DRAW + 0.1:
         raise ValueError("Hinge rim relief must accommodate the full lid take-up")
+    lid_radius = HINGE_LID_OUTER_DIAMETER / 2.0
+    old_base_pocket_radius = (
+        HINGE_OUTER_DIAMETER / 2.0 + HINGE_RIM_RELIEF_RADIAL_CLEARANCE
+    )
+    tip_outer_height = math.sqrt(
+        lid_radius ** 2 - HINGE_LID_MOUTH_TIP_DISTANCE ** 2
+    )
+    root_run = HINGE_LID_ROOT_CASEWARD_OFFSET + HINGE_LID_MOUTH_TIP_DISTANCE
+    root_rise = LID_WALL_HEIGHT - tip_outer_height - HINGE_LID_ROOT_FLOOR_Z
+    if root_rise < root_run:
+        raise ValueError("Lid hinge plate-root ramp exceeds 45 degrees")
+    if not (
+        old_base_pocket_radius - lid_radius >= 0.6 - 1e-6
+        and minimum_hinge_axial_gap >= 1.0 - 1e-6
+        and HINGE_LID_END_STOP_BASE_CLEARANCE >= 0.5
+        and tip_outer_height - HINGE_LID_SLOT_WIDTH / 2.0 >= 1.8
+        and tip_outer_height - TPU_HINGE_SNAP_MOUTH_WIDTH / 2.0 >= 1.6
+        and TPU_HINGE_SNAP_THROAT_LENGTH + TPU_HINGE_SNAP_LEAD_LENGTH
+        < HINGE_LID_MOUTH_TIP_DISTANCE
+        and HINGE_LID_ROOT_SPINE_OFFSET
+        >= HINGE_LID_RECEIVER_DIAMETER / 2.0 + 0.6
+    ):
+        raise ValueError("Lid hinge jaws, root spine, or running clearances are too small")
     base_hinge_bore_probe_diameter = HINGE_BASE_HOLE_DIAMETER - 2.0 * (
         HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
     )
@@ -4293,6 +4941,12 @@ def validate_configuration() -> None:
         for throat in TPU_HINGE_COUPON_THROATS
     ):
         raise ValueError("TPU hinge coupon throat variants are invalid")
+    narrowest_throat = min(TPU_HINGE_COUPON_THROATS + (TPU_HINGE_SNAP_THROAT_WIDTH,))
+    bore_throat_transition = math.sqrt(
+        (HINGE_LID_RECEIVER_DIAMETER / 2.0) ** 2 - (narrowest_throat / 2.0) ** 2
+    )
+    if TPU_HINGE_SNAP_THROAT_LENGTH < bore_throat_transition + 0.02:
+        raise ValueError("Round receiver cuts away the calibrated flat TPU throat")
     if not math.isclose(HINGE_LID_SLOT_TILT_DEGREES, 0.0, abs_tol=1e-6):
         raise ValueError("Lid hinge slot must remain parallel to the lid plate")
     if not (
@@ -5711,23 +6365,43 @@ def lid_hinge_slot_opening_local_yz():
     return -math.cos(radians), -math.sin(radians)
 
 
+def lid_hinge_bank_bounds():
+    """Return the two trimmed production-lid hinge bank bounds."""
+    return tuple(
+        (x0 + HINGE_LID_SEGMENT_END_TRIM, x1 - HINGE_LID_SEGMENT_END_TRIM)
+        for x0, x1 in HINGE_LID_SEGMENTS
+    )
+
+
+def tpu_hinge_bank_segments(bank_x0, bank_x1):
+    """Split one full-width TPU bank into its independently flexing clips."""
+    available = bank_x1 - bank_x0 - (
+        TPU_HINGE_CLIPS_PER_SEGMENT - 1
+    ) * TPU_HINGE_CLIP_RELIEF_GAP
+    clip_width = available / TPU_HINGE_CLIPS_PER_SEGMENT
+    return tuple(
+        (
+            bank_x0 + index * (clip_width + TPU_HINGE_CLIP_RELIEF_GAP),
+            bank_x0
+            + index * (clip_width + TPU_HINGE_CLIP_RELIEF_GAP)
+            + clip_width,
+        )
+        for index in range(TPU_HINGE_CLIPS_PER_SEGMENT)
+    )
+
+
 def lid_hinge_segments(profile=HINGE_PROFILE_RIGID_SLIDE):
     """Return rigid barrels or short independently flexing 68D clips."""
+    trimmed_segments = lid_hinge_bank_bounds()
     if profile == HINGE_PROFILE_RIGID_SLIDE:
-        return HINGE_LID_SEGMENTS
+        return trimmed_segments
     if profile != HINGE_PROFILE_TPU_68D_SNAP:
         raise ValueError(f"Unknown lid hinge profile: {profile}")
-    segments = []
-    for x0, x1 in HINGE_LID_SEGMENTS:
-        available = x1 - x0 - (
-            TPU_HINGE_CLIPS_PER_SEGMENT - 1
-        ) * TPU_HINGE_CLIP_RELIEF_GAP
-        clip_width = available / TPU_HINGE_CLIPS_PER_SEGMENT
-        cursor = x0
-        for _index in range(TPU_HINGE_CLIPS_PER_SEGMENT):
-            segments.append((cursor, cursor + clip_width))
-            cursor += clip_width + TPU_HINGE_CLIP_RELIEF_GAP
-    return tuple(segments)
+    return tuple(
+        clip
+        for bank_x0, bank_x1 in trimmed_segments
+        for clip in tpu_hinge_bank_segments(bank_x0, bank_x1)
+    )
 
 
 def lid_hinge_relief_gaps(profile=HINGE_PROFILE_RIGID_SLIDE):
@@ -5745,6 +6419,48 @@ def lid_hinge_relief_gaps(profile=HINGE_PROFILE_RIGID_SLIDE):
             (first[1], second[0]) for first, second in pairwise(contained)
         )
     return tuple(gaps)
+
+
+def lid_hinge_outer_profile_yz(axis_y, axis_z):
+    """Blunt both jaw tips and spread the plate-side root into a full gusset."""
+    radius = HINGE_LID_OUTER_DIAMETER / 2.0
+    limit = math.acos(-HINGE_LID_MOUTH_TIP_DISTANCE / radius)
+    points = [
+        (
+            radius * math.cos(-limit + 2.0 * limit * index / 80),
+            radius * math.sin(-limit + 2.0 * limit * index / 80),
+        )
+        for index in range(81)
+    ]
+    points.append((
+        HINGE_LID_ROOT_CASEWARD_OFFSET,
+        HINGE_LID_ROOT_FLOOR_Z - LID_WALL_HEIGHT,
+    ))
+    # A convex outline joins the barrel tangentially to the wide plate root.
+    # Construct it directly to avoid coincident Boolean faces at the jaw root.
+    points = sorted(set(points))
+
+    def cross(origin, first, second):
+        return (
+            (first[0] - origin[0]) * (second[1] - origin[1])
+            - (first[1] - origin[1]) * (second[0] - origin[0])
+        )
+
+    hull = []
+    for sequence in (points, list(reversed(points))):
+        half = []
+        for point in sequence:
+            while len(half) > 1 and cross(half[-2], half[-1], point) <= 0.0:
+                half.pop()
+            half.append(point)
+        hull.extend(half[:-1])
+    return tuple((axis_y + y, axis_z + z) for y, z in hull)
+
+
+def create_lid_hinge_blank(name, x0, x1, axis_y, axis_z):
+    return extrude_loop_x(
+        name, lid_hinge_outer_profile_yz(axis_y, axis_z), x0, x1
+    )
 
 
 def hinge_slot_loop_yz(
@@ -5780,7 +6496,7 @@ def hinge_slot_loop_yz(
         upper = [(slot_t0, throat_half), (lead_t0, throat_half)]
         for sample in range(1, TPU_HINGE_SNAP_LEAD_SAMPLES + 1):
             fraction = sample / TPU_HINGE_SNAP_LEAD_SAMPLES
-            # Cosine easing rounds both ends of the 0.8 mm lead-in shoulder
+            # Cosine easing rounds both ends of the lead-in shoulder
             # without a stress-concentrating corner at the snap throat.
             eased = 0.5 - 0.5 * math.cos(math.pi * fraction)
             half_width = throat_half + (mouth_half - throat_half) * eased
@@ -5800,6 +6516,93 @@ def hinge_slot_loop_yz(
         )
         for t, transverse in profile_points
     )
+
+
+def create_tpu_hinge_bank(
+    target,
+    name_prefix,
+    bank_x0,
+    bank_x1,
+    axis_y,
+    axis_z,
+    throat_width=TPU_HINGE_SNAP_THROAT_WIDTH,
+):
+    """Add one production-faithful three-clip TPU bank to ``target``.
+
+    Both the TPU lid and fit coupon pass through this constructor, keeping the
+    reinforced barrel profile, receiver/lead-in cuts, 1.2 mm flex gaps, and
+    continuous caseward root spines identical between them.
+    """
+    clips = tpu_hinge_bank_segments(bank_x0, bank_x1)
+    # Add one continuous blank before cutting receivers and flex gaps.  This
+    # avoids coplanar Boolean seams where separately added clip blanks would
+    # otherwise meet the coupon/lid root at exact clip end planes.
+    bank_blank = create_lid_hinge_blank(
+        f"{name_prefix}_Continuous_Reinforced_Blank",
+        bank_x0,
+        bank_x1,
+        axis_y,
+        axis_z,
+    )
+    union_into(target, bank_blank)
+    # Remove the barrel/rim material between flexing clips, then restore only
+    # the shared caseward load spine.  The jaws can deflect independently but
+    # transfer load through the same continuous reinforced root as the lid.
+    # Do this before cutting the receivers: their axial overtravel then ends
+    # in real relief air instead of meeting an uncut blank at a coplanar seam.
+    for gap_index, (first, second) in enumerate(pairwise(clips), start=1):
+        gap_x0 = first[1]
+        gap_x1 = second[0]
+        relief = add_cylinder_x(
+            f"{name_prefix}_Axial_Flex_Relief_{gap_index}",
+            HINGE_OUTER_DIAMETER / 2.0 + 0.2,
+            gap_x1 - gap_x0,
+            ((gap_x0 + gap_x1) / 2.0, axis_y, axis_z),
+            vertices=90,
+        )
+        difference_from(target, relief)
+        spine = create_lid_hinge_blank(
+            f"{name_prefix}_Continuous_Root_Spine_{gap_index}",
+            gap_x0 - 0.2,
+            gap_x1 + 0.2,
+            axis_y,
+            axis_z,
+        )
+        spine_cut = add_rounded_box(
+            f"{name_prefix}_Root_Spine_Jaw_Clearance_{gap_index}",
+            (gap_x1 - gap_x0 + 1.0, 20.0, 30.0),
+            (
+                (gap_x0 + gap_x1) / 2.0,
+                axis_y + HINGE_LID_ROOT_SPINE_OFFSET - 10.0,
+                axis_z,
+            ),
+            bevel=0.0,
+        )
+        difference_from(spine, spine_cut)
+        union_into(target, spine)
+
+    for clip_index, (x0, x1) in enumerate(clips, start=1):
+        receiver = add_cylinder_x(
+            f"{name_prefix}_Clip_{clip_index}_Open_Rod_Receiver",
+            HINGE_LID_RECEIVER_DIAMETER / 2.0,
+            x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+            ((x0 + x1) / 2.0, axis_y, axis_z),
+            vertices=90,
+        )
+        difference_from(target, receiver)
+        slot = extrude_loop_x(
+            f"{name_prefix}_Clip_{clip_index}_Rounded_Snap_Lead_In",
+            hinge_slot_loop_yz(
+                axis_y,
+                axis_z,
+                HINGE_PROFILE_TPU_68D_SNAP,
+                throat_width=throat_width,
+            ),
+            x0 - HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+            x1 + HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+        )
+        difference_from(target, slot)
+    return clips
 
 
 def lid_hinge_escape_global_yz(open_angle_degrees):
@@ -6332,20 +7135,19 @@ def create_fan_case_pair_insert(material):
     connector_running_width = (
         PWM_CONNECTOR_ENVELOPE[1] + 2.0 * PWM_CONNECTOR_CLEARANCE
     )
-    dock_wall_thickness = 1.5
     for index, center in enumerate(PWM_CONNECTOR_DOCK_CENTERS, start=1):
         for side in (-1.0, 1.0):
             wall = add_rounded_box(
                 f"Fan_Case_{index}_PWM_Dock_Side_Wall",
                 (
-                    dock_wall_thickness,
+                    PWM_DOCK_WALL_THICKNESS,
                     connector_length,
                     connector_height + 0.4,
                 ),
                 (
                     center[0]
                     + side
-                    * (connector_running_width + dock_wall_thickness)
+                    * (connector_running_width + PWM_DOCK_WALL_THICKNESS)
                     / 2.0,
                     center[1],
                     FAN_CASE_PAIR_INSERT_HEIGHT
@@ -6357,7 +7159,7 @@ def create_fan_case_pair_insert(material):
             nub = add_rounded_box(
                 f"Fan_Case_{index}_PWM_Dock_Retention_Nub",
                 (
-                    dock_wall_thickness + PWM_CONNECTOR_RETENTION_PER_SIDE,
+                    PWM_DOCK_WALL_THICKNESS + PWM_CONNECTOR_RETENTION_PER_SIDE,
                     3.0,
                     2.0,
                 ),
@@ -6366,7 +7168,7 @@ def create_fan_case_pair_insert(material):
                     + side
                     * (
                         connector_running_width / 2.0
-                        + dock_wall_thickness / 2.0
+                        + PWM_DOCK_WALL_THICKNESS / 2.0
                         - PWM_CONNECTOR_RETENTION_PER_SIDE / 2.0
                     ),
                     center[1],
@@ -6375,6 +7177,45 @@ def create_fan_case_pair_insert(material):
                 bevel=0.45,
             )
             union_into(insert, nub)
+
+        # Close the front end of each dock into a U-shaped clip.  Besides
+        # giving the plug a positive insertion stop, this ties both side
+        # walls together when a dock happens to sit above a cable-well void
+        # (the left-hand layout is intentionally asymmetric).  Keep the
+        # backstop outside the full connector-length running envelope so it
+        # does not consume the configured 0.5 mm axial clearance.
+        backstop_depth = PWM_DOCK_WALL_THICKNESS + PWM_DOCK_BACKSTOP_OVERLAP
+        backstop = add_rounded_box(
+            f"Fan_Case_{index}_PWM_Dock_End_Backstop",
+            (
+                connector_running_width + 2.0 * PWM_DOCK_WALL_THICKNESS,
+                backstop_depth,
+                connector_height + 0.4,
+            ),
+            (
+                center[0],
+                center[1]
+                - connector_length / 2.0
+                - PWM_DOCK_WALL_THICKNESS / 2.0
+                + PWM_DOCK_BACKSTOP_OVERLAP / 2.0,
+                FAN_CASE_PAIR_INSERT_HEIGHT
+                + (connector_height + 0.2) / 2.0,
+            ),
+            bevel=0.6,
+        )
+        union_into(insert, backstop)
+
+    # The asymmetric left cable well reaches beneath its dock's inner wall.
+    # Replace that wall's one-ended horizontal underside with a pointed rib
+    # tied into the well floor at both ends.  Both lower faces are at most 45
+    # degrees, and the rib remains wholly outside the free PWM plug channel.
+    for support in FAN_CASE_PAIR_PWM_DOCK_SUPPORT["supports"]:
+        support_rib = extrude_loop_x(
+            f"Fan_Case_{support['dock_index']}_PWM_Dock_Support_Free_Rib",
+            support["profile_yz"],
+            *support["x_bounds"],
+        )
+        union_into(insert, support_rib)
 
     # A center front/latch-edge scallop and the cable wells provide direct
     # grips for lifting this frequently swapped loadout from the shell.
@@ -6389,18 +7230,202 @@ def create_fan_case_pair_insert(material):
     )
     difference_from(insert, lift_notch)
 
+    # Continuous outer-side webs carry the carrier directly to the lower
+    # insert.  Each underside has one teardrop peak and two 45-degree faces;
+    # there is no horizontal ceiling above either PWM dock.  Their X limits
+    # are derived from the bin withdrawal envelope and the rigid upper-tray
+    # rail opening so the complete insert lifts straight out of the
+    # already-printed case.
+    support_loop = tuple(
+        (y, z - FAN_CASE_PAIR_INSERT_INSTALLED_Z)
+        for y, z in FAN_CASE_PAIR_CARRIER_SUPPORT["web_yz"]
+    )
+    for web_index, (x0, x1) in enumerate(
+        FAN_CASE_PAIR_CARRIER_SUPPORT["web_x_bounds"],
+        start=1,
+    ):
+        web = extrude_loop_x(
+            f"Fan_Case_Carrier_Continuous_Side_Web_{web_index}",
+            support_loop,
+            x0,
+            x1,
+        )
+        union_into(insert, web)
+
+    # The lower deck begins below the rigid upper-tray rails, so a full-width
+    # rectangle could never be installed after the shell was printed.  Remove
+    # the two rail-length side strips from the complete insert (including any
+    # dock/support material) while retaining full-width front/rear locating
+    # ears beyond the rail ends.  Every remaining surface is at least the
+    # configured 1 mm away from the fixed rail sweep.
+    relief_inner_x = FAN_CASE_PAIR_CARRIER_SUPPORT["web_outer_x"]
+    relief_outer_x = FAN_CASE_PAIR_CARRIER_SUPPORT["insert_half_width"] + 0.3
+    relief_half_depth = FAN_CASE_PAIR_CARRIER_SUPPORT[
+        "rail_relief_half_depth"
+    ]
+    relief_z1 = (
+        FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"]
+        - FAN_CASE_PAIR_INSERT_INSTALLED_Z
+        + 0.3
+    )
+    for side in (-1.0, 1.0):
+        rail_relief = add_rounded_box(
+            "Fan_Case_Pair_Insert_Rigid_Rail_Withdrawal_Relief",
+            (
+                relief_outer_x - relief_inner_x,
+                2.0 * relief_half_depth,
+                relief_z1 + 0.6,
+            ),
+            (
+                side * (relief_inner_x + relief_outer_x) / 2.0,
+                0.0,
+                (relief_z1 - 0.6) / 2.0,
+            ),
+            bevel=0.0,
+        )
+        difference_from(insert, rail_relief)
+
     translate_object(insert, (0.0, 0.0, FAN_CASE_PAIR_INSERT_INSTALLED_Z))
     assign_material(insert, material)
     return insert
 
 
+def create_fan_case_pair_overhead_carrier(material):
+    """Create the shallow in-base carrier for the removable fan-side bin."""
+    x0, x1, y0, y1, z0, z1 = FAN_CASE_PAIR_OVERHEAD_STORAGE[
+        "carrier_bounds"
+    ]
+    carrier = add_rounded_prism(
+        "Field_Case_Fan_Case_Pair_Overhead_TPU_Carrier",
+        x1 - x0,
+        y1 - y0,
+        z0,
+        z1,
+        6.5,
+        ((x0 + x1) / 2.0, (y0 + y1) / 2.0),
+    )
+    opening = rounded_prism_frustum(
+        "Fan_Side_Drop_In_Bin_Tapered_Carrier_Opening",
+        FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_opening_bottom_size"],
+        FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_opening_top_size"],
+        z0 - 0.2,
+        z1 + 0.2,
+        7.0,
+        10.0,
+        FAN_CASE_PAIR_STORAGE_BIN_CENTER,
+    )
+    difference_from(carrier, opening)
+
+    grip_width, grip_depth = FAN_CASE_PAIR_CARRIER_GRIP_CUTOUT_SIZE
+    for grip_index, grip_center in enumerate(
+        FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_grip_centers"],
+        start=1,
+    ):
+        grip = add_rounded_prism(
+            f"Fan_Side_Storage_Bin_Rear_Flange_Grip_{grip_index}",
+            grip_width,
+            grip_depth,
+            z0 - 0.2,
+            z1 + 0.2,
+            min(5.0, grip_depth / 2.0),
+            grip_center,
+        )
+        difference_from(carrier, grip)
+
+    contact_z = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_contact_z"]
+    # These pads reuse the exact broad-shell contact centers already proven by
+    # the old lid bosses, but project only about 3 mm from a base-mounted deck.
+    for assembly_index, center_x in enumerate(
+        FAN_CASE_STORAGE_CENTERS_X,
+        start=1,
+    ):
+        for pad_index, x_offset in enumerate(
+            FAN_CASE_PAIR_LID_BOSS_X_OFFSETS,
+            start=1,
+        ):
+            contact_pad = add_rounded_box(
+                f"Fan_Case_{assembly_index}_Carrier_Hold_Down_{pad_index}",
+                (
+                    FAN_CASE_PAIR_LID_BOSS_SIZE[0],
+                    FAN_CASE_PAIR_LID_BOSS_SIZE[1],
+                    z0 - contact_z + 0.2,
+                ),
+                (
+                    center_x + x_offset,
+                    FAN_CASE_PAIR_STORAGE["shell_contact_base_y"],
+                    (contact_z + z0) / 2.0 + 0.1,
+                ),
+                bevel=1.2,
+            )
+            union_into(carrier, contact_pad)
+
+    assign_material(carrier, material)
+    return carrier
+
+
+def create_fan_case_pair_storage_bin(material):
+    """Create one removable, continuous-wall bin over the fan-side void."""
+    center = FAN_CASE_PAIR_STORAGE_BIN_CENTER
+    body_width, body_depth = FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE
+    inner_width, inner_depth = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_inner_size"]
+    z0 = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bottom_z"]
+    z1 = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_rim_z"]
+    storage_bin = add_rounded_prism(
+        "Field_Case_Fan_Case_Pair_Fan_Side_Storage_Bin",
+        body_width,
+        body_depth,
+        z0,
+        z1,
+        7.0,
+        center,
+    )
+    cavity = add_rounded_prism(
+        "Fan_Side_Storage_Bin_Interior",
+        inner_width,
+        inner_depth,
+        z0 + FAN_CASE_PAIR_STORAGE_BIN_FLOOR,
+        z1 + 0.3,
+        4.0,
+        center,
+    )
+    difference_from(storage_bin, cavity)
+
+    flange_z = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_flange_z"]
+    flare = rounded_ring_frustum(
+        "Fan_Side_Storage_Bin_45_Degree_Carrier_Flare",
+        FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE,
+        FAN_CASE_PAIR_STORAGE_BIN_FLARE_SIZE,
+        (inner_width, inner_depth),
+        flange_z - FAN_CASE_PAIR_CARRIER_THICKNESS,
+        flange_z,
+        7.0,
+        10.0,
+        4.0,
+        center,
+    )
+    union_into(storage_bin, flare)
+    flange = rounded_ring(
+        "Fan_Side_Storage_Bin_Carrier_Flange",
+        FAN_CASE_PAIR_STORAGE_BIN_FLANGE_SIZE,
+        (inner_width, inner_depth),
+        flange_z,
+        flange_z + FAN_CASE_PAIR_STORAGE_BIN_FLANGE_THICKNESS,
+        8.0,
+        4.0,
+        center,
+    )
+    union_into(storage_bin, flange)
+
+    assign_material(storage_bin, material)
+    return storage_bin
+
+
 def create_fan_case_pair_lid_pad(material):
-    """Create the optional keyed lid pad that preloads both complete cases."""
+    """Create the flat keyed pad that closes the removable storage bin."""
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     pad_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
     pad_depth = inner_depth - 2.0 * INSERT_SIDE_CLEARANCE
-    pad_height = FAN_CASE_PAIR_STORAGE["lid_pad_height"]
     pad = add_rounded_prism(
         "Field_Case_Fan_Case_Pair_TPU_Lid_Pad",
         pad_width,
@@ -6409,39 +7434,6 @@ def create_fan_case_pair_lid_pad(material):
         FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS,
         INSERT_CORNER_RADIUS,
     )
-
-    # Four narrow columns land on the broad upper edge of the two rear shells.
-    # They avoid the camera controls and use much less TPU than a solid 31 mm
-    # pad while providing positive closed-case preload.
-    lid_local_shell_y = -FAN_CASE_PAIR_STORAGE["shell_contact_base_y"]
-    for assembly_index, center_x in enumerate(
-        FAN_CASE_STORAGE_CENTERS_X,
-        start=1,
-    ):
-        for boss_index, x_offset in enumerate(
-            FAN_CASE_PAIR_LID_BOSS_X_OFFSETS,
-            start=1,
-        ):
-            boss = add_rounded_box(
-                f"Fan_Case_{assembly_index}_Lid_Hold_Down_{boss_index}",
-                (
-                    FAN_CASE_PAIR_LID_BOSS_SIZE[0],
-                    FAN_CASE_PAIR_LID_BOSS_SIZE[1],
-                    pad_height - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS + 0.2,
-                ),
-                (
-                    center_x + x_offset,
-                    lid_local_shell_y,
-                    (
-                        FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
-                        + pad_height
-                    )
-                    / 2.0
-                    - 0.1,
-                ),
-                bevel=1.4,
-            )
-            union_into(pad, boss)
 
     key_notch = add_rounded_prism(
         "Fan_Case_Pair_Lid_Pad_One_Way_Key_Notch",
@@ -6461,20 +7453,32 @@ def create_fan_case_pair_lid_pad(material):
     return pad
 
 
+def tpu_hinge_coupon_centers():
+    block_gap = 1.0
+    return tuple(
+        (index - (len(TPU_HINGE_COUPON_THROATS) - 1) / 2.0)
+        * (TPU_HINGE_COUPON_BLOCK_SIZE + block_gap)
+        for index in range(len(TPU_HINGE_COUPON_THROATS))
+    )
+
+
 def create_tpu_hinge_coupon(material):
-    """Create four lid-faithful 68D snap samples with dot-coded throats."""
+    """Create four detachable, full-bank 68D snap-hinge samples."""
     block = TPU_HINGE_COUPON_BLOCK_SIZE
     block_gap = 1.0
-    clip_width = min(
-        x1 - x0 for x0, x1 in lid_hinge_segments(HINGE_PROFILE_TPU_68D_SNAP)
+    production_bank_width = min(
+        x1 - x0 for x0, x1 in lid_hinge_bank_bounds()
     )
+    if not math.isclose(block, production_bank_width, abs_tol=1e-6):
+        raise ValueError("TPU coupon banks must match the production bank width")
     axis_z = LID_WALL_HEIGHT
     rim_outer_y = HINGE_AXIS_Y - (CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET)
     rim_unflared_y = HINGE_AXIS_Y - CASE_DEPTH / 2.0
     wall_inner_y = HINGE_AXIS_Y - (CASE_DEPTH / 2.0 - WALL_THICKNESS)
     # This is the rear-center lid cross-section in its exported broad-face-down
     # orientation: plate/root, 45-degree flared rim, loaded edge, and barrel.
-    # Only X length and throat vary between samples.
+    # Only the calibrated throat varies between otherwise production-identical
+    # three-clip banks.
     root_profile_yz = (
         (rim_unflared_y, 0.0),
         (wall_inner_y + 2.0, 0.0),
@@ -6485,57 +7489,38 @@ def create_tpu_hinge_coupon(material):
         (rim_outer_y, LID_FLANGE_EDGE_START_Z),
         (rim_unflared_y, LID_FLANGE_FLARE_START_Z),
     )
-    centers_x = tuple(
-        (index - (len(TPU_HINGE_COUPON_THROATS) - 1) / 2.0)
-        * (block + block_gap)
-        for index in range(len(TPU_HINGE_COUPON_THROATS))
-    )
+    centers_x = tpu_hinge_coupon_centers()
     coupon = None
     for sample_index, (center_x, throat_width) in enumerate(
         zip(centers_x, TPU_HINGE_COUPON_THROATS),
         start=1,
     ):
-        barrel = add_cylinder_x(
-            f"TPU_68D_Coupon_{throat_width:.1f}_Snap_Barrel",
-            HINGE_OUTER_DIAMETER / 2.0,
-            clip_width,
-            (center_x, 0.0, axis_z),
-            vertices=90,
-        )
-        root = extrude_loop_x(
-            f"TPU_68D_Coupon_{throat_width:.1f}_Lid_Rim_Root",
+        bank_x0 = center_x - block / 2.0
+        bank_x1 = center_x + block / 2.0
+        sample = extrude_loop_x(
+            f"TPU_68D_Coupon_{throat_width:.1f}_Full_Bank_Lid_Rim_Root",
             root_profile_yz,
-            center_x - clip_width / 2.0,
-            center_x + clip_width / 2.0,
+            bank_x0,
+            bank_x1,
         )
-        union_into(barrel, root)
         grip = add_rounded_box(
             f"TPU_68D_Coupon_{throat_width:.1f}_Grip",
             (block, 6.0, 2.2),
             (center_x, wall_inner_y + 1.0, 1.1),
             bevel=0.8,
         )
-        union_into(barrel, grip)
-        receiver = add_cylinder_x(
-            f"TPU_68D_Coupon_{throat_width:.1f}_Receiver",
-            HINGE_LID_RECEIVER_DIAMETER / 2.0,
-            clip_width + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
-            (center_x, 0.0, axis_z),
-            vertices=90,
+        union_into(sample, grip)
+        clips = create_tpu_hinge_bank(
+            sample,
+            f"TPU_68D_Coupon_{throat_width:.1f}_Bank",
+            bank_x0,
+            bank_x1,
+            0.0,
+            axis_z,
+            throat_width=throat_width,
         )
-        difference_from(barrel, receiver)
-        slot = extrude_loop_x(
-            f"TPU_68D_Coupon_{throat_width:.1f}_Rounded_Lead_In",
-            hinge_slot_loop_yz(
-                0.0,
-                axis_z,
-                HINGE_PROFILE_TPU_68D_SNAP,
-                throat_width=throat_width,
-            ),
-            center_x - clip_width / 2.0 - HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
-            center_x + clip_width / 2.0 + HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
-        )
-        difference_from(barrel, slot)
+        if len(clips) != TPU_HINGE_CLIPS_PER_SEGMENT:
+            raise ValueError("A TPU coupon bank does not match the production clip count")
         for dot_index in range(sample_index):
             dot = add_cylinder_z(
                 f"TPU_68D_Coupon_{throat_width:.1f}_Code_Dot_{dot_index + 1}",
@@ -6549,9 +7534,9 @@ def create_tpu_hinge_coupon(material):
                 ),
                 vertices=32,
             )
-            union_into(barrel, dot)
+            union_into(sample, dot)
         if coupon is None:
-            coupon = barrel
+            coupon = sample
         else:
             bridge_center_x = center_x - (block + block_gap) / 2.0
             bridge = add_rounded_box(
@@ -6565,7 +7550,7 @@ def create_tpu_hinge_coupon(material):
                 bevel=0.1,
             )
             union_into(coupon, bridge)
-            union_into(coupon, barrel)
+            union_into(coupon, sample)
     coupon.name = "Field_Case_TPU_68D_Hinge_Fit_Coupon_38_39_40_41"
     assign_material(coupon, material)
     return coupon
@@ -6944,8 +7929,8 @@ def create_lid(
     # cylindrical pockets preserve the alternating-barrel hinge instead of
     # letting the surrounding rim collide before the lid can close.
     for index, (x0, x1) in enumerate(HINGE_BASE_SEGMENTS, start=1):
-        relief_x0 = x0 - HINGE_RIM_RELIEF_AXIAL_CLEARANCE
-        relief_x1 = x1 + HINGE_RIM_RELIEF_AXIAL_CLEARANCE
+        relief_x0 = x0 - HINGE_LID_RIM_AXIAL_CLEARANCE
+        relief_x1 = x1 + HINGE_LID_RIM_AXIAL_CLEARANCE
         if index == 1:
             relief_x0 = min(
                 relief_x0,
@@ -6964,7 +7949,7 @@ def create_lid(
             )
         relief = add_cylinder_x(
             f"Lid_Rear_Rim_Relief_For_Base_Knuckle_{index}",
-            HINGE_OUTER_DIAMETER / 2.0 + HINGE_RIM_RELIEF_RADIAL_CLEARANCE,
+            HINGE_OUTER_DIAMETER / 2.0 + HINGE_LID_RIM_RADIAL_CLEARANCE,
             relief_x1 - relief_x0,
             (
                 dx + (relief_x0 + relief_x1) / 2.0,
@@ -6998,54 +7983,57 @@ def create_lid(
     # around X places it on the base's +Y hinge line.  Union each barrel into
     # the complete flared rim, cut a round 4.8 mm receiver, then open that
     # receiver through its rear side with a 4.6 mm slot.  The installed escape
-    # vector remains blocked by the unchanged base through 65 degrees.  At 70
+    # vector remains blocked by the unchanged base through 60 degrees.  At 70
     # degrees the lid slides diagonally up/forward off the already-installed 4.1
     # mm base rod.  These full-width slots need removable print support; the
     # extra 0.5 mm width leaves cleanup allowance around the physical rod.
-    active_hinge_segments = lid_hinge_segments(hinge_profile)
-    for index, (x0, x1) in enumerate(active_hinge_segments, start=1):
-        knuckle = add_cylinder_x(
-            f"Lid_Hinge_Knuckle_{index}",
-            HINGE_OUTER_DIAMETER / 2.0,
-            x1 - x0,
-            (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
-        )
-        union_into(lid, knuckle)
-        receiver = add_cylinder_x(
-            f"Lid_Hinge_Open_Rod_Receiver_{index}",
-            HINGE_LID_RECEIVER_DIAMETER / 2.0,
-            x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
-            (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
-            vertices=90,
-        )
-        difference_from(lid, receiver)
-        slot = extrude_loop_x(
-            f"Lid_Hinge_{hinge_profile}_Slot_{index}",
-            hinge_slot_loop_yz(
+    if hinge_profile == HINGE_PROFILE_TPU_68D_SNAP:
+        # Both production banks use the exact same constructor as all four
+        # coupon samples, including their independent clips and shared spines.
+        for bank_index, (bank_x0, bank_x1) in enumerate(
+            lid_hinge_bank_bounds(),
+            start=1,
+        ):
+            create_tpu_hinge_bank(
+                lid,
+                f"Lid_TPU_Hinge_Bank_{bank_index}",
+                dx + bank_x0,
+                dx + bank_x1,
                 -HINGE_AXIS_Y,
                 LID_WALL_HEIGHT,
-                hinge_profile,
-            ),
-            dx + x0 - HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
-            dx + x1 + HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
-        )
-        difference_from(lid, slot)
-
-    # The hard-TPU profile uses six short clips rather than two stiff 22.8 mm
-    # barrels.  Remove the complete local barrel/rim cross-section between
-    # clips so each jaw can flex independently around the 4.1 mm rod.
-    for index, (x0, x1) in enumerate(
-        lid_hinge_relief_gaps(hinge_profile),
-        start=1,
-    ):
-        relief = add_cylinder_x(
-            f"Lid_TPU_Hinge_Clip_Axial_Relief_{index}",
-            HINGE_OUTER_DIAMETER / 2.0 + 0.2,
-            x1 - x0,
-            (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
-            vertices=90,
-        )
-        difference_from(lid, relief)
+            )
+    else:
+        for index, (x0, x1) in enumerate(
+            lid_hinge_segments(hinge_profile),
+            start=1,
+        ):
+            knuckle = create_lid_hinge_blank(
+                f"Lid_Hinge_Knuckle_{index}",
+                dx + x0,
+                dx + x1,
+                -HINGE_AXIS_Y,
+                LID_WALL_HEIGHT,
+            )
+            union_into(lid, knuckle)
+            receiver = add_cylinder_x(
+                f"Lid_Hinge_Open_Rod_Receiver_{index}",
+                HINGE_LID_RECEIVER_DIAMETER / 2.0,
+                x1 - x0 + 2.0 * HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+                (dx + (x0 + x1) / 2.0, -HINGE_AXIS_Y, LID_WALL_HEIGHT),
+                vertices=90,
+            )
+            difference_from(lid, receiver)
+            slot = extrude_loop_x(
+                f"Lid_Hinge_{hinge_profile}_Slot_{index}",
+                hinge_slot_loop_yz(
+                    -HINGE_AXIS_Y,
+                    LID_WALL_HEIGHT,
+                    hinge_profile,
+                ),
+                dx + x0 - HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+                dx + x1 + HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL,
+            )
+            difference_from(lid, slot)
 
     # Two short solid bosses sit just beyond the outer faces of the base's end
     # knuckles.  The 151 mm rod ends inside those faces, so these lid-mounted
@@ -9864,6 +10852,28 @@ def installed_lid_pose(open_angle_degrees, lift=0.0):
     )
 
 
+def installed_flat_lid_pad_pose(open_angle_degrees):
+    """Return the alternate flat pad pose while attached inside the lid."""
+    lid_location, lid_rotation = installed_lid_pose(open_angle_degrees)
+    rotation_x = lid_rotation[0]
+    # The separately modeled pad's local Z=0 face coincides with the lid
+    # plate's local Z=LID_PLATE_THICKNESS inner face.
+    local_y = 0.0
+    local_z = LID_PLATE_THICKNESS
+    return (
+        (
+            lid_location[0] + LID_DISPLAY_OFFSET_X,
+            lid_location[1]
+            + math.cos(rotation_x) * local_y
+            - math.sin(rotation_x) * local_z,
+            lid_location[2]
+            + math.sin(rotation_x) * local_y
+            + math.cos(rotation_x) * local_z,
+        ),
+        lid_rotation,
+    )
+
+
 def validate_installed_lid_hinge_release(parts) -> None:
     """Prove the actual slot path stays blocked until deliberate release."""
     release_travel = (
@@ -10230,6 +11240,92 @@ def validate_built_base_hinge_gussets(base) -> None:
         f"bore_probe_diameter={bore_probe_diameter:.3f} "
         f"bore_overlap_max={bore_overlap_maximum:.6f} "
         f"full_rod_path_overlap={full_path_overlap:.6f}"
+    )
+
+
+def validate_lid_hinge_reinforcement(base, lid, profile):
+    """Check both jaw ligaments, plate roots, and a 0.5 mm running envelope."""
+    fills = []
+    root_fills = []
+    spine_fills = []
+
+    def require_solid(name, size, center, results):
+        probe = add_rounded_box(name, size, center, bevel=0.0)
+        try:
+            _faces, volume = exact_transformed_intersection(
+                lid, probe,
+                first_location=lid.location.copy(),
+                first_rotation=lid.rotation_euler.copy(),
+                second_location=probe.location.copy(),
+                second_rotation=probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        if volume < math.prod(size) * 0.95:
+            raise ValueError(f"Lid hinge reinforcement is incomplete: {name} {volume:.6f}")
+        results.append(volume)
+
+    is_tpu = profile == HINGE_PROFILE_TPU_68D_SNAP
+    lip_center_z = 3.37 if is_tpu else 3.26
+    lip_height = 1.55 if is_tpu else 1.75
+    for index, (x0, x1) in enumerate(lid_hinge_segments(profile), start=1):
+        center_x = LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0
+        width = x1 - x0 - 0.8
+        for side in (-1.0, 1.0):
+            require_solid(
+                f"TEMPORARY_{profile}_{index}_Blunt_Jaw_{side}",
+                (width, 0.12, lip_height),
+                (center_x, -HINGE_AXIS_Y - 2.3,
+                 LID_WALL_HEIGHT + side * lip_center_z),
+                fills,
+            )
+        for root_name, offset_y, offset_z in (
+            ("Barrel_Root", 3.45, 0.0),
+            ("Plate_Gusset", 2.0, -6.5),
+        ):
+            require_solid(
+                f"TEMPORARY_{profile}_{index}_{root_name}",
+                (width, 0.4, 1.2),
+                (center_x, -HINGE_AXIS_Y + offset_y, LID_WALL_HEIGHT + offset_z),
+                root_fills,
+            )
+    for index, (x0, x1) in enumerate(lid_hinge_relief_gaps(profile), start=1):
+        require_solid(
+            f"TEMPORARY_TPU_Continuous_Root_Spine_{index}",
+            (x1 - x0 - 0.3, 0.3, 1.0),
+            (LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0,
+             -HINGE_AXIS_Y + 3.65, LID_WALL_HEIGHT),
+            spine_fills,
+        )
+
+    maximum_clearance_overlap = 0.0
+    for index, (x0, x1) in enumerate(lid_hinge_segments(), start=1):
+        # A cylinder encloses the rotating barrel through the complete sweep.
+        # Growing it radially AND axially by 0.5 mm tests clearance to the
+        # unchanged base, beyond merely checking nominal surface collision.
+        probe = add_cylinder_x(
+            f"TEMPORARY_Lid_Hinge_{index}_Half_mm_Running_Envelope",
+            HINGE_LID_OUTER_DIAMETER / 2.0 + 0.5,
+            x1 - x0 + 1.0,
+            ((x0 + x1) / 2.0, HINGE_AXIS_Y, BASE_HEIGHT),
+            vertices=90,
+        )
+        try:
+            _faces, volume = exact_transformed_intersection(
+                base, probe,
+                second_location=probe.location.copy(),
+                second_rotation=probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        maximum_clearance_overlap = max(maximum_clearance_overlap, volume)
+    if maximum_clearance_overlap > 1e-6:
+        raise ValueError("Lid hinge lacks a 0.5 mm running envelope against the base")
+    print(
+        "FIELD_CASE_LID_HINGE_REINFORCEMENT_VALID "
+        f"profile={profile} jaw_probes={len(fills)} jaw_fill_min={min(fills):.6f} "
+        f"root_fill_min={min(root_fills):.6f} continuous_spines={len(spine_fills)} "
+        f"clearance_envelope=0.50 clearance_overlap={maximum_clearance_overlap:.6f}"
     )
 
 
@@ -10812,25 +11908,13 @@ def create_fan_case_pair_reference_mockups(
         )
         cable = rounded_ring(
             f"REFERENCE_ONLY_Fan_Case_Cable_Coil_{assembly_index}",
-            (
-                FAN_CASE_CABLE_WELL_SIZE[0] - 4.0,
-                FAN_CASE_CABLE_WELL_SIZE[1] - 4.0,
-            ),
-            (
-                FAN_CASE_CABLE_WELL_SIZE[0] - 4.0 - 2.0 * FAN_CASE_CABLE_DIAMETER,
-                FAN_CASE_CABLE_WELL_SIZE[1] - 4.0 - 2.0 * FAN_CASE_CABLE_DIAMETER,
-            ),
+            FAN_CASE_PAIR_PWM_DOCK_SUPPORT["coil_outer_size"],
+            FAN_CASE_PAIR_PWM_DOCK_SUPPORT["coil_inner_size"],
             cable_z0,
             cable_z0 + FAN_CASE_CABLE_DIAMETER,
-            FAN_CASE_CABLE_WELL_CORNER_RADIUS,
-            max(
-                FAN_CASE_CABLE_WELL_CORNER_RADIUS - FAN_CASE_CABLE_DIAMETER,
-                0.5,
-            ),
-            (
-                FAN_CASE_CABLE_WELL_CENTERS[assembly_index - 1][0],
-                FAN_CASE_CABLE_WELL_CENTERS[assembly_index - 1][1],
-            ),
+            FAN_CASE_PAIR_PWM_DOCK_SUPPORT["coil_outer_radius"],
+            FAN_CASE_PAIR_PWM_DOCK_SUPPORT["coil_inner_radius"],
+            FAN_CASE_PAIR_PWM_DOCK_SUPPORT["coil_centers"][assembly_index - 1],
         )
         assign_material(cable, cable_material)
         objects.append(cable)
@@ -11495,13 +12579,152 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
             f"air={guide_air} fill={guide_fill}"
         )
 
-    pad_contacts = []
-    for group in assembly_groups:
-        contact = 0.0
+    def probe_fill_volume(part, probe):
+        """Return how much of a temporary validation probe is solid part."""
+        _faces, volume = exact_transformed_intersection(
+            part,
+            probe,
+            first_location=part.location.copy(),
+            first_rotation=part.rotation_euler.copy(),
+            second_location=probe.location.copy(),
+            second_rotation=probe.rotation_euler.copy(),
+        )
+        return volume
+
+    # Independently prove both continuous side webs touch the carrier.  A
+    # small probe straddles each nominal interface; both halves must be solid.
+    web_carrier_contacts = []
+    carrier_bottom_z = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][4]
+    support = FAN_CASE_PAIR_CARRIER_SUPPORT
+    contact_y = sum(support["connector_y_bounds"]) / 2.0
+    for web_index, (x0, x1) in enumerate(support["web_x_bounds"], start=1):
+        probe_size = (x1 - x0 - 0.8, 8.0, 0.30)
+        probe = add_rounded_box(
+            f"TEMPORARY_Web_Carrier_Contact_{web_index}",
+            probe_size,
+            ((x0 + x1) / 2.0, contact_y, carrier_bottom_z),
+            bevel=0.0,
+        )
+        try:
+            insert_fill = probe_fill_volume(parts["fan_case_pair_insert"], probe)
+            carrier_fill = probe_fill_volume(parts["fan_case_pair_carrier"], probe)
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        minimum_expected_fill = math.prod(probe_size) * 0.35
+        if min(insert_fill, carrier_fill) < minimum_expected_fill:
+            raise ValueError(
+                "A fan-side storage web misses the carrier: "
+                f"web={web_index} insert={insert_fill:.6f} "
+                f"carrier={carrier_fill:.6f} "
+                f"minimum={minimum_expected_fill:.6f}"
+            )
+        web_carrier_contacts.append(min(insert_fill, carrier_fill))
+
+    # Rebuild the two continuous webs as temporary validation solids.  The
+    # exact assemblies, accessories, and original locator cavities must clear
+    # the full arched load path.
+    web_reference_overlap = 0.0
+    web_guide_overlap = 0.0
+    web_overlap_details = {}
+    guide_clearance_probes = []
+    for assembly_index, bounds in enumerate(
+        FAN_CASE_PAIR_STORAGE["cavity_bounds"],
+        start=1,
+    ):
+        x0, x1, y0, y1 = bounds
+        guide_probe = add_rounded_prism(
+            f"TEMPORARY_Fan_Case_{assembly_index}_Full_Guide_Clearance",
+            x1 - x0,
+            y1 - y0,
+            FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_PAIR_INSERT_FLOOR,
+            FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_PAIR_GUIDE_HEIGHT,
+            FAN_CASE_PAIR_CAVITY_CORNER_RADIUS,
+            ((x0 + x1) / 2.0, (y0 + y1) / 2.0),
+        )
+        guide_clearance_probes.append(guide_probe)
+    for web_index, (x0, x1) in enumerate(support["web_x_bounds"], start=1):
+        web = extrude_loop_x(
+            f"TEMPORARY_Complete_Carrier_Web_{web_index}",
+            support["web_yz"],
+            x0,
+            x1,
+        )
+        try:
+            for obj in (
+                *(obj for group in assembly_groups for obj in group),
+                *accessory_objects,
+            ):
+                _faces, volume = exact_transformed_intersection(
+                    web,
+                    obj,
+                    first_location=web.location.copy(),
+                    first_rotation=web.rotation_euler.copy(),
+                    second_location=obj.location.copy(),
+                    second_rotation=obj.rotation_euler.copy(),
+                )
+                web_reference_overlap += volume
+                if volume > 1e-7:
+                    web_overlap_details[obj.name] = volume
+            for guide_probe in guide_clearance_probes:
+                _faces, volume = exact_transformed_intersection(
+                    web,
+                    guide_probe,
+                    first_location=web.location.copy(),
+                    first_rotation=web.rotation_euler.copy(),
+                    second_location=guide_probe.location.copy(),
+                    second_rotation=guide_probe.rotation_euler.copy(),
+                )
+                web_guide_overlap += volume
+        finally:
+            bpy.data.objects.remove(web, do_unlink=True)
+    for guide_probe in guide_clearance_probes:
+        bpy.data.objects.remove(guide_probe, do_unlink=True)
+    if max(web_reference_overlap, web_guide_overlap) > 1e-5:
+        raise ValueError(
+            "A fan-side storage web obstructs the packed loadout or locator "
+            f"path: references={web_reference_overlap:.6f} "
+            f"guides={web_guide_overlap:.6f} details={web_overlap_details}"
+        )
+
+    carrier_contacts = []
+    shell_locator_contacts = []
+    carrier_unwanted_overlap = 0.0
+    bin_assembly_overlap = 0.0
+    lid_pad_assembly_overlap = 0.0
+    for assembly_index, group in enumerate(assembly_groups, start=1):
         broad_shell_contact = 0.0
         contact_details = {}
         for obj in group:
-            _faces, volume = exact_transformed_intersection(
+            _faces, carrier_volume = exact_transformed_intersection(
+                parts["fan_case_pair_carrier"],
+                obj,
+                first_location=parts["fan_case_pair_carrier"].location.copy(),
+                first_rotation=parts[
+                    "fan_case_pair_carrier"
+                ].rotation_euler.copy(),
+                second_location=obj.location.copy(),
+                second_rotation=obj.rotation_euler.copy(),
+            )
+            if carrier_volume > 0.0:
+                contact_details[obj.name] = carrier_volume
+                if "GoPro_Fan_Case_Back" in obj.name:
+                    broad_shell_contact += carrier_volume
+                else:
+                    carrier_unwanted_overlap += carrier_volume
+            _faces, bin_volume = exact_transformed_intersection(
+                parts["fan_case_pair_storage_bin"],
+                obj,
+                first_location=parts[
+                    "fan_case_pair_storage_bin"
+                ].location.copy(),
+                first_rotation=parts[
+                    "fan_case_pair_storage_bin"
+                ].rotation_euler.copy(),
+                second_location=obj.location.copy(),
+                second_rotation=obj.rotation_euler.copy(),
+            )
+            bin_assembly_overlap += bin_volume
+            _faces, lid_volume = exact_transformed_intersection(
                 parts["fan_case_pair_lid_pad"],
                 obj,
                 first_location=(0.0, 0.0, installed_lid_inner_face),
@@ -11509,18 +12732,472 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
                 second_location=obj.location.copy(),
                 second_rotation=obj.rotation_euler.copy(),
             )
-            contact += volume
-            if volume > 0.0:
-                contact_details[obj.name] = volume
-                if "GoPro_Fan_Case_Back" in obj.name:
-                    broad_shell_contact += volume
-        if contact < 1.0 or broad_shell_contact < 1.0:
+            lid_pad_assembly_overlap += lid_volume
+        if broad_shell_contact < 1.0:
             raise ValueError(
-                "Alternate lid pad does not preload the broad fan-case shell: "
-                f"contact={contact:.6f} broad_shell={broad_shell_contact:.6f} "
+                "Overhead carrier does not preload a broad fan-case shell: "
+                f"broad_shell={broad_shell_contact:.6f} "
                 f"details={contact_details}"
             )
-        pad_contacts.append(contact)
+        carrier_contacts.append(broad_shell_contact)
+
+        broad_shells = [
+            obj for obj in group if "GoPro_Fan_Case_Back" in obj.name
+        ]
+        if len(broad_shells) != 1:
+            raise ValueError(
+                f"Fan-case assembly {assembly_index} needs one broad rear shell"
+            )
+        shell = broad_shells[0]
+        shell_top_z = FAN_CASE_PAIR_STORAGE["broad_shell_top_z"]
+        for pad_index, x_offset in enumerate(
+            FAN_CASE_PAIR_LID_BOSS_X_OFFSETS,
+            start=1,
+        ):
+            probe_size = (
+                FAN_CASE_PAIR_LID_BOSS_SIZE[0] - 2.0,
+                FAN_CASE_PAIR_LID_BOSS_SIZE[1] - 2.0,
+                FAN_CASE_PAIR_SHELL_LOCATOR_PRELOAD * 0.70,
+            )
+            probe = add_rounded_box(
+                f"TEMPORARY_Shell_Locator_{assembly_index}_{pad_index}",
+                probe_size,
+                (
+                    FAN_CASE_STORAGE_CENTERS_X[assembly_index - 1] + x_offset,
+                    FAN_CASE_PAIR_STORAGE["shell_contact_base_y"],
+                    shell_top_z - FAN_CASE_PAIR_SHELL_LOCATOR_PRELOAD / 2.0,
+                ),
+                bevel=0.0,
+            )
+            try:
+                carrier_fill = probe_fill_volume(
+                    parts["fan_case_pair_carrier"], probe
+                )
+                shell_fill = probe_fill_volume(shell, probe)
+            finally:
+                bpy.data.objects.remove(probe, do_unlink=True)
+            minimum_expected_fill = math.prod(probe_size) * 0.60
+            if min(carrier_fill, shell_fill) < minimum_expected_fill:
+                raise ValueError(
+                    "A carrier shell-locator pad misses its broad shell: "
+                    f"assembly={assembly_index} pad={pad_index} "
+                    f"carrier={carrier_fill:.6f} shell={shell_fill:.6f} "
+                    f"minimum={minimum_expected_fill:.6f}"
+                )
+            shell_locator_contacts.append(min(carrier_fill, shell_fill))
+
+    bin_accessory_overlap = 0.0
+    carrier_accessory_overlap = 0.0
+    for obj in accessory_objects:
+        for part_key, accumulator_name in (
+            ("fan_case_pair_storage_bin", "bin"),
+            ("fan_case_pair_carrier", "carrier"),
+        ):
+            part = parts[part_key]
+            _faces, volume = exact_transformed_intersection(
+                part,
+                obj,
+                first_location=part.location.copy(),
+                first_rotation=part.rotation_euler.copy(),
+                second_location=obj.location.copy(),
+                second_rotation=obj.rotation_euler.copy(),
+            )
+            if accumulator_name == "bin":
+                bin_accessory_overlap += volume
+            else:
+                carrier_accessory_overlap += volume
+
+    _faces, carrier_bin_overlap = exact_transformed_intersection(
+        parts["fan_case_pair_carrier"],
+        parts["fan_case_pair_storage_bin"],
+        first_location=parts["fan_case_pair_carrier"].location.copy(),
+        first_rotation=parts["fan_case_pair_carrier"].rotation_euler.copy(),
+        second_location=parts["fan_case_pair_storage_bin"].location.copy(),
+        second_rotation=parts["fan_case_pair_storage_bin"].rotation_euler.copy(),
+    )
+    _faces, lid_bin_contact = exact_transformed_intersection(
+        parts["fan_case_pair_lid_pad"],
+        parts["fan_case_pair_storage_bin"],
+        first_location=(0.0, 0.0, installed_lid_inner_face),
+        first_rotation=(math.pi, 0.0, 0.0),
+        second_location=parts["fan_case_pair_storage_bin"].location.copy(),
+        second_rotation=parts[
+            "fan_case_pair_storage_bin"
+        ].rotation_euler.copy(),
+    )
+    _faces, lid_carrier_overlap = exact_transformed_intersection(
+        parts["fan_case_pair_lid_pad"],
+        parts["fan_case_pair_carrier"],
+        first_location=(0.0, 0.0, installed_lid_inner_face),
+        first_rotation=(math.pi, 0.0, 0.0),
+        second_location=parts["fan_case_pair_carrier"].location.copy(),
+        second_rotation=parts["fan_case_pair_carrier"].rotation_euler.copy(),
+    )
+
+    # The bin flange must bear on the carrier at both side lands and at its
+    # continuous front/rear lands.  These probes straddle the interface and
+    # prove solid material independently above and below it.
+    flange_bearing_contacts = []
+    bin_center_x, bin_center_y = FAN_CASE_PAIR_STORAGE_BIN_CENTER
+    opening_top_width, opening_top_depth = (
+        FAN_CASE_PAIR_STORAGE_BIN_OPENING_TOP_SIZE
+    )
+    flange_width, flange_depth = FAN_CASE_PAIR_STORAGE_BIN_FLANGE_SIZE
+    flange_probe_specs = (
+        (
+            "Left",
+            (1.2, 12.0, 0.30),
+            (
+                bin_center_x - (opening_top_width + flange_width) / 4.0,
+                bin_center_y,
+                FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_flange_z"],
+            ),
+        ),
+        (
+            "Right",
+            (1.2, 12.0, 0.30),
+            (
+                bin_center_x + (opening_top_width + flange_width) / 4.0,
+                bin_center_y,
+                FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_flange_z"],
+            ),
+        ),
+        (
+            "Front",
+            (12.0, 1.2, 0.30),
+            (
+                bin_center_x,
+                bin_center_y - (opening_top_depth + flange_depth) / 4.0,
+                FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_flange_z"],
+            ),
+        ),
+        (
+            "Rear",
+            (12.0, 1.2, 0.30),
+            (
+                bin_center_x,
+                bin_center_y + (opening_top_depth + flange_depth) / 4.0,
+                FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_flange_z"],
+            ),
+        ),
+    )
+    for bearing_name, probe_size, probe_center in flange_probe_specs:
+        probe = add_rounded_box(
+            f"TEMPORARY_Bin_Flange_{bearing_name}_Bearing",
+            probe_size,
+            probe_center,
+            bevel=0.0,
+        )
+        try:
+            carrier_fill = probe_fill_volume(
+                parts["fan_case_pair_carrier"], probe
+            )
+            bin_fill = probe_fill_volume(
+                parts["fan_case_pair_storage_bin"], probe
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        minimum_expected_fill = math.prod(probe_size) * 0.35
+        if min(carrier_fill, bin_fill) < minimum_expected_fill:
+            raise ValueError(
+                "The storage-bin flange lacks a carrier bearing land: "
+                f"land={bearing_name} carrier={carrier_fill:.6f} "
+                f"bin={bin_fill:.6f} minimum={minimum_expected_fill:.6f}"
+            )
+        flange_bearing_contacts.append(min(carrier_fill, bin_fill))
+
+    # Confirm that the generated bin still has usable air, a continuous floor,
+    # and all four walls after its flare and flange Booleans are evaluated.
+    bin_bottom_z = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bottom_z"]
+    bin_rim_z = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_rim_z"]
+    bin_inner_width, bin_inner_depth = FAN_CASE_PAIR_OVERHEAD_STORAGE[
+        "bin_inner_size"
+    ]
+    bin_inner_height = (
+        bin_rim_z - bin_bottom_z - FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+    )
+    cavity_air_probe = add_rounded_box(
+        "TEMPORARY_Bin_Interior_Air",
+        (
+            bin_inner_width - 20.0,
+            bin_inner_depth - 20.0,
+            min(2.0, bin_inner_height - 1.0),
+        ),
+        (
+            bin_center_x,
+            bin_center_y,
+            bin_bottom_z + FAN_CASE_PAIR_STORAGE_BIN_FLOOR + 2.0,
+        ),
+        bevel=0.0,
+    )
+    try:
+        bin_cavity_air_overlap = probe_fill_volume(
+            parts["fan_case_pair_storage_bin"], cavity_air_probe
+        )
+    finally:
+        bpy.data.objects.remove(cavity_air_probe, do_unlink=True)
+    bin_solid_probe_specs = (
+        (
+            "Floor",
+            (20.0, 20.0, FAN_CASE_PAIR_STORAGE_BIN_FLOOR - 0.6),
+            (
+                bin_center_x,
+                bin_center_y,
+                bin_bottom_z + FAN_CASE_PAIR_STORAGE_BIN_FLOOR / 2.0,
+            ),
+        ),
+        (
+            "Left_Wall",
+            (FAN_CASE_PAIR_STORAGE_BIN_WALL - 0.6, 10.0, 2.0),
+            (
+                bin_center_x
+                - (
+                    FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE[0]
+                    - FAN_CASE_PAIR_STORAGE_BIN_WALL
+                )
+                / 2.0,
+                bin_center_y,
+                bin_bottom_z + FAN_CASE_PAIR_STORAGE_BIN_FLOOR + 4.0,
+            ),
+        ),
+        (
+            "Right_Wall",
+            (FAN_CASE_PAIR_STORAGE_BIN_WALL - 0.6, 10.0, 2.0),
+            (
+                bin_center_x
+                + (
+                    FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE[0]
+                    - FAN_CASE_PAIR_STORAGE_BIN_WALL
+                )
+                / 2.0,
+                bin_center_y,
+                bin_bottom_z + FAN_CASE_PAIR_STORAGE_BIN_FLOOR + 4.0,
+            ),
+        ),
+        (
+            "Front_Wall",
+            (10.0, FAN_CASE_PAIR_STORAGE_BIN_WALL - 0.6, 2.0),
+            (
+                bin_center_x,
+                bin_center_y
+                - (
+                    FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE[1]
+                    - FAN_CASE_PAIR_STORAGE_BIN_WALL
+                )
+                / 2.0,
+                bin_bottom_z + FAN_CASE_PAIR_STORAGE_BIN_FLOOR + 4.0,
+            ),
+        ),
+        (
+            "Rear_Wall",
+            (10.0, FAN_CASE_PAIR_STORAGE_BIN_WALL - 0.6, 2.0),
+            (
+                bin_center_x,
+                bin_center_y
+                + (
+                    FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE[1]
+                    - FAN_CASE_PAIR_STORAGE_BIN_WALL
+                )
+                / 2.0,
+                bin_bottom_z + FAN_CASE_PAIR_STORAGE_BIN_FLOOR + 4.0,
+            ),
+        ),
+    )
+    bin_solid_fills = []
+    for solid_name, probe_size, probe_center in bin_solid_probe_specs:
+        probe = add_rounded_box(
+            f"TEMPORARY_Bin_{solid_name}",
+            probe_size,
+            probe_center,
+            bevel=0.0,
+        )
+        try:
+            solid_fill = probe_fill_volume(
+                parts["fan_case_pair_storage_bin"], probe
+            )
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+        if solid_fill < math.prod(probe_size) * 0.85:
+            raise ValueError(
+                "Storage-bin floor/wall validation failed: "
+                f"region={solid_name} fill={solid_fill:.6f}"
+            )
+        bin_solid_fills.append(solid_fill)
+    if bin_cavity_air_overlap > 1e-5:
+        raise ValueError(
+            "Storage-bin interior is obstructed: "
+            f"overlap={bin_cavity_air_overlap:.6f}"
+        )
+
+    # All alternate insert pieces must stay clear of the rigid shell.  The bin
+    # must also withdraw vertically through its tapered opening without
+    # catching any installed assembly, cable, accessory, support web, or case wall.
+    rigid_base_overlaps = {}
+    rigid_base_overlap_bounds = {}
+    for part_key in (
+        "fan_case_pair_insert",
+        "fan_case_pair_carrier",
+        "fan_case_pair_storage_bin",
+    ):
+        _faces, volume, overlap_bounds = exact_transformed_intersection(
+            parts[part_key],
+            parts["base"],
+            first_location=parts[part_key].location.copy(),
+            first_rotation=parts[part_key].rotation_euler.copy(),
+            second_location=parts["base"].location.copy(),
+            second_rotation=parts["base"].rotation_euler.copy(),
+            return_bounds=True,
+        )
+        rigid_base_overlaps[part_key] = volume
+        rigid_base_overlap_bounds[part_key] = overlap_bounds
+    insert_contact_bounds = rigid_base_overlap_bounds["fan_case_pair_insert"]
+    insert_floor_contact_only = (
+        rigid_base_overlaps["fan_case_pair_insert"] < 0.02
+        and insert_contact_bounds is not None
+        and insert_contact_bounds[2][1] - insert_contact_bounds[2][0] < 1e-4
+        and abs(
+            insert_contact_bounds[2][0]
+            - FAN_CASE_PAIR_INSERT_INSTALLED_Z
+        )
+        < 1e-4
+    )
+    rigid_base_unwanted_overlap = max(
+        0.0
+        if insert_floor_contact_only
+        else rigid_base_overlaps["fan_case_pair_insert"],
+        rigid_base_overlaps["fan_case_pair_carrier"],
+        rigid_base_overlaps["fan_case_pair_storage_bin"],
+    )
+    if rigid_base_unwanted_overlap > 1e-5:
+        raise ValueError(
+            "Alternate TPU storage intersects the rigid base: "
+            f"{rigid_base_overlaps}; bounds={rigid_base_overlap_bounds}"
+        )
+
+    insert_withdrawal_overlap = 0.0
+    insert_withdrawal_worst = None
+    insert_location = parts["fan_case_pair_insert"].location.copy()
+    # The empty insert starts below the fixed tray rails.  Sample the complete
+    # lift through and above the shell at less than the rails' 4 mm height so a
+    # side-relief or protrusion regression cannot slip between test positions.
+    for lift in (0.5, *(float(value) for value in range(2, 104, 2))):
+        _faces, volume = exact_transformed_intersection(
+            parts["fan_case_pair_insert"],
+            parts["base"],
+            first_location=insert_location + Vector((0.0, 0.0, lift)),
+            first_rotation=parts["fan_case_pair_insert"].rotation_euler.copy(),
+            second_location=parts["base"].location.copy(),
+            second_rotation=parts["base"].rotation_euler.copy(),
+        )
+        if volume > insert_withdrawal_overlap:
+            insert_withdrawal_overlap = volume
+            insert_withdrawal_worst = lift
+    if insert_withdrawal_overlap > 1e-5:
+        raise ValueError(
+            "Empty fan-case lower insert cannot withdraw vertically past the "
+            f"rigid shell: maximum={insert_withdrawal_overlap:.6f} "
+            f"at lift={insert_withdrawal_worst}"
+        )
+
+    withdrawal_overlap = 0.0
+    withdrawal_worst = None
+    withdrawal_obstacles = (
+        parts["base"],
+        parts["fan_case_pair_insert"],
+        parts["fan_case_pair_carrier"],
+        *(obj for group in assembly_groups for obj in group),
+        *accessory_objects,
+    )
+    bin_location = parts["fan_case_pair_storage_bin"].location.copy()
+    for lift in (0.5, 2.0, 5.0, 10.0, 20.0, 40.0):
+        for obstacle in withdrawal_obstacles:
+            _faces, volume = exact_transformed_intersection(
+                parts["fan_case_pair_storage_bin"],
+                obstacle,
+                first_location=bin_location + Vector((0.0, 0.0, lift)),
+                first_rotation=parts[
+                    "fan_case_pair_storage_bin"
+                ].rotation_euler.copy(),
+                second_location=obstacle.location.copy(),
+                second_rotation=obstacle.rotation_euler.copy(),
+            )
+            if volume > withdrawal_overlap:
+                withdrawal_overlap = volume
+                withdrawal_worst = (lift, obstacle.name)
+    if withdrawal_overlap > 1e-5:
+        raise ValueError(
+            "Storage bin cannot withdraw vertically: "
+            f"maximum={withdrawal_overlap:.6f} at {withdrawal_worst}"
+        )
+    overhead_unwanted_overlap = max(
+        carrier_unwanted_overlap,
+        bin_assembly_overlap,
+        lid_pad_assembly_overlap,
+        bin_accessory_overlap,
+        carrier_accessory_overlap,
+        carrier_bin_overlap,
+        lid_carrier_overlap,
+    )
+    if overhead_unwanted_overlap > 1e-5 or lid_bin_contact < 100.0:
+        raise ValueError(
+            "Fan-side overhead storage has an invalid collision/contact chain: "
+            f"carrier_other={carrier_unwanted_overlap:.6f} "
+            f"bin_assembly={bin_assembly_overlap:.6f} "
+            f"lid_assembly={lid_pad_assembly_overlap:.6f} "
+            f"bin_accessory={bin_accessory_overlap:.6f} "
+            f"carrier_accessory={carrier_accessory_overlap:.6f} "
+            f"carrier_bin={carrier_bin_overlap:.6f} "
+            f"lid_carrier={lid_carrier_overlap:.6f} "
+            f"lid_bin_contact={lid_bin_contact:.6f}"
+        )
+
+    lid_pad_sweep_overlap = 0.0
+    lid_pad_sweep_worst = None
+    sweep_obstacles = (
+        parts["base"],
+        parts["fan_case_pair_carrier"],
+        parts["fan_case_pair_storage_bin"],
+    )
+    # At zero degrees the 0.6 mm bin-rim compression is intentional.  By five
+    # degrees the pad must have peeled completely clear, then remain clear for
+    # the full normal 110-degree opening sweep.
+    for angle in (5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110):
+        pad_location, pad_rotation = installed_flat_lid_pad_pose(angle)
+        for obstacle in sweep_obstacles:
+            _faces, volume = exact_transformed_intersection(
+                parts["fan_case_pair_lid_pad"],
+                obstacle,
+                first_location=pad_location,
+                first_rotation=pad_rotation,
+                second_location=obstacle.location.copy(),
+                second_rotation=obstacle.rotation_euler.copy(),
+            )
+            if volume > lid_pad_sweep_overlap:
+                lid_pad_sweep_overlap = volume
+                lid_pad_sweep_worst = (angle, obstacle.name)
+    if lid_pad_sweep_overlap > 1e-5:
+        raise ValueError(
+            "Alternate flat lid pad catches the open case loadout: "
+            f"maximum={lid_pad_sweep_overlap:.6f} at {lid_pad_sweep_worst}"
+        )
+
+    inner_width, inner_depth = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_inner_size"]
+    inner_height = bin_inner_height
+    storage_capacity_cm3 = inner_width * inner_depth * inner_height / 1000.0
+    for part_key in (
+        "fan_case_pair_carrier",
+        "fan_case_pair_storage_bin",
+    ):
+        minimum, maximum = object_world_bounds(parts[part_key])
+        if (
+            minimum.x <= -inner_half_width
+            or maximum.x >= inner_half_width
+            or minimum.y <= -inner_half_depth
+            or maximum.y >= inner_half_depth
+            or minimum.z <= BASE_FLOOR_THICKNESS
+            or maximum.z >= installed_lid_inner_face + FAN_CASE_PAIR_LID_PRELOAD + 0.01
+        ):
+            raise ValueError(f"Overhead storage exceeds the closed case: {part_key}")
 
     actual_guide_engagement = (
         FAN_CASE_PAIR_INSERT_INSTALLED_Z
@@ -11557,7 +13234,33 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         f"door_retention={','.join(f'{value:.3f}' for value in door_retention)} "
         f"guide_air={max(guide_air.values()):.6f} "
         f"guide_fill={min(guide_fill.values()):.3f} "
-        f"lid_pad_contacts={','.join(f'{value:.3f}' for value in pad_contacts)}"
+        f"carrier_contacts={','.join(f'{value:.3f}' for value in carrier_contacts)} "
+        "shell_locator_contacts="
+        f"{','.join(f'{value:.3f}' for value in shell_locator_contacts)} "
+        "web_carrier_contacts="
+        f"{','.join(f'{value:.3f}' for value in web_carrier_contacts)} "
+        f"web_reference_overlap={web_reference_overlap:.6f} "
+        f"web_guide_overlap={web_guide_overlap:.6f} "
+        "flange_bearing_contacts="
+        f"{','.join(f'{value:.3f}' for value in flange_bearing_contacts)} "
+        f"carrier_pad_length="
+        f"{FAN_CASE_PAIR_OVERHEAD_STORAGE['carrier_bounds'][4] - FAN_CASE_PAIR_OVERHEAD_STORAGE['carrier_contact_z']:.3f} "
+        f"bin_outer={FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE[0]:.1f}x"
+        f"{FAN_CASE_PAIR_STORAGE_BIN_BODY_SIZE[1]:.1f}x"
+        f"{FAN_CASE_PAIR_OVERHEAD_STORAGE['bin_rim_z'] - FAN_CASE_PAIR_OVERHEAD_STORAGE['bin_bottom_z']:.2f} "
+        f"bin_inner={inner_width:.1f}x{inner_depth:.1f}x{inner_height:.2f} "
+        f"bin_capacity={storage_capacity_cm3:.1f}cm3 "
+        f"bin_lower_clearance={FAN_CASE_PAIR_STORAGE_BIN_LOWER_CLEARANCE:.2f} "
+        f"bin_cavity_air={bin_cavity_air_overlap:.6f} "
+        f"bin_solid_min={min(bin_solid_fills):.3f} "
+        "rigid_base_floor_contact="
+        f"{rigid_base_overlaps['fan_case_pair_insert']:.6f} "
+        f"rigid_base_unwanted_overlap={rigid_base_unwanted_overlap:.6f} "
+        f"insert_withdrawal_overlap={insert_withdrawal_overlap:.6f} "
+        f"bin_withdrawal_overlap={withdrawal_overlap:.6f} "
+        f"lid_bin_contact={lid_bin_contact:.3f} "
+        f"lid_pad_sweep={lid_pad_sweep_overlap:.6f} "
+        f"overhead_unwanted_overlap={overhead_unwanted_overlap:.6f}"
     )
 
 
@@ -11647,6 +13350,147 @@ def validate_tpu_snap_lid(lid) -> None:
     )
 
 
+def validate_tpu_hinge_coupon(coupon) -> None:
+    """Prove all coupon throats, flex gaps, and shared root spines in mesh."""
+
+    def coupon_overlap(probe):
+        try:
+            _faces, volume = exact_transformed_intersection(
+                coupon,
+                probe,
+                first_location=coupon.location.copy(),
+                first_rotation=coupon.rotation_euler.copy(),
+                second_location=probe.location.copy(),
+                second_rotation=probe.rotation_euler.copy(),
+            )
+            return volume
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+
+    centers = tpu_hinge_coupon_centers()
+    if not (len(centers) == len(TPU_HINGE_COUPON_THROATS) == 4):
+        raise ValueError("TPU hinge coupon must contain four calibrated banks")
+    throat_air_maximum = 0.0
+    throat_lip_fill_minimum = float("inf")
+    gap_air_maximum = 0.0
+    spine_fill_minimum = float("inf")
+    receiver_count = 0
+    spine_count = 0
+    for bank_index, (center_x, throat_width) in enumerate(
+        zip(centers, TPU_HINGE_COUPON_THROATS),
+        start=1,
+    ):
+        bank_x0 = center_x - TPU_HINGE_COUPON_BLOCK_SIZE / 2.0
+        bank_x1 = center_x + TPU_HINGE_COUPON_BLOCK_SIZE / 2.0
+        clips = tpu_hinge_bank_segments(bank_x0, bank_x1)
+        if len(clips) != TPU_HINGE_CLIPS_PER_SEGMENT:
+            raise ValueError(f"TPU coupon bank {bank_index} lacks three clips")
+        bore_transition = math.sqrt(
+            (HINGE_LID_RECEIVER_DIAMETER / 2.0) ** 2
+            - (throat_width / 2.0) ** 2
+        )
+        flat_throat_run = TPU_HINGE_SNAP_THROAT_LENGTH - bore_transition
+        throat_t = bore_transition + flat_throat_run / 2.0
+        probe_depth = min(0.01, flat_throat_run / 3.0)
+        for clip_index, (clip_x0, clip_x1) in enumerate(clips, start=1):
+            probe_width = clip_x1 - clip_x0 - 0.8
+            probe_center_x = (clip_x0 + clip_x1) / 2.0
+            channel_probe = add_rounded_box(
+                f"TEMPORARY_Coupon_Bank_{bank_index}_Clip_{clip_index}_"
+                "Throat_Air",
+                (probe_width, probe_depth, throat_width - 0.04),
+                (probe_center_x, -throat_t, LID_WALL_HEIGHT),
+                bevel=0.0,
+            )
+            throat_air = coupon_overlap(channel_probe)
+            throat_air_maximum = max(throat_air_maximum, throat_air)
+            if throat_air > 1e-7:
+                raise ValueError(
+                    f"TPU coupon bank {bank_index} clip {clip_index} "
+                    "is narrower than its calibrated throat"
+                )
+            for side in (-1.0, 1.0):
+                lip_probe_size = (probe_width, probe_depth, 0.04)
+                lip_probe = add_rounded_box(
+                    f"TEMPORARY_Coupon_Bank_{bank_index}_Clip_{clip_index}_"
+                    f"Throat_Lip_{side:+.0f}",
+                    lip_probe_size,
+                    (
+                        probe_center_x,
+                        -throat_t,
+                        LID_WALL_HEIGHT
+                        + side * (throat_width / 2.0 + 0.03),
+                    ),
+                    bevel=0.0,
+                )
+                lip_fill = coupon_overlap(lip_probe)
+                throat_lip_fill_minimum = min(
+                    throat_lip_fill_minimum,
+                    lip_fill / math.prod(lip_probe_size),
+                )
+                if lip_fill < math.prod(lip_probe_size) * 0.5:
+                    raise ValueError(
+                        f"TPU coupon bank {bank_index} clip {clip_index} "
+                        "is wider than its calibrated throat"
+                    )
+            receiver_count += 1
+
+        for gap_index, (first, second) in enumerate(pairwise(clips), start=1):
+            gap_x0 = first[1]
+            gap_x1 = second[0]
+            probe_width = gap_x1 - gap_x0 - 0.4
+            gap_center_x = (gap_x0 + gap_x1) / 2.0
+            gap_probe = add_rounded_box(
+                f"TEMPORARY_Coupon_Bank_{bank_index}_Gap_{gap_index}_Air",
+                (probe_width, 2.0, 2.0),
+                (gap_center_x, 0.0, LID_WALL_HEIGHT),
+                bevel=0.0,
+            )
+            gap_air = coupon_overlap(gap_probe)
+            gap_air_maximum = max(gap_air_maximum, gap_air)
+            if gap_air > 1e-7:
+                raise ValueError(
+                    f"TPU coupon bank {bank_index} gap {gap_index} "
+                    "does not separate its flexing jaws"
+                )
+            spine_probe_size = (probe_width, 0.30, 0.30)
+            spine_probe = add_rounded_box(
+                f"TEMPORARY_Coupon_Bank_{bank_index}_Gap_{gap_index}_Spine",
+                spine_probe_size,
+                (
+                    gap_center_x,
+                    HINGE_LID_ROOT_SPINE_OFFSET + 0.35,
+                    LID_WALL_HEIGHT,
+                ),
+                bevel=0.0,
+            )
+            spine_fill = coupon_overlap(spine_probe)
+            spine_fill_minimum = min(
+                spine_fill_minimum,
+                spine_fill / math.prod(spine_probe_size),
+            )
+            if spine_fill < math.prod(spine_probe_size) * 0.5:
+                raise ValueError(
+                    f"TPU coupon bank {bank_index} gap {gap_index} "
+                    "lacks its shared root spine"
+                )
+            spine_count += 1
+
+    if receiver_count != 12 or spine_count != 8:
+        raise ValueError("TPU hinge coupon bank/clip topology is incomplete")
+    print(
+        "FIELD_CASE_TPU_68D_HINGE_COUPON_VALID "
+        f"banks={len(centers)} clips={receiver_count} spines={spine_count} "
+        f"throats={','.join(f'{value:.1f}' for value in TPU_HINGE_COUPON_THROATS)} "
+        f"clip_width={tpu_hinge_bank_segments(0.0, TPU_HINGE_COUPON_BLOCK_SIZE)[0][1]:.3f} "
+        f"gap={TPU_HINGE_CLIP_RELIEF_GAP:.2f} "
+        f"throat_air_max={throat_air_maximum:.6f} "
+        f"throat_lip_fill_min={throat_lip_fill_minimum:.3f} "
+        f"gap_air_max={gap_air_maximum:.6f} "
+        f"spine_fill_min={spine_fill_minimum:.3f}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # EXPORT AND ENTRY POINT
 
@@ -11663,10 +13507,31 @@ def export_path(name: str) -> Path:
     return directory / name
 
 
-def export_stl(path: Path, obj, print_origin=None, expected_minimum_z=0.0) -> Path:
+def export_stl(
+    path: Path,
+    obj,
+    print_origin=None,
+    expected_minimum_z=0.0,
+    print_rotation=None,
+) -> Path:
     if print_origin is None:
         print_origin = Vector((0.0, 0.0, 0.0))
-    payload = evaluated_mesh_payload(obj, print_origin)
+    export_obj = obj
+    if print_rotation is not None:
+        export_obj = obj.copy()
+        export_obj.data = obj.data.copy()
+        export_obj.name = obj.name + "_Print_Orientation"
+        bpy.context.collection.objects.link(export_obj)
+        export_obj.location = (0.0, 0.0, 0.0)
+        export_obj.rotation_euler = print_rotation
+        bpy.context.view_layer.update()
+    try:
+        payload = evaluated_mesh_payload(export_obj, print_origin)
+    finally:
+        if export_obj is not obj:
+            export_mesh = export_obj.data
+            bpy.data.objects.remove(export_obj, do_unlink=True)
+            bpy.data.meshes.remove(export_mesh)
     minimum_print_z = min(vertex[2] for vertex in payload[0])
     if not math.isclose(minimum_print_z, expected_minimum_z, abs_tol=1e-5):
         raise ValueError(
@@ -13899,6 +15764,12 @@ def build_mission1_field_case():
     parts["fan_cradle"] = create_fan_cradle(tpu_material)
     translate_object(parts["fan_cradle"], (0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
     parts["fan_case_pair_insert"] = create_fan_case_pair_insert(tpu_material)
+    parts["fan_case_pair_carrier"] = create_fan_case_pair_overhead_carrier(
+        tpu_material
+    )
+    parts["fan_case_pair_storage_bin"] = create_fan_case_pair_storage_bin(
+        tpu_material
+    )
     parts["equipment_tray"] = create_equipment_tray(tpu_material)
     translate_object(
         parts["equipment_tray"],
@@ -13961,6 +15832,9 @@ def build_mission1_field_case():
         validate_fan_case_pair_loadout(parts, reference_objects)
     validate_built_base_hinge_gussets(parts["base"])
     validate_built_lid_hinge_receivers(parts["lid"])
+    validate_lid_hinge_reinforcement(
+        parts["base"], parts["lid"], HINGE_PROFILE_RIGID_SLIDE
+    )
     validate_built_lid_hinge_end_stops(parts["lid"])
     validate_installed_lid_hinge_release(parts)
     validate_installed_case_hinge_sweep(parts)
@@ -13973,6 +15847,10 @@ def build_mission1_field_case():
     validate_built_handle_m3_hardware(parts)
     validate_installed_handle_mechanics(parts)
     validate_tpu_snap_lid(parts["tpu_snap_lid"])
+    validate_tpu_hinge_coupon(parts["tpu_hinge_coupon"])
+    validate_lid_hinge_reinforcement(
+        parts["base"], parts["tpu_snap_lid"], HINGE_PROFILE_TPU_68D_SNAP
+    )
     validate_built_lid_hinge_end_stops(parts["tpu_snap_lid"])
     tpu_lid_parts = dict(parts)
     tpu_lid_parts["lid"] = parts["tpu_snap_lid"]
@@ -14018,12 +15896,21 @@ def build_mission1_field_case():
             (TPU_HINGE_COUPON_STL_NAME, parts["tpu_hinge_coupon"]),
             (FAN_CASE_PAIR_INSERT_STL_NAME, parts["fan_case_pair_insert"]),
             (
+                FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME,
+                parts["fan_case_pair_carrier"],
+            ),
+            (
+                FAN_CASE_PAIR_STORAGE_BIN_STL_NAME,
+                parts["fan_case_pair_storage_bin"],
+            ),
+            (
                 FAN_CASE_PAIR_LID_PAD_STL_NAME,
                 parts["fan_case_pair_lid_pad"],
             ),
         )
         for filename, obj in exports:
             print_origin = None
+            print_rotation = None
             expected_minimum_z = 0.0
             if obj is parts["fan_cradle"]:
                 print_origin = Vector((0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
@@ -14032,6 +15919,26 @@ def build_mission1_field_case():
             elif obj is parts["fan_case_pair_insert"]:
                 print_origin = Vector(
                     (0.0, 0.0, FAN_CASE_PAIR_INSERT_INSTALLED_Z)
+                )
+            elif obj is parts["fan_case_pair_carrier"]:
+                carrier_top_z = FAN_CASE_PAIR_OVERHEAD_STORAGE[
+                    "carrier_bounds"
+                ][5]
+                print_origin = Vector(
+                    (
+                        0.0,
+                        0.0,
+                        -carrier_top_z,
+                    )
+                )
+                print_rotation = (math.pi, 0.0, 0.0)
+            elif obj is parts["fan_case_pair_storage_bin"]:
+                print_origin = Vector(
+                    (
+                        0.0,
+                        0.0,
+                        FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bottom_z"],
+                    )
                 )
             elif obj is parts["fan_case_pair_lid_pad"]:
                 print_origin = Vector(
@@ -14048,6 +15955,7 @@ def build_mission1_field_case():
                 obj,
                 print_origin,
                 expected_minimum_z,
+                print_rotation,
             )
         project_path = export_3mf_project(export_path(PROJECT_3MF_NAME), parts)
         validate_3mf_project(project_path)
