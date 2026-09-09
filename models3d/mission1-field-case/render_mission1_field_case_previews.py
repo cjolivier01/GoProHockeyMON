@@ -242,6 +242,7 @@ def set_reference_materials():
         else:
             assign_material(obj, fan_holder)
     for prefix in (
+        "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
         "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
         "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
     ):
@@ -419,6 +420,41 @@ def render_handed_fan_loadout(camera):
     )
     bpy.ops.render.render(write_still=True)
     camera.data.lens = original_lens
+
+
+def render_bottom_cable_routes(camera):
+    """Show both alternative bottom exits per fan with assemblies removed.
+
+    Four highlighted leads illustrate alternatives, not four installed cables.
+    The cradle and accessories stay in their real installed positions.
+    """
+    set_visible(("fan_case_pair_insert",), (
+        "REFERENCE_ONLY_Fan_Case_Cable_Coil_", "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+        "REFERENCE_ONLY_Fan_Case_Enduro_Battery_", "REFERENCE_ONLY_Fan_Case_Battery_Door_"))
+    materials = (
+        make_principled_material("Preview_Bottom_Left_Cable", (0.02, 0.6, 0.95)),
+        make_principled_material("Preview_Bottom_Right_Cable", (0.5, 0.95, 0.12)),
+    )
+    temporary = []
+    original_lens = camera.data.lens
+    try:
+        for index, routes in enumerate(field_case.FAN_CASE_PAIR_STORAGE["cable_route_options"], 1):
+            for side_index, route in enumerate(routes):
+                lead = field_case.add_round_polyline(
+                    f"Preview_Bottom_Cable_Option_{index}_{side_index}",
+                    route, field_case.FAN_CASE_CABLE_DIAMETER)
+                temporary.append(lead)
+                assign_material(lead, materials[side_index])
+        camera.data.lens = 55.0
+        camera.location = (0.0, -285.0, 330.0)
+        aim_object(camera, (0.0, -5.0, 38.0))
+        bpy.context.scene.render.filepath = str(
+            RENDER_DIRECTORY / "mission1_field_case_bottom_cable_routes.png")
+        bpy.ops.render.render(write_still=True)
+    finally:
+        camera.data.lens = original_lens
+        for obj in temporary:
+            bpy.data.objects.remove(obj, do_unlink=True)
 
 
 def render_fan_side_storage(camera):
@@ -704,6 +740,7 @@ render_exploded_stack(CAMERA)
 render_closed_latch_protectors(CAMERA)
 render_fan_case_loadout(CAMERA)
 render_handed_fan_loadout(CAMERA)
+render_bottom_cable_routes(CAMERA)
 render_fan_side_storage(CAMERA)
 render_fan_side_support_path(CAMERA)
 render_fan_side_closed_stack(CAMERA)

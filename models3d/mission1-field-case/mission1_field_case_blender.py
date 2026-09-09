@@ -383,6 +383,10 @@ FAN_CASE_CABLE_WELL_CENTERS = ((-64.0, -54.0), (54.0, -54.0))
 FAN_CASE_CABLE_WELL_FLOOR = 2.5
 FAN_CASE_CABLE_WELL_CORNER_RADIUS = 8.0
 FAN_CASE_CABLE_THROAT_WIDTH = 8.0
+# Both bottom corners remain usable on each fan. Render the outer corner on
+# each assembly; validation also builds the other corner with its matching
+# sleeve notch. Left/right are measured in the case's installed X direction.
+FAN_CASE_CABLE_PREVIEW_CORNERS = (-1, 1)
 # One upright Mission 1 battery occupies the otherwise unused center of each
 # cable loop.  Small opposed nubs deflect locally in 68D TPU and provide light
 # retention without making the full 21.8 mm-deep pocket a friction fit.
@@ -633,25 +637,12 @@ def fan_case_pair_storage_geometry():
         fan_case.back_exterior_y() + FAN_CASE_STORAGE_COVER_CASE_CLEARANCE
     )
     cover_y0 = cover_y1 - cover_total_depth
-    notch_side = wrapping_fan_cover.CABLE_NOTCH_SIDE
-    if notch_side in {"TOP", "BOTTOM"}:
-        notch_sign = 1.0 if notch_side == "TOP" else -1.0
-        cover_notch_local_x = wrapping_fan_cover.CABLE_NOTCH_OFFSET
-        cover_notch_local_y = notch_sign * (
-            cover_inner_height / 2.0 + wrapping_fan_cover.WALL_THICKNESS / 2.0
-        )
-    else:
-        notch_sign = 1.0 if notch_side == "RIGHT" else -1.0
-        cover_notch_local_x = notch_sign * (
-            cover_inner_width / 2.0 + wrapping_fan_cover.WALL_THICKNESS / 2.0
-        )
-        cover_notch_local_y = wrapping_fan_cover.CABLE_NOTCH_OFFSET
-    # The generated cover first rotates -90 degrees around X to align its fan
-    # depth with global Y, then independently turns 180 degrees around the
-    # installed fan's global Y axis.  Apply that composition to the configured
-    # notch center instead of assuming a hard-coded TOP/offset combination.
-    cover_notch_source_x = fan_case.FAN_CENTER_X - cover_notch_local_x
-    cover_notch_source_z = fan_case.FAN_CENTER_Z + cover_notch_local_y
+    # TOP in the sleeve's print coordinates becomes the installed bottom
+    # after its -90-degree X rotation. Build both signed offsets from the
+    # companion's live notch dimensions, without changing its saved config.
+    cover_notch_source_z = fan_case.FAN_CENTER_Z - (
+        cover_inner_height / 2.0 + wrapping_fan_cover.WALL_THICKNESS / 2.0
+    )
     cover_notch_source_y = cover_y1 - wrapping_fan_cover.CABLE_NOTCH_DEPTH / 2.0
     camera_y0 = fan_case.camera_stop_end_y()
     camera_y1 = camera_y0 + mission1.REFERENCE_MAX_Y
@@ -757,12 +748,15 @@ def fan_case_pair_storage_geometry():
         )
         for bounds in cover_bounds
     )
-    cover_notches = tuple(
-        tuple(transform @ Vector((
-            cover_notch_source_x, cover_notch_source_y, cover_notch_source_z
-        )))
+    cover_notch_options = tuple(
+        tuple(tuple(transform @ Vector((
+            fan_case.FAN_CENTER_X + corner * abs(wrapping_fan_cover.CABLE_NOTCH_OFFSET),
+            cover_notch_source_y, cover_notch_source_z
+        ))) for corner in (-1, 1))
         for transform in fan_transforms
     )
+    cover_notches = tuple(options[0 if corner < 0 else 1] for options, corner in zip(
+        cover_notch_options, FAN_CASE_CABLE_PREVIEW_CORNERS))
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     # Include the 1 mm cavity expansion while retaining a true 4 mm TPU wall
     # to the alternate insert's front edge.
@@ -840,47 +834,45 @@ def fan_case_pair_storage_geometry():
     lower_hardware_floor_clearance = (
         lower_hardware_bottom_z - hardware_relief_top_z
     )
-    cable_route_points = []
+    cable_route_options = []
     cable_center_z = (
         FAN_CASE_PAIR_INSERT_INSTALLED_Z
         + FAN_CASE_CABLE_WELL_FLOOR
         + 0.3
         + FAN_CASE_CABLE_DIAMETER / 2.0
     )
-    for placement, cavity, well_center, cover_notch, reference_bounds in zip(
+    for placement, well_center, notch_options, reference_bounds in zip(
         placements,
-        cavity_bounds,
         FAN_CASE_CABLE_WELL_CENTERS,
-        cover_notches,
+        cover_notch_options,
         reference_bounds_by_assembly,
     ):
         coil_entry_y = (
             well_center[1] + (FAN_CASE_CABLE_WELL_SIZE[1] - 4.0) / 2.0
         )
-        notch_x, notch_y, notch_z = tuple(
-            value + offset for value, offset in zip(cover_notch, placement)
-        )
-        cable_above_cover_z = (
-            notch_z
-            + wrapping_fan_cover.WALL_THICKNESS / 2.0
-            + FAN_CASE_CABLE_DIAMETER / 2.0
-        )
-        # cavity[2] is already one configured assembly-clearance in front of
-        # the cover.  Move the descent another cable radius forward so the
-        # complete round lead, not only its centerline, clears that plane.
+        # Keep the existing front escape plane (and upper-tray split) fixed.
+        # Route beneath the cover before descending into the coil well.
         throat_y = (
             reference_bounds[2] + placement[1] - FAN_CASE_STORAGE_CLEARANCE
             - FAN_CASE_CABLE_DIAMETER / 2.0
         )
-        cable_route_points.append(
-            (
+        routes = []
+        for cover_notch in notch_options:
+            notch_x, notch_y, notch_z = tuple(
+                value + offset for value, offset in zip(cover_notch, placement))
+            cable_below_cover_z = (
+                notch_z - wrapping_fan_cover.WALL_THICKNESS / 2.0
+                - FAN_CASE_CABLE_DIAMETER / 2.0 - FAN_CASE_STORAGE_CLEARANCE)
+            routes.append((
                 (notch_x, notch_y, notch_z),
-                (notch_x, notch_y, cable_above_cover_z),
-                (notch_x, throat_y, cable_above_cover_z),
+                (notch_x, notch_y, cable_below_cover_z),
+                (notch_x, throat_y, cable_below_cover_z),
                 (notch_x, throat_y, cable_center_z),
                 (notch_x, coil_entry_y, cable_center_z),
-            )
-        )
+            ))
+        cable_route_options.append(tuple(routes))
+    cable_route_points = tuple(options[0 if corner < 0 else 1] for options, corner in zip(
+        cable_route_options, FAN_CASE_CABLE_PREVIEW_CORNERS))
     cover_top_z = max(
         placement[2] + bounds[5]
         for placement, bounds in zip(placements, cover_bounds)
@@ -907,6 +899,8 @@ def fan_case_pair_storage_geometry():
         "lower_fasteners": lower_fasteners,
         "lower_hardware_floor_clearance": lower_hardware_floor_clearance,
         "cover_notch_source": cover_notches,
+        "cover_notch_options": cover_notch_options,
+        "cable_route_options": tuple(cable_route_options),
         "cable_route_points": tuple(cable_route_points),
         "cover_top_z": cover_top_z,
         "cable_top_z": cable_top_z,
@@ -4474,16 +4468,31 @@ def validate_configuration() -> None:
         and math.isclose(cover_values[2], 40.0, abs_tol=1e-6)
         and math.isclose(cover_values[3], 20.0, abs_tol=1e-6)
         and wrapping_fan_cover.CABLE_NOTCH_ENABLED
-        and wrapping_fan_cover.CABLE_NOTCH_SIDE == "TOP"
+        and wrapping_fan_cover.CABLE_NOTCH_WIDTH >= FAN_CASE_CABLE_DIAMETER + 0.5
         and all(
-            notch[2] > fan_case.FAN_CENTER_Z
-            for notch in FAN_CASE_PAIR_STORAGE["cover_notch_source"]
+            notch[2] < fan_case.FAN_CENTER_Z
+            for options in FAN_CASE_PAIR_STORAGE["cover_notch_options"] for notch in options
         )
     ):
         raise ValueError(
             "Fan-case storage requires the current 40 x 40 x 20 mm wrapping "
-            "cover with its configured TOP cable notch facing upward"
+            "cover with a cable-width notch facing down at either bottom corner"
         )
+    if (
+        abs(wrapping_fan_cover.CABLE_NOTCH_OFFSET)
+        + wrapping_fan_cover.CABLE_NOTCH_WIDTH / 2.0 > cover_values[4] / 2.0
+        or wrapping_fan_cover.CABLE_NOTCH_DEPTH < FAN_CASE_CABLE_DIAMETER + 0.5
+    ):
+        raise ValueError("Bottom fan cable notch must stay within the sleeve wall and clear the lead")
+    if not (
+        len(FAN_CASE_CABLE_PREVIEW_CORNERS) == FAN_CASE_STORAGE_COUNT
+        and all(corner in (-1, 1) for corner in FAN_CASE_CABLE_PREVIEW_CORNERS)
+        and all(
+            options[1][0] - options[0][0] - FAN_CASE_CABLE_THROAT_WIDTH
+            >= FAN_CASE_PAIR_CRADLE_MIN_FEATURE
+            for options in FAN_CASE_PAIR_STORAGE["cover_notch_options"])
+    ):
+        raise ValueError("Both bottom fan-cable corner routes must remain distinct and well separated")
     if not (
         fan_case.FAN_OPENING_ENABLED
         and math.isclose(fan_case.FAN_HOLE_SPACING_X, 32.0, abs_tol=1e-6)
@@ -6973,6 +6982,30 @@ def fan_case_pair_extraction_profiles(reference_objects):
     return profiles
 
 
+def fan_case_cable_throat_bounds(well_center, route):
+    """Rounded, upward-open relief joining a bottom exit to its coil well."""
+    half_width = FAN_CASE_CABLE_THROAT_WIDTH / 2.0
+    well_y1 = well_center[1] + FAN_CASE_CABLE_WELL_SIZE[1] / 2.0
+    return (route[-1][0], min(well_y1, *(point[1] for point in route)) - half_width,
+            max(well_y1, *(point[1] for point in route)) + half_width)
+
+
+def fan_case_cable_relief_region(well_center, routes):
+    """Join both rounded corner reliefs without leaving a tall strip between.
+
+    The hull is ONLY for the short cable mouth, never the assembly mold;
+    the broad dome-side cradles retain their actual concave source contours.
+    """
+    from shapely.geometry import LineString
+    from shapely import union_all
+    radius = FAN_CASE_CABLE_THROAT_WIDTH / 2.0
+    throats = []
+    for route in routes:
+        x, y0, y1 = fan_case_cable_throat_bounds(well_center, route)
+        throats.append(LineString(((x, y0 + radius), (x, y1 - radius))).buffer(radius, quad_segs=12))
+    return union_all(throats).convex_hull
+
+
 def create_fan_case_pair_insert(material, reference_objects=None):
     """Create the optional lower insert for two complete fan-case assemblies."""
     # Geometry generation must not depend on whether preview mockups are shown.
@@ -7115,29 +7148,12 @@ def create_fan_case_pair_insert(material, reference_objects=None):
             )
             union_into(insert, battery_nub)
 
-        well_y1 = center_y + FAN_CASE_CABLE_WELL_SIZE[1] / 2.0
-        cable_route = FAN_CASE_PAIR_STORAGE["cable_route_points"][index - 1]
-        throat_center_x = cable_route[-1][0]
-        descent_y = cable_route[-2][1]
-        # Carry the cut at least one cable radius plus side clearance into
-        # both adjoining pockets.  The rendered lead bends through these
-        # junctions, so merely meeting each nominal pocket edge would let the
-        # outside of the 4 mm cable clip the insert at the two 90-degree turns.
-        throat_end_overlap = FAN_CASE_CABLE_DIAMETER / 2.0 + (
-            FAN_CASE_CABLE_THROAT_WIDTH - FAN_CASE_CABLE_DIAMETER
-        ) / 2.0
-        throat_y0 = well_y1 - throat_end_overlap
-        throat_y1 = max(descent_y, well_y1) + throat_end_overlap
-        throat = add_rounded_prism(
-            f"Fan_Case_{index}_Cable_Route_To_Coil_Well",
-            FAN_CASE_CABLE_THROAT_WIDTH,
-            throat_y1 - throat_y0,
-            FAN_CASE_CABLE_WELL_FLOOR,
-            FAN_CASE_PAIR_GUIDE_HEIGHT + 0.3,
-            FAN_CASE_CABLE_THROAT_WIDTH / 2.0,
-            (throat_center_x, (throat_y0 + throat_y1) / 2.0),
-        )
-        difference_from(insert, throat)
+        cable_mouth = extrude_planar_region(
+            f"Fan_Case_{index}_Shared_Bottom_Cable_Mouth",
+            fan_case_cable_relief_region((center_x, center_y),
+                FAN_CASE_PAIR_STORAGE["cable_route_options"][index - 1]),
+            FAN_CASE_CABLE_WELL_FLOOR, FAN_CASE_PAIR_GUIDE_HEIGHT + 0.3)
+        difference_from(insert, cable_mouth)
 
     for index, center in enumerate(FAN_CASE_BATTERY_DOOR_CENTERS, start=1):
         door_tower_size = tuple(
@@ -11821,6 +11837,36 @@ def validate_built_fan_cradle(cradle) -> None:
     )
 
 
+def create_fan_case_storage_cover(assembly_index, corner):
+    """Build the live sleeve with its wire notch at either installed bottom corner.
+
+    Print-coordinate TOP faces down in this installed pose. Only notch side
+    and offset sign are loadout overrides; all sleeve dimensions remain live.
+    """
+    if corner not in (-1, 1):
+        raise ValueError("Fan cable corner must be -1 (left) or +1 (right)")
+    previous = {name: getattr(wrapping_fan_cover, name) for name in (
+        "CLEAR_SCENE", "CABLE_NOTCH_SIDE", "CABLE_NOTCH_OFFSET")}
+    try:
+        wrapping_fan_cover.CLEAR_SCENE = False
+        wrapping_fan_cover.CABLE_NOTCH_SIDE = "TOP"
+        wrapping_fan_cover.CABLE_NOTCH_OFFSET = corner * abs(previous["CABLE_NOTCH_OFFSET"])
+        cover = wrapping_fan_cover.build_wrapping_fan_cover()
+    finally:
+        for name, value in previous.items():
+            setattr(wrapping_fan_cover, name, value)
+    cover.matrix_world = (
+        FAN_CASE_PAIR_STORAGE["fan_transforms"][assembly_index - 1]
+        @ Matrix.Translation((
+            fan_case.FAN_CENTER_X,
+            FAN_CASE_PAIR_STORAGE["straight_cover_bounds"][2],
+            fan_case.FAN_CENTER_Z,
+        ))
+        @ Matrix.Rotation(-math.pi / 2.0, 4, "X")
+    )
+    return cover
+
+
 def create_fan_case_source_reference_mockups(
     case_material,
     camera_material,
@@ -11906,28 +11952,8 @@ def create_fan_case_source_reference_mockups(
     mount_transform = FAN_CASE_PAIR_STORAGE["fan_transforms"][assembly_index - 1]
     fan.matrix_world = mount_transform @ fan.matrix_world
 
-    previous_wrapper_clear = wrapping_fan_cover.CLEAR_SCENE
-    try:
-        wrapping_fan_cover.CLEAR_SCENE = False
-        cover = wrapping_fan_cover.build_wrapping_fan_cover()
-    finally:
-        wrapping_fan_cover.CLEAR_SCENE = previous_wrapper_clear
-    # Turn only the cover around its local fan axis to put the notch upward,
-    # then apply the exact same pad transform as the installed fan. Neither
-    # the camera nor its two-fastener-down shell is mirrored or tilted.
-    cover_axis = Vector((fan_case.FAN_CENTER_X, 0.0, fan_case.FAN_CENTER_Z))
-    cover.matrix_world = (
-        mount_transform
-        @ Matrix.Translation(cover_axis)
-        @ Matrix.Rotation(math.pi, 4, "Y")
-        @ Matrix.Translation(-cover_axis)
-        @ Matrix.Translation((
-            fan_case.FAN_CENTER_X,
-            FAN_CASE_PAIR_STORAGE["straight_cover_bounds"][2],
-            fan_case.FAN_CENTER_Z,
-        ))
-        @ Matrix.Rotation(-math.pi / 2.0, 4, "X")
-    )
+    cover = create_fan_case_storage_cover(
+        assembly_index, FAN_CASE_CABLE_PREVIEW_CORNERS[assembly_index - 1])
     assign_material(cover, cover_material)
 
     front_hardware = FAN_CASE_PAIR_STORAGE["front_hardware"]
@@ -12506,13 +12532,9 @@ def validate_fan_case_contoured_cradle(parts, assembly_groups):
             ):
                 openings.append(box(center[0] - size[0] / 2.0, center[1] - size[1] / 2.0,
                                     center[0] + size[0] / 2.0, center[1] + size[1] / 2.0))
-            for well_center, route in zip(FAN_CASE_CABLE_WELL_CENTERS,
-                                          FAN_CASE_PAIR_STORAGE["cable_route_points"]):
-                half_width = FAN_CASE_CABLE_THROAT_WIDTH / 2.0
-                well_y1 = well_center[1] + FAN_CASE_CABLE_WELL_SIZE[1] / 2.0
-                openings.append(box(route[-1][0] - half_width, well_y1 - half_width,
-                                    route[-1][0] + half_width,
-                                    max(route[-2][1], well_y1) + half_width))
+            for well_center, routes in zip(FAN_CASE_CABLE_WELL_CENTERS,
+                                           FAN_CASE_PAIR_STORAGE["cable_route_options"]):
+                openings.append(fan_case_cable_relief_region(well_center, routes))
             wedge_area = wedge_area.difference(union_all(openings))
             for side_x0, side_x1 in ((xmin, center_x), (center_x, xmax)):
                 region = wedge_area.intersection(box(side_x0, ymin, side_x1, ymax)).buffer(-3.0)
@@ -12543,6 +12565,57 @@ def validate_fan_case_contoured_cradle(parts, assembly_groups):
     return max(lift_overlaps), min(infill_volumes)
 
 
+def validate_fan_case_bottom_cable_routes(parts, reference_objects, assembly_groups):
+    """Prove both bottom exits on BOTH handed assemblies, not only the preview.
+
+    Each cable is checked with a freshly built, correctly notched live cover.
+    The opposite notch is an alternative cover configuration, not an opening
+    that we can assume exists in the selected preview cover.
+    """
+    overlaps = []
+    accessories = [obj for obj in reference_objects if any(obj.name.startswith(prefix) for prefix in (
+        "REFERENCE_ONLY_Fan_Case_PWM_Plug_", "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+        "REFERENCE_ONLY_Fan_Case_Battery_Door_"))]
+    for index, options in enumerate(FAN_CASE_PAIR_STORAGE["cable_route_options"], 1):
+        for corner, route in zip((-1, 1), options):
+            temporary = []
+            try:
+                cover = create_fan_case_storage_cover(index, corner)
+                temporary.append(cover)
+                cover.matrix_world = Matrix.Translation(
+                    FAN_CASE_PAIR_STORAGE["placements"][index - 1]) @ cover.matrix_world
+                lead = add_round_polyline("TEMPORARY_Bottom_Corner_Cable", route, FAN_CASE_CABLE_DIAMETER)
+                temporary.append(lead)
+                bpy.context.view_layer.update()
+                obstacles = [*accessories, cover, *(parts[key] for key in (
+                    "base", "fan_case_pair_insert", "fan_case_pair_carrier",
+                    "fan_case_pair_storage_bin"))]
+                obstacles.extend(obj for group_index, group in enumerate(assembly_groups, 1)
+                                 for obj in group if group_index != index or "Wrapping_Fan_Cover" not in obj.name)
+                for obstacle in obstacles:
+                    _faces, volume = exact_transformed_intersection(
+                        lead, obstacle,
+                        first_location=lead.location.copy(), first_rotation=lead.rotation_euler.copy(),
+                        second_location=obstacle.location.copy(), second_rotation=obstacle.rotation_euler.copy())
+                    if volume > 1e-5:
+                        raise ValueError(f"Bottom-corner cable route is obstructed: assembly={index} "
+                                         f"corner={corner:+d} object={obstacle.name} overlap={volume:.6f}")
+                    overlaps.append(volume)
+                _faces, volume = exact_transformed_intersection(
+                    lead, parts["fan_case_pair_lid_pad"],
+                    first_location=lead.location.copy(), first_rotation=lead.rotation_euler.copy(),
+                    second_location=installed_flat_lid_pad_pose(0)[0],
+                    second_rotation=installed_flat_lid_pad_pose(0)[1])
+                if volume > 1e-5:
+                    raise ValueError(f"Bottom-corner cable meets closed lid pad: {index}/{corner} volume={volume}")
+                overlaps.append(volume)
+            finally:
+                for obj in temporary:
+                    bpy.data.objects.remove(obj, do_unlink=True)
+    print(f"FIELD_CASE_BOTTOM_CABLE_ROUTES_VALID routes=4 overlap_max={max(overlaps):.6f}", flush=True)
+    return max(overlaps)
+
+
 def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
     """Prove the mutually exclusive two-fan-case loadout fits exactly."""
     assembly_groups = []
@@ -12557,6 +12630,8 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         if not group:
             raise ValueError(f"Fan-case reference assembly {assembly_index} is empty")
         assembly_groups.append(group)
+
+    validate_fan_case_bottom_cable_routes(parts, reference_objects, assembly_groups)
 
     actual_bounds = []
     fastener_orientations = []

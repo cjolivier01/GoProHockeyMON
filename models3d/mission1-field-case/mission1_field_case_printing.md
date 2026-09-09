@@ -160,10 +160,14 @@ increase the complete storage envelope. Adjust `FAN_CASE_THUMB_NUT_THICKNESS`
 if the measured low-profile nuts differ.
 
 The stored fan cases remain upright: the source row of two fasteners is at the
-physical bottom and the single fastener is at the top. Only each wrapping cover
-turns half a rotation around its local fan axis, placing the current TOP wire
-notch upward before the complete fan/cover pair is yawed. The camera and case
-remain upright. The 12 mm base deck retains the 3 mm assembly floors. The
+physical bottom and the single fastener is at the top. Each wrapping cover has
+its wire notch at the installed bottom, at either left or right corner. The
+generator builds the sleeve with print-coordinate `CABLE_NOTCH_SIDE="TOP"`
+(which faces down after installation) and either sign of the current
+`CABLE_NOTCH_OFFSET`; all temporary companion settings are restored. Align
+your sleeve notch with your fan's actual wire exit; change the offset sign in
+the wrapping-cover generator if printing the opposite-handed sleeve. The
+camera and case remain upright. The 12 mm base deck retains the 3 mm assembly floors. The
 cradles rise to 58 mm and engage 54.5 mm of each assembly. Broad, curved support
 masses fill all four spaces beside the rear domes, on the outer sides and
 between cameras. They grow continuously from the deck rather than forming
@@ -182,12 +186,21 @@ so the thin hardware does not carry the case weight.
 
 Two 64 x 36 mm rounded wells each carry one coiled fan lead. The modeled cable
 centerline is 52 x 28 mm with a 4 mm corner radius, for 153.1 mm of path around
-the loop versus the required 152.4 mm (6 inches). Each 8 mm route is derived
-from the wrapping cover's current `CABLE_NOTCH_SIDE` and `CABLE_NOTCH_OFFSET`
-and cuts through the bulk cradle; the exact scene reference follows
-the transformed notch through that throat to its well. Each lead rises above
-its own cover and descends beyond the actual angled assembly envelope,
-not the former straight-fan outline. Raised flexible docks
+the loop versus the required 152.4 mm (6 inches). Both bottom-corner exits on
+each fan have an 8 mm-wide, rounded, upward-open relief to that fan's well.
+The two reliefs join in a shared rounded mouth, removing the narrow upright
+strip that separate slots would leave in front of the fan. The broad curved
+dome-side supports remain connected to the outer and center cradle masses.
+Routes use the live sleeve dimensions and absolute `CABLE_NOTCH_OFFSET`, then
+the actual -15/+15-degree pad transforms. Each lead passes beneath its cover
+before descending into the well; it no longer loops over the fan. There is
+approximately 12.9 mm between the cover bottom and the cradle's cavity floor,
+not an empty 13 mm layer beneath the entire loadout. The insert sits directly
+on the rigid case floor, with 3 mm cavity floors and 2.5 mm cable-well floors.
+Validation checks all four routes against the complete assemblies, matching
+notched covers, cradle, case, trays, and accessories. Previews show the two
+outer-corner routes; either corner works independently on either fan.
+Raised flexible docks
 retain the two PWM plugs; the default user-tunable plug envelope is
 16 x 10 x 8 mm, its free channel is 11 mm wide (0.5 mm clearance per side),
 and only the 0.6 mm-per-side retention nubs enter that channel. Where the
@@ -282,6 +295,19 @@ restoration after a build failure, with:
 blender --background --factory-startup --threads 8 --python-exit-code 1 \
   --python models3d/mission1-field-case/check_mission1_field_case_fan_angles.py
 ```
+
+Check both bottom-corner cable alternatives on each fan, live notch dimensions,
+configuration restoration, and deliberate route obstructions with:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_field_case_bottom_cables.py
+```
+
+The blue and green leads below show the two alternative exits on each fan,
+with the assemblies removed for visibility. Only one lead per fan is installed.
+
+![Both bottom-corner cable routes and shared rounded mouths](renderings/mission1_field_case_bottom_cable_routes.png)
 
 ## Lid logo
 
@@ -816,7 +842,7 @@ and can be regenerated without editing an STL.
 
 For the alternate fan-case configuration, omit steps 1 and 5. Seat its lower
 insert directly on the case floor, coil each fan lead in its dedicated well,
-route the visible lead from the upward wrapping-cover notch through the 8 mm
+route the lead from either bottom wrapping-cover notch through its 8 mm
 throat, and slip the PWM plug into the matching outer dock. Press one battery
 into the tower inside each cable loop and place both battery doors in the two
 center slots. Lower each complete fan-case assembly upright into its wrapping
