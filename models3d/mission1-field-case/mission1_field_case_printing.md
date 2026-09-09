@@ -137,9 +137,16 @@ direct-mounted 40 x 40 x 20 mm rear fan, and the current
 and their 10 mm-diameter, nominally 2.5 mm-thick low-profile thumb-nuts.
 Generation temporarily disables the fan-case generator's
 optional 60 mm rear adapter because the 40 mm fan uses the shell's direct
-32 x 32 mm mounting pattern. The exact current complete envelope is
-97.77 x 93.40 x 68.57 mm per assembly. Both fit side-by-side with the existing
-internal width, depth, and height unchanged.
+32 x 32 mm mounting pattern. With the current angled companion generator,
+the left fan points 15 degrees left and the right fan 15 degrees right.
+The angle magnitude follows its `FAN_ANGLE_HORIZONTAL_DEG`; storage uses
+opposite horizontal signs and zero vertical tilt. Each shell is built separately,
+and its fan, cover, and cable exit use that shell's actual pad transform.
+Temporary source settings are restored even when generation fails.
+The complete envelope at 15 degrees is 97.77 x 105.01 x 68.57 mm per assembly.
+Both fit side-by-side with the existing internal width, depth, and height
+unchanged. Older companion generators without angled mounts retain the
+straight 97.77 x 93.40 x 68.57 mm loadout.
 
 The bolt length is resolved from the fan-case geometry rather than represented
 by a generic front allowance. The current captured hex-head bearing seat is at
@@ -153,13 +160,18 @@ if the measured low-profile nuts differ.
 
 The stored fan cases remain upright: the source row of two fasteners is at the
 physical bottom and the single fastener is at the top. Only each wrapping cover
-turns half a rotation around its fan/global Y axis, placing the current TOP wire
-notch upward without inverting the camera or case. The 12 mm base deck retains
+turns half a rotation around its local fan axis, placing the current TOP wire
+notch upward before the complete fan/cover pair is yawed. The camera and case
+remain upright. The 12 mm base deck retains
 the 3 mm assembly floors. Above it, four 3.2 mm-thick corner-guide segments per
 assembly rise to 28 mm, engage 24.5 mm of the complete assembly height, and
 leave approximately 44 mm exposed for a full-hand lift. The original 1 mm plan
 clearance remains, while a 0.8 mm tapered lead-in and wide front, rear, and side
-release gaps prevent long hard-TPU walls from dragging. Local 1.4 mm-floor
+release gaps prevent long hard-TPU walls from dragging. The low locator
+footprint stays unchanged; only the fan-side guide openings widen and shift
+to clear the yawed covers. Their lower edges remain above the deck, so the
+extra fan projection does not require extending the guides into the cable
+wells or moving the batteries. Local 1.4 mm-floor
 reliefs still leave more than 0.5 mm of air beneath the two low 10 mm thumb-nuts
 so the thin hardware does not carry the case weight.
 
@@ -168,7 +180,9 @@ centerline is 52 x 28 mm with a 4 mm corner radius, for 153.1 mm of path around
 the loop versus the required 152.4 mm (6 inches). Each 8 mm route is derived
 from the wrapping cover's current `CABLE_NOTCH_SIDE` and `CABLE_NOTCH_OFFSET`
 and cuts through the full-height front guide; the exact scene reference follows
-the transformed notch through that throat to its well. Raised flexible docks
+the transformed notch through that throat to its well. Each lead rises above
+its own cover and descends beyond the actual angled assembly envelope,
+not the former straight-fan outline. Raised flexible docks
 retain the two PWM plugs; the default user-tunable plug envelope is
 16 x 10 x 8 mm, its free channel is 11 mm wide (0.5 mm clearance per side),
 and only the 0.6 mm-per-side retention nubs enter that channel. Where the
@@ -242,6 +256,16 @@ straight-up bin withdrawal through the tapered carrier, and the complete empty
 lower insert's vertical path through the rigid rails. A source change that no
 longer fits the preserved shell therefore fails generation instead of silently
 producing an incompatible storage insert.
+
+Finished-mesh probes check both fans' seating planes, all eight shell-pad
+corners, and both cover grille planes against their handed mount transforms.
+Run the straight/15-degree loadout regression, including intentional bad fan
+placement and source-setting restoration after a build failure, with:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_field_case_fan_angles.py
+```
 
 ## Lid logo
 

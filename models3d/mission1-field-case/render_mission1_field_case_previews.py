@@ -397,6 +397,30 @@ def render_fan_case_loadout(camera):
     bpy.ops.render.render(write_still=True)
 
 
+def render_handed_fan_loadout(camera):
+    """Expose the independently angled fans, their guides, and cable routes."""
+    set_visible(
+        ("fan_case_pair_insert",),
+        (
+            "REFERENCE_ONLY_Fan_Case_Assembly_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+            "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+            "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+            "REFERENCE_ONLY_Fan_Case_Battery_Door_",
+        ),
+    )
+    original_lens = camera.data.lens
+    camera.data.lens = 55.0
+    camera.location = (0.0, -285.0, 330.0)
+    aim_object(camera, (0.0, -5.0, 38.0))
+    bpy.context.scene.render.filepath = str(
+        RENDER_DIRECTORY / "mission1_field_case_handed_fan_loadout.png"
+    )
+    bpy.ops.render.render(write_still=True)
+    camera.data.lens = original_lens
+
+
 def render_fan_side_storage(camera):
     """Lift the removable bin to expose its short carrier and lower loadout."""
     set_visible(
@@ -692,6 +716,7 @@ render_loaded_compact_stack(CAMERA)
 render_exploded_stack(CAMERA)
 render_closed_latch_protectors(CAMERA)
 render_fan_case_loadout(CAMERA)
+render_handed_fan_loadout(CAMERA)
 render_fan_side_storage(CAMERA)
 render_fan_side_support_path(CAMERA)
 render_fan_side_closed_stack(CAMERA)
