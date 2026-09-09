@@ -54,6 +54,22 @@ def check_loadout(yaw):
         case.validate_built_part(name, obj)
     case.validate_fan_case_pair_loadout(parts, references)
 
+    door = next(obj for obj in references
+                if obj.name.startswith("REFERENCE_ONLY_Fan_Case_Battery_Door_1"))
+    minimum, maximum = case.object_world_bounds(door)
+    blocker = case.add_rounded_box("TEST_Blocked_Door_Extraction", (4.0, 8.0, 2.0),
+        ((minimum.x + maximum.x) / 2.0, (minimum.y + maximum.y) / 2.0,
+         maximum.z + 10.0), bevel=0.0)
+    try:
+        try:
+            case.validate_fan_case_accessory_lift_paths((door,), (blocker,))
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("An obstruction above a seated door escaped lift validation")
+    finally:
+        case.bpy.data.objects.remove(blocker, do_unlink=True)
+
     group = [
         obj for obj in references
         if obj.name.startswith("REFERENCE_ONLY_Fan_Case_Assembly_1_")
@@ -83,7 +99,8 @@ def check_loadout(yaw):
             raise AssertionError("The injected source-build failure was not propagated")
     assert source_config() == original_config, "Failed source build leaked configuration"
     assert (case.CASE_WIDTH, case.CASE_DEPTH, case.BASE_HEIGHT) == (234.0, 158.0, 97.8)
-    print(f"FIELD_CASE_FAN_ANGLE_REGRESSION_PASS yaw={yaw:g} bad_pose_rejected=True source_config_restored=True", flush=True)
+    print(f"FIELD_CASE_FAN_ANGLE_REGRESSION_PASS yaw={yaw:g} bad_pose_rejected=True "
+          "blocked_door_lift_rejected=True source_config_restored=True", flush=True)
 
 
 if __name__ == "__main__":

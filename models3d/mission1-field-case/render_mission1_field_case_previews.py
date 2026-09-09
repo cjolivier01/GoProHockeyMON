@@ -422,7 +422,7 @@ def render_handed_fan_loadout(camera):
 
 
 def render_fan_side_storage(camera):
-    """Lift the removable bin to expose its short carrier and lower loadout."""
+    """Lift the deep tray to expose its battery-side storage and shallow tray."""
     set_visible(
         (
             "base",
@@ -451,36 +451,23 @@ def render_fan_side_storage(camera):
 
 
 def render_fan_side_support_path(camera):
-    """Show continuous side webs beside the carrier's short underside pads."""
-    set_visible(
-        (
-            "fan_case_pair_insert",
-            "fan_case_pair_carrier",
-        )
-    )
-    lower_insert = PARTS["fan_case_pair_insert"]
-    carrier = PARTS["fan_case_pair_carrier"]
-    original_insert_location = lower_insert.location.copy()
-    original_carrier_location = carrier.location.copy()
-    original_carrier_rotation = carrier.rotation_euler.copy()
-
-    # Place the two load-path parts beside one another.  Turning the carrier
-    # over exposes all four short shell-locator pads without hiding the two
-    # continuous arched support webs on the lower insert.
-    lower_insert.location.x -= 128.0
-    carrier.rotation_euler.y = math.pi
-    carrier.location = (128.0, 0.0, 156.0)
-    camera.data.lens = 62.0
-    camera.location = (455.0, -650.0, 430.0)
-    aim_object(camera, (0.0, -16.0, 47.0))
+    """Show the thick wall-backed cradle and both useful level-bottom trays."""
+    keys = ("fan_case_pair_insert", "fan_case_pair_carrier", "fan_case_pair_storage_bin")
+    set_visible(keys)
+    original_locations = {key: PARTS[key].location.copy() for key in keys}
+    PARTS["fan_case_pair_insert"].location.x -= 128.0
+    PARTS["fan_case_pair_carrier"].location = (
+        128.0, 20.0, -field_case.FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][4])
+    PARTS["fan_case_pair_storage_bin"].location = (
+        128.0, -25.0, -field_case.FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bottom_z"])
+    camera.data.lens = 52.0
+    camera.location = (455.0, -650.0, 470.0)
+    aim_object(camera, (0.0, -10.0, 35.0))
     bpy.context.scene.render.filepath = str(
-        RENDER_DIRECTORY / "mission1_field_case_fan_side_support_path.png"
-    )
+        RENDER_DIRECTORY / "mission1_field_case_fan_side_support_path.png")
     bpy.ops.render.render(write_still=True)
-
-    lower_insert.location = original_insert_location
-    carrier.location = original_carrier_location
-    carrier.rotation_euler = original_carrier_rotation
+    for key, location in original_locations.items():
+        PARTS[key].location = location
     camera.data.lens = 58.0
 
 
