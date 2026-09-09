@@ -91,8 +91,8 @@ def capture_cavity_wall_samples(back):
 def check_cavity_walls(back, samples):
     bvh = case.mesh_bvh(back)
     protected = []
-    for original in samples:
-        point = case.deform_fan_point(original)
+    for coordinates in case.deform_fan_points(samples):
+        point = Vector(coordinates)
         # The existing three perimeter screws retain straight access while
         # the dome bends. These deliberate cuts are checked separately.
         in_access = False
@@ -110,6 +110,95 @@ def check_cavity_walls(back, samples):
         f"first={tuple(round(value, 3) for value in missing[0])}"
     )
     print(f"ANGLE_CAVITY_WALLS PASS protected_material_samples={len(protected)}", flush=True)
+
+
+def check_compact_pad(back):
+    """Measure the pad pose without using the model's transform or deformation.
+
+    Bore-wall raycasts locate the four actual hole centers. Together with the
+    measured outer face, they locate the mounting square and its hinge depth;
+    an oversized or sideways-shifted pad cannot pass by moving its own probes.
+    """
+    tolerance = 0.002
+    outward = Vector((
+        math.tan(math.radians(case.FAN_ANGLE_HORIZONTAL_DEG)), -1.0,
+        math.tan(math.radians(case.FAN_ANGLE_VERTICAL_DEG)),
+    )).normalized()
+    # Closed-form shortest-arc axes, independent of fan_mount_transform().
+    denominator = 1.0 - outward.y
+    cross_term = -outward.x * outward.z / denominator
+    axis_x = Vector((1.0 - outward.x ** 2 / denominator, outward.x, cross_term))
+    axis_z = Vector((cross_term, outward.z, 1.0 - outward.z ** 2 / denominator))
+    half_width = case.BACK_DOME_FAN_PAD_WIDTH / 2.0
+    half_height = case.BACK_DOME_FAN_PAD_HEIGHT / 2.0
+    shift = abs(outward.x) * half_width + abs(outward.z) * half_height
+    original_y = -case.BACK_DOME_DEPTH if case.BACK_DOME_ENABLED else 0.0
+    expected_center = Vector((case.FAN_CENTER_X, original_y - shift, case.FAN_CENTER_Z))
+    bvh = case.mesh_bvh(back)
+    face_normals = []
+    for x_sign in (-1, 1):
+        for z_sign in (-1, 1):
+            expected = (expected_center + axis_x * x_sign * (half_width - 1.0)
+                        + axis_z * z_sign * (half_height - 1.0))
+            hit, normal, _face, _distance = bvh.ray_cast(expected + outward, -outward, 2.0)
+            assert hit is not None and (hit - expected).length < tolerance, (
+                f"Compact mounting face is missing or displaced at corner {x_sign}, {z_sign}"
+            )
+            assert normal.dot(outward) > 0.99999, "Compact mounting face has the wrong normal"
+            face_normals.append(normal)
+    measured_normal = sum(face_normals, Vector()).normalized()
+
+    bore_centers = {}
+    half_thickness = case.BACK_FACE_THICKNESS / 2.0
+    radius = case.FAN_HOLE_DIAMETER / 2.0
+    for x_sign in (-1, 1):
+        for z_sign in (-1, 1):
+            origin = (expected_center - outward * half_thickness
+                      + axis_x * x_sign * case.FAN_HOLE_SPACING_X / 2.0
+                      + axis_z * z_sign * case.FAN_HOLE_SPACING_Z / 2.0)
+            measured = origin.copy()
+            for axis in (axis_x, axis_z):
+                distances = []
+                for sign in (1, -1):
+                    hit, _normal, _face, distance = bvh.ray_cast(origin, axis * sign, radius * 2.0)
+                    if hit is None:
+                        # At tiny angles a ray can fall exactly between the
+                        # triangles meeting at an axial subdivision. Require
+                        # matching wall witnesses on both sides of that seam;
+                        # the bore radius/position tolerance stays unchanged.
+                        adjacent = [bvh.ray_cast(origin + outward * offset,
+                                                 axis * sign, radius * 2.0)
+                                    for offset in (-0.013, 0.013)]
+                        assert all(sample[0] is not None
+                                   and abs(sample[3] - radius) < tolerance
+                                   for sample in adjacent), (
+                            f"Compact pad bore {x_sign}, {z_sign} has no matching walls beside its middle seam"
+                        )
+                        hit = adjacent[0][0]
+                        distance = sum(sample[3] for sample in adjacent) / len(adjacent)
+                    assert hit is not None and abs(distance - radius) < tolerance, (
+                        f"Compact pad bore {x_sign}, {z_sign} is displaced or resized"
+                    )
+                    distances.append(distance)
+                measured += axis * (distances[0] - distances[1]) / 2.0
+            bore_centers[x_sign, z_sign] = measured
+    center = sum(bore_centers.values(), Vector()) / 4.0 + measured_normal * half_thickness
+    assert (center - expected_center).length < tolerance, (
+        f"Pad center drifted: measured={tuple(center)}, expected={tuple(expected_center)}"
+    )
+    measured_x = sum((bore_centers[1, z] - bore_centers[-1, z] for z in (-1, 1)), Vector()) / (2.0 * case.FAN_HOLE_SPACING_X)
+    measured_z = sum((bore_centers[x, 1] - bore_centers[x, -1] for x in (-1, 1)), Vector()) / (2.0 * case.FAN_HOLE_SPACING_Z)
+    assert (measured_x - axis_x).length < 0.0001 and (measured_z - axis_z).length < 0.0001, (
+        "Mounting square has added roll or changed screw spacing"
+    )
+    corners = [center + measured_x * x * half_width + measured_z * z * half_height
+               for x in (-1, 1) for z in (-1, 1)]
+    for corner in corners:
+        assert bvh.find_nearest(corner)[3] < tolerance, "Measured mounting-square corner is absent"
+    assert abs(max(point.y for point in corners) - original_y) < tolerance, "Pad hinge moved from its original depth"
+    assert abs(min(point.y for point in corners) - (original_y - 2.0 * shift)) < tolerance, "Pad exceeds its compact depth budget"
+    print(f"ANGLE_COMPACT_PAD PASS center={tuple(round(value, 4) for value in center)} "
+          f"hinge_y={original_y:.4f} rear_corner_y={original_y - 2.0 * shift:.4f}", flush=True)
 
 
 def check_no_self_intersections(obj):
@@ -153,6 +242,18 @@ def check_no_self_intersections(obj):
     obj.data.calc_loop_triangles()
     vertices = [tuple(vertex.co) for vertex in obj.data.vertices]
     triangles = [tuple(triangle.vertices) for triangle in obj.data.loop_triangles]
+    # Boolean polygon tessellation can produce facets whose shortest altitude
+    # is below the mesh cleanup distance. Their float32 coordinates cannot
+    # define a stable plane for proving a crossing. Exclude only those facets;
+    # the ordinary intersection tolerance above remains unchanged.
+    def has_stable_plane(indices):
+        a, b, c = (vertices[index] for index in indices)
+        edges = (sub(b, a), sub(c, b), sub(a, c))
+        normal = cross(edges[0], sub(c, a))
+        longest_edge_squared = max(dot(edge, edge) for edge in edges)
+        return dot(normal, normal) > case.BOOLEAN_CLEANUP_DISTANCE ** 2 * longest_edge_squared
+
+    triangles = [triangle for triangle in triangles if has_stable_plane(triangle)]
     vertex_sets = [set(triangle) for triangle in triangles]
     bvh = BVHTree.FromPolygons(vertices, triangles, all_triangles=True)
     for first, second in bvh.overlap(bvh):
@@ -173,6 +274,7 @@ def check_assembly(horizontal, vertical, wall_samples=()):
     case.FAN_ANGLE_VERTICAL_DEG = vertical
     print(f"ANGLE_ASSEMBLY horizontal={horizontal} vertical={vertical}", flush=True)
     back, _insert = case.build_gopro_fan_case()
+    check_compact_pad(back)
     assert not any("Baffle" in obj.name for obj in bpy.context.scene.objects)
     bvh = case.mesh_bvh(back)
     # Former top/bottom retaining toes must be absent from the case interior.

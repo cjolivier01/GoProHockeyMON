@@ -113,7 +113,13 @@ def main(mount_details_only=False):
             # the mounting face and screw bores through the open socket.
             if view == "inside":
                 position = case.fan_mount_transform().to_3x3() @ Vector(position)
-            frame(camera, (back,), position)
+                frame(camera, (back,), position)
+            else:
+                # Match the camera and scale across options so the curved
+                # protrusion can be compared directly with the straight case.
+                camera.location = position
+                aim(camera, (0, -15, 0))
+                camera.data.ortho_scale = 150
             bpy.context.scene.render.filepath = str(OUTPUT / f"fan_angle_{name}_{view}.png")
             if not mount_details_only:
                 bpy.ops.render.render(write_still=True)
@@ -128,6 +134,12 @@ def main(mount_details_only=False):
                                       case.BACK_DOME_FAN_PAD_HEIGHT * 1.25) * 1.2
         bpy.context.scene.render.filepath = str(OUTPUT / f"fan_angle_{name}_mount_inside.png")
         bpy.ops.render.render(write_still=True)
+        if name in ("straight", "right_15", "right_45", "right_45_up_45") and not mount_details_only:
+            camera.location = (200, -25, 0)
+            aim(camera, (0, -25, 0))
+            camera.data.ortho_scale = 130
+            bpy.context.scene.render.filepath = str(OUTPUT / f"fan_angle_{name}_profile.png")
+            bpy.ops.render.render(write_still=True)
         if name == "right_30_down_20" and not mount_details_only:
             # One assembled example verifies how the unchanged adapter sits
             # on the tilted pad. Its canonical STL still prints flange-down.

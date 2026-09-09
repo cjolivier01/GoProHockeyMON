@@ -25,6 +25,10 @@ Both faces of the mounting square rotate together. The pad keeps its configured
 thickness, and its four through-bores and inner screw bosses follow the same
 rotation. The dome bends into the fixed front socket; the camera contact faces,
 sleeve joint, and perimeter fastener seats retain their original positions.
+The mounting square stays centered horizontally and vertically. Its near edge
+stays at the original rear-surface depth while the opposite side tilts outward
+into the curved dome. With both angles set, the nearest corner stays at that
+depth. The transition spreads across the dome around the square.
 The optional fan adapter follows the pad. Its separate STL still uses the
 original flange-down orientation, and fan-size/offset settings stay local to it.
 
@@ -38,11 +42,12 @@ nut chamber).
 
 The acoustic baffle has been removed from the default case, including its
 retaining tabs, tray, lid, gasket, and generated STLs. The cavity is open.
-Angled configurations add rearward and sideways projection. Nonzero angles
+Angled configurations add rearward projection on the tilted-out side. Nonzero angles
 require `BACK_DOME_ENABLED = True`.
 
 The previews below show the bare back from both sides, including the 15°
-horizontal setting. Each option builds and validates the complete assembly.
+horizontal setting. The outside camera and scale stay fixed between options.
+Each option builds and validates the complete assembly.
 The inside images are mounting-face close-ups, with the camera inside the
 cavity so the foreground rim does not hide the holes. Each row also links to
 a whole-cavity view. The larger corner blocks are camera stops.
@@ -58,6 +63,14 @@ a whole-cavity view. The larger corner blocks are camera stops.
 | +30° / −20° | ![Compound outside](renderings/fan_angle_right_30_down_20_outside.png) | ![Compound inside](renderings/fan_angle_right_30_down_20_mount_inside.png) [Whole cavity](renderings/fan_angle_right_30_down_20_inside.png) |
 | +45° / +45° | ![Maximum compound outside](renderings/fan_angle_right_45_up_45_outside.png) | ![Maximum compound inside](renderings/fan_angle_right_45_up_45_mount_inside.png) [Whole cavity](renderings/fan_angle_right_45_up_45_inside.png) |
 
+Side profiles use the same camera and scale to show the curved projection:
+
+| 0° / 0° | +15° / 0° |
+| --- | --- |
+| ![Straight profile](renderings/fan_angle_straight_profile.png) | ![15 degree profile](renderings/fan_angle_right_15_profile.png) |
+| +45° / 0° | +45° / +45° |
+| ![45 degree profile](renderings/fan_angle_right_45_profile.png) | ![Compound profile](renderings/fan_angle_right_45_up_45_profile.png) |
+
 The default 60 mm adapter mounted at +30° horizontal and −20° vertical:
 
 ![Angled rear adapter assembled](renderings/fan_angle_adapter_assembled.png)
@@ -71,7 +84,7 @@ blender --background --factory-startup --threads 8 --python-exit-code 1 \
   --python models3d/fan-case/render_fan_angle_previews.py
 ```
 
-The checks cover CLI limits and invalid values, small and maximum angles,
+The checks cover CLI limits and invalid values, compact pad placement, small and maximum angles,
 all four compound limits, both mounting faces, pad thickness, through-bores,
 inside screw-head clearance, wall material, perimeter screw access, TPU/rigid
 backs, adapter clearance, absence of baffle parts and tabs, STL reimport, and

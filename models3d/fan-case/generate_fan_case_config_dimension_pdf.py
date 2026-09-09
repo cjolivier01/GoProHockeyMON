@@ -2183,7 +2183,7 @@ def rear_fan_adapter_local_triangles() -> np.ndarray:
 
 
 def fan_mount_placement_for_drawings():
-    """Resolve the model's rigid mount rotation and rearward translation."""
+    """Keep the pad centered laterally and its nearest corner at the old depth."""
     direction = np.asarray((
         math.tan(math.radians(float(C["FAN_ANGLE_HORIZONTAL_DEG"]))),
         -1.0,
@@ -2191,21 +2191,14 @@ def fan_mount_placement_for_drawings():
     ))
     direction /= np.linalg.norm(direction)
     rotation = rotation_matrix_between_vectors((0.0, -1.0, 0.0), direction)
-    if C["SLEEVE_CAPTURE_SLOT_ENABLED"]:
-        capture = resolved_capture_geometry()
-        width, height = capture["back_width"], capture["back_height"]
-    else:
-        width, height = float(C["BACK_OUTER_WIDTH"]), float(C["BACK_OUTER_HEIGHT"])
     rear_shift = (
-        abs(rotation[1, 0]) * (width / 2.0 + abs(float(C["FAN_CENTER_X"])))
-        + abs(rotation[1, 2]) * (height / 2.0 + abs(float(C["FAN_CENTER_Z"])))
-    ) / rotation[1, 1]
+        abs(rotation[1, 0]) * float(C["BACK_DOME_FAN_PAD_WIDTH"]) / 2.0
+        + abs(rotation[1, 2]) * float(C["BACK_DOME_FAN_PAD_HEIGHT"]) / 2.0
+    )
     exterior_y = -float(C["BACK_DOME_DEPTH"]) if C["BACK_DOME_ENABLED"] else 0.0
-    pivot = np.asarray((float(C["FAN_CENTER_X"]), float(C["BACK_DEPTH"]), float(C["FAN_CENTER_Z"])))
-    translation = pivot + rotation @ (np.asarray((0.0, -rear_shift, 0.0)) - pivot)
-    center = rotation @ np.asarray((float(C["FAN_CENTER_X"]), exterior_y, float(C["FAN_CENTER_Z"]))) + translation
-    return rotation, translation, center, direction
-
+    pivot = np.asarray((float(C["FAN_CENTER_X"]), exterior_y, float(C["FAN_CENTER_Z"])))
+    center = pivot + np.asarray((0.0, -rear_shift, 0.0))
+    return rotation, center - rotation @ pivot, center, direction
 
 
 @lru_cache(maxsize=None)

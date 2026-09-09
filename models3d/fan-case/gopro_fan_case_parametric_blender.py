@@ -8,8 +8,8 @@ Run inside Blender:
 
 Fan angles are degrees in [-45, 45], measured from rearward (-Y) toward
 +X (horizontal) and +Z (vertical). Both default to zero. The pad, pilot bores,
-and assembled rear adapter follow this direction; the dome grows rearward to
-retain the original camera socket and acoustic-cartridge sealing surface.
+and assembled rear adapter follow this direction. Both mounting faces rotate
+together, with a curved dome transition to the original camera socket.
 
 All dimensions are millimeters. The defaults follow ``gopro-fan-case.stl``
 without reproducing its internal scraps or jagged hole edges. The generated
@@ -35,6 +35,7 @@ from pathlib import Path
 
 import bmesh
 import bpy
+import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
@@ -1040,8 +1041,8 @@ def fan_mount_direction():
 
 def fan_deformation_y_planes():
     """Keep the pad and inlet rigid, with all forward hardware unchanged."""
-    # Preserve the original screw-head envelope as well as the pad/bosses.
-    rigid_end = fan_boss_end_y() + 3.0
+    # Rotate the complete mounting plate and bosses as one rigid region.
+    rigid_end = fan_boss_end_y()
     # Leave the fixed chimney's thin Boolean overlap untouched.
     blend_end = -0.5
     if BAFFLE_CARTRIDGE_ENABLED:
@@ -1053,56 +1054,142 @@ def fan_deformation_y_planes():
 
 
 def fan_mount_transform():
-    """Rotate about the socket axis and move rearward along the fan axis.
-
-    The full affected width/height bounds the shift, so the transition unfolds
-    rearward. Moving along the fan axis keeps inside screw approaches aimed
-    toward the open socket. Steep angles can still need an angled driver.
-    """
+    """Tilt the pad with its near edge at the original rear surface depth."""
     rotation = Vector((0.0, -1.0, 0.0)).rotation_difference(fan_mount_direction()).to_matrix()
-    width, height, _radius = effective_back_outer_dimensions()
-    transverse_extent = (
-        abs(rotation[1][0]) * (width / 2.0 + abs(FAN_CENTER_X))
-        + abs(rotation[1][2]) * (height / 2.0 + abs(FAN_CENTER_Z))
+    rear_shift = (
+        abs(rotation[1][0]) * BACK_DOME_FAN_PAD_WIDTH / 2.0
+        + abs(rotation[1][2]) * BACK_DOME_FAN_PAD_HEIGHT / 2.0
     )
-    rear_shift = transverse_extent / rotation[1][1]
-    pivot = Vector((FAN_CENTER_X, BACK_DEPTH, FAN_CENTER_Z))
-    return (Matrix.Translation(pivot) @ rotation.to_4x4()
-            @ Matrix.Translation((0.0, -rear_shift, 0.0)) @ Matrix.Translation(-pivot))
+    pivot = Vector((FAN_CENTER_X, back_exterior_y(), FAN_CENTER_Z))
+    return (Matrix.Translation(pivot + Vector((0.0, -rear_shift, 0.0)))
+            @ rotation.to_4x4() @ Matrix.Translation(-pivot))
+
+
+def deform_fan_points(points):
+    """Bend the dome around a rigid pad, leaving the front hardware fixed.
+
+    Advance a smoothly weighted rigid motion in small steps. Blending only
+    the final positions can fold the inner and outer walls through each other
+    when a compact mounting plate tilts through a large angle.
+    """
+    result = np.asarray(points, dtype=float).reshape((-1, 3)).copy()
+    if not fan_mount_is_angled() or not len(result):
+        return result
+    rigid_end, blend_end = fan_deformation_y_planes()
+    half_width = BACK_DOME_FAN_PAD_WIDTH / 2.0
+    half_height = BACK_DOME_FAN_PAD_HEIGHT / 2.0
+    width, height, _radius = effective_back_outer_dimensions()
+    pivot = np.asarray((FAN_CENTER_X, back_exterior_y(), FAN_CENTER_Z))
+    horizontal = math.tan(math.radians(FAN_ANGLE_HORIZONTAL_DEG))
+    vertical = math.tan(math.radians(FAN_ANGLE_VERTICAL_DEG))
+    magnitude = math.hypot(horizontal, vertical)
+    horizontal /= magnitude
+    vertical /= magnitude
+    angle = math.atan(magnitude)
+    axis = np.asarray((-vertical, 0.0, horizontal))
+    cross = np.asarray(((0.0, -axis[2], axis[1]),
+                        (axis[2], 0.0, -axis[0]),
+                        (-axis[1], axis[0], 0.0)))
+    cross_squared = cross @ cross
+    hinge_extent = abs(horizontal) * half_width + abs(vertical) * half_height
+
+    fixed = result[:, 1] >= blend_end
+    rigid = ((np.abs(result[:, 0] - FAN_CENTER_X) <= half_width)
+             & (np.abs(result[:, 2] - FAN_CENTER_Z) <= half_height)
+             & (result[:, 1] <= rigid_end))
+    # These points follow exact rigid trajectories, avoiding integration
+    # residue on the seating faces, cylindrical bores and printed datums.
+    transform = np.asarray(fan_mount_transform(), dtype=float)
+    result[rigid] = result[rigid] @ transform[:3, :3].T + transform[:3, 3]
+    active = ~(fixed | rigid)
+    moving = result[active].copy()
+    if not len(moving):
+        return result
+
+    def velocity(positions, fraction):
+        theta = angle * fraction
+        rotation = np.eye(3) + math.sin(theta) * cross + (1.0 - math.cos(theta)) * cross_squared
+        centered = positions - pivot
+        centered[:, 1] += hinge_extent * math.sin(theta)
+        local = centered @ rotation + pivot
+        radial = np.maximum(
+            (np.abs(local[:, 0] - FAN_CENTER_X) - half_width) / (width / 2.0 - half_width),
+            (np.abs(local[:, 2] - FAN_CENTER_Z) - half_height) / (height / 2.0 - half_height),
+        )
+        radial = np.clip(radial, 0.0, 1.0)
+        axial = np.clip((positions[:, 1] - rigid_end) / (blend_end - rigid_end), 0.0, 1.0)
+        weight = (1.0 - radial * radial * (3.0 - 2.0 * radial)) * (1.0 - axial * axial * (3.0 - 2.0 * axial))
+        motion = angle * (centered @ cross.T)
+        motion[:, 1] -= hinge_extent * angle * math.cos(theta)
+        return weight[:, None] * motion
+
+    steps = 128
+    step = 1.0 / steps
+    for index in range(steps):
+        fraction = index * step
+        first = velocity(moving, fraction)
+        second = velocity(moving + step / 2.0 * first, fraction + step / 2.0)
+        third = velocity(moving + step / 2.0 * second, fraction + step / 2.0)
+        fourth = velocity(moving + step * third, fraction + step)
+        moving += step / 6.0 * (first + 2.0 * second + 2.0 * third + fourth)
+    result[active] = moving
+    return result
 
 
 def deform_fan_point(point):
-    point = Vector(point)
-    if not fan_mount_is_angled():
-        return point
-    rigid_end, blend_end = fan_deformation_y_planes()
-    weight = 1.0 - smoothstep((point.y - rigid_end) / (blend_end - rigid_end))
-    return point + weight * (fan_mount_transform() @ point - point)
+    return Vector(deform_fan_points([point])[0])
 
 
 def deform_fan_mesh(obj):
-    """Bend a completed solid, preserving both pad faces and every through-hole."""
+    """Sample the curved rear wall finely without splitting fixed hardware."""
     if not fan_mount_is_angled():
         return obj
-    rigid_end, blend_end = fan_deformation_y_planes()
+    _rigid_end, blend_end = fan_deformation_y_planes()
     bm = bmesh.new()
     bm.from_mesh(obj.data)
-    # Split crossing faces before bending; endpoint-only deformation would
-    # move long wall triangles through the fixed mating surfaces.
-    # Fine axial stations prevent triangles folding across narrow camera-stop
-    # junctions at compound angles; the front hardware stays unmodified.
-    sections = 128
-    for section in range(sections + 1):
-        y = rigid_end + (blend_end - rigid_end) * section / sections
-        bmesh.ops.bisect_plane(bm, geom=[*bm.verts, *bm.edges, *bm.faces],
-                               dist=1.0e-6, plane_co=(0.0, y, 0.0),
-                               plane_no=(0.0, 1.0, 0.0))
+    # Separate the moving surface before transverse cuts. Splitting the
+    # untouched front nut chambers can create near-coincident slivers when
+    # the final fastener Boolean cleans its result.
+    bmesh.ops.bisect_plane(
+        bm, geom=[*bm.verts, *bm.edges, *bm.faces], dist=1.0e-6,
+        plane_co=(0.0, blend_end, 0.0), plane_no=(0.0, 1.0, 0.0),
+    )
+    faces = [face for face in bm.faces
+             if max(vertex.co.y for vertex in face.verts) <= blend_end + 1.0e-6
+             and min(vertex.co.y for vertex in face.verts) < blend_end - 1.0e-6]
+    edges = {edge for face in faces for edge in face.edges}
+    vertices = {vertex for face in faces for vertex in face.verts}
+    geometry = [*vertices, *edges, *faces]
+    if vertices:
+        bounds = [(min(vertex.co[axis] for vertex in vertices),
+                   max(vertex.co[axis] for vertex in vertices)) for axis in range(3)]
+        # Closely spaced axial stations retain the thin joins where the dome
+        # meets camera-stop roots; transverse stations follow its curved sides.
+        for axis, spacing in ((0, 1.0), (2, 1.0), (1, 0.0625)):
+            low, high = bounds[axis]
+            for station in range(math.ceil(low / spacing), math.floor(high / spacing) + 1):
+                coordinate, normal = [0.0] * 3, [0.0] * 3
+                coordinate[axis] = station * spacing
+                normal[axis] = 1.0
+                geometry = bmesh.ops.bisect_plane(
+                    bm, geom=geometry, dist=1.0e-6, plane_co=coordinate, plane_no=normal,
+                )["geom"]
+        # The final fraction of the bend meets very thin Boolean joins at
+        # camera stops. Resolve their curvature before applying the flow;
+        # coarse triangles here can cross despite a continuous solid bend.
+        spacing = 0.0078125
+        low = max(bounds[1][0], blend_end - 0.75)
+        for station in range(math.ceil(low / spacing), math.floor(blend_end / spacing) + 1):
+            if station % 8 == 0:
+                continue  # Already split by the ordinary axial stations.
+            geometry = bmesh.ops.bisect_plane(
+                bm, geom=geometry, dist=1.0e-6,
+                plane_co=(0.0, station * spacing, 0.0), plane_no=(0.0, 1.0, 0.0),
+            )["geom"]
     bmesh.ops.triangulate(bm, faces=list(bm.faces))
-    transform = fan_mount_transform()
-    for vertex in bm.verts:
-        point = vertex.co.copy()
-        weight = 1.0 - smoothstep((point.y - rigid_end) / (blend_end - rigid_end))
-        vertex.co = point + weight * (transform @ point - point)
+    points = deform_fan_points([tuple(vertex.co) for vertex in bm.verts])
+    for vertex, point in zip(bm.verts, points):
+        vertex.co = point
     bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
     bm.to_mesh(obj.data)
     bm.free()
