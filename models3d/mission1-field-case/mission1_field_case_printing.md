@@ -143,11 +143,15 @@ The angle magnitude follows its `FAN_ANGLE_HORIZONTAL_DEG`; storage uses
 opposite horizontal signs and zero vertical tilt. Each shell is built separately,
 and its fan, cover, and cable exit use that shell's actual pad transform.
 Temporary source settings are restored even when generation fails.
-The complete envelope with the current 15-degree companion is approximately
+The complete envelope with the tested 15-degree companion is approximately
 97.77 x 103.98 x 68.57 mm per assembly.
 Both fit side-by-side with the existing internal width, depth, and height
 unchanged. Older companion generators without angled mounts retain the
 straight 97.77 x 93.40 x 68.57 mm loadout.
+The handed measurements and renderings in this guide use the separately
+updated local angled-mount companion; this field-case revision does not bundle
+or change that companion's configuration. A checkout with the older committed
+companion builds the straight loadout instead. Both variants are regression-tested.
 
 The bolt length is resolved from the fan-case geometry rather than represented
 by a generic front allowance. The current captured hex-head bearing seat is at
@@ -234,10 +238,13 @@ the broad lower cradle ledges. Lift the front tray for batteries and cables;
 remove both trays before lifting the long doors or cameras. Do not stack the
 trays on one another.
 
-With the current handed 15-degree fan configuration, the rear tray's nominal
+With the tested handed 15-degree fan configuration, the rear tray's nominal
 usable interior is 217 x 106.98 x 23.13 mm (537 mL); the front tray's is
 217 x 26.52 x 50.84 mm (293 mL). Together they provide approximately 830 mL
 to the rims, before allowing for rounded corners and the open finger scallops.
+With straight fan mounts, the rear interior is 217 x 96.40 x 23.13 mm
+(484 mL), and the front interior is 217 x 37.10 x 50.84 mm (409 mL),
+for approximately 893 mL total. The split follows the generated fan/cable route.
 The legacy `overhead_carrier` filename now contains the complete shallow rear
 tray, not a flat carrier panel.
 

@@ -13601,14 +13601,11 @@ def evaluated_mesh_payload(obj, origin):
     bm = bmesh.new()
     try:
         bm.from_mesh(mesh)
-        # Boolean output can retain a nearly collinear sliver along an n-gon
-        # boundary.  Blender may choose a different valid n-gon tessellation
-        # after unrelated scene evaluation; one choice can turn that sliver
-        # into a zero-area triangle once coordinates are serialized at eight
-        # decimal places. Dissolve numerical degeneracies with a 5e-8 mm
-        # tolerance in the temporary export BMesh, then retriangulate. The
-        # strict payload validator below still requires a closed manifold with
-        # no collapsed, duplicate, zero-area, or inconsistently wound faces.
+        # Boolean output can retain numerical slivers along n-gon boundaries.
+        # Dissolve only a 5e-8 mm numerical tolerance in the temporary export
+        # BMesh, then retriangulate. The strict payload validator below still
+        # requires a closed manifold with no collapsed, duplicate, zero-area,
+        # or inconsistently wound faces.
         preserve_topology = obj.name.startswith("Field_Case_Pelican_Source_")
         bmesh.ops.triangulate(bm, faces=list(bm.faces))
         if not preserve_topology:
@@ -13620,14 +13617,30 @@ def evaluated_mesh_payload(obj, origin):
             bmesh.ops.triangulate(bm, faces=list(bm.faces))
         bm.verts.ensure_lookup_table()
         bm.verts.index_update()
-        world = evaluated.matrix_world
+        # mathutils matrix/vector multiplication and subtraction return
+        # float32 coordinates. Subtracting a nonzero 3MF group origin in that
+        # precision can collapse a valid, almost-collinear triangle even when
+        # the same mesh passes at the standalone STL's zero origin. Perform
+        # the affine transform and subtraction with Python float64 scalar
+        # arithmetic before the common eight-decimal serialization.
+        world = tuple(
+            tuple(float(evaluated.matrix_world[row][column]) for column in range(4))
+            for row in range(3)
+        )
+        origin_values = tuple(float(origin[axis]) for axis in range(3))
         vertices = []
         vertex_indices = {}
         # Preserve the supplied latch bodies' repaired triangle topology.
         positions = {}
         for vertex in bm.verts:
-            position = world @ vertex.co - origin
-            key = tuple(round(float(position[axis]), 8) for axis in range(3))
+            source = tuple(float(vertex.co[axis]) for axis in range(3))
+            position = tuple(
+                sum(world[axis][column] * source[column] for column in range(3))
+                + world[axis][3]
+                - origin_values[axis]
+                for axis in range(3)
+            )
+            key = tuple(round(value, 8) for value in position)
             if preserve_topology:
                 vertex_indices[vertex.index] = len(vertices)
                 vertices.append(key)
