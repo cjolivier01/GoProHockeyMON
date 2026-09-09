@@ -150,8 +150,8 @@ unchanged. Older companion generators without angled mounts retain the
 straight 97.77 x 93.40 x 68.57 mm loadout.
 The handed measurements and renderings in this guide use the separately
 updated local angled-mount companion; this field-case revision does not bundle
-or change that companion's configuration. A checkout with the older committed
-companion builds the straight loadout instead. Both variants are regression-tested.
+or change that companion's configuration. The committed default companion
+configuration builds the straight loadout instead. Both variants are regression-tested.
 
 The bolt length is resolved from the fan-case geometry rather than represented
 by a generic front allowance. The current captured hex-head bearing seat is at

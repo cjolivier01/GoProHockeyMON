@@ -532,7 +532,11 @@ def configure_scene(project: ThreeMFProject, width: int):
     camera = bpy.data.objects.new("Plate_Overview_Camera", camera_data)
     bpy.context.collection.objects.link(camera)
     camera_data.type = "ORTHO"
-    camera_data.ortho_scale = world_height
+    camera_data.sensor_fit = "HORIZONTAL"
+    camera_data.ortho_scale = max(
+        world_width,
+        world_height * scene.render.resolution_x / scene.render.resolution_y,
+    )
     camera_data.clip_start = 1.0
     camera_data.clip_end = 5000.0
     camera.location = ((left + right) / 2.0, (bottom + top) / 2.0, 2400.0)

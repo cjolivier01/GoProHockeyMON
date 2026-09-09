@@ -14131,10 +14131,15 @@ def add_model_settings_object(config, group) -> None:
 
 
 def project_settings_bytes() -> bytes:
+    filament_count = 3
     settings = {
         "bed_exclude_area": ["0x0", "18x0", "18x28", "0x28"],
         "default_filament_colour": ["", "", ""],
-        "different_settings_to_system": ["", "", ""],
+        # Bambu stores one process entry, one entry per filament, and one
+        # printer entry in each preset group. Its CLI derives filament count
+        # from this array length, so omitting the two non-filament slots can
+        # make preset-name conversion index beyond the filament arrays.
+        "different_settings_to_system": [""] * (filament_count + 2),
         "enable_support": "0",
         "extruder_clearance_dist_to_rod": "33",
         "extruder_clearance_height_to_lid": "90",
@@ -14157,7 +14162,7 @@ def project_settings_bytes() -> bytes:
         "flush_volumes_matrix": [
             "0" if row == column else "280" for row in range(3) for column in range(3)
         ],
-        "inherits_group": ["", "", ""],
+        "inherits_group": [""] * (filament_count + 2),
         "interlocking_beam": "1" if PRINT_TPU_GASKET_WITH_LID else "0",
         "interlocking_beam_layer_count": str(GASKET_INTERLOCK_BEAM_LAYER_COUNT),
         "interlocking_beam_width": format_3mf_number(
@@ -15098,10 +15103,19 @@ def validate_3mf_project(path: Path) -> None:
         "interlocking_orientation": format_3mf_number(
             GASKET_INTERLOCK_ORIENTATION
         ),
+        "different_settings_to_system": [""] * 5,
+        "inherits_group": [""] * 5,
     }
     for key, expected_value in expected_project_settings.items():
         if project_settings.get(key) != expected_value:
             raise ValueError(f"3MF project has an unexpected {key}")
+    filament_count = len(project_settings["filament_type"])
+    for group_key in ("different_settings_to_system", "inherits_group"):
+        if len(project_settings[group_key]) != filament_count + 2:
+            raise ValueError(
+                f"3MF project {group_key} must contain one process slot, "
+                f"{filament_count} filament slots, and one printer slot"
+            )
 
     extruders = {value[1] for value in expected_parts.values()}
     print(
