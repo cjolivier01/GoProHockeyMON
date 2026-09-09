@@ -42,6 +42,39 @@ def check_cli():
         raise AssertionError("Accepted nonzero angles without the dome")
     finally:
         case.BACK_DOME_ENABLED = True
+    case.REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED = True
+    try:
+        case.validate_config()
+    except ValueError as error:
+        assert "SOURCE_CAPTIVE_NUTS_ENABLED=False" in str(error)
+    else:
+        raise AssertionError("Accepted an inaccessible angled source captive nut")
+    finally:
+        case.REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED = False
+    saved_size, saved_offset = case.REAR_FAN_SIZE_MM, case.REAR_FAN_OFFSET_X_MM
+    case.REAR_FAN_SIZE_MM, case.REAR_FAN_OFFSET_X_MM = 40, 0
+    try:
+        case.validate_config()
+    except ValueError as error:
+        assert "overlaps target fan hardware" in str(error)
+    else:
+        raise AssertionError("Accepted source access through the target screw pilots")
+    finally:
+        case.REAR_FAN_SIZE_MM, case.REAR_FAN_OFFSET_X_MM = saved_size, saved_offset
+    saved_flange = case.REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y
+    case.REAR_FAN_SIZE_MM, case.REAR_FAN_OFFSET_X_MM = 40, 11
+    case.REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED = True
+    case.REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y = 4.5
+    try:
+        case.validate_config()
+    except ValueError as error:
+        assert "captive-nut insertion path" in str(error)
+    else:
+        raise AssertionError("Accepted a sleeve blocking nut insertion outside the flange")
+    finally:
+        case.REAR_FAN_SIZE_MM, case.REAR_FAN_OFFSET_X_MM = saved_size, saved_offset
+        case.REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED = False
+        case.REAR_FAN_ADAPTER_FLANGE_THICKNESS_Y = saved_flange
     print("FAN_ANGLE_CLI PASS", flush=True)
 
 

@@ -27,6 +27,17 @@ The optional rear fan adapter rotates with it in the assembled scene; its
 separate STL remains in the original flange-down print orientation. Fan-size
 and offset settings remain in the adapter's local frame.
 
+For angled mounts, install the adapter **from the fan side before fitting the
+fan**. Its four 4.3 mm source clearance bores accept screws that thread into the
+case's 3.6 mm blind pilots. Sealed sleeves through the horn provide 8.6 mm
+head/driver clearance, suitable for heads up to 8 mm. With the default 4 mm
+adapter flange and 4 mm case engagement, use at most 7.5 mm under-head screw
+length to retain 0.5 mm bottom clearance. Measure the selected hardware.
+`REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER` adjusts head clearance. Source captive
+nuts are unsupported at nonzero angles, and the script rejects fan-size/offset
+combinations whose head-access sleeves overlap the target mounting hardware.
+The 0° adapter retains its original fastening arrangement.
+
 Angled settings add rearward depth and material. The inner cartridge sealing
 surface, cartridge parts, camera stops, sleeve joint, and perimeter screw seats
 retain their original positions. A bent circular passage connects the tilted
@@ -66,4 +77,5 @@ blender --background --factory-startup --threads 8 --python-exit-code 1 \
 The checks cover CLI bounds and invalid values, small and maximum angles on
 both axes, all four compound limits, pad normals and pilot walls, perimeter
 screw access, complete TPU/rigid assemblies, cartridge clearance and retention,
-adapter clearance, and flange-down STL export and print-bed layout.
+adapter clearance, the full screw-head/driver installation path and sealed
+access sleeves, and flange-down STL export and print-bed layout.

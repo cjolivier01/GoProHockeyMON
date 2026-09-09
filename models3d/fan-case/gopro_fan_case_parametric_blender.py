@@ -267,9 +267,15 @@ REAR_FAN_ADAPTER_HORN_WALL_THICKNESS = 1.8
 # Diametral clearance applies only to captive-nut clearance bores. A
 # self-tapping end deliberately uses FAN_HOLE_DIAMETER without this clearance.
 REAR_FAN_ADAPTER_HOLE_CLEARANCE = 0.4
+# Angled mounts use exterior-installed source screws into the case's blind
+# pilots. Sealed sleeves admit the screw head/driver before fitting the fan.
+# Default clearance supports heads up to 8 mm diameter (0.6 mm clearance).
+REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER = 8.6
 # Side-loaded captive M3 nut chambers. Slide each nut through the exposed edge
 # tunnel before mating the adapter to the case or fan. Source screws enter from
-# inside the open case; target screws enter from the fan's exposed rear face.
+# inside the open case at zero angle; angled adapters instead use external
+# source clearance bores and sealed head-access sleeves. Target screws enter
+# from the fan's exposed rear face.
 # Tightening pulls every nut against a printed interface-side shoulder, so the
 # shoulder transfers bolt tension into the adapter flange instead of letting
 # the nut escape toward its mating face.  Both switches are literal: enabling
@@ -2615,6 +2621,46 @@ def validate_config() -> None:
             raise ValueError(f"{name} must be finite and between -45 and 45 degrees")
     if fan_mount_is_angled() and not BACK_DOME_ENABLED:
         raise ValueError("Nonzero fan angles require BACK_DOME_ENABLED=True")
+    if REAR_FAN_ADAPTER_ENABLED and rear_fan_adapter_uses_external_source_screws():
+        if REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED:
+            raise ValueError(
+                "Angled adapters require REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED=False; "
+                "source screws enter from the horn side into the case pilots"
+            )
+        if not math.isfinite(REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER) or REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER < 2.0 * rear_fan_adapter_source_hole_radius() + 1.0:
+            raise ValueError("The adapter screw-head access needs at least 1 mm diameter beyond its shaft bore")
+        flange_half = rear_fan_adapter_source_flange_size() / 2.0
+        if max(FAN_HOLE_SPACING_X, FAN_HOLE_SPACING_Z) / 2.0 + rear_fan_adapter_screw_access_outer_radius() > flange_half:
+            raise ValueError("The adapter screw-access sleeves exceed the source flange; reduce access diameter or enlarge the pad")
+        target_x, target_z = rear_fan_adapter_target_center_xz()
+        target_half_spacing = float(rear_fan_preset()["hole_spacing"]) / 2.0
+        target_hardware_radius = (
+            rear_fan_adapter_nut_circumradius() + REAR_FAN_ADAPTER_NUT_MIN_WALL
+            if REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED
+            else rear_fan_adapter_target_hole_radius() + 0.6
+        )
+        for source_x, source_z in fan_hole_positions():
+            for x_sign in (-1.0, 1.0):
+                for z_sign in (-1.0, 1.0):
+                    distance = math.hypot(
+                        source_x - target_x - x_sign * target_half_spacing,
+                        source_z - target_z - z_sign * target_half_spacing,
+                    )
+                    if distance < rear_fan_adapter_screw_access_outer_radius() + target_hardware_radius:
+                        raise ValueError("Angled adapter screw access overlaps target fan hardware; change fan size or offsets")
+                    if REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED:
+                        # The nut approaches along X from outside the flange.
+                        # A sleeve can clear its chamber yet obstruct that
+                        # approach, so check the entire outward half-line.
+                        dx = source_x - target_x - x_sign * target_half_spacing
+                        dz = source_z - target_z - z_sign * target_half_spacing
+                        approach_distance = abs(dz) if x_sign * dx >= 0.0 else math.hypot(dx, dz)
+                        slot_half_width = (
+                            REAR_FAN_ADAPTER_NUT_ACROSS_FLATS
+                            + REAR_FAN_ADAPTER_NUT_SLOT_CLEARANCE
+                        ) / 2.0
+                        if approach_distance < rear_fan_adapter_screw_access_outer_radius() + slot_half_width:
+                            raise ValueError("Angled adapter sleeves block a target captive-nut insertion path; change fan size or offsets")
     material_choices = {"RIGID", "TPU"}
     for name, mode in (
         ("BACK_MATERIAL_MODE", BACK_MATERIAL_MODE),
@@ -4806,12 +4852,22 @@ def rear_fan_adapter_target_flange_thickness_y() -> float:
 
 
 def rear_fan_adapter_source_hole_radius() -> float:
+    if rear_fan_adapter_uses_external_source_screws():
+        return float(get_standard_fan_preset(40)["hole_diameter"]) / 2.0
     clearance = (
         REAR_FAN_ADAPTER_HOLE_CLEARANCE
         if REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED
         else 0.0
     )
     return (FAN_HOLE_DIAMETER + clearance) / 2.0
+
+
+def rear_fan_adapter_uses_external_source_screws() -> bool:
+    return fan_mount_is_angled()
+
+
+def rear_fan_adapter_screw_access_outer_radius() -> float:
+    return REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER / 2.0 + REAR_FAN_ADAPTER_HORN_WALL_THICKNESS
 
 
 def rear_fan_adapter_target_hole_radius() -> float:
@@ -5161,6 +5217,8 @@ def create_rear_fan_adapter():
     source_hole_radius = rear_fan_adapter_source_hole_radius()
     target_hole_radius = rear_fan_adapter_target_hole_radius()
     for index, (hole_x, hole_z) in enumerate(fan_hole_positions(), start=1):
+        if rear_fan_adapter_uses_external_source_screws():
+            continue  # Cut stepped clearance bores after their access sleeves.
         hole_start_y = source_horn_y - BOOLEAN_OVERLAP
         if source_captive_nuts:
             if (
@@ -5285,6 +5343,36 @@ def create_rear_fan_adapter():
             nut_socket_cutters,
             "Rear_Fan_Adapter_Captive_Nut_Chambers_And_Side_Slots",
         )
+    if rear_fan_adapter_uses_external_source_screws():
+        for index, (hole_x, hole_z) in enumerate(fan_hole_positions(), start=1):
+            sleeve = add_cylinder_y(
+                f"Source_Screw_Access_Sleeve_{index}",
+                rear_fan_adapter_screw_access_outer_radius(),
+                target_interface_y, source_horn_y + BOOLEAN_OVERLAP,
+                x=hole_x, z=hole_z,
+            )
+            boolean_union(
+                adapter, sleeve, "Source_Screw_Access_Sleeve_Union",
+                solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            )
+            # One stepped cutter leaves a head-bearing shoulder at the
+            # source flange, a clearance bore through it, and a sealed tube
+            # through the duct for installation before the fan is fitted.
+            access_loop = rear_fan_adapter_circle_loop(
+                hole_x, hole_z, REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER / 2.0,
+            )
+            shaft_loop = rear_fan_adapter_circle_loop(hole_x, hole_z, source_hole_radius)
+            cutter = loft_through_loops_y(
+                f"Source_Screw_Head_And_Shaft_{index}",
+                (access_loop, access_loop, shaft_loop, shaft_loop),
+                (target_interface_y - BOOLEAN_OVERLAP, source_horn_y,
+                 source_horn_y, source_interface_y + BOOLEAN_OVERLAP),
+                cap_centers=((hole_x, hole_z), (hole_x, hole_z)),
+            )
+            apply_boolean(
+                adapter, cutter, "DIFFERENCE", "Source_Screw_Head_And_Shaft",
+                solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            )
     remove_tiny_mesh_components(adapter)
     adapter.name = "GoPro_Fan_Case_Rear_Fan_Adapter"
     adapter.data.name = "GoPro_Fan_Case_Rear_Fan_Adapter_Mesh"
@@ -8210,6 +8298,7 @@ def validate_rear_fan_adapter(adapter) -> None:
     nut_socket_count = 0
     reinforced_relief_count = 0
     self_tapping_hole_count = 0
+    source_clearance_hole_count = 0
     for end_name, positions, horn_center, interface_y, direction, inner_radius, hole_radius, flange_size, captive_nuts in (
         (
             "source",
@@ -8243,7 +8332,10 @@ def validate_rear_fan_adapter(adapter) -> None:
             / 2.0
         )
         if not captive_nuts:
-            self_tapping_hole_count += len(positions)
+            if end_name == "source" and rear_fan_adapter_uses_external_source_screws():
+                source_clearance_hole_count += len(positions)
+            else:
+                self_tapping_hole_count += len(positions)
             for index, (hole_x, hole_z) in enumerate(positions, start=1):
                 for angle_index, angle in enumerate(
                     (0.0, math.pi / 2.0, math.pi, 3.0 * math.pi / 2.0),
@@ -8401,6 +8493,8 @@ def validate_rear_fan_adapter(adapter) -> None:
         if REAR_FAN_ADAPTER_SOURCE_CAPTIVE_NUTS_ENABLED
         else "self_tapping_fan_screws"
     )
+    if rear_fan_adapter_uses_external_source_screws():
+        source_fastener_mode = "external_clearance_screws_into_case_pilots"
     target_fastener_mode = (
         "side_loaded_captive_nuts"
         if REAR_FAN_ADAPTER_TARGET_CAPTIVE_NUTS_ENABLED
@@ -8424,6 +8518,7 @@ def validate_rear_fan_adapter(adapter) -> None:
         f"nut_sockets={nut_socket_count} "
         f"self_tapping_holes={self_tapping_hole_count} "
         f"self_tapping_pilot_diameter={FAN_HOLE_DIAMETER:.2f}mm "
+        f"source_clearance_holes={source_clearance_hole_count} "
         f"self_tapping_thread_depth="
         f"{rear_fan_adapter_self_tapping_flange_thickness_y():.2f}mm "
         f"reinforced_reliefs={reinforced_relief_count} "
@@ -8432,6 +8527,53 @@ def validate_rear_fan_adapter(adapter) -> None:
         f"nut_insertion_paths={'side_open_validated' if nut_socket_count else 'none'} "
         "internal_supports=none_side_slots_are_externally_accessible_bridges "
         "external_supports=far_flange_corners_recommended"
+    )
+
+
+def validate_rear_fan_adapter_source_access(adapter) -> None:
+    """Check screw installation from the exposed fan end before fitting the fan."""
+    if adapter is None or not rear_fan_adapter_uses_external_source_screws():
+        return
+    bvh = mesh_bvh(adapter)
+    interface_y, seat_y, _target_horn_y, entry_y = rear_fan_adapter_y_planes()
+    access_radius = REAR_FAN_ADAPTER_SCREW_ACCESS_DIAMETER / 2.0
+    sleeve_radius = access_radius + REAR_FAN_ADAPTER_HORN_WALL_THICKNESS / 2.0
+    shaft_radius = rear_fan_adapter_source_hole_radius()
+    failures = []
+    for index, (x, z) in enumerate(fan_hole_positions(), start=1):
+        for angle_index in range(16):
+            angle = 2.0 * math.pi * angle_index / 16.0
+            # Trace a complete head/driver envelope, not just the screw axis.
+            dx = (access_radius - 0.1) * math.cos(angle)
+            dz = (access_radius - 0.1) * math.sin(angle)
+            if bvh_segment_is_blocked(
+                (bvh,), (x + dx, entry_y - 0.2, z + dz), (x + dx, seat_y - 0.01, z + dz),
+            ):
+                failures.append(f"head_path_{index}_{angle_index}")
+            for fraction in (0.05, 0.25, 0.5, 0.75, 0.95):
+                wall = (
+                    x + sleeve_radius * math.cos(angle),
+                    entry_y + fraction * (seat_y - entry_y),
+                    z + sleeve_radius * math.sin(angle),
+                )
+                if not bvh_point_is_inside(bvh, wall):
+                    failures.append(f"access_sleeve_wall_{index}_{angle_index}_{fraction}")
+            bearing_radius = (shaft_radius + access_radius) / 2.0
+            bearing = (
+                x + bearing_radius * math.cos(angle), seat_y + 0.2,
+                z + bearing_radius * math.sin(angle),
+            )
+            if not bvh_point_is_inside(bvh, bearing):
+                failures.append(f"head_bearing_{index}_{angle_index}")
+        if bvh_segment_is_blocked((bvh,), (x, entry_y - 0.2, z), (x, interface_y + 0.2, z)):
+            failures.append(f"shaft_path_{index}")
+    if failures:
+        raise RuntimeError("Adapter source screw access failed: " + ", ".join(failures))
+    print(
+        "ANGLED_ADAPTER_SOURCE_ACCESS PASS external_installation=True "
+        f"head_driver_clearance={2.0 * access_radius:.2f}mm "
+        f"shaft_clearance={2.0 * shaft_radius:.2f}mm sealed_sleeves=4 "
+        f"maximum_screw_under_head_length={interface_y - seat_y + BACK_FACE_THICKNESS + (FAN_HOLE_BOSS_HEIGHT if FAN_HOLE_BOSSES_ENABLED else 0.0) - 0.5:.2f}mm"
     )
 
 
@@ -10337,6 +10479,7 @@ def build_gopro_fan_case():
     validate_object(back)
     validate_fan_mount(back)
     validate_rear_fan_adapter(rear_fan_adapter)
+    validate_rear_fan_adapter_source_access(rear_fan_adapter)
     validate_object(insert)
     validate_captive_buttons(buttons)
     validate_baffle_cartridge(back, baffle_components)
