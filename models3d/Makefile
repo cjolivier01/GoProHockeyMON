@@ -43,6 +43,7 @@ HORN_SOURCE := $(HORN_DIR)/horn_parametric_blender.py
 HORN_RENDER_SOURCE := $(HORN_DIR)/render_horn_previews.py
 MISSION1_DUMMY_SOURCE := $(MISSION1_DUMMY_DIR)/gopro_mission1_dummy_blender.py
 MISSION1_FIELD_CASE_SOURCE := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_blender.py
+MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE := $(MISSION1_FIELD_CASE_DIR)/render_3mf_plate_overview.py
 WRAPPING_FAN_COVER_SOURCE := $(WRAPPING_FAN_COVER_DIR)/wrapping-fan-cover.py
 
 DIMENSION_PDF := $(HOCKEYMON_CAMERA_CASE_DIR)/hockeymom_cam_case_configuration_dimensions.pdf
@@ -72,8 +73,18 @@ MISSION1_FIELD_CASE_STLS := \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_pivoting_handle_bar.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_hinge_pin.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lid_logo_orange_inlay.stl
+MISSION1_FIELD_CASE_AUXILIARY_STLS := \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lid_tpu_68d_snap.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_tpu_68d_hinge_coupon.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_lower_insert_tpu.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_lid_pad_tpu.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_overhead_carrier_tpu.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_fan_side_storage_bin_tpu.stl
 MISSION1_FIELD_CASE_3MF := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_ams_project.3mf
-MISSION1_FIELD_CASE_OUTPUTS := $(MISSION1_FIELD_CASE_STLS) $(MISSION1_FIELD_CASE_3MF)
+MISSION1_FIELD_CASE_PLATE_RENDER := \
+	$(MISSION1_FIELD_CASE_DIR)/renderings/mission1_field_case_all_print_plates.png
+MISSION1_FIELD_CASE_OUTPUTS := $(MISSION1_FIELD_CASE_STLS) \
+	$(MISSION1_FIELD_CASE_AUXILIARY_STLS) $(MISSION1_FIELD_CASE_3MF)
 MISSION1_FIELD_CASE_OBSOLETE_STL_NAMES := \
 	mission1_field_case_lower_insert.stl \
 	mission1_field_case_lower_tray_tpu.stl \
@@ -274,7 +285,7 @@ STL_FILES := \
 	all print_targets dim-pdf check-dim-pdf-sync \
 	dual-fan-dim-pdf check-dual-fan-dim-pdf-sync \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
-	flat-fan-cover wrapping-fan-cover horn horn-renderings mission1-dummy mission1-field-case dual-fan fan-silencer \
+	flat-fan-cover wrapping-fan-cover horn horn-renderings mission1-dummy mission1-field-case mission1-field-case-plate-overview dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymon-camera-case hockeymom-cam-case \
 	hockeymom-keystone-test-coupon \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
@@ -299,7 +310,7 @@ print_targets:
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
-		'mission1-field-case       Build eleven STLs plus the complete three-material-lid 3MF project.' \
+		'mission1-field-case       Build all field-case STLs and one labeled all-parts 3MF project.' \
 		'dual-fan                  Build the fan holder and both GoPro adapter variants; optional splitter follows CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \
@@ -310,6 +321,7 @@ print_targets:
 		'Renders' \
 		'-------' \
 		'horn-renderings             Render default and mixed-size standard-fan horns.' \
+		'mission1-field-case-plate-overview  Render the actual labeled all-parts 3MF plates.' \
 		'fan-silencer-cross-section  Render its assembled case/silencer/fan center section.' \
 		'fan-silencer-mounted-view  Render the silencer mounted on its fan intake.' \
 		'' \
@@ -348,6 +360,7 @@ horn: $(HORN_STLS)
 horn-renderings: $(HORN_RENDERINGS)
 mission1-dummy: $(MISSION1_DUMMY_STLS)
 mission1-field-case: $(MISSION1_FIELD_CASE_OUTPUTS)
+mission1-field-case-plate-overview: $(MISSION1_FIELD_CASE_PLATE_RENDER)
 dual-fan: $(DUAL_FAN_STLS)
 fan-silencer: $(FAN_SILENCER_STLS)
 fan-silencer-cross-section: $(FAN_SILENCER_CROSS_SECTION)
@@ -416,11 +429,20 @@ $(MISSION1_DUMMY_STLS): $(MISSION1_DUMMY_SOURCE)
 # invocation updates the complete kit while retaining normal timestamp-based
 # incremental builds.
 $(MISSION1_FIELD_CASE_OUTPUTS) &: $(MISSION1_FIELD_CASE_SOURCE) \
-	$(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) $(FAN_PRESET_SOURCE)
+	$(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) $(FAN_CASE_SOURCE) \
+	$(WRAPPING_FAN_COVER_SOURCE) $(FAN_PRESET_SOURCE)
 	$(RM) $(MISSION1_FIELD_CASE_OUTPUTS) $(MISSION1_FIELD_CASE_OBSOLETE_STLS)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
 		"import os; p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']=os.path.abspath('$(MISSION1_FIELD_CASE_DIR)'); ns['BUILD_REFERENCE_MOCKUPS']=True; ns['build_mission1_field_case']()"
-	$(PDF_PYTHON) -c "from pathlib import Path; import zipfile; paths=[Path(name) for name in '$(MISSION1_FIELD_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; stl_payloads=[(path, path.read_bytes()) for path in paths[:-1]]; invalid_stls=[str(path) for path, data in stl_payloads if len(data) < 84 or len(data) != 84 + 50 * int.from_bytes(data[80:84], 'little')]; assert not invalid_stls, f'Invalid binary STL outputs: {invalid_stls}'; archive=zipfile.ZipFile(paths[-1]); bad_member=archive.testzip(); archive.close(); assert bad_member is None, f'Corrupt 3MF member: {bad_member}'"
+	$(PDF_PYTHON) -c "from pathlib import Path; import zipfile; paths=[Path(name) for name in '$(MISSION1_FIELD_CASE_OUTPUTS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'; stl_payloads=[(path, path.read_bytes()) for path in paths if path.suffix == '.stl']; invalid_stls=[str(path) for path, data in stl_payloads if len(data) < 84 or len(data) != 84 + 50 * int.from_bytes(data[80:84], 'little')]; assert not invalid_stls, f'Invalid binary STL outputs: {invalid_stls}'; archive=zipfile.ZipFile(paths[-1]); bad_member=archive.testzip(); archive.close(); assert bad_member is None, f'Corrupt 3MF member: {bad_member}'"
+
+$(MISSION1_FIELD_CASE_PLATE_RENDER): $(MISSION1_FIELD_CASE_3MF) \
+	$(MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 \
+		--python $(MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE) -- \
+		--input "$(abspath $(MISSION1_FIELD_CASE_3MF))" \
+		--output "$(abspath $@)"
+	$(PDF_PYTHON) -c "from pathlib import Path; path=Path('$@'); assert path.is_file() and path.stat().st_size > 0, f'Missing plate-overview render: {path}'"
 
 $(DUAL_FAN_STLS) &: $(DUAL_FAN_SOURCE) $(FAN_PRESET_SOURCE)
 	$(RM) $(DUAL_FAN_ALL_STLS) $(DUAL_FAN_OPTIONAL_STLS) $(DUAL_FAN_BUILD_SENTINEL)
