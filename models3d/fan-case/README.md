@@ -40,7 +40,9 @@ The 0° adapter retains its original fastening arrangement.
 
 Angled settings add rearward depth and material. The inner cartridge sealing
 surface, cartridge parts, camera stops, sleeve joint, and perimeter screw seats
-retain their original positions. A bent circular passage connects the tilted
+retain their original positions. The original solid dome forms the minimum
+wall envelope around the tilted dome, preventing the fixed cavity from
+breaking through at steep angles. A bent circular passage connects the tilted
 opening to the cartridge inlet, and the perimeter screw-access cuts extend
 through the deeper dome. Nonzero angles require `BACK_DOME_ENABLED = True`.
 
@@ -76,6 +78,7 @@ blender --background --factory-startup --threads 8 --python-exit-code 1 \
 
 The checks cover CLI bounds and invalid values, small and maximum angles on
 both axes, all four compound limits, pad normals and pilot walls, perimeter
-screw access, complete TPU/rigid assemblies, cartridge clearance and retention,
+screw access, preserved material at more than 21,000 cavity-wall locations,
+complete TPU/rigid assemblies, cartridge clearance and retention,
 adapter clearance, the full screw-head/driver installation path and sealed
 access sleeves, and flange-down STL export and print-bed layout.

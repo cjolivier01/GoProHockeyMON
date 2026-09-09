@@ -5873,6 +5873,16 @@ def create_back_shell():
     )
     dome = create_back_dome(angled=fan_mount_is_angled())
     if dome is not None:
+        if fan_mount_is_angled():
+            # A tilted pad contracts in X/Z, so its loft can cross the fixed
+            # cavity even though the pad moves rearward. Preserve the original
+            # solid dome as the minimum wall envelope before cutting the
+            # cavity. Union the two domes before attaching the front rim to
+            # avoid coincident rim faces in the three-solid intersection.
+            boolean_union(
+                dome, create_back_dome(), "Original_Dome_Wall_Envelope",
+                solver=WATERTIGHT_DETAIL_UNION_SOLVER,
+            )
         boolean_union(back, dome, "Rear_Dome_Union")
     socket_radius = socket_corner_radius()
     if BACK_DOME_ENABLED:
@@ -7804,15 +7814,28 @@ def bvh_point_is_inside(bvh, point) -> bool:
         direction = Vector(coordinates).normalized()
         origin = Vector(point)
         intersections = 0
+        previous_face = None
+        previous_location = None
         for _ in range(256):
-            location, _normal, _face_index, _distance = bvh.ray_cast(
+            location, _normal, face_index, _distance = bvh.ray_cast(
                 origin,
                 direction,
                 1000.0,
             )
             if location is None:
                 break
-            intersections += 1
+            # Float precision can report the same face again just beyond the
+            # advanced origin. Count that crossing once, while still advancing
+            # the ray. Keep distinct faces (including thin walls) separate.
+            repeated_crossing = (
+                face_index == previous_face
+                and previous_location is not None
+                and (location - previous_location).length <= 1.0e-3
+            )
+            if not repeated_crossing:
+                intersections += 1
+            previous_face = face_index
+            previous_location = location
             origin = location + direction * 1.0e-4
         else:
             raise RuntimeError(
