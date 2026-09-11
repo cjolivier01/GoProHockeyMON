@@ -127,14 +127,14 @@ OUTLET_FAN_SIZE_MM = 40
 WALL_THICKNESS = 1.6
 
 # Centerline dimensions.
-INLET_STRAIGHT_LENGTH = 6.0
+INLET_STRAIGHT_LENGTH = 0.0
 BEND_ANGLE_DEG = 35.0
 BEND_Z_SIGN = 1.0
 # Minimum centerline radius. Larger fan selections automatically increase the
 # effective radius enough to keep the inside of the swept duct from folding
 # through itself.
-BEND_RADIUS = 45.0
-OUTLET_LENGTH = 2.0
+BEND_RADIUS = 35.0
+OUTLET_LENGTH = 0.0
 
 # "after_bend" or "through_bend".
 FLARE_MODE = "through_bend"

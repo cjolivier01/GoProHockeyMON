@@ -239,7 +239,7 @@ FAN_HOLE_BOSS_HEIGHT = 1.0
 # is normalize((tan(horizontal), -1, tan(vertical))), with no added roll.
 # Both mounting faces, the screw bosses and through-bores rotate together.
 # The dome transitions to the fixed front socket and camera contacts.
-FAN_ANGLE_HORIZONTAL_DEG = 0.0
+FAN_ANGLE_HORIZONTAL_DEG = 15.0
 FAN_ANGLE_VERTICAL_DEG = 0.0
 
 # Optional separate horn adapter that bolts to the case's existing 40 mm fan

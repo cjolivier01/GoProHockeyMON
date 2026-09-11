@@ -116,7 +116,7 @@ def import_companion_module(module_name, sibling_directory, source_filename=None
     # such as ``/script.py``. Prefer the active Text datablock's real filepath,
     # then inspect every loaded Text datablock for context-free runs.
     space_data = getattr(bpy.context, "space_data", None)
-    active_text = getattr(space_data, "text", None)
+    active_text = getattr(space_data, "HockeyMON", None)
     add_text_file_parent(getattr(active_text, "filepath", ""))
 
     text_name = source_filename or f"{module_name}.py"
