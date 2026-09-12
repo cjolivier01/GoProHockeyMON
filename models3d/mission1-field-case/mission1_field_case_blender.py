@@ -8928,7 +8928,6 @@ def create_pelican_latch_parts(material):
 
 def create_pivoting_handle_bar(material):
     """Create the separate U handle bar with a solid grip and continuous reinforced forks."""
-    arm_width = (HANDLE_BAR_OUTER_WIDTH - HANDLE_BAR_INNER_WIDTH) / 2.0
     grip_center_y = -HANDLE_BAR_DROP + HANDLE_BAR_DEPTH / 2.0
     handle = add_rounded_box(
         "Field_Case_Pivoting_Handle_Bar",
@@ -11083,13 +11082,15 @@ def validate_built_handle_m3_hardware(parts) -> None:
 
 def validate_built_handle_strength(handle) -> None:
     """Check actual solid grip and continuous fork load paths after all cuts."""
-    probes = [((73.0, 9.0, 10.0), (0.0, -32.0, 9.0))]
+    probes = [((90.0, 9.0, 10.0), (0.0, -32.0, 9.0))]
     for side in (-1.0, 1.0):
-        # Full-width cores behind each recess continue beyond the lug cavity.
+        # Cheek cores overlap the broad transition from Y=-18 to -16.5;
+        # transitions overlap the grip from Y=-29 to -27.5. Their X/Z
+        # intervals also overlap, leaving one connected checked load path.
         probes.extend((
-            ((2.5, 13.0, 2.0), (side * 38.1, -11.5, HANDLE_LOCAL_PIVOT_Z)),
-            ((1.0, 13.0, 2.0), (side * 46.15, -11.5, HANDLE_LOCAL_PIVOT_Z)),
-            ((8.0, 5.0, 10.0), (side * HANDLE_PIVOT_X, -21.5, 9.0)),
+            ((2.5, 15.5, 2.0), (side * 38.1, -10.25, HANDLE_LOCAL_PIVOT_Z)),
+            ((1.0, 15.5, 2.0), (side * 46.15, -10.25, HANDLE_LOCAL_PIVOT_Z)),
+            ((8.0, 12.5, 10.0), (side * HANDLE_PIVOT_X, -22.75, 9.0)),
         ))
     for dimensions, center in probes:
         probe = add_rounded_box("TEMPORARY_Handle_Solid_Load_Path", dimensions, center, bevel=0.0)
@@ -11135,8 +11136,8 @@ def handle_allen_access_envelopes(side):
         "TEMPORARY_Handle_Allen_Continuous_Turn_And_Insertion",
         tuple((HANDLE_PIVOT_Y + y, HANDLE_PIVOT_Z + z)
               for y, z in list(sector.exterior.coords)[:-1]),
-        min(bend_x, withdrawn_x) - radius,
-        max(bend_x, withdrawn_x) + radius,
+        min(bend_x, withdrawn_x) - radius - HANDLE_ALLEN_BEND_RADIUS,
+        max(bend_x, withdrawn_x) + radius + HANDLE_ALLEN_BEND_RADIUS,
     )
     return shaft, turn
 

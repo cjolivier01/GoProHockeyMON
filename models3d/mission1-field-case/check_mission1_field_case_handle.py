@@ -39,15 +39,20 @@ def main():
     case.validate_installed_handle_mechanics(parts)
     case.validate_installed_handle_allen_access(parts)
 
-    # Reject a local weak fork even when most of the handle remains solid.
-    weak = handle.copy()
-    weak.data = handle.data.copy()
-    case.bpy.context.collection.objects.link(weak)
-    weak.location = (0, 0, 0)
-    notch = case.add_rounded_box('TEMPORARY_Weak_Fork', (3, 2, 3), (38.1, -11.5, 6.1), bevel=0)
-    case.difference_from(weak, notch)
-    must_reject(lambda: case.validate_built_handle_strength(weak), 'solid load path')
-    case.bpy.data.objects.remove(weak, do_unlink=True)
+    # Reject both a weak cheek and a weak transition between the former probes.
+    for dimensions, center in (
+        ((3, 2, 3), (38.1, -11.5, 6.1)),
+        ((20, 0.5, 17.5), (42.5, -18.5, 8.5)),
+        ((20, 0.5, 17.5), (42.5, -26.5, 8.5)),
+    ):
+        weak = handle.copy()
+        weak.data = handle.data.copy()
+        case.bpy.context.collection.objects.link(weak)
+        weak.location = (0, 0, 0)
+        notch = case.add_rounded_box('TEMPORARY_Weak_Fork', dimensions, center, bevel=0)
+        case.difference_from(weak, notch)
+        must_reject(lambda: case.validate_built_handle_strength(weak), 'solid load path')
+        case.bpy.data.objects.remove(weak, do_unlink=True)
 
     # Put an obstruction in the long-leg turning path, away from the socket.
     obstruction = case.add_rounded_box('TEMPORARY_Blocked_Allen_Turn', (6, 6, 6),
@@ -64,7 +69,7 @@ def main():
         must_reject(case.validate_configuration, 'fully engage')
     finally:
         case.HANDLE_M3_BOLT_LENGTH = bolt_length
-    print('FIELD_CASE_HANDLE_REGRESSION_PASS weak_fork=reject blocked_key=reject short_bolt=reject')
+    print('FIELD_CASE_HANDLE_REGRESSION_PASS weak_fork_and_transitions=reject blocked_key=reject short_bolt=reject')
 
 
 if __name__ == '__main__':
