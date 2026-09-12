@@ -352,7 +352,14 @@ REAR_BATTERY_BRACKET_INSERT_DEPTH = 5.0
 REAR_BATTERY_BRACKET_RECEIVER_DEPTH = 7.0
 REAR_BATTERY_LID_CLEARANCE = 4.0
 REAR_BATTERY_CABLE_DIAMETER = 6.0
-REAR_BATTERY_BAY_CORNER_RADIUS = 4.0
+REAR_BATTERY_BAY_CORNER_RADIUS = 24.0
+REAR_BATTERY_BAY_ENVELOPE_MARGIN = 4.0
+# Low corner stops at the open USB end oppose the cradle's closed end wall.
+# These reserve the lowest 4 mm of the pack's outermost 3 mm corners; ports
+# must lie above those corners or within the open center of the face.
+REAR_BATTERY_END_STOP_HEIGHT = 4.0
+REAR_BATTERY_END_STOP_WIDTH = 3.0
+REAR_BATTERY_END_STOP_THICKNESS = 4.0
 
 # Lid locating lip.  The screw system provides clamping; this lip aligns the
 # flat top and prevents lateral movement.
@@ -1527,7 +1534,7 @@ LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER = 22.5
 LID_FAN_COVER_MAX_BLOCKED_AREA_RATIO = 0.32
 LID_FAN_COVER_MIN_FIRST_LAYER_CONTACT_AREA = 350.0
 LID_FAN_COVER_MIN_FIRST_LAYER_SPAN_RATIO = 0.85
-LID_FAN_FAIRING_MAX_SOLID_VOLUME = 35000.0
+LID_FAN_FAIRING_MAX_SOLID_VOLUME = 50000.0
 # Pod plan dimensions are derived from the active one- or two-fan envelope.
 # These margins reproduce the original 144 x 144 / 132 x 130 mm pod for the
 # default 120 mm fan and scale the same silhouette around dual 40/60 mm arrays.
@@ -1539,6 +1546,10 @@ LID_FAN_FAIRING_TOP_X_MARGIN = 6.0
 LID_FAN_FAIRING_TOP_Y_MARGIN = 5.0
 LID_FAN_FAIRING_TOP_CENTER_X_OFFSET = 2.0
 LID_FAN_FAIRING_TOP_CORNER_RADIUS = 8.0
+# Sweep the lower rear shell into a low rounded tail over the battery bay.
+# The fan cavity, grille perimeter and existing mounting axes are preserved.
+LID_FAN_FAIRING_TAIL_LENGTH = 52.0
+LID_FAN_FAIRING_TAIL_TIP_RADIUS = 8.0
 LID_FAN_GRILLE_EDGE_MARGIN = 2.0
 LID_FAN_GRILLE_CORNER_RADIUS = 18.0
 LID_FAN_GRILLE_RAIL_OVERHANG = 1.4
@@ -2241,6 +2252,98 @@ def lid_fan_fairing_plan_section(fraction):
             - LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS
         ),
     }
+
+
+def lid_fan_fairing_tail_length():
+    # Thin compact fans get a proportionate tail so the roof's normal wall
+    # offset cannot consume their frame clearance near the top.
+    return LID_FAN_FAIRING_TAIL_LENGTH * min(1.0,lid_fan_reference_dimensions()["depth"]/25.0)
+
+
+def lid_fan_fairing_outline(fraction):
+    """Corresponding CCW sections with a cubic, round-tipped rear outline."""
+    section = lid_fan_fairing_plan_section(fraction)
+    width, depth, radius = (section[key] for key in ("width", "depth", "radius"))
+    cx, cy = section["center_x"], float(LID_FAN_CENTER_Y)
+    half_y, right = depth / 2.0, width / 2.0
+    radius = min(radius, right, half_y)
+    corners = ((right-radius,half_y-radius,0.0),
+               (-right+radius,half_y-radius,90.0),
+               (-right+radius,-half_y+radius,180.0),
+               (right-radius,-half_y+radius,270.0))
+    loop = []
+    arc_steps, side_steps = 20, 20
+    for index,(x,y,start) in enumerate(corners):
+        for step in range(arc_steps+1):
+            angle = math.radians(start+90.0*step/arc_steps)
+            loop.append((x+radius*math.cos(angle),y+radius*math.sin(angle)))
+        nx,ny,na = corners[(index+1)%4]
+        next_point = (nx+radius*math.cos(math.radians(na)),
+                      ny+radius*math.sin(math.radians(na)))
+        last = loop[-1]
+        for step in range(1,side_steps):
+            t = step/side_steps
+            loop.append(tuple(a+(b-a)*t for a,b in zip(last,next_point)))
+    extension = lid_fan_fairing_tail_length()
+    blend = 1.0-fraction
+    tip_x = right+extension
+    # This end tangent gives a finite radius at the tip, with a horizontal
+    # tangent where the broad shoulder meets the straight side of the pod.
+    control_x = right+0.55*extension
+    tip_tangent = math.sqrt(2.0*(tip_x-control_x)*LID_FAN_FAIRING_TAIL_TIP_RADIUS/3.0)
+    result = []
+    for x,y in loop:
+        if x > right-radius-1e-8 and blend > 0:
+            target_y = abs(y)
+            low,high = 0.0,1.0
+            for _ in range(28):
+                t = (low+high)/2.0
+                curve_y = (1-t)**3*half_y+3*(1-t)**2*t*half_y+3*(1-t)*t*t*tip_tangent
+                if curve_y > target_y:
+                    low = t
+                else:
+                    high = t
+            t = (low+high)/2.0
+            curve_x = ((1-t)**3*(right-radius)+3*(1-t)**2*t*control_x
+                       +3*(1-t)*t*t*tip_x+t**3*tip_x)
+            x += blend*max(0.0,curve_x-x)
+        result.append((cx+x,cy+y))
+    return result
+
+
+def lid_fan_fairing_inner_outline(fraction, height):
+    """Offset the skin along its surface normal, including the shallow tail."""
+    loop = lid_fan_fairing_outline(fraction)
+    lower = max(0.0,fraction-0.001)
+    upper = min(1.0,fraction+0.001)
+    below,above = (lid_fan_fairing_outline(value) for value in (lower,upper))
+    wall = lid_fan_cover_profile()["wall_thickness"]
+    result = []
+    for index,point in enumerate(loop):
+        previous,following = loop[index-1],loop[(index+1)%len(loop)]
+        edges = ((point[0]-previous[0],point[1]-previous[1]),
+                 (following[0]-point[0],following[1]-point[1]))
+        normals = [Vector((-dy,dx)).normalized() for dx,dy in edges]
+        bisector = (normals[0]+normals[1]).normalized()
+        velocity = Vector(tuple((b-a)/((upper-lower)*height)
+                                for a,b in zip(below[index],above[index])))
+        projected_wall = wall*math.sqrt(1.0+velocity.dot(bisector)**2)
+        shift = projected_wall/max(bisector.dot(normals[0]),0.1)
+        result.append(tuple(Vector(point)+bisector*shift))
+    return result
+
+
+def lid_fan_fairing_rear_x(fraction, y):
+    """Find the true swept shell at a rib's Y datum."""
+    loop = lid_fan_fairing_outline(fraction)
+    hits = []
+    for a,b in zip(loop,loop[1:]+loop[:1]):
+        if min(a[1],b[1])-1e-8 <= y <= max(a[1],b[1])+1e-8:
+            if abs(b[1]-a[1]) < 1e-8:
+                hits.extend((a[0],b[0]))
+            else:
+                hits.append(a[0]+(b[0]-a[0])*(y-a[1])/(b[1]-a[1]))
+    return max(hits)
 
 
 def lid_fan_fairing_retention_receiver_profile():
@@ -4844,6 +4947,8 @@ def validate_config() -> None:
         "LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS": (
             LID_FAN_FAIRING_BOTTOM_CORNER_RADIUS
         ),
+        "LID_FAN_FAIRING_TAIL_LENGTH": LID_FAN_FAIRING_TAIL_LENGTH,
+        "LID_FAN_FAIRING_TAIL_TIP_RADIUS": LID_FAN_FAIRING_TAIL_TIP_RADIUS,
         "LID_FAN_FAIRING_TOP_X_MARGIN": LID_FAN_FAIRING_TOP_X_MARGIN,
         "LID_FAN_FAIRING_TOP_Y_MARGIN": LID_FAN_FAIRING_TOP_Y_MARGIN,
         "LID_FAN_FAIRING_TOP_CORNER_RADIUS": (
@@ -29877,6 +29982,10 @@ def validate_rear_battery_config():
         raise ValueError("Battery screw receivers need a closed bottom web")
     if REAR_BATTERY_USB_CLEARANCE <= 2 * REAR_BATTERY_CABLE_DIAMETER:
         raise ValueError("Battery USB clearance must leave space for plugs and a cable bend")
+    if 2*(REAR_BATTERY_END_STOP_WIDTH + REAR_BATTERY_FIT_CLEARANCE) >= REAR_BATTERY_THICKNESS - REAR_BATTERY_CABLE_DIAMETER:
+        raise ValueError("Battery end stops must leave the USB face center open")
+    if REAR_BATTERY_END_STOP_HEIGHT + REAR_BATTERY_FIT_CLEARANCE >= REAR_BATTERY_WIDTH / 4:
+        raise ValueError("Battery end stops must stay below the USB connector region")
 
 
 def rear_battery_layout(cameras=(), mechanism=None):
@@ -29929,7 +30038,7 @@ def extend_rear_battery_bay(footprint, cameras, mechanism):
     inner_x1 = layout["post_targets"][0][0] + max(FASTENER_POST_DIAMETER/2, REAR_TAPER_SCREW_ISLAND_RADIUS + REAR_TAPER_SCREW_ISLAND_BLEND)
     inner_half_y = max(abs(layout["y0"] - wall), layout["usb_bounds"][1][1]) + access
     radius = REAR_BATTERY_BAY_CORNER_RADIUS
-    outer_margin = BODY_WALL_THICKNESS + radius
+    outer_margin = BODY_WALL_THICKNESS + REAR_BATTERY_BAY_ENVELOPE_MARGIN
     cx = (inner_x0 + inner_x1) / 2
     raw_bay = rounded_rectangle_loop(
         inner_x1-inner_x0 + 2*outer_margin,
@@ -30017,6 +30126,25 @@ def create_rear_battery_bracket(layout):
     return bracket
 
 
+def rear_battery_end_stop_bounds(layout):
+    bx,by,bz = layout["pack_bounds"]
+    wall = REAR_BATTERY_WALL_THICKNESS
+    return tuple((x,(layout["y1"]-wall,layout["y1"]+REAR_BATTERY_END_STOP_THICKNESS),
+                  (0.0,bz[0]+REAR_BATTERY_END_STOP_HEIGHT)) for x in (
+        (layout["x0"]-wall,bx[0]+REAR_BATTERY_END_STOP_WIDTH),
+        (bx[1]-REAR_BATTERY_END_STOP_WIDTH,layout["x1"]+wall),
+    ))
+
+
+def rear_battery_usb_clearance_regions(layout):
+    """Full plug space above the low stops, plus an open bottom-center route."""
+    bx,by,bz = layout["usb_bounds"]
+    stop_top = bz[0]+REAR_BATTERY_END_STOP_HEIGHT+REAR_BATTERY_FIT_CLEARANCE
+    inset = REAR_BATTERY_END_STOP_WIDTH+REAR_BATTERY_FIT_CLEARANCE
+    return ((bx,by,(stop_top,bz[1])),
+            ((bx[0]+inset,bx[1]-inset),by,(bz[0],stop_top)))
+
+
 def add_rear_battery_slot(base,layout,obstacles):
     if layout is None:
         return
@@ -30028,6 +30156,13 @@ def add_rear_battery_slot(base,layout,obstacles):
     boolean_difference(holder,[rear_battery_box("Battery_Open_Top_And_USB_End",(
         (x0,x1),(y0,y1+1),(layout["seat_z"],height+1),
     ))])
+    for index,bounds in enumerate(rear_battery_end_stop_bounds(layout)):
+        stop = rear_battery_box(f"Battery_Bottom_Corner_Stop_{index}",bounds)
+        # Keep the pack's entire installed and top-loading envelope open.
+        boolean_difference(stop,[rear_battery_box("Battery_End_Stop_Seat_Clearance",(
+            (x0,x1),(y0,y1),(layout["seat_z"],height+1),
+        ))])
+        boolean_union(holder,stop,"Battery_Bottom_End_Stop_Union")
     record = rear_battery_bracket_layout(layout)
     profile = case_body_fastener_profile(
         HEAT_INSERT_HOLE_DIAMETER,REAR_BATTERY_BRACKET_INSERT_DEPTH,
@@ -30086,7 +30221,9 @@ def validate_rear_battery_slot(base,lid,layout,footprint,obstacles,lid_parts=(),
                 for y in bounds[1]:
                     if not point_in_polygon((x,y),inner) or z >= local_base_seam_z(x,y)-LID_LIP_DEPTH:
                         raise RuntimeError(f"Battery {label} is outside the closed case interior")
-    probes = (*installed,
+    usb_upper,usb_lower = rear_battery_usb_clearance_regions(layout)
+    probes = (*(entry for entry in installed if entry[0] != "usb_plugs"),
+        ("usb_plugs",usb_upper),("usb_plugs_lower",usb_lower),
         ("top_loading",(bx,by,(bz[0],BASE_HEIGHT+REAR_BATTERY_WIDTH))),
         ("bracket_removal",(*record["bounds"][:2],(record["bounds"][2][0],BASE_HEIGHT+REAR_BATTERY_BRACKET_THICKNESS))),
         *((f"screw_access_{i}",(head[0],head[1],(head[2][0],BASE_HEIGHT+30.0)))
@@ -30101,7 +30238,7 @@ def validate_rear_battery_slot(base,lid,layout,footprint,obstacles,lid_parts=(),
         )
         # The bar is removed for battery loading. Its installed solid is an
         # obstacle for the battery, USB and wire envelopes, never for itself.
-        if label in {"pack","usb_plugs","cable_exit"}:
+        if label in {"pack","usb_plugs","usb_plugs_lower","cable_exit"}:
             targets = (*targets,bracket)
         try:
             for obj in dict.fromkeys(obj for obj in targets if obj is not None):
@@ -31579,6 +31716,18 @@ def create_lid_fan_pod(lid, positions):
     """Create a curved fan fairing and a separate slide-in domed grille."""
     if not (lid_fan_enabled() and LID_FAN_COVER_ENABLED):
         return None
+    def pod_union(base,part,label,solver=None):
+        # The long tail has many sloping triangles; use one manifold union
+        # kernel throughout so coplanar bed faces do not leave open slivers.
+        triangulate_mesh(part)
+        return boolean_union(base,part,label,solver="MANIFOLD")
+
+    def pod_difference(base,cutters,label):
+        cutters = tuple(cutters)
+        for cutter in cutters:
+            triangulate_mesh(cutter)
+        return boolean_difference(base,cutters,label,solver="MANIFOLD")
+
     dimensions = lid_fan_reference_dimensions()
     profile = lid_fan_cover_profile()
     plan = lid_fan_pod_plan_dimensions()
@@ -31601,10 +31750,8 @@ def create_lid_fan_pod(lid, positions):
     inner_depth = plan["depth_y"] + 2.0 * profile["fit_clearance"]
 
     def translated_rounded_loop(width, depth, radius, x_offset, y_offset=0.0):
-        return [
-            (x_offset + x, y_offset + y)
-            for x, y in rounded_rectangle_loop(width, depth, radius)
-        ]
+        return [(x_offset+x,y_offset+y)
+                for x,y in rounded_rectangle_loop(width,depth,radius)]
 
     def fairing_section_profile(fraction):
         section = lid_fan_fairing_plan_section(fraction)
@@ -31615,43 +31762,20 @@ def create_lid_fan_pod(lid, positions):
             **section,
         }
 
-    section_fractions = (0.0, 0.12, 0.28, 0.48, 0.70, 0.86, 1.0)
+    section_fractions = tuple(index/20.0 for index in range(21))
     outer_sections = []
     inner_sections = []
     for fraction in section_fractions:
         section = fairing_section_profile(fraction)
-        outer_sections.append(
-            (
-                section["z"],
-                translated_rounded_loop(
-                    section["width"],
-                    section["depth"],
-                    section["radius"],
-                    section["center_x"],
-                    center_y,
-                ),
-            )
-        )
-        inner_sections.append(
-            (
-                section["z"],
-                translated_rounded_loop(
-                    section["width"] - 2.0 * profile["wall_thickness"],
-                    section["depth"] - 2.0 * profile["wall_thickness"],
-                    max(
-                        section["radius"] - profile["wall_thickness"],
-                        0.5,
-                    ),
-                    section["center_x"],
-                    center_y,
-                ),
-            )
-        )
+        outer_sections.append((section["z"],lid_fan_fairing_outline(fraction)))
+        inner_sections.append((section["z"],lid_fan_fairing_inner_outline(
+            fraction,fairing_top_z-fairing_bottom_z)))
     fairing = faired_ring_sleeve(
         "Lid_Fan_Pod_Curved_Lower_Fairing",
         outer_sections,
         inner_sections,
     )
+    triangulate_mesh(fairing)
     grille_retention = lid_fan_grille_retention_profile()
     grille_lock_x, grille_lock_y = grille_retention["center"]
 
@@ -31722,6 +31846,9 @@ def create_lid_fan_pod(lid, positions):
             rear_pad_y = (
                 straight_outer_y - rear_pad_sign * rear_pad_length / 2.0
             )
+        positive_x_shell = min(lid_fan_fairing_rear_x(pad_fraction,y)
+                               for y in (rear_pad_y-rear_pad_length/2,
+                                         rear_pad_y+rear_pad_length/2))
         pad_specs = (
             (
                 "Rear",
@@ -31783,7 +31910,7 @@ def create_lid_fan_pod(lid, positions):
                 location,
                 bevel=min(0.35, pad_depth / 3.0),
             )
-            boolean_union(fairing, pad, f"Lid_Fan_Fairing_{label}_Pad_Union")
+            pod_union(fairing, pad, f"Lid_Fan_Fairing_{label}_Pad_Union")
         fairing["rear_retention_pad_center_y_mm"] = rear_pad_y
         fairing["rear_retention_pad_length_mm"] = rear_pad_length
         fairing["front_retention_pad_center_y_mm"] = front_pad_y
@@ -31847,7 +31974,7 @@ def create_lid_fan_pod(lid, positions):
                     start=1,
                 )
             )
-            boolean_difference(
+            pod_difference(
                 fairing,
                 fairing_retention_cutters,
                 "Lid_Fan_Fairing_Positive_Retention_Clearance_Cuts",
@@ -31867,7 +31994,7 @@ def create_lid_fan_pod(lid, positions):
                     start=1,
                 )
             )
-            boolean_difference(
+            pod_difference(
                 fairing,
                 fairing_retention_counterbores,
                 "Lid_Fan_Fairing_Retention_Head_Counterbores_Cut",
@@ -31936,7 +32063,7 @@ def create_lid_fan_pod(lid, positions):
             ),
             bevel=0.45,
         )
-        boolean_union(
+        pod_union(
             fairing,
             rail_wall,
             f"Lid_Fan_Grille_{side_label}_Rail_Wall_Union",
@@ -31955,7 +32082,7 @@ def create_lid_fan_pod(lid, positions):
             ),
             bevel=0.45,
         )
-        boolean_union(
+        pod_union(
             fairing,
             rail_lip,
             f"Lid_Fan_Grille_{side_label}_Rail_Lip_Union",
@@ -31982,7 +32109,7 @@ def create_lid_fan_pod(lid, positions):
             ),
             bevel=0.35,
         )
-        boolean_union(
+        pod_union(
             fairing,
             rear_stop,
             f"Lid_Fan_Grille_{side_label}_Rear_Stop_Union",
@@ -32001,7 +32128,7 @@ def create_lid_fan_pod(lid, positions):
             detent_y,
         )
         detent_specs.append((side_label, detent_x, detent_y))
-        boolean_union(
+        pod_union(
             fairing,
             detent,
             f"Lid_Fan_Grille_{side_label}_Entry_Detent_Union",
@@ -32034,13 +32161,37 @@ def create_lid_fan_pod(lid, positions):
             hood_path,
             chase_outer_radius,
         )
-        boolean_union(
+        pod_union(
             fairing,
             hood,
             f"Lid_Fan_{fan_index}_Fairing_Curved_Cable_Blister_Union",
         )
         projected_min_x = min(point[0] for point in hood_path)
         projected_max_x = max(point[0] for point in hood_path)
+        # The swept shell is farther aft than the cable chase. Tie its foot
+        # into the tail with a low internal rib, outside the purchased frame.
+        bridge_y = feedthrough["center"][1]
+        bridge_x0 = max(center_x+plan["width_x"]/2+profile["fit_clearance"],
+                        projected_max_x-chase_outer_radius)
+        bridge_half_width = chase_outer_radius*0.65
+        bridge_sections = []
+        for lift in (0.6,1.8,3.0,4.2):
+            fraction = lift/(fairing_top_z-fairing_bottom_z)
+            bridge_x1 = min(lid_fan_fairing_rear_x(fraction,bridge_y+sign*bridge_half_width)
+                            for sign in (-1,1)) - 0.75
+            bridge_sections.append((fairing_bottom_z+lift,[
+                (bridge_x0,-bridge_half_width),
+                (bridge_x1,-bridge_half_width),
+                (bridge_x1,bridge_half_width),
+                (bridge_x0,bridge_half_width),
+            ]))
+        cable_bridge = loft_solid(
+            f"Lid_Fan_{fan_index}_Cable_Chase_Tail_Bridge",bridge_sections,
+            cap_center_x=(bridge_x0+bridge_x1)/2,
+        )
+        cable_bridge.location.y = bridge_y
+        bpy.context.view_layer.update()
+        pod_union(fairing,cable_bridge,"Lid_Fan_Cable_Chase_Floor_Bridge_Union")
         chase_post_clearances = tuple(
             math.hypot(
                 position[0]
@@ -32078,7 +32229,7 @@ def create_lid_fan_pod(lid, positions):
             chase_cutter_path,
             chase_cavity_radius,
         )
-        boolean_difference(
+        pod_difference(
             fairing,
             [chase_cutter],
             f"Lid_Fan_{fan_index}_Fairing_Curved_Cable_Chase_Cut",
@@ -32140,7 +32291,7 @@ def create_lid_fan_pod(lid, positions):
         if grille is None:
             grille = fan_ring
         else:
-            boolean_union(
+            pod_union(
                 grille,
                 fan_ring,
                 f"Lid_Fan_Grille_{fan_index}_Frame_Union",
@@ -32154,7 +32305,7 @@ def create_lid_fan_pod(lid, positions):
             profile["grille_thickness"],
         )
         blocked_ratios.append(float(polar_grille["blocked_area_ratio"]))
-        boolean_union(
+        pod_union(
             grille,
             polar_grille,
             f"Lid_Fan_Grille_{fan_index}_Turbine_Dome_Union",
@@ -32175,7 +32326,7 @@ def create_lid_fan_pod(lid, positions):
             ),
             bevel=min(1.0, profile["grille_thickness"] / 3.0),
         )
-        boolean_union(
+        pod_union(
             grille,
             bridge,
             "Lid_Fan_Grille_Twin_Frame_Center_Bridge_Union",
@@ -32189,7 +32340,7 @@ def create_lid_fan_pod(lid, positions):
             grille_lock_x,
             grille_lock_y,
         )
-        boolean_union(
+        pod_union(
             grille,
             grille_lock_pad,
             "Lid_Fan_Grille_Positive_Retention_Pad_Union",
@@ -32202,7 +32353,7 @@ def create_lid_fan_pod(lid, positions):
             grille_lock_x,
             grille_lock_y,
         )
-        boolean_difference(
+        pod_difference(
             grille,
             [grille_lock_clearance],
             "Lid_Fan_Grille_Positive_Retention_Clearance_Cut",
@@ -32222,7 +32373,7 @@ def create_lid_fan_pod(lid, positions):
         )
         for side_label, notch_x, notch_y in detent_specs
     ]
-    boolean_difference(
+    pod_difference(
         grille,
         detent_notch_cutters,
         "Lid_Fan_Grille_Seated_Detent_Notches",
@@ -32253,12 +32404,12 @@ def create_lid_fan_pod(lid, positions):
                 position[1],
             )
         )
-    boolean_difference(
+    pod_difference(
         fairing,
         fairing_cutters,
         "Lid_Fan_Fairing_Thumbscrew_Access_Cuts",
     )
-    boolean_difference(
+    pod_difference(
         grille,
         grille_cutters,
         "Lid_Fan_Grille_Thumbscrew_Access_Cuts",
@@ -32274,7 +32425,7 @@ def create_lid_fan_pod(lid, positions):
         grille_lock_buttress_sections = []
         for fraction in section_fractions:
             section = fairing_section_profile(fraction)
-            shell_outer_x = section["center_x"] + section["width"] / 2.0
+            shell_outer_x = min(lid_fan_fairing_rear_x(fraction,grille_lock_y+sign*buttress_half_width) for sign in (-1,1)) - 0.75
             grille_lock_buttress_sections.append(
                 (
                     section["z"],
@@ -32291,10 +32442,12 @@ def create_lid_fan_pod(lid, positions):
             grille_lock_buttress_sections,
             cap_center_x=grille_lock_x + 0.5,
         )
-        boolean_union(
+        triangulate_mesh(grille_lock_buttress)
+        pod_union(
             fairing,
             grille_lock_buttress,
             "Lid_Fan_Grille_Positive_Retention_Buttress_Union",
+            solver="MANIFOLD",
         )
         grille_lock_boss = add_cylinder_z(
             "Lid_Fan_Grille_Positive_Retention_Floor_Rooted_Boss",
@@ -32304,10 +32457,11 @@ def create_lid_fan_pod(lid, positions):
             grille_lock_x,
             grille_lock_y,
         )
-        boolean_union(
+        pod_union(
             fairing,
             grille_lock_boss,
             "Lid_Fan_Grille_Positive_Retention_Boss_Union",
+            solver="MANIFOLD",
         )
         grille_lock_pilot = add_cylinder_z(
             "Lid_Fan_Grille_Positive_Retention_Blind_Pilot",
@@ -32317,7 +32471,7 @@ def create_lid_fan_pod(lid, positions):
             grille_lock_x,
             grille_lock_y,
         )
-        boolean_difference(
+        pod_difference(
             fairing,
             [grille_lock_pilot],
             "Lid_Fan_Grille_Positive_Retention_Blind_Pilot_Cut",
@@ -32353,9 +32507,9 @@ def create_lid_fan_pod(lid, positions):
     fairing["cable_chase_count"] = len(cable_routes)
     fairing["cable_chase_enabled"] = bool(cable_routes)
     fairing["print_orientation"] = "open_fairing_side_down"
-    fairing["support_mode"] = "support_free_tapered_loft"
+    fairing["support_mode"] = "supports_under_rear_tail"
     fairing["print_bed_z"] = fairing_bottom_z
-    fairing["print_outer_width_mm"] = plan["fairing_bottom_width"]
+    fairing["print_outer_width_mm"] = plan["fairing_bottom_width"] + lid_fan_fairing_tail_length()
     fairing["print_outer_depth_mm"] = plan["fairing_bottom_depth"]
     fairing["top_outer_width_mm"] = plan["fairing_top_width"]
     fairing["top_outer_depth_mm"] = plan["fairing_top_depth"]
@@ -32434,7 +32588,7 @@ def create_lid_fan_pod(lid, positions):
         f"support_free_lip_span={unsupported_lip_span:.2f}mm "
         f"thumb_access_diameter={LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER:.2f}mm "
         f"cable_chases={len(cable_routes)} "
-        "print=fairing_open_side_down+grille_flat_side_down support=none"
+        "print=fairing_open_side_down+grille_flat_side_down fairing_supports=under_rear_tail"
     )
     return {"fairing": fairing, "grille": grille}
 
@@ -37185,7 +37339,7 @@ def validate_adjustable_camera_range(
 
 
 def validate_lid_fan_pod_printability(pod):
-    """Require stable bed faces for both support-free fan-pod pieces."""
+    """Require stable bed faces; the shallow fairing tail needs supports."""
     if pod is None:
         return
     plane_tolerance = 0.03

@@ -249,7 +249,7 @@ FEATURE_RULES = (
     FeatureRule(
         "rear_battery",
         "Internal rear battery bay",
-        "Upright battery fit, enclosed USB clearance, cooling separation and two-screw retaining bar.",
+        "Upright battery fit, USB clearance, low end stops, rounded rear corners and two-screw retaining bar.",
         (r"^REAR_BATTERY_",),
     ),
     FeatureRule(
@@ -2483,6 +2483,8 @@ def page_rear_battery(pdf):
     ax.add_patch(Rectangle((-8,-post-8),length+usb+16,bar_length+16,facecolor="#e6f1f7",edgecolor=BLUE,lw=2))
     ax.add_patch(Rectangle((0,fit),length,thickness,facecolor="#e1e5e8",edgecolor=INK))
     ax.add_patch(Rectangle((length/2-bar_w/2,-post),bar_w,bar_length,facecolor="#ccd3dc",edgecolor=PURPLE))
+    for y in (fit,fit+thickness-C["REAR_BATTERY_END_STOP_WIDTH"]):
+        ax.add_patch(Rectangle((length+fit,y),C["REAR_BATTERY_END_STOP_THICKNESS"],C["REAR_BATTERY_END_STOP_WIDTH"],facecolor=BLUE,edgecolor=BLUE))
     for y in (-post/2,slot_w+post/2):
         ax.add_patch(Circle((length/2,y),C["REAR_BATTERY_BRACKET_SCREW_HOLE_DIAMETER"]/2,facecolor=WHITE,edgecolor=PURPLE))
     ax.add_patch(Rectangle((length,fit),usb,thickness,facecolor="#e5f2e9",edgecolor=GREEN,ls="--"))
@@ -2510,14 +2512,15 @@ def page_rear_battery(pdf):
         f"Slot clear width {slot_w:g} mm; length to open USB end {length+2*fit:g} mm.",
         f"Separate bar: {bar_length:g} x {bar_w:g} x {bar_t:g} mm; two M3 x {C['REAR_BATTERY_BRACKET_SCREW_LENGTH']:g} screws.",
         f"Rigid base: two M3 x {C['REAR_BATTERY_BRACKET_INSERT_DEPTH']:g} heat-set inserts; TPU base uses pointed-M3 pilots.",
-        "Snug the bar against the pack. Remove lid, unplug and unscrew bar to lift battery out.",
+        f"USB-end stops: {C['REAR_BATTERY_END_STOP_HEIGHT']:g} mm high; {C['REAR_BATTERY_END_STOP_WIDTH']:g} mm across each bottom corner.",
+        "Ports must clear those two low corners; remove bar and lift to release pack.",
     ],PURPLE)
     note_box(fig,[0.515,0.16,0.42,0.20],"COOLING AND PRINT ENVELOPE",[
         f"Pack, cradle, bar and USB zone remain {C['REAR_BATTERY_AIR_GAP']:g} mm aft of the fan/camera flow region.",
         f"Base height {C['BASE_HEIGHT']:g} mm; main body height {C['BODY_HEIGHT']:g} mm. Rear lid screws move aft.",
         f"Each exported STL must fit {C['PRINT_BED_SIZE_MM']:g} x {C['PRINT_BED_SIZE_MM']:g} mm; logs report the solved footprint.",
         f"A {C['REAR_BATTERY_CABLE_DIAMETER']:g} mm cable exit connects the USB space to the camera chamber.",
-        "Camera placement and worm exit are preserved; fit actual leads during assembly.",
+        f"Rear corner radius {C['REAR_BATTERY_BAY_CORNER_RADIUS']:g} mm; fixed envelope margin preserves print size.",
     ],GREEN)
     pdf.savefig(fig)
     plt.close(fig)
@@ -3196,7 +3199,7 @@ def page_fans(pdf):
     grille_screw=f"M3x{float(val('LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH',6.0)):g}"
     fairing_screw=f"M3x{float(val('LID_FAN_FAIRING_RETENTION_RECOMMENDED_SCREW_LENGTH',6.0)):g}"
     fig=new_sheet(11,"SELECTABLE FAN STATIONS & TWO-PIECE LID-FAN POD",
-                  f"FAN_MOUNT_MODE={fan_mode}; lid_pair holds two standard 40 or 60 mm fans beneath one curved {cover_material} pod")
+                  f"FAN_MOUNT_MODE={fan_mode}; swept rear tail, rounded tip and removable {cover_material} grille")
     ax=panel(fig,[0.065,0.40,0.52,0.47],"LID_PAIR: TWO STANDARD FANS","PLAN — NTS")
     # Normalized plan: the exact 40/60 mm frame, depth, opening, hub and hole
     # spacing come from fan_size_presets.py and scale together at build time.
@@ -3209,6 +3212,17 @@ def page_fans(pdf):
     ax.add_patch(FancyBboxPatch((-39,-array_depth/2-12),78,array_depth+24,
                                 boxstyle="round,pad=0,rounding_size=12",
                                 facecolor="#eee8f5",edgecolor=PURPLE,lw=1.5))
+    # Swept rear silhouette in normalized plan; the top grille stays seated
+    # above the rectangular fan envelope while the lower tip runs aft.
+    tail=[]
+    for sign in (1,-1):
+        samples=range(31) if sign==1 else range(30,-1,-1)
+        for index in samples:
+            t=index/30
+            x=(1-t)**3*25+3*(1-t)**2*t*62+3*(1-t)*t*t*80+t**3*80
+            y=sign*((1-t)**3*(array_depth/2+12)+3*(1-t)**2*t*(array_depth/2+12)+3*(1-t)*t*t*10)
+            tail.append((x,y))
+    ax.add_patch(Polygon(tail,closed=True,facecolor="#eee8f5",edgecolor=PURPLE,lw=1.5))
     for cy in (-pitch/2,pitch/2):
         ax.add_patch(Rectangle((-frame/2,cy-frame/2),frame,frame,
                                facecolor=WHITE,edgecolor=INK,lw=1.1))
@@ -3227,9 +3241,9 @@ def page_fans(pdf):
     dim_h(ax,-spacing/2,spacing/2,pitch/2+8,pitch/2,
           "preset hole spacing",PURPLE)
     leader(ax,(opening/2,-pitch/2),(51,-47),"preset opening",GREEN,"right")
-    leader(ax,(38,0),(51,17),"shared fairing uses\nX/Y margin controls",PURPLE,"right")
+    leader(ax,(75,0),(95,20),"rounded rear tip\nTAIL_LENGTH / TIP_RADIUS",PURPLE,"right")
     leader(ax,(frame/2+4,pitch/2),(52,56),"one covered cable\ngroove per fan",ORANGE,"right")
-    setup(ax,-62,66,-80,80)
+    setup(ax,-62,100,-80,80)
 
     ax2=panel(fig,[0.61,0.47,0.325,0.40],f"{cover_material} FAN POD + SLIDE-IN GRILLE","SECTION")
     dome_rise=float(val("LID_FAN_COVER_DOME_RISE",5))
@@ -3238,7 +3252,7 @@ def page_fans(pdf):
     ax2.add_patch(Circle((0,10),8,facecolor="#f3f5f6",edgecolor=GRAY,lw=0.9))
     ax2.add_patch(Polygon([(-40,4),(-33,22),(-29,22),(-28,4)],closed=True,
                           facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
-    ax2.add_patch(Polygon([(28,4),(29,22),(33,22),(40,4)],closed=True,
+    ax2.add_patch(Polygon([(29,22),(33,22),(58,5),(60,4),(55,4),(28,19)],closed=True,
                           facecolor="#d5d9dc",edgecolor=PURPLE,lw=1.0))
     if grille_lock_enabled:
         # One rear-edge M3 lock clamps the removable grille to a floor-rooted
@@ -3260,7 +3274,7 @@ def page_fans(pdf):
     for x in (-15,0,15):
         ax2.add_patch(FancyArrowPatch((x,15),(x,31),arrowstyle="-|>",mutation_scale=9,color=GREEN,lw=1.0))
     leader(ax2,(0,21+dome_rise),(-8,31),"LID_FAN_COVER_DOME_RISE",PURPLE,"center")
-    leader(ax2,(-38,5),(-56,36),"thin shell: FAIRING X/Y MARGINS",PURPLE)
+    leader(ax2,(-38,5),(-56,36),"thin shell / swept rear taper",PURPLE)
     leader(ax2,(31,7),(59,30),"4 mm lead / 5.6 mm groove\nAIR_OPENING_OVERLAP / OUTSET",ORANGE,"right")
     leader(ax2,(34,18),(60,15),"6 mm curved covered drop",ORANGE,"right")
     leader(ax2,(-10,21),(-57,-2),"separate flat-bottomed grille",PURPLE)
@@ -3296,11 +3310,10 @@ def page_fans(pdf):
     note_box(fig,[0.61,0.16,0.325,0.24],"RETENTION / SERVICE / CORD",
              [*fairing_retention_notes,
               *grille_retention_notes,
-              "Rail detents align the grille and resist rattle.",
               "Thumbscrew access zones remain clear.",
-              "Print both pieces flat/open side down; no supports.",
+              "Fairing: supports under tail; grille: flat, no supports.",
               "Pass loose PWM plugs through airflow openings before fan placement.",
-              "Curved blisters cover the leads and keep screw access clear."],ORANGE)
+              f"Rear tail length {mm('LID_FAN_FAIRING_TAIL_LENGTH',52)}; tip radius {mm('LID_FAN_FAIRING_TAIL_TIP_RADIUS',8)}."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
 
@@ -3559,7 +3572,7 @@ def page_index(pdf):
         ]),
         ("FANS / ACOUSTICS",[
             ("Fan mounting mode / lid array","FAN_MOUNT_MODE / LID_FAN_SIZE_MM / LID_FAN_PAIR_FRAME_GAP_MM / LID_FAN_DEPTH_MM / LID_FAN_MOUNT_SPACING_MM"),
-            ("Curved fan fairing / domed grille","LID_FAN_COVER_MATERIAL_MODE / LID_FAN_FAIRING_BOTTOM_X_MARGIN / LID_FAN_FAIRING_BOTTOM_Y_MARGIN / LID_FAN_FAIRING_TOP_X_MARGIN / LID_FAN_FAIRING_TOP_Y_MARGIN / LID_FAN_FAIRING_MAX_SOLID_VOLUME / LID_FAN_GRILLE_EDGE_MARGIN / LID_FAN_COVER_DOME_RISE"),
+            ("Swept fan fairing / domed grille","LID_FAN_FAIRING_TAIL_LENGTH / LID_FAN_FAIRING_TAIL_TIP_RADIUS / LID_FAN_COVER_MATERIAL_MODE / LID_FAN_FAIRING_BOTTOM_X_MARGIN / LID_FAN_FAIRING_BOTTOM_Y_MARGIN / LID_FAN_FAIRING_TOP_X_MARGIN / LID_FAN_FAIRING_TOP_Y_MARGIN / LID_FAN_FAIRING_MAX_SOLID_VOLUME / LID_FAN_GRILLE_EDGE_MARGIN / LID_FAN_COVER_DOME_RISE"),
             ("Slide rails / snap detents","LID_FAN_GRILLE_RAIL_OVERHANG / LID_FAN_GRILLE_RAIL_FRONT_ENTRY_CLEARANCE / LID_FAN_GRILLE_RAIL_REAR_OVERTRAVEL / LID_FAN_GRILLE_SLIDE_CLEARANCE / LID_FAN_GRILLE_VERTICAL_CLEARANCE / LID_FAN_GRILLE_RIGID_DETENT_PROTRUSION / LID_FAN_GRILLE_TPU_DETENT_PROTRUSION / LID_FAN_GRILLE_DETENT_RADIUS"),
             ("Fairing screw retention / friction / access","LID_FAN_FAIRING_POSITIVE_RETENTION_ENABLED / LID_FAN_FAIRING_RETENTION_RECOMMENDED_SCREW_LENGTH / LID_FAN_FAIRING_RETENTION_TPU_PILOT_DIAMETER / LID_FAN_FAIRING_RETENTION_RIGID_PILOT_DIAMETER / LID_FAN_COVER_RIGID_RETENTION_PROTRUSION / LID_FAN_COVER_TPU_RETENTION_PROTRUSION / LID_FAN_COVER_THUMBSCREW_ACCESS_DIAMETER"),
             ("Grille positive lock","LID_FAN_GRILLE_POSITIVE_RETENTION_ENABLED / LID_FAN_GRILLE_RETENTION_RECOMMENDED_SCREW_LENGTH / LID_FAN_GRILLE_RETENTION_TPU_PILOT_DIAMETER / LID_FAN_GRILLE_RETENTION_RIGID_PILOT_DIAMETER / LID_FAN_GRILLE_RETENTION_PILOT_DEPTH / LID_FAN_GRILLE_RETENTION_SCREW_LENGTH_TOLERANCE / LID_FAN_GRILLE_RETENTION_PILOT_DEPTH_TOLERANCE / LID_FAN_GRILLE_RETENTION_GRILLE_THICKNESS_TOLERANCE / LID_FAN_GRILLE_RETENTION_BOSS_DIAMETER / LID_FAN_GRILLE_RETENTION_BUTTRESS_WIDTH / LID_FAN_GRILLE_RETENTION_MIN_SHELL_CONNECTION_WIDTH / LID_FAN_GRILLE_RETENTION_PAD_DIAMETER / LID_FAN_GRILLE_RETENTION_FAN_FRAME_CLEARANCE"),
