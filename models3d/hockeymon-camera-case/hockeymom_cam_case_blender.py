@@ -14,7 +14,7 @@ This builds a printable two-part Hockeymom camera case with:
 * camera axes angled apart in plan,
 * either two locally wall-aligned 40 mm fan stations or one large lid fan,
 * three complete bottom keystone-module snap housings, and
-* an internal rear battery slot with USB cable space and two strap tunnels,
+* an internal rear battery slot with USB space and a two-screw hold-down bar,
 * an optional projecting eyelid/visor directly above each camera opening.
 
 Run inside Blender::
@@ -151,6 +151,8 @@ EXPORT_SEPARATE_STLS = True
 EXPORT_COMBINED_STL = False
 BASE_STL_NAME = "hockeymom_cam_case_base.stl"
 LID_STL_NAME = "hockeymom_cam_case_lid.stl"
+BATTERY_BRACKET_STL_NAME = "hockeymom_cam_case_battery_bracket.stl"
+PRINT_BED_SIZE_MM = 250.0
 ASSEMBLY_STL_NAME = "hockeymom_cam_case_ASSEMBLY_REFERENCE_NOT_FOR_PRINT.stl"
 CAMERA_BRACKET_1_STL_NAME = "hockeymom_cam_case_camera_bracket_1.stl"
 CAMERA_BRACKET_2_STL_NAME = "hockeymom_cam_case_camera_bracket_2.stl"
@@ -239,10 +241,10 @@ PREVIEW_SHOW_CAMERA_MOCKUPS = True
 BODY_WIDTH = 160
 BODY_DEPTH = 233.661
 # BODY_DEPTH = 210
-# Two extra millimeters preserve lid/bracket clearance after raising the
-# cameras and thickening the adjustable pivot tray for stiffness and airflow.
-BODY_HEIGHT = 72.653
-BASE_HEIGHT = 68.0
+# Upright rear battery and its screw-on bar fit below this taller roof while
+# keeping the base and lid inside a 250 mm square print bed.
+BODY_HEIGHT = 94.653
+BASE_HEIGHT = 90.0
 LID_THICKNESS = BODY_HEIGHT - BASE_HEIGHT
 BOTTOM_THICKNESS = 3.2
 BODY_WALL_THICKNESS = 3.2
@@ -325,10 +327,10 @@ REAR_WALL_LABEL_MAX_WRAP_ANGLE_DEG = 45.0
 REAR_WALL_LABEL_MAX_SURFACE_SEGMENT = 2.0
 REAR_WALL_LABEL_MIN_REMAINING_WALL = 1.8
 
-# Internal rear (+X) slot: lay the pack flat, with its 26.3 mm thickness in Z,
-# 70 mm width in X and 138 mm length in Y. The USB face points toward +Y.
-# Extend the main base AND lid to enclose the pack, straps and full plug zone.
-# Keep the slot behind the top-fan aperture and camera/service envelopes.
+# Internal rear (+X) slot: stand the pack upright, with thickness in X,
+# length in Y and width in Z. This keeps the base/lid within a 250 mm bed.
+# The USB face points toward +Y. A flat bar and two M3 screws hold the pack
+# down; its screw posts sit alongside the pack, clear of the USB end.
 REAR_BATTERY_SLOT_ENABLED = True
 REAR_BATTERY_THICKNESS = 26.3
 REAR_BATTERY_LENGTH = 138.0
@@ -337,15 +339,20 @@ REAR_BATTERY_FIT_CLEARANCE = 0.6  # per side in X and at the closed Y end
 REAR_BATTERY_USB_CLEARANCE = 40.0  # straight plugs plus cable bend allowance
 REAR_BATTERY_AIR_GAP = 8.0  # aft of the protected fan/camera flow region
 REAR_BATTERY_WALL_THICKNESS = 3.2
-REAR_BATTERY_WALL_HEIGHT = 20.0
-REAR_BATTERY_FLOOR_THICKNESS = 3.2  # solid web below the strap tunnels
-REAR_BATTERY_STRAP_SLOT_WIDTH = 16.0
-REAR_BATTERY_STRAP_SLOT_HEIGHT = 2.5
-REAR_BATTERY_STRAP_SPACING = 80.0
-REAR_BATTERY_STRAP_ACCESS = 4.0
+REAR_BATTERY_WALL_HEIGHT = 60.0
+REAR_BATTERY_FLOOR_THICKNESS = 5.7
+REAR_BATTERY_SERVICE_CLEARANCE = 4.0
+REAR_BATTERY_BRACKET_WIDTH = 16.0
+REAR_BATTERY_BRACKET_THICKNESS = 4.0
+REAR_BATTERY_BRACKET_POST_DIAMETER = 10.0
+REAR_BATTERY_BRACKET_CLAMP_TRAVEL = 0.25
+REAR_BATTERY_BRACKET_SCREW_HOLE_DIAMETER = 3.4
+REAR_BATTERY_BRACKET_SCREW_LENGTH = 10.0
+REAR_BATTERY_BRACKET_INSERT_DEPTH = 5.0
+REAR_BATTERY_BRACKET_RECEIVER_DEPTH = 7.0
 REAR_BATTERY_LID_CLEARANCE = 4.0
 REAR_BATTERY_CABLE_DIAMETER = 6.0
-REAR_BATTERY_BAY_CORNER_RADIUS = 8.0
+REAR_BATTERY_BAY_CORNER_RADIUS = 4.0
 
 # Lid locating lip.  The screw system provides clamping; this lip aligns the
 # flat top and prevents lateral movement.
@@ -1277,7 +1284,7 @@ CAMERA_BRACKET_POST_REAR_CLEARANCE = 1.0
 CAMERA_INSTALLATION_REARWARD_TRAVEL = 17.0
 CAMERA_INSTALLATION_LENS_RETRACTION_CLEARANCE = 1.0
 CAMERA_INSTALLATION_POST_CLEARANCE = 1.0
-CAMERA_TOP_LOADING_LIFT = 62.0
+CAMERA_TOP_LOADING_LIFT = BASE_HEIGHT - 6.0
 VALIDATE_CAMERA_INSTALLATION_PATH = True
 # The removable carrier must pass the open top and the installed sector-drive
 # hardware through a validated service path.  The carrier itself is inserted
@@ -1296,7 +1303,7 @@ CAMERA_CARRIER_SERVICE_WAYPOINTS = (
     (8.0, 30.0),
     (12.0, 30.0),
     (12.0, 90.0),
-    (72.0, 90.0),
+    (BASE_HEIGHT + 4.0, 90.0),
 )
 CAMERA_CARRIER_SERVICE_MAX_LIFT_STEP = 1.0
 # Independently cap the configured angular increment, then add enough samples
@@ -8032,15 +8039,15 @@ def validate_config() -> None:
             CAMERA_BRACKET_THUMBSCREW_SEAT_MIN_DROP_Z,
         ) < 0.0:
             raise ValueError("Bracket thumb-screw clearances must be nonnegative")
-        available_drop = (
-            bracket_top
-            - (
-                BASE_HEIGHT
-                - CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT
-                - CAMERA_BRACKET_THUMBSCREW_LID_CLEARANCE
-            )
+        seat_top = min(
+            bracket_top - CAMERA_BRACKET_THUMBSCREW_SEAT_MIN_DROP_Z,
+            BASE_HEIGHT
+            - CAMERA_BRACKET_THUMBSCREW_HEAD_HEIGHT
+            - CAMERA_BRACKET_THUMBSCREW_LID_CLEARANCE,
         )
-        if available_drop < CAMERA_BRACKET_THUMBSCREW_SEAT_MIN_DROP_Z:
+        if seat_top - CAMERA_BRACKET_THUMBSCREW_SEAT_THICKNESS <= (
+            plate_underside - CAMERA_BRACKET_THICKNESS - 1e-6
+        ):
             raise ValueError(
                 "Bracket thumb-screw heads need more vertical clearance below "
                 "the removable lid"
@@ -29847,44 +29854,50 @@ def validate_rear_battery_config():
         if name.startswith("REAR_BATTERY_") and name != "REAR_BATTERY_SLOT_ENABLED":
             if not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and positive")
-    seat = REAR_BATTERY_FLOOR_THICKNESS + REAR_BATTERY_STRAP_SLOT_HEIGHT
-    if not seat < REAR_BATTERY_WALL_HEIGHT < seat + REAR_BATTERY_THICKNESS:
+    seat = REAR_BATTERY_FLOOR_THICKNESS
+    if not seat < REAR_BATTERY_WALL_HEIGHT < seat + REAR_BATTERY_WIDTH:
         raise ValueError("Battery walls must rise above the seat and below the pack top")
-    if REAR_BATTERY_FLOOR_THICKNESS < BOTTOM_THICKNESS:
-        raise ValueError("Battery strap tunnels must remain above the case floor")
-    if REAR_BATTERY_STRAP_SLOT_WIDTH <= 1.0 or REAR_BATTERY_STRAP_SLOT_HEIGHT <= 0.5:
-        raise ValueError("Battery strap tunnels need room for the strap and threading clearance")
-    if seat + REAR_BATTERY_THICKNESS + REAR_BATTERY_STRAP_SLOT_HEIGHT + REAR_BATTERY_LID_CLEARANCE >= BASE_HEIGHT - LID_LIP_DEPTH:
-        raise ValueError("Flat battery and straps need more clearance below the closed lid")
-    if not (
-        REAR_BATTERY_STRAP_SLOT_WIDTH + 2 * REAR_BATTERY_WALL_THICKNESS < REAR_BATTERY_STRAP_SPACING
-        and REAR_BATTERY_STRAP_SPACING + REAR_BATTERY_STRAP_SLOT_WIDTH + 2 * REAR_BATTERY_WALL_THICKNESS < REAR_BATTERY_LENGTH
-    ):
-        raise ValueError("Battery strap tunnels need solid webs at both ends and between them")
+    if seat < BOTTOM_THICKNESS:
+        raise ValueError("Battery seat must remain above the case floor")
+    top = seat + REAR_BATTERY_WIDTH
+    if top + REAR_BATTERY_BRACKET_THICKNESS + M3_SOCKET_HEAD_NOMINAL_HEIGHT + REAR_BATTERY_LID_CLEARANCE >= BASE_HEIGHT - LID_LIP_DEPTH:
+        raise ValueError("Upright battery and bracket need more clearance below the closed lid")
+    if REAR_BATTERY_BRACKET_POST_DIAMETER < HEAT_INSERT_LEADIN_DIAMETER + 4.0:
+        raise ValueError("Battery screw posts need at least 2 mm around their insert mouths")
+    if REAR_BATTERY_BRACKET_WIDTH < REAR_BATTERY_BRACKET_POST_DIAMETER or REAR_BATTERY_BRACKET_WIDTH + 2*REAR_BATTERY_WALL_THICKNESS >= REAR_BATTERY_LENGTH:
+        raise ValueError("Battery bracket width must cover the posts and stay clear of the ends")
+    if not 3.2 <= REAR_BATTERY_BRACKET_SCREW_HOLE_DIAMETER <= M3_SOCKET_HEAD_NOMINAL_DIAMETER - 1.0:
+        raise ValueError("Battery bar holes need M3 clearance and at least 0.5 mm of head bearing")
+    engagement = REAR_BATTERY_BRACKET_SCREW_LENGTH - REAR_BATTERY_BRACKET_THICKNESS - REAR_BATTERY_BRACKET_CLAMP_TRAVEL
+    clamped_engagement = REAR_BATTERY_BRACKET_SCREW_LENGTH - REAR_BATTERY_BRACKET_THICKNESS
+    if not (REAR_BATTERY_BRACKET_INSERT_DEPTH <= engagement
+            and clamped_engagement < REAR_BATTERY_BRACKET_RECEIVER_DEPTH - 0.5):
+        raise ValueError("Battery screws need full insert engagement and blind-hole tip clearance")
+    if top - REAR_BATTERY_BRACKET_CLAMP_TRAVEL - REAR_BATTERY_BRACKET_RECEIVER_DEPTH <= BOTTOM_THICKNESS + 2.0:
+        raise ValueError("Battery screw receivers need a closed bottom web")
     if REAR_BATTERY_USB_CLEARANCE <= 2 * REAR_BATTERY_CABLE_DIAMETER:
         raise ValueError("Battery USB clearance must leave space for plugs and a cable bend")
 
 
 def rear_battery_layout(cameras=(), mechanism=None):
-    """Reserve an internal flat pack and its USB end behind the cooling region."""
+    """Reserve an internal upright pack and its USB end behind the cooling region."""
     fan = lid_fan_reference_dimensions()
     fan_rear_x = max(x for x, _ in lid_fan_unit_centers()) + fan["opening"] / 2
     camera_rear_x = rear_taper_camera_keepout_max_x(cameras, mechanism) if cameras else -math.inf
     protected_x = max(fan_rear_x, camera_rear_x)
     wall = REAR_BATTERY_WALL_THICKNESS
     fit = REAR_BATTERY_FIT_CLEARANCE
-    strap = REAR_BATTERY_STRAP_SLOT_HEIGHT
-    x0 = protected_x + REAR_BATTERY_AIR_GAP + strap + wall
-    x1 = x0 + REAR_BATTERY_WIDTH + 2 * fit
+    x0 = protected_x + REAR_BATTERY_AIR_GAP + REAR_BATTERY_BRACKET_POST_DIAMETER
+    x1 = x0 + REAR_BATTERY_THICKNESS + 2 * fit
     center_y = -REAR_BATTERY_USB_CLEARANCE / 2
     pack_y0 = center_y - REAR_BATTERY_LENGTH / 2
     pack_y1 = center_y + REAR_BATTERY_LENGTH / 2
-    seat = REAR_BATTERY_FLOOR_THICKNESS + strap
-    pack = ((x0 + fit, x1 - fit), (pack_y0, pack_y1), (seat, seat + REAR_BATTERY_THICKNESS))
+    seat = REAR_BATTERY_FLOOR_THICKNESS
+    pack = ((x0 + fit, x1 - fit), (pack_y0, pack_y1), (seat, seat + REAR_BATTERY_WIDTH))
     usb = (pack[0], (pack_y1, pack_y1 + REAR_BATTERY_USB_CLEARANCE), pack[2])
     # Relocate the rear screw pair behind the pack, where screw tools and
     # posts cannot intrude into either its top-loading or USB envelope.
-    post_x = x1 + wall + REAR_BATTERY_STRAP_ACCESS + FASTENER_POST_DIAMETER / 2 + 1.0
+    post_x = x1 + wall + REAR_BATTERY_SERVICE_CLEARANCE + FASTENER_POST_DIAMETER / 2 + 1.0
     post_y = min(REAR_BATTERY_LENGTH / 2, (REAR_BATTERY_LENGTH + REAR_BATTERY_USB_CLEARANCE) / 2 - 15)
     cable_y = usb[1][1] - REAR_BATTERY_CABLE_DIAMETER
     cable_z = sum(pack[2]) / 2
@@ -29908,10 +29921,10 @@ def extend_rear_battery_bay(footprint, cameras, mechanism):
         return footprint, None
     layout = rear_battery_layout(cameras, mechanism)
     wall = REAR_BATTERY_WALL_THICKNESS
-    access = REAR_BATTERY_STRAP_ACCESS
+    access = REAR_BATTERY_SERVICE_CLEARANCE
     # Offset a rounded hull of the *interior* keepout rectangle, then account
     # for the bottom loft's smaller XY scale. This keeps the full pack, USB
-    # face, straps and rear post lands inside the printed inner wall.
+    # face, bracket and rear post lands inside the printed inner wall.
     inner_x0 = layout["x0"] - wall - access
     inner_x1 = layout["post_targets"][0][0] + max(FASTENER_POST_DIAMETER/2, REAR_TAPER_SCREW_ISLAND_RADIUS + REAR_TAPER_SCREW_ISLAND_BLEND)
     inner_half_y = max(abs(layout["y0"] - wall), layout["usb_bounds"][1][1]) + access
@@ -29941,9 +29954,9 @@ def extend_rear_battery_bay(footprint, cameras, mechanism):
         _RESOLVED_REAR_ENVELOPE["footprint"] = tuple(expanded)
         _RESOLVED_REAR_ENVELOPE["rear_x"] = max(x for x,_ in expanded)
     # Height taper remains supported only when it leaves the entire pack,
-    # strap loops and service clearance under the lowest local roof.
+    # bracket screws and service clearance under the lowest local roof.
     roof = min(local_base_seam_z(x,y) for x in layout["pack_bounds"][0] for y in (layout["y0"], layout["usb_bounds"][1][1]))
-    if layout["pack_bounds"][2][1] + REAR_BATTERY_STRAP_SLOT_HEIGHT + REAR_BATTERY_LID_CLEARANCE >= roof - LID_LIP_DEPTH:
+    if layout["pack_bounds"][2][1] + REAR_BATTERY_BRACKET_THICKNESS + M3_SOCKET_HEAD_NOMINAL_HEIGHT + REAR_BATTERY_LID_CLEARANCE >= roof - LID_LIP_DEPTH:
         raise ValueError("Rear height taper leaves insufficient battery/lid clearance")
     print("INTERNAL_BATTERY_BAY "
           f"footprint_x=({min(x for x,_ in expanded):.2f},{max(x for x,_ in expanded):.2f}) "
@@ -29956,7 +29969,7 @@ def circular_feature_intersects_rear_battery(position, radius):
     layout = _RESOLVED_REAR_BATTERY_LAYOUT
     if layout is None:
         return False
-    wall = REAR_BATTERY_WALL_THICKNESS + REAR_BATTERY_STRAP_ACCESS
+    wall = REAR_BATTERY_WALL_THICKNESS + REAR_BATTERY_SERVICE_CLEARANCE
     bounds = ((layout["x0"]-wall,layout["x1"]+wall),
               (layout["y0"]-wall,layout["usb_bounds"][1][1]))
     return math.hypot(*(max(low-position[i],0.0,position[i]-high) for i,(low,high) in enumerate(bounds))) < radius + 0.5
@@ -29969,94 +29982,127 @@ def rear_battery_box(name, bounds):
     )
 
 
-def rear_battery_strap_bounds(layout):
-    """Installed strap loops, including the space outside the cradle walls."""
-    wall = REAR_BATTERY_WALL_THICKNESS
-    strap = REAR_BATTERY_STRAP_SLOT_HEIGHT - 0.5
-    left, right = layout["x0"]-wall, layout["x1"]+wall
-    top = layout["pack_bounds"][2][1]
-    result = []
-    for sign in (-1,1):
-        y = layout["center_y"] + sign*REAR_BATTERY_STRAP_SPACING/2
-        half_width = (REAR_BATTERY_STRAP_SLOT_WIDTH-1.0)/2
-        by = (y-half_width,y+half_width)
-        result.extend((
-            ((left-strap-0.25,left-0.25), by, (REAR_BATTERY_FLOOR_THICKNESS+0.25,top+strap)),
-            ((right+0.25,right+strap+0.25), by, (REAR_BATTERY_FLOOR_THICKNESS+0.25,top+strap)),
-            ((left-strap-0.25,right+strap+0.25), by, (top,top+strap)),
-            ((left-0.25,right+0.25), by, (REAR_BATTERY_FLOOR_THICKNESS+0.25,layout["seat_z"]-0.25)),
-        ))
-    return tuple(result)
+def rear_battery_bracket_layout(layout):
+    radius = REAR_BATTERY_BRACKET_POST_DIAMETER / 2
+    x0,x1,cy = layout["x0"],layout["x1"],layout["center_y"]
+    bottom = layout["pack_bounds"][2][1]
+    top = bottom + REAR_BATTERY_BRACKET_THICKNESS
+    centers = ((x0-radius,cy),(x1+radius,cy))
+    half_width = REAR_BATTERY_BRACKET_WIDTH / 2
+    return dict(
+        centers=centers, post_top=bottom-REAR_BATTERY_BRACKET_CLAMP_TRAVEL,
+        bounds=((x0-2*radius,x1+2*radius),(cy-half_width,cy+half_width),(bottom,top)),
+        head_bounds=tuple(((x-M3_SOCKET_HEAD_NOMINAL_DIAMETER/2,x+M3_SOCKET_HEAD_NOMINAL_DIAMETER/2),
+                           (y-M3_SOCKET_HEAD_NOMINAL_DIAMETER/2,y+M3_SOCKET_HEAD_NOMINAL_DIAMETER/2),
+                           (top,top+M3_SOCKET_HEAD_NOMINAL_HEIGHT)) for x,y in centers),
+    )
 
 
-def add_rear_battery_slot(base, layout, obstacles):
+def create_rear_battery_bracket(layout):
+    if layout is None:
+        return None
+    record = rear_battery_bracket_layout(layout)
+    bracket = rear_battery_box("Hockeymom_Cam_Case_Battery_Bracket",record["bounds"])
+    bottom,top = record["bounds"][2]
+    boolean_difference(bracket,[
+        add_cylinder_z("Battery_Bracket_M3_Clearance",REAR_BATTERY_BRACKET_SCREW_HOLE_DIAMETER/2,
+                       bottom-1,top+1,x,y)
+        for x,y in record["centers"]
+    ])
+    assign_material(bracket,"Battery_Bracket_Material",(0.22,0.28,0.34,1.0))
+    bracket["screw_length_mm"] = REAR_BATTERY_BRACKET_SCREW_LENGTH
+    bracket["clamp_travel_mm"] = REAR_BATTERY_BRACKET_CLAMP_TRAVEL
+    triangulate_mesh(bracket)
+    validate_object(bracket)
+    return bracket
+
+
+def add_rear_battery_slot(base,layout,obstacles):
     if layout is None:
         return
     x0,x1,y0,y1 = (layout[key] for key in ("x0","x1","y0","y1"))
-    wall = REAR_BATTERY_WALL_THICKNESS
-    height = REAR_BATTERY_WALL_HEIGHT
-    # Start below the case floor's top so the cradle becomes part of the
-    # base. All supports are internal; there are no exterior attachment ribs.
-    holder = rear_battery_box("Internal_Rear_Battery_Slot", (
-        (x0-wall,x1+wall), (y0-wall,y1), (0,height),
+    wall,height = REAR_BATTERY_WALL_THICKNESS,REAR_BATTERY_WALL_HEIGHT
+    holder = rear_battery_box("Internal_Rear_Battery_Slot",(
+        (x0-wall,x1+wall),(y0-wall,y1),(0,height),
     ))
-    boolean_difference(holder, [rear_battery_box("Battery_Open_Top_And_USB_End", (
-        (x0,x1), (y0,y1+1), (layout["seat_z"],height+1),
+    boolean_difference(holder,[rear_battery_box("Battery_Open_Top_And_USB_End",(
+        (x0,x1),(y0,y1+1),(layout["seat_z"],height+1),
     ))])
-    for sign in (-1,1):
-        cy = layout["center_y"] + sign*REAR_BATTERY_STRAP_SPACING/2
-        boolean_difference(holder, [rear_battery_box("Battery_Strap_Tunnel", (
-            (x0-wall-1,x1+wall+1),
-            (cy-REAR_BATTERY_STRAP_SLOT_WIDTH/2,cy+REAR_BATTERY_STRAP_SLOT_WIDTH/2),
-            (REAR_BATTERY_FLOOR_THICKNESS,layout["seat_z"]),
-        ))])
+    record = rear_battery_bracket_layout(layout)
+    profile = case_body_fastener_profile(
+        HEAT_INSERT_HOLE_DIAMETER,REAR_BATTERY_BRACKET_INSERT_DEPTH,
+        HEAT_INSERT_LEADIN_DIAMETER,HEAT_INSERT_LEADIN_DEPTH,
+    )
+    for x,y in record["centers"]:
+        boolean_union(holder,add_cylinder_z("Battery_Bracket_Post",
+                      REAR_BATTERY_BRACKET_POST_DIAMETER/2,0,record["post_top"],x,y))
+    for x,y in record["centers"]:
+        top = record["post_top"]
+        # A narrow blind continuation accepts the screw tip below a 5 mm
+        # insert. TPU instead uses the same material-aware pointed-M3 pilot
+        # policy as the other case-owned receivers.
+        pilot = profile["hole_diameter"] if case_body_uses_tpu() else REAR_BATTERY_BRACKET_SCREW_HOLE_DIAMETER
+        boolean_difference(holder,[add_cylinder_z("Battery_M3_Blind_Tip_Clearance",pilot/2,
+                           top-REAR_BATTERY_BRACKET_RECEIVER_DEPTH,top+1,x,y)])
+        boolean_difference(holder,[add_cylinder_z("Battery_M3_Receiver",profile["hole_diameter"]/2,
+                           top-profile["hole_depth"],top+1,x,y)])
+        if profile["leadin_depth"] > 0:
+            boolean_difference(holder,[add_cylinder_z("Battery_M3_Insert_Leadin",profile["leadin_diameter"]/2,
+                               top-profile["leadin_depth"],top+1,x,y)])
     validate_object(holder)
     for obj in obstacles:
         if intersection_metrics(holder,obj,"battery_holder_clearance")[2] > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
             raise RuntimeError(f"Internal battery holder intersects {obj.name}")
-    boolean_union(base, holder, "Internal_Battery_Slot")
+    boolean_union(base,holder,"Internal_Battery_Slot")
     base["rear_battery_pack_bounds"] = [v for pair in layout["pack_bounds"] for v in pair]
     base["rear_battery_usb_bounds"] = [v for pair in layout["usb_bounds"] for v in pair]
-    print("REAR_BATTERY_SLOT internal=True "
-          f"pack={REAR_BATTERY_WIDTH}x{REAR_BATTERY_LENGTH}x{REAR_BATTERY_THICKNESS} "
-          f"usb_clearance={REAR_BATTERY_USB_CLEARANCE:.2f} pack_bounds={layout['pack_bounds']}")
+    print("REAR_BATTERY_SLOT internal=True orientation=upright "
+          f"pack={REAR_BATTERY_THICKNESS}x{REAR_BATTERY_LENGTH}x{REAR_BATTERY_WIDTH} "
+          f"usb_clearance={REAR_BATTERY_USB_CLEARANCE:.2f} pack_bounds={layout['pack_bounds']} "
+          f"retention=flat_bar_2xM3x{REAR_BATTERY_BRACKET_SCREW_LENGTH:g} receiver={profile['style']}")
 
 
-def validate_rear_battery_slot(base, lid, layout, footprint, obstacles, lid_parts=()):
+def validate_rear_battery_slot(base,lid,layout,footprint,obstacles,lid_parts=(),bracket=None):
     if layout is None:
         return
+    if bracket is None:
+        raise RuntimeError("Missing battery hold-down bracket")
     bx,by,bz = layout["pack_bounds"]
-    straps = rear_battery_strap_bounds(layout)
-    # Analytic X separation protects the FULL vertical fan opening projection
-    # and camera/service sweep in both intake and exhaust directions.
+    record = rear_battery_bracket_layout(layout)
     protected_limit = layout["protected_x"] + REAR_BATTERY_AIR_GAP
-    if min(bx[0], layout["usb_bounds"][0][0], layout["x0"]-REAR_BATTERY_WALL_THICKNESS,
-           *(bounds[0][0] for bounds in straps)) < protected_limit - 0.001:
+    if min(bx[0],layout["usb_bounds"][0][0],record["bounds"][0][0]) < protected_limit-0.001:
         raise RuntimeError("Battery assembly intrudes into the protected cooling region")
     installed = (
-        ("pack", layout["pack_bounds"]), ("usb_plugs",layout["usb_bounds"]),
-        *((f"strap_{i}",bounds) for i,bounds in enumerate(straps)),
+        ("pack",layout["pack_bounds"]),("usb_plugs",layout["usb_bounds"]),
+        ("bracket",record["bounds"]),
+        *((f"screw_head_{i}",bounds) for i,bounds in enumerate(record["head_bounds"])),
         ("cable_exit",layout["cable_bounds"]),
     )
-    # Collision alone cannot distinguish an empty cavity from space outside
-    # the shell. Independently prove every installed envelope is enclosed.
     for label,bounds in installed:
         low_z,high_z = bounds[2]
-        for z in (low_z, high_z, *(z for z,_ in BODY_SECTIONS if low_z<z<high_z)):
+        for z in (low_z,high_z,*(z for z,_ in BODY_SECTIONS if low_z<z<high_z)):
             inner = inset_footprint_loop(scale_loop(footprint,body_scale_at_z(z)),BODY_WALL_THICKNESS)
             for x in bounds[0]:
                 for y in bounds[1]:
                     if not point_in_polygon((x,y),inner) or z >= local_base_seam_z(x,y)-LID_LIP_DEPTH:
                         raise RuntimeError(f"Battery {label} is outside the closed case interior")
-    probes = (*installed, ("top_loading",(bx,by,(bz[0],BASE_HEIGHT+REAR_BATTERY_THICKNESS))))
+    probes = (*installed,
+        ("top_loading",(bx,by,(bz[0],BASE_HEIGHT+REAR_BATTERY_WIDTH))),
+        ("bracket_removal",(*record["bounds"][:2],(record["bounds"][2][0],BASE_HEIGHT+REAR_BATTERY_BRACKET_THICKNESS))),
+        *((f"screw_access_{i}",(head[0],head[1],(head[2][0],BASE_HEIGHT+30.0)))
+          for i,head in enumerate(record["head_bounds"])),
+    )
     for label,bounds in probes:
         probe = rear_battery_box("Battery_"+label+"_Keepout",bounds)
-        # Load with the removable lid off; seated pack, USBs and straps must
-        # remain clear with that lid fully closed.
+        service = label in {"top_loading","bracket_removal"} or label.startswith("screw_access_")
         targets = (
             (base,*(obj for obj in obstacles if obj not in lid_parts))
-            if label=="top_loading" else (base,lid,*obstacles)
+            if service else (base,lid,*obstacles)
         )
+        # The bar is removed for battery loading. Its installed solid is an
+        # obstacle for the battery, USB and wire envelopes, never for itself.
+        if label in {"pack","usb_plugs","cable_exit"}:
+            targets = (*targets,bracket)
         try:
             for obj in dict.fromkeys(obj for obj in targets if obj is not None):
                 volume = intersection_metrics(probe,obj,"battery_"+label)[2]
@@ -30064,8 +30110,28 @@ def validate_rear_battery_slot(base, lid, layout, footprint, obstacles, lid_part
                     raise RuntimeError(f"Battery {label} intersects {obj.name}: {volume:.6f} mm^3")
         finally:
             bpy.data.objects.remove(probe,do_unlink=True)
+    # Check the threaded screw's available depth and the printed receiver
+    # openings independently from the bar's two clearance holes.
+    tip = record["bounds"][2][1]-REAR_BATTERY_BRACKET_SCREW_LENGTH-REAR_BATTERY_BRACKET_CLAMP_TRAVEL
+    if tip <= record["post_top"]-REAR_BATTERY_BRACKET_RECEIVER_DEPTH+0.5:
+        raise RuntimeError("Battery screw bottoms in the blind receiver")
+    # The M3 shank must pass through the bar in both material modes. Only the
+    # TPU receiver has a narrower pilot because the screw forms its thread.
+    receiver_radius = CASE_BODY_TPU_M3_PILOT_DIAMETER/2-0.1 if case_body_uses_tpu() else 1.5
+    for x,y in record["centers"]:
+        for obj,radius,z0,z1 in (
+            (base,receiver_radius,tip,record["post_top"]+0.1),
+            (bracket,1.5,record["bounds"][2][0]-0.1,record["bounds"][2][1]+0.1),
+        ):
+            probe = add_cylinder_z("Battery_Screw_Bore_Probe",radius,z0,z1,x,y)
+            try:
+                if intersection_metrics(probe,obj,"battery_receiver_bore")[2] > ASSEMBLY_INTERSECTION_VOLUME_TOLERANCE:
+                    raise RuntimeError(f"Battery screw path is obstructed in {obj.name}")
+            finally:
+                bpy.data.objects.remove(probe,do_unlink=True)
     print("REAR_BATTERY_CLEARANCE internal=PASS lid_closed=clear lid_off_loading=clear "
-          f"usb_face=clear cable_exit=clear cooling_gap={REAR_BATTERY_AIR_GAP:.2f}mm retention=two_15mm_straps")
+          f"usb_face=clear cable_exit=clear cooling_gap={REAR_BATTERY_AIR_GAP:.2f}mm "
+          "retention=two_screw_bar screw_access=clear blind_tip=clear")
 
 
 def create_base(
@@ -30879,29 +30945,37 @@ def add_lid_camera_bracket_reliefs(lid, cameras):
             ),
         ) - BOOLEAN_OVERLAP
         z1 = max(seam_values) + BOOLEAN_OVERLAP
-        center = axis_point(
-            camera["angle"],
-            sum(radial_bounds) / 2.0,
-            sum(tangent_bounds) / 2.0,
-            (z0 + z1) / 2.0,
-        )
-        cutter = add_beveled_box(
-            f"Lid_Camera_Bracket_{camera['index']}_Lip_Relief",
-            (
-                radial_bounds[1] - radial_bounds[0] + 2.0 * clearance,
-                tangent_bounds[1] - tangent_bounds[0] + 2.0 * clearance,
-                z1 - z0,
-            ),
-            tuple(center),
-            rotation_z=math.radians(camera["angle"]),
-            bevel=0.0,
-        )
-        boolean_difference(
-            lid,
-            [cutter],
-            f"Lid_Camera_Bracket_{camera['index']}_Lip_Relief_Cut",
-        )
-        relief_count += 1
+        # Only relieve lip material at the bracket's actual height. A taller
+        # roof puts its lip above the bracket; cutting a roof-relative band
+        # there would sever the long eye-closure tongue from the lid.
+        bracket_underside, bracket_top = camera_bracket_z_bounds()
+        z0 = min(z0, bracket_underside - CAMERA_BRACKET_THICKNESS
+                 - camera_bracket_clamp_travel(camera) - clearance - BOOLEAN_OVERLAP)
+        z1 = min(z1, bracket_top + clearance)
+        if z1 > z0:
+            center = axis_point(
+                camera["angle"],
+                sum(radial_bounds) / 2.0,
+                sum(tangent_bounds) / 2.0,
+                (z0 + z1) / 2.0,
+            )
+            cutter = add_beveled_box(
+                f"Lid_Camera_Bracket_{camera['index']}_Lip_Relief",
+                (
+                    radial_bounds[1] - radial_bounds[0] + 2.0 * clearance,
+                    tangent_bounds[1] - tangent_bounds[0] + 2.0 * clearance,
+                    z1 - z0,
+                ),
+                tuple(center),
+                rotation_z=math.radians(camera["angle"]),
+                bevel=0.0,
+            )
+            boolean_difference(
+                lid,
+                [cutter],
+                f"Lid_Camera_Bracket_{camera['index']}_Lip_Relief_Cut",
+            )
+            relief_count += 1
         if camera_is_adjustable(camera):
             pivot = adjustable_camera_pivot(camera)
             bracket_underside, bracket_top = camera_bracket_z_bounds()
@@ -38774,6 +38848,7 @@ def output_directory() -> Path:
 
 
 def export_stl(path: Path, objects) -> Path:
+    validate_print_bed_fit(objects)
     bpy.ops.object.select_all(action="DESELECT")
     for obj in objects:
         obj.select_set(True)
@@ -38784,6 +38859,17 @@ def export_stl(path: Path, objects) -> Path:
         bpy.ops.export_mesh.stl(filepath=str(path), use_selection=True)
     print(f"EXPORTED {path}")
     return path
+
+
+def validate_print_bed_fit(objects):
+    if not math.isfinite(PRINT_BED_SIZE_MM) or PRINT_BED_SIZE_MM <= 0:
+        raise ValueError("PRINT_BED_SIZE_MM must be finite and positive")
+    bpy.context.view_layer.update()
+    corners = [obj.matrix_world @ Vector(corner) for obj in objects for corner in obj.bound_box]
+    spans = tuple(max(point[i] for point in corners)-min(point[i] for point in corners) for i in (0,1))
+    if max(spans) > PRINT_BED_SIZE_MM + 0.001:
+        raise ValueError(f"Print footprint {spans[0]:.2f} x {spans[1]:.2f} mm exceeds {PRINT_BED_SIZE_MM:g} x {PRINT_BED_SIZE_MM:g} mm bed")
+    print(f"PRINT_BED_FIT {spans[0]:.2f}x{spans[1]:.2f}mm limit={PRINT_BED_SIZE_MM:g}mm")
 
 
 def export_single_stl(
@@ -38811,10 +38897,11 @@ def export_single_stl(
     center_y = (min(point.y for point in corners) + max(point.y for point in corners)) / 2.0
     minimum_z = min(point.z for point in corners)
     obj.location += Vector((-center_x, -center_y, -minimum_z))
-    result = export_stl(path, [obj])
-    obj.matrix_world = original_matrix
-    bpy.context.view_layer.update()
-    return result
+    try:
+        return export_stl(path, [obj])
+    finally:
+        obj.matrix_world = original_matrix
+        bpy.context.view_layer.update()
 
 
 def render_preview(base, lid, camera_mockups) -> None:
@@ -39700,6 +39787,7 @@ def build_hockeymom_cam_case():
         obj for obj in bpy.context.scene.objects if obj.type == "MESH" and obj is not base
     )
     add_rear_battery_slot(base, battery_layout, battery_obstacles)
+    battery_bracket = create_rear_battery_bracket(battery_layout)
     if battery_layout is not None:
         triangulate_mesh(base)
     camera_mockups = create_camera_mockups(
@@ -39717,6 +39805,7 @@ def build_hockeymom_cam_case():
         base, lid, battery_layout, footprint,
         tuple(obj for obj in (*battery_obstacles, *camera_mockups) if obj is not lid),
         lid_parts=tuple(lid_fan_pod.values()) if lid_fan_pod is not None else (),
+        bracket=battery_bracket,
     )
     moving_camera_mockup = next(
         (
@@ -39974,6 +40063,8 @@ def build_hockeymom_cam_case():
         directory = output_directory()
         if EXPORT_SEPARATE_STLS:
             export_single_stl(directory / BASE_STL_NAME, base)
+            if battery_bracket is not None:
+                export_single_stl(directory / BATTERY_BRACKET_STL_NAME, battery_bracket)
             export_single_stl(
                 directory / LID_STL_NAME,
                 lid,
@@ -40108,6 +40199,7 @@ def build_hockeymom_cam_case():
                 [
                     base,
                     lid,
+                    *([battery_bracket] if battery_bracket is not None else []),
                     *(
                         list(lid_fan_pod.values())
                         if lid_fan_pod is not None

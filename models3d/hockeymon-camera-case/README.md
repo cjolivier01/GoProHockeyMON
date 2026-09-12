@@ -17,53 +17,63 @@ make -C models3d check-hockeymon-battery-slot
 
 ![Empty internal slot and camera chamber](docs/images/rear_battery_empty.png)
 
-The **26.3 × 70 × 138 mm** battery goes **inside the case**. Lay it flat:
-70 mm along X (front to back), 138 mm along Y (across the back), and
-26.3 mm vertically. Its USB-A/USB-C face points toward **+Y**, into a
-**40 mm internal clearance zone** for plugs and cable bends. The combined
-pack and USB space is centered across the rear bay. Connector positions
-are not modeled; the entire 70 × 26.3 mm face is reserved.
+The **26.3 × 70 × 138 mm** battery goes **inside the case**, upright:
+26.3 mm along X (front to back), 138 mm along Y (across the back), and
+70 mm vertically. Its USB-A/USB-C face points toward **+Y**, into a
+**40 mm internal clearance zone** for plugs and cable bends. The entire
+26.3 × 70 mm connector face is reserved without assuming port positions.
 
-The base and main lid extend rearward together. The default base is about
-**294 × 231 × 68 mm**; the main lid closes at the existing 72.653 mm body
-height. Camera positions and the worm-shaft exit stay unchanged. Rear lid
-screws move behind the battery so they support the enlarged lid and remain
-accessible. This revision needs the matching enlarged base and lid; check
-the solved footprint against your printer's build area before slicing.
+The base and matching main lid extend rearward, with a taller roof to keep
+the footprint within a **250 × 250 mm print bed**. The default base measures
+**249.25 × 231.13 × 90 mm**. Main body height is 94.653 mm; the external fan
+and grille sit above it. Camera positions and the worm-shaft exit remain
+unchanged. Rear lid screws move behind the battery and stay accessible.
+Use the matching base and lid from this revision. The largest part has only
+0.75 mm total spare width on a 250 mm bed, so slice it without an outward
+brim or skirt. Each part exports separately in its intended print orientation;
+the generator rejects any export wider or deeper than 250 mm.
 
-The internal slot has 0.6 mm clearance per side: **71.2 mm clear width** and
-**139.2 mm length** to its open USB end. The battery rests at Z=5.7 mm and
-its top is Z=32 mm, below the closed lid. The cradle walls are 20 mm high
-and 3.2 mm thick. The ordinary case floor supports the cradle.
+The U-shaped cradle has **0.6 mm clearance per side**, giving a **27.5 mm
+clear width** and **139.2 mm length** to the open USB end. Its 3.2 mm walls
+rise to Z=60 mm. The pack rests on the solid seat at Z=5.7 mm, with its top
+at Z=75.7 mm, below the lid and clear of the fan opening.
 
-Remove the main lid and its attached fan assembly to load the battery.
-Use **two 15 mm hook-and-loop straps**, approximately 250 mm long and no
-more than 2 mm thick. Thread them through the 16 × 2.5 mm floor tunnels,
-up the outside of the cradle walls and over the pack; tighten both straps.
-Both straps and the USB plugs remain inside the closed case. To remove the
-battery, remove the lid, unplug it, release both straps and lift it out.
+A single **47.5 × 16 × 4 mm screw-on bar** holds the battery down. Print
+`hockeymom_cam_case_battery_bracket.stl` flat and use **two M3 × 10 mm
+socket-head screws**. For the default rigid base, install **two M3 × 5 mm
+heat-set inserts** in the cradle posts (4.0 mm pockets with 4.8 mm lead-ins).
+The posts have blind tip clearance below the inserts. TPU-base mode uses
+pointed M3 screws and pilot holes under the existing material policy.
 
-The battery, cradle, straps and USB plug envelope sit at least **8 mm aft
-of the protected top-fan/camera flow region**. The fan opening's full vertical
-projection stays clear for intake or exhaust. A validated 6 mm cable exit
-corridor leads from the USB space into the camera chamber. Route the camera
-leads low along the inside of the case, with slack for camera adjustment;
-keep loose loops away from the fan and camera openings. The corridor checks
-access from the battery bay; the exact purchased leads and their final route
-to each camera still need to be fitted during assembly.
+Remove the main lid and attached fan assembly, lower the battery into the
+cradle, and place the bar across its middle. Snug both screws: the post tops
+sit 0.25 mm below the battery top so the bar can clamp the pack. Avoid
+forcing the bar down or overtightening against the battery housing. To remove
+the battery, remove the lid, unplug the leads, undo the two screws, lift off
+the bar, and lift out the pack. The bar and screw heads stay inside the case.
 
-Print the base upright on its bottom. The strap tunnel roofs are short
-bridges. Straps and the battery are purchased parts, shown as references in
-the preview. Check physical fit and strap security before field use.
+The battery, cradle, bar and USB plug envelope sit at least **8 mm aft of
+the protected top-fan/camera flow region**. The fan opening's full vertical
+projection remains clear for intake or exhaust. A validated 6 mm cable exit
+corridor connects the USB space to the camera chamber. Route leads along
+the inside of the case with slack for camera adjustment; keep loose loops
+away from fan and camera openings. The corridor validates the bay exit;
+the exact purchased leads and their route to each camera need fitting during
+assembly. Geometry checks establish clearance, not measured cooling performance.
 
-`REAR_BATTERY_*` settings control battery dimensions, fit, plug space,
-cooling separation and straps. The generator derives the enlarged rear
-footprint and rear screw targets, protects the original camera/mechanism
-perimeter, and checks the resolved height taper. It rejects a configuration
-that cannot retain those clearances. Set `REAR_BATTERY_SLOT_ENABLED = False`
-to restore the original footprint or use rear-wall fans.
+Print the base upright on its bottom and the bar flat. The battery and screws
+in the previews are reference objects. Check physical pack fit and retention
+before field use.
 
-Validation checks the actual closed-case containment of the battery, plugs,
-straps and cable exit, seated clearance with the lid on, loading with the lid
-and attached fan removed, post/mount keepouts and manifold geometry. The
-dimension PDF includes the internal-bay drawing and all configuration values.
+`REAR_BATTERY_*` settings control pack dimensions, fit, USB space, cooling
+separation and bracket hardware. The generator solves the rear footprint and
+screw targets, protects the camera/mechanism perimeter, and checks rear height
+taper. `PRINT_BED_SIZE_MM` defaults to 250. Set `REAR_BATTERY_SLOT_ENABLED =
+False` to restore the original plan footprint or use rear-wall fans; height
+settings remain independently configurable.
+
+Validation checks closed-case containment, battery and bracket removal,
+screwdriver access, screw-hole alignment and depth, USB/cable clearance,
+post/mount keepouts and manifold geometry. Regressions exercise one 120 mm fan,
+a 60 mm fan pair, rigid/TPU receivers and oversized-export rejection. The
+dimension PDF includes the upright bay and all configuration values.
