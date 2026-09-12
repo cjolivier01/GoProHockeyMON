@@ -247,6 +247,12 @@ class DocumentSection:
 
 FEATURE_RULES = (
     FeatureRule(
+        "rear_battery",
+        "External rear battery slot",
+        "Battery fit, full-face USB clearance, external air gap, roots and retaining strap tunnels.",
+        (r"^REAR_BATTERY_",),
+    ),
+    FeatureRule(
         "mission1",
         "GoPro MISSION 1 reference geometry",
         "Camera body, reference envelope, lens, controls, ports and microphone datums.",
@@ -553,7 +559,7 @@ if UNCLASSIFIED_NONE_CONFIG:
 CATALOG_CARDS_PER_PAGE = 3
 INDEX_ENTRIES_PER_PAGE = 16
 TOC_ROWS_PER_PAGE = 15
-CURATED_DRAWING_PAGE_COUNT = 13
+CURATED_DRAWING_PAGE_COUNT = 14
 QUICK_REFERENCE_PAGE_COUNT = 6
 
 _feature_entries = {
@@ -2018,7 +2024,23 @@ def _catalog_scene_manufacturing(ax, entry):
     )
 
 
+def _catalog_scene_rear_battery(ax, entry):
+    ax.add_patch(Rectangle((35, 13), 135, 26, facecolor="#e1e5e8", edgecolor=INK))
+    ax.plot([32, 32, 174], [40, 10, 10], color=BLUE, lw=3)
+    for x in (65, 138):
+        ax.add_patch(Rectangle((x, 11), 7, 30, fill=False, edgecolor=PURPLE, lw=1.2))
+    ax.add_patch(Rectangle((174, 14), 35, 23, facecolor="#e5f2e9", edgecolor=GREEN, ls="--"))
+    ax.text(192, 26, "USB", ha="center", fontsize=6, color=GREEN)
+    preferred = "v" if any(token in entry.name for token in ("HEIGHT", "FLOOR")) else None
+    return _catalog_scene(
+        "REAR BATTERY / OPEN USB END / STRAP TUNNELS (NTS)",
+        h=(35, 170, 6, 13), v=(13, 39, 22, 35),
+        gap=((174, 26), (209, 26)), preferred=preferred,
+    )
+
+
 CATALOG_SCENE_DRAWERS = {
+    "rear_battery": _catalog_scene_rear_battery,
     "mission1": _catalog_scene_mission1,
     "rear_taper": _catalog_scene_rear_taper,
     "eye": _catalog_scene_eye,
@@ -2436,6 +2458,56 @@ def page_body(pdf):
               "The solver may clamp requests and reports requested/resolved values.",
               "Adjust REAR_HEIGHT_REDUCTION for roof taper.",
               "Screw islands remain locally horizontal."], GREEN)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page_rear_battery(pdf):
+    fig = new_sheet(None, "EXTERNAL REAR BATTERY SLOT",
+                    "26.3 x 70 x 138 mm pack; USB face toward +Y; original cooling chamber retained")
+    length = C["REAR_BATTERY_LENGTH"]
+    height = C["REAR_BATTERY_HEIGHT"]
+    thickness = C["REAR_BATTERY_THICKNESS"]
+    fit = C["REAR_BATTERY_FIT_CLEARANCE"]
+    wall = C["REAR_BATTERY_WALL_THICKNESS"]
+    seat = C["REAR_BATTERY_FLOOR_THICKNESS"] + C["REAR_BATTERY_STRAP_SLOT_HEIGHT"]
+    usb = C["REAR_BATTERY_USB_CLEARANCE"]
+    ax = panel(fig, [0.065, 0.43, 0.56, 0.43], "PACK / CONNECTOR FACE / STRAPS", "REAR (+X)")
+    ax.add_patch(Rectangle((0, seat), length, height, facecolor="#e1e5e8", edgecolor=INK))
+    ax.plot([-fit-wall, -fit-wall, length+fit], [C["REAR_BATTERY_WALL_HEIGHT"], 0, 0], color=BLUE, lw=4)
+    for sign in (-1, 1):
+        y = length/2 + sign*C["REAR_BATTERY_STRAP_SPACING"]/2
+        ax.add_patch(Rectangle((y-7.5, seat), 15, height+2, fill=False, edgecolor=PURPLE, lw=1.3))
+    ax.add_patch(Rectangle((length, seat), usb, height, facecolor="#e5f2e9", edgecolor=GREEN, ls="--"))
+    ax.text(length+usb/2, seat+height/2, "USB plugs\n+ cable bend", ha="center", va="center", fontsize=7, color=GREEN)
+    dim_h(ax, 0, length, -12, 0, "REAR_BATTERY_LENGTH")
+    dim_h(ax, length, length+usb, height+seat+14, height+seat, "REAR_BATTERY_USB_CLEARANCE", GREEN)
+    dim_v(ax, seat, seat+height, -18, 0, "REAR_BATTERY_HEIGHT")
+    setup(ax, -28, length+usb+12, -23, seat+height+24)
+    ax2 = panel(fig, [0.65, 0.43, 0.285, 0.43], "OPEN TOP / EXTERNAL GAP", "END (+Y)")
+    gap = C["REAR_BATTERY_AIR_GAP"]
+    ax2.add_patch(Rectangle((-gap-wall-12, 0), 12, C["BASE_HEIGHT"], facecolor="#e6f1f7", edgecolor=BLUE))
+    ax2.add_patch(Rectangle((fit, seat), thickness, height, facecolor="#e1e5e8", edgecolor=INK))
+    ax2.plot([-wall/2, -wall/2, thickness+2*fit+wall/2, thickness+2*fit+wall/2],
+             [C["REAR_BATTERY_WALL_HEIGHT"], 0, 0, C["REAR_BATTERY_WALL_HEIGHT"]], color=BLUE, lw=4)
+    dim_h(ax2, fit, fit+thickness, height+seat+12, height+seat, "REAR_BATTERY_THICKNESS")
+    ax2.annotate("Lift out", (fit+thickness/2, height+seat+7), (fit+thickness/2, height+seat-12),
+                 ha="center", fontsize=7, arrowprops=dict(arrowstyle="->", color=GREEN), color=GREEN)
+    setup(ax2, -gap-wall-23, thickness+2*fit+15, -12, height+seat+24)
+    note_box(fig, [0.065, 0.16, 0.42, 0.20], "FIT AND RETENTION", [
+        f"Slot width: {thickness+2*fit:.1f} mm; length: {length+2*fit:.1f} mm (open +Y end).",
+        f"Battery seat: Z={seat:.1f} mm; battery top: Z={seat+height:.1f} mm.",
+        f"Two 15 mm hook-and-loop straps through {C['REAR_BATTERY_STRAP_SLOT_WIDTH']:.1f} x {C['REAR_BATTERY_STRAP_SLOT_HEIGHT']:.1f} mm tunnels.",
+        "Thread below the battery, up outside the slot walls and over the pack; tighten both straps.",
+        "The full USB end remains open. Unplug and release both straps before lifting out.",
+    ], PURPLE)
+    note_box(fig, [0.515, 0.16, 0.42, 0.20], "AIRFLOW AND ASSEMBLY", [
+        f"Holder starts {gap:.1f} mm behind the assembled case/lid/fan envelope.",
+        "Only external roots join the case wall; battery and plugs stay outside the cooling chamber.",
+        "Route power cables outside the case to the existing bottom keystone USB connections.",
+        "Original main shell dimensions and lid fit remain unchanged. Base gains a rear projection.",
+        "Use lid fans; disable REAR_BATTERY_SLOT_ENABLED for rear-wall fans. Views are NTS.",
+    ], GREEN)
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -3582,7 +3654,7 @@ def main():
             page_cover(pdf)
             page_contents(pdf)
             for build_page in (
-                page_body,page_optics,page_vertical,page_lid,page_retention,
+                page_body,page_rear_battery,page_optics,page_vertical,page_lid,page_retention,
                 page_worm,page_idler_gears,page_idler_assembly,page_carrier_guard,
                 page_fans,page_acoustic,page_nut,page_keystone,page_index,
             ):
