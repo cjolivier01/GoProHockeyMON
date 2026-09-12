@@ -78,6 +78,17 @@ def check_mesh(mode, material="RIGID"):
     assert abs(layout["usb_bounds"][1][1]-layout["usb_bounds"][1][0]-40) < 1e-8
     assert bz[1] < model["BASE_HEIGHT"]
     assert tuple(round(high-low,3) for low,high in record["bounds"]) == (47.5,16.0,4.0)
+    # Stops survive the final union and block translation toward either end.
+    for shift in (-0.9,0.9):
+        sliding = box("Battery_Sliding_End_Check",(bx,(by[0]+shift,by[1]+shift),bz))
+        assert model["intersection_metrics"](base,sliding,"battery_end_stop")[2] > 0.1
+        bpy.data.objects.remove(sliding,do_unlink=True)
+    for sign in (-1,1):
+        x = bx[0]+1.5 if sign < 0 else bx[1]-1.5
+        witness = box("Battery_End_Stop_Solid",((x-0.25,x+0.25),
+            (by[1]+1.0,by[1]+2.0),(bz[0]+1,bz[0]+2)))
+        assert model["intersection_metrics"](base,witness,"battery_stop_survival")[2] > 0.4
+        bpy.data.objects.remove(witness,do_unlink=True)
     # A fan cover fastened to the lid leaves with it during battery loading.
     lid_attachment = box("Lid_Attachment",(bx,by,(model["BODY_HEIGHT"]+1,model["BODY_HEIGHT"]+8)))
     model["validate_rear_battery_slot"](base,lid,layout,footprint,(lid_attachment,),lid_parts=(lid_attachment,),bracket=bracket)
