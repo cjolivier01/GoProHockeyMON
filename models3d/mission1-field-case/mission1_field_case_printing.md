@@ -649,49 +649,54 @@ committing the full shell.
 
 ## Separate pivoting handle
 
-`mission1_field_case_pivoting_handle_bar.stl` is the only separate handle
-print. It is a U-shaped bar with five reference-style grip holes. Its two
-fixed mounting lugs are generated directly into the case base and sit inside
-relieved forks in the moving handle arms, so the base itself needs no mounting
-screws and neither lug intrudes into the finger opening. Like the latch ears,
-the lugs rise on printable lower webs and use curved upper returns rather than
-sharp projecting corners.
+`mission1_field_case_pivoting_handle_bar.stl` is a replacement handle for the
+existing case lugs. The case and lid meshes, 3.9 mm lug bores, pivot positions,
+and latch protectors are unchanged. Reprint only the handle to upgrade.
 
-Install the handle with one M3 x 12 ISO 4762 / DIN 912 Allen socket-head cap
-screw and one standard M3 hex nut per side. Each screw enters from the
-case-outside face of its handle fork, passes through the handle's continuous
-3.5 mm easy-running path and the existing base lug, and seats in the captive
-nut on the case-center face. Both integrated mounting lugs retain their
-existing 3.9 mm bores, which already provide free travel for an M3 screw.
+The grip is now solid, 16 mm deep and 18 mm thick, replacing the perforated
+11 × 12.2 mm section. The drop increases from 32.5 to 40 mm. Continuous fork
+cheeks extend past the fixed-lug sweep cavity and taper into the grip; this
+removes the former 2.1 mm webs between the enlarged pivot bosses and grip.
+The thickening projects away from the case when folded, retaining the 0.5 mm
+case-face gap. The raised grip has 30.6 mm finger clearance and a 75 mm opening.
+The full handle envelope is 99.2 × 46.1 × 18 mm; its grip is 95 mm wide.
 
-Each 5.5 mm-maximum-diameter by 3.0 mm-tall socket head is fully recessed in a
-6.0 mm-diameter by 3.2 mm-deep cylindrical counterbore with a printable
-45-degree roof; use a 2.5 mm Allen wrench. The matching standard nut is fully
-recessed in a 5.8 mm-across-flats by 2.7 mm-deep support-free hex pocket. The
-locally thickened fork ends retain a complete 1.0 mm floor between each recess
-and the fixed-lug sweep cavity. An M3 x 12 screw fully engages the 2.4 mm nut,
-reaches 4.2 mm past the nut-pocket floor, and projects 1.5 mm beyond the
-inboard handle face.
+Install with **two M3 × 14 ISO 4762 / DIN 912 socket-head screws and two standard
+M3 hex nuts**. Put the nuts in the **outboard** hex pockets, toward the latch
+protectors. Insert the screws from the **inboard** faces, toward the case
+center. Fold the handle down and reach the 2.5 mm Allen sockets through the
+center opening, with the wrench's long leg pointing forward, away from the
+case. This avoids the latch protectors. Do not reuse the former M3 × 12 screws;
+they do not fully engage the nuts through the stronger fork cheeks.
 
-The handle pivot is centered horizontally and vertically on the assembled case
-front: X = 0 and Z = 86.9 mm. The 95 mm-wide folded bar occupies only the
-reserved center zone. The two exact latches retain their compatible X = ±82 mm
-centerlines; their
-moving levers remain 22.16 mm from the handle's full folded and swinging X
-envelope. The 6 mm integrated guards retain 15.86 mm from that envelope, and
-the installed latch M3 screw tips retain 15.74 mm. The two old
-front-center impact ribs are deliberately omitted so this entire access path
-stays open. When raised, the smaller 32.5 mm-drop handle leaves 28.1
-mm between the case face and the inside of the grip across the unobstructed 75
-mm opening. Around each fixed lug, the socket-head fork cheek is 4.2 mm thick
-and the captive-nut cheek is 3.7 mm thick. The support-free outer pivot profile
-retains at least 1.31 mm around the large counterbore's lower chord and 1.86 mm
-above its printable roof; the central M3 shaft path retains 2.56 mm at the
-lower chord.
-The generator rejects less than 25 mm of raised finger clearance, less than
-75 mm of unobstructed grip width, less than 22 mm of moving-latch finger-access
-clearance, less than 15.5 mm between the handle and integrated latch guards, or
-less than 15 mm between the handle and installed M3 screw tips.
+The inboard head cheeks are 6.2 mm thick with 6.0 mm-diameter, 3.2 mm-deep
+counterbores and **3.0 mm bearing floors**. Outboard nut cheeks are 4.2 mm thick
+with 5.8 mm-across-flats, 2.7 mm-deep pockets and **1.5 mm floors**. Both recesses
+have support-free roofs. M3 × 14 screws fully engage the 2.4 mm nuts and project
+1.0 mm beyond the outboard faces. Tighten only enough to retain the handle while
+letting it pivot freely; overtightening can clamp the fork against the lug.
+
+The maximum X envelope is unchanged: moving latches retain 22.16 mm clearance,
+protectors 15.86 mm, and latch screw tips 15.74 mm. The generator checks the
+full 0–90° handle sweep at 2° intervals, the hardware seats, continuous solid
+load paths, and the installed wrench path. The latter includes a conservative
+25 × 70 mm L-key envelope with a 4 mm bend radius, continuous 25 mm insertion
+travel and a 60° turning sector, with the lid and latches installed.
+These checks verify geometry; they do not establish a rated carrying load.
+
+Run the focused regression from the repository root:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_field_case_handle.py
+```
+
+Render the comparison and installed tool-access views:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/render_mission1_handle_previews.py
+```
 
 ## Hinge clearances
 
@@ -867,7 +872,7 @@ and can be regenerated without editing an STL.
    stops retain the bar axially.
 4. Install each latch with one M3 x 30 ISO 4762 / DIN 912 Allen socket-head cap
    screw, one standard M3 nut, and a moving-link rod cut to
-   `LATCH_LINK_ROD_LENGTH`. Install the separate handle bar with two M3 x 12
+   `LATCH_LINK_ROD_LENGTH`. Install the separate handle bar with two M3 x 14
    Allen socket-head screws and two standard M3 nuts, one set per side.
 5. Load the two opposed cameras with their soft lens hoods in the flared ends,
    then load four batteries terminal-down. Remove the cameras and batteries,
