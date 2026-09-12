@@ -154,6 +154,7 @@ BAFFLE_CARTRIDGE_MATERIAL_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast
 FAN_CASE_REAR_FAN_ADAPTER_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('$(FAN_CASE_SOURCE)', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'REAR_FAN_ADAPTER_ENABLED' for target in node.targets)))")
 HOCKEYMOM_FAN_MOUNT_MODE := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('$(HOCKEYMON_CAMERA_CASE_SOURCE)', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'FAN_MOUNT_MODE' for target in node.targets)))")
 HOCKEYMOM_LID_FAN_COVER_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('$(HOCKEYMON_CAMERA_CASE_SOURCE)', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'LID_FAN_COVER_ENABLED' for target in node.targets)))")
+HOCKEYMOM_REAR_BATTERY_SLOT_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('$(HOCKEYMON_CAMERA_CASE_SOURCE)', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'REAR_BATTERY_SLOT_ENABLED' for target in node.targets)))")
 HOCKEYMOM_FAN_ACOUSTIC_ATTENUATOR_ENABLED := $(shell $(PDF_PYTHON) -c "import ast; tree=ast.parse(open('$(HOCKEYMON_CAMERA_CASE_SOURCE)', encoding='utf-8').read()); print(next(ast.literal_eval(node.value) for node in tree.body if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == 'FAN_ACOUSTIC_ATTENUATOR_ENABLED' for target in node.targets)))")
 FAN_CASE_CORE_STL_NAMES := \
 	gopro_fan_case_parametric.stl \
@@ -218,8 +219,13 @@ ifeq ($(HOCKEYMOM_FAN_ACOUSTIC_ATTENUATOR_ENABLED),True)
 HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS += $(HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS)
 endif
 endif
+HOCKEYMOM_CAM_CASE_BATTERY_BRACKET_STL := $(HOCKEYMON_CAMERA_CASE_DIR)/hockeymom_cam_case_battery_bracket.stl
+HOCKEYMOM_CAM_CASE_ACTIVE_BATTERY_STLS :=
+ifeq ($(HOCKEYMOM_REAR_BATTERY_SLOT_ENABLED),True)
+HOCKEYMOM_CAM_CASE_ACTIVE_BATTERY_STLS += $(HOCKEYMOM_CAM_CASE_BATTERY_BRACKET_STL)
+endif
 HOCKEYMOM_CAM_CASE_STLS := $(HOCKEYMOM_CAM_CASE_CORE_STLS) \
-	$(HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS)
+	$(HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS) $(HOCKEYMOM_CAM_CASE_ACTIVE_BATTERY_STLS)
 
 # These are emitted only when their corresponding reference/service export
 # switches are enabled.  Keep them out of the grouped build prerequisites,
@@ -238,6 +244,7 @@ HOCKEYMOM_CAM_CASE_OPTIONAL_STL_NAMES := \
 	hockeymom_cam_case_keystone_test_coupon.stl
 HOCKEYMOM_CAM_CASE_OPTIONAL_STLS := $(addprefix $(HOCKEYMON_CAMERA_CASE_DIR)/,$(HOCKEYMOM_CAM_CASE_OPTIONAL_STL_NAMES))
 HOCKEYMOM_CAM_CASE_ALL_STLS := $(sort \
+	$(HOCKEYMOM_CAM_CASE_BATTERY_BRACKET_STL) \
 	$(HOCKEYMOM_CAM_CASE_CORE_STLS) \
 	$(HOCKEYMOM_CAM_CASE_ACOUSTIC_STLS) \
 	$(HOCKEYMOM_CAM_CASE_LID_FAN_STLS) \
@@ -287,7 +294,7 @@ STL_FILES := \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn horn-renderings mission1-dummy mission1-field-case mission1-field-case-plate-overview dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymon-camera-case hockeymom-cam-case \
-	hockeymom-keystone-test-coupon \
+	hockeymom-keystone-test-coupon check-hockeymon-battery-slot \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-mission1-field-case clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
 	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf
@@ -489,6 +496,10 @@ $(HOCKEYMOM_CAM_CASE_STLS) &: $(HOCKEYMON_CAMERA_CASE_SOURCE) \
 
 hockeymon-camera-case: $(HOCKEYMOM_CAM_CASE_STLS)
 hockeymom-cam-case: hockeymon-camera-case
+
+check-hockeymon-battery-slot:
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 \
+		--python $(HOCKEYMON_CAMERA_CASE_DIR)/check_rear_battery_slot.py
 
 $(HOCKEYMOM_CAM_CASE_KEYSTONE_TEST_COUPON_STL): $(HOCKEYMON_CAMERA_CASE_SOURCE) \
 	$(MISSION1_DUMMY_SOURCE) $(FAN_PRESET_SOURCE)
