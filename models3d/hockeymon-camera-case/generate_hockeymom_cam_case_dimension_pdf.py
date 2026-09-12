@@ -2483,11 +2483,11 @@ def page_rear_battery(pdf):
     ax.add_patch(Rectangle((-8,-post-8),length+usb+16,bar_length+16,facecolor="#e6f1f7",edgecolor=BLUE,lw=2))
     ax.add_patch(Rectangle((0,fit),length,thickness,facecolor="#e1e5e8",edgecolor=INK))
     ax.add_patch(Rectangle((length/2-bar_w/2,-post),bar_w,bar_length,facecolor="#ccd3dc",edgecolor=PURPLE))
-    for y in (fit,fit+thickness-C["REAR_BATTERY_END_STOP_WIDTH"]):
-        ax.add_patch(Rectangle((length+fit,y),C["REAR_BATTERY_END_STOP_THICKNESS"],C["REAR_BATTERY_END_STOP_WIDTH"],facecolor=BLUE,edgecolor=BLUE))
     for y in (-post/2,slot_w+post/2):
         ax.add_patch(Circle((length/2,y),C["REAR_BATTERY_BRACKET_SCREW_HOLE_DIAMETER"]/2,facecolor=WHITE,edgecolor=PURPLE))
     ax.add_patch(Rectangle((length,fit),usb,thickness,facecolor="#e5f2e9",edgecolor=GREEN,ls="--"))
+    for y in (fit,fit+thickness-C["REAR_BATTERY_END_STOP_WIDTH"]):
+        ax.add_patch(Rectangle((length+fit,y),C["REAR_BATTERY_END_STOP_THICKNESS"],C["REAR_BATTERY_END_STOP_WIDTH"],facecolor=BLUE,edgecolor=BLUE))
     ax.text(length+usb/2,slot_w/2,"USB plugs\n+ cable bend",ha="center",va="center",fontsize=7,color=GREEN)
     dim_h(ax,0,length,-post-20,-post-8,"REAR_BATTERY_LENGTH")
     dim_h(ax,length,length+usb,slot_w+post+18,slot_w+post+8,"REAR_BATTERY_USB_CLEARANCE",GREEN)
@@ -3273,15 +3273,13 @@ def page_fans(pdf):
     ax2.plot([27,34,34,29,20],[14,12,8,3,1],color=ORANGE,lw=2.0,solid_capstyle="round")
     for x in (-15,0,15):
         ax2.add_patch(FancyArrowPatch((x,15),(x,31),arrowstyle="-|>",mutation_scale=9,color=GREEN,lw=1.0))
-    leader(ax2,(0,21+dome_rise),(-8,31),"LID_FAN_COVER_DOME_RISE",PURPLE,"center")
-    leader(ax2,(-38,5),(-56,36),"thin shell / swept rear taper",PURPLE)
-    leader(ax2,(31,7),(59,30),"4 mm lead / 5.6 mm groove\nAIR_OPENING_OVERLAP / OUTSET",ORANGE,"right")
-    leader(ax2,(34,18),(60,15),"6 mm curved covered drop",ORANGE,"right")
-    leader(ax2,(-10,21),(-57,-2),"separate flat-bottomed grille",PURPLE)
+    leader(ax2,(0,21+dome_rise),(0,44),"LID_FAN_COVER_DOME_RISE",PURPLE,"center")
+    leader(ax2,(-38,5),(-54,35),"thin shell",PURPLE)
+    leader(ax2,(34,12),(58,31),"covered cable turn",ORANGE,"right")
+    leader(ax2,(-10,21),(-10,-3),"flat-bottomed grille",PURPLE,"center")
     if grille_lock_enabled:
-        leader(ax2,(-31.5,24),(-58,13),
-               "top-access M3 grille lock\ninto floor-rooted boss",ORANGE)
-    setup(ax2,-61,65,-5,41)
+        leader(ax2,(-31.5,24),(-58,28),"M3 grille lock",ORANGE)
+    setup(ax2,-61,65,-8,49)
 
     note_box(fig,[0.065,0.16,0.25,0.24],"SELECTABLE HARDWARE",
              ["Modes: rear_wall_pair, lid_single, or lid_pair.",
