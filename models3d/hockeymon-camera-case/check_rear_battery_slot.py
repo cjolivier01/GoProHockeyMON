@@ -1,16 +1,13 @@
-"""Exercise rear battery fit, airflow isolation and obstruction detection.
+"""Check an INTERNAL flat battery, closed-case containment and cooling clearance.
 
-Run: blender --background --factory-startup --python-exit-code 1 \
-    --python models3d/hockeymon-camera-case/check_rear_battery_slot.py
-
-Uses a small closed rectangular shell for fast regression checks. The normal
-camera-case build separately validates the complete assembled model.
+Run with Blender --background --factory-startup --python-exit-code 1 --python.
+The normal camera-case build also checks the complete assembled hardware.
 """
 
+from copy import deepcopy
 from pathlib import Path
 
 import bpy
-
 
 source = Path(__file__).with_name("hockeymom_cam_case_blender.py")
 model = {"__name__": "battery_regression", "__file__": str(source)}
@@ -33,67 +30,77 @@ def check_configuration():
     expect_error(ValueError, model["validate_rear_battery_config"], "rear-wall fans")
     model["REAR_BATTERY_SLOT_ENABLED"] = False
     model["validate_rear_battery_config"]()
-    assert model["add_rear_battery_slot"](None, (), ()) is None
+    original_footprint = ((-80,-115),(80,-115),(80,115),(-80,115))
+    assert model["extend_rear_battery_bay"](original_footprint,(),None) == (original_footprint,None)
     model["REAR_BATTERY_SLOT_ENABLED"] = True
     model["FAN_MOUNT_MODE"] = original
-    for name, value, message in (
-        ("REAR_BATTERY_FIT_CLEARANCE", -0.1, "finite and positive"),
-        ("REAR_BATTERY_USB_CLEARANCE", float("nan"), "finite and positive"),
-        ("REAR_BATTERY_ROOT_EMBED", 3.2, "inner wall"),
-        ("REAR_BATTERY_STRAP_SPACING", 30.0, "solid webs"),
+    for name,value,message in (
+        ("REAR_BATTERY_FIT_CLEARANCE",-0.1,"finite and positive"),
+        ("REAR_BATTERY_USB_CLEARANCE",float("nan"),"finite and positive"),
+        ("REAR_BATTERY_THICKNESS",65.0,"closed lid"),
+        ("REAR_BATTERY_FLOOR_THICKNESS",2.0,"case floor"),
+        ("REAR_BATTERY_STRAP_SPACING",130.0,"solid webs"),
     ):
         original = model[name]
         model[name] = value
-        expect_error(ValueError, model["validate_rear_battery_config"], message)
+        expect_error(ValueError,model["validate_rear_battery_config"],message)
         model[name] = original
 
 
-def check_mesh():
+def check_mesh(mode):
     model["clear_scene"]()
+    model["FAN_MOUNT_MODE"] = mode
+    if mode == "lid_pair":
+        model["LID_FAN_SIZE_MM"] = 60
     box = model["rear_battery_box"]
-    footprint = ((-80, -115), (80, -115), (80, 115), (-80, 115))
-    base = box("Fixture_Base", ((-80, 80), (-115, 115), (0, 68)))
-    model["boolean_difference"](base, [box(
-        "Fixture_Cavity", ((-76.8, 76.8), (-111.8, 111.8), (3.2, 69)),
-    )])
-    lid = box("Fixture_Lid", ((-80, 80), (-115, 115), (68, 72.653)))
-    layout = model["add_rear_battery_slot"](base, footprint, (base, lid))
+    old_footprint = ((-80,-115),(80,-115),(80,115),(-80,115))
+    footprint,layout = model["extend_rear_battery_bay"](old_footprint,(),None)
+    outer = tuple((z,model["scale_loop"](footprint,scale)) for z,scale in model["BODY_SECTIONS"])
+    inner = tuple((z,model["inset_footprint_loop"](
+        model["scale_loop"](footprint,model["body_scale_at_z"](z)),3.2,
+    )) for z in (3.2,6.0,12.0,68.0))
+    base = model["hollow_loft_solid"]("Fixture_Base",outer,inner)
+    lid = model["polygon_prism_z"]("Fixture_Lid",footprint,68,72.653)
+    model["add_rear_battery_slot"](base,layout,(lid,))
     model["triangulate_mesh"](base)
     model["validate_object"](base)
-    model["validate_rear_battery_slot"](base, layout, (lid,))
-    bx, by, bz = layout["pack_bounds"]
-    assert tuple(round(high - low, 3) for low, high in (bx, by, bz)) == (26.3, 138.0, 70.0)
-    assert bx[0] > 80 + 8
-    # Independent interior witness: the holder must add no material anywhere
-    # inside this fixture's original chamber, including below the strap seat.
-    witnesses = [
-        box("Unchanged_Chamber", ((-76.79, 76.79), (-111.79, 111.79), (3.21, 67.99))),
-        *(box("Strap_Threading_Path", (
-            (layout["x0"] - 4, layout["x1"] + 4), (y - 7.5, y + 7.5), (3.3, 5.6),
-        )) for y in (-40, 40)),
-    ]
-    for witness in witnesses:
-        assert model["intersection_metrics"](base, witness, "independent_witness")[2] < 0.0001
-        bpy.data.objects.remove(witness, do_unlink=True)
-    # A real obstruction in either the loading path or the full USB face must
-    # be rejected, even when the seated battery itself still fits.
-    for name, bounds, message in (
-        ("Blocked_USB", (bx, (by[1] + 10, by[1] + 15), bz), "usb_plugs intersects"),
-        ("Blocked_Loading", (bx, by, (bz[1] + 10, bz[1] + 15)), "top_loading intersects"),
+    validate = lambda obstacles=(): model["validate_rear_battery_slot"](base,lid,layout,footprint,obstacles)
+    validate()
+    bx,by,bz = layout["pack_bounds"]
+    assert tuple(round(high-low,3) for low,high in (bx,by,bz)) == (70.0,138.0,26.3)
+    assert abs(layout["usb_bounds"][1][1]-layout["usb_bounds"][1][0]-40) < 1e-8
+    assert bz[1] < 68.0
+    # A fan cover fastened to the lid leaves with it during battery loading.
+    lid_attachment = box("Lid_Attachment",(bx,by,(75.0,85.0)))
+    model["validate_rear_battery_slot"](base,lid,layout,footprint,(lid_attachment,),lid_parts=(lid_attachment,))
+    bpy.data.objects.remove(lid_attachment,do_unlink=True)
+    # Independent full fan-opening prism: no holder material may enter the
+    # vertical cooling column, even when a seated battery passes collision checks.
+    opening = model["lid_fan_reference_dimensions"]()["opening"]
+    for x,y in model["lid_fan_unit_centers"]():
+        witness = box("Fan_Column",((x-opening/2,x+opening/2),(y-opening/2,y+opening/2),(3.21,67.99)))
+        assert model["intersection_metrics"](base,witness,"fan_column")[2] < 0.0001
+        bpy.data.objects.remove(witness,do_unlink=True)
+    for name,bounds,message in (
+        ("Blocked_USB",(bx,(by[1]+10,by[1]+15),bz),"usb_plugs intersects"),
+        ("Blocked_Loading",(bx,by,(bz[1]+10,bz[1]+15)),"top_loading intersects"),
+        ("Blocked_Cable",layout["cable_bounds"],"intersects"),
     ):
-        obstruction = box(name, bounds)
-        expect_error(RuntimeError, lambda: model["validate_rear_battery_slot"](
-            base, layout, (lid, obstruction),
-        ), message)
-        bpy.data.objects.remove(obstruction, do_unlink=True)
-    # A rearward fan still pushes the slot beyond its frame without a cover.
-    original = model["LID_FAN_CENTER_X"]
-    model["LID_FAN_CENTER_X"] = 90
-    shifted = model["rear_battery_layout"](footprint, (lid,))
-    assert shifted["x0"] - model["REAR_BATTERY_WALL_THICKNESS"] >= 158
-    model["LID_FAN_CENTER_X"] = original
+        obstruction = box(name,bounds)
+        expect_error(RuntimeError,lambda: validate((obstruction,)),message)
+        bpy.data.objects.remove(obstruction,do_unlink=True)
+    outside = deepcopy(layout)
+    outside["pack_bounds"] = ((bx[0]+500,bx[1]+500),by,bz)
+    expect_error(RuntimeError,lambda: model["validate_rear_battery_slot"](base,lid,outside,footprint,()),"outside the closed case")
+    intrusion = deepcopy(layout)
+    intrusion["protected_x"] += 1.0
+    expect_error(RuntimeError,lambda: model["validate_rear_battery_slot"](base,lid,intrusion,footprint,()),"protected cooling region")
+    for target in layout["post_targets"]:
+        assert not model["circular_feature_intersects_rear_battery"](target,5.25)
+    assert model["circular_feature_intersects_rear_battery"]((sum(bx)/2,sum(by)/2),5.25)
 
 
 check_configuration()
-check_mesh()
-print("REAR_BATTERY_REGRESSION PASS configuration, manifold, fit, chamber, straps, USB, loading, fan")
+check_mesh("lid_single")
+check_mesh("lid_pair")
+print("REAR_BATTERY_REGRESSION PASS internal flat pack, closed lid, loading, USB, cable, cooling, posts, single/pair fans")

@@ -248,8 +248,8 @@ class DocumentSection:
 FEATURE_RULES = (
     FeatureRule(
         "rear_battery",
-        "External rear battery slot",
-        "Battery fit, full-face USB clearance, external air gap, roots and retaining strap tunnels.",
+        "Internal rear battery bay",
+        "Flat battery fit, enclosed USB clearance, cooling separation, rear bay and strap tunnels.",
         (r"^REAR_BATTERY_",),
     ),
     FeatureRule(
@@ -2033,7 +2033,7 @@ def _catalog_scene_rear_battery(ax, entry):
     ax.text(192, 26, "USB", ha="center", fontsize=6, color=GREEN)
     preferred = "v" if any(token in entry.name for token in ("HEIGHT", "FLOOR")) else None
     return _catalog_scene(
-        "REAR BATTERY / OPEN USB END / STRAP TUNNELS (NTS)",
+        "INTERNAL FLAT BATTERY / USB SPACE / STRAP TUNNELS (NTS)",
         h=(35, 170, 6, 13), v=(13, 39, 22, 35),
         gap=((174, 26), (209, 26)), preferred=preferred,
     )
@@ -2463,52 +2463,56 @@ def page_body(pdf):
 
 
 def page_rear_battery(pdf):
-    fig = new_sheet(None, "EXTERNAL REAR BATTERY SLOT",
-                    f"{C['REAR_BATTERY_THICKNESS']:g} x {C['REAR_BATTERY_HEIGHT']:g} x "
-                    f"{C['REAR_BATTERY_LENGTH']:g} mm pack; USB face toward +Y; original cooling chamber retained")
+    fig = new_sheet(None, "INTERNAL REAR BATTERY BAY",
+                    f"{C['REAR_BATTERY_THICKNESS']:g} x {C['REAR_BATTERY_WIDTH']:g} x "
+                    f"{C['REAR_BATTERY_LENGTH']:g} mm pack lies flat inside the enlarged base and lid")
     length = C["REAR_BATTERY_LENGTH"]
-    height = C["REAR_BATTERY_HEIGHT"]
+    width = C["REAR_BATTERY_WIDTH"]
     thickness = C["REAR_BATTERY_THICKNESS"]
     fit = C["REAR_BATTERY_FIT_CLEARANCE"]
     wall = C["REAR_BATTERY_WALL_THICKNESS"]
     seat = C["REAR_BATTERY_FLOOR_THICKNESS"] + C["REAR_BATTERY_STRAP_SLOT_HEIGHT"]
     usb = C["REAR_BATTERY_USB_CLEARANCE"]
-    ax = panel(fig, [0.065, 0.43, 0.56, 0.43], "PACK / CONNECTOR FACE / STRAPS", "REAR (+X)")
-    ax.add_patch(Rectangle((0, seat), length, height, facecolor="#e1e5e8", edgecolor=INK))
-    ax.plot([-fit-wall, -fit-wall, length+fit], [C["REAR_BATTERY_WALL_HEIGHT"], 0, 0], color=BLUE, lw=4)
-    for sign in (-1, 1):
+    ax = panel(fig, [0.065,0.43,0.56,0.43], "ENCLOSED PACK AND USB SPACE", "TOP (+Z)")
+    ax.add_patch(Rectangle((-8,-8),length+usb+16,width+16,facecolor="#e6f1f7",edgecolor=BLUE,lw=2))
+    ax.add_patch(Rectangle((0,0),length,width,facecolor="#e1e5e8",edgecolor=INK))
+    for sign in (-1,1):
         y = length/2 + sign*C["REAR_BATTERY_STRAP_SPACING"]/2
-        ax.add_patch(Rectangle((y-7.5, seat), 15, height+2, fill=False, edgecolor=PURPLE, lw=1.3))
-    ax.add_patch(Rectangle((length, seat), usb, height, facecolor="#e5f2e9", edgecolor=GREEN, ls="--"))
-    ax.text(length+usb/2, seat+height/2, "USB plugs\n+ cable bend", ha="center", va="center", fontsize=7, color=GREEN)
-    dim_h(ax, 0, length, -12, 0, "REAR_BATTERY_LENGTH")
-    dim_h(ax, length, length+usb, height+seat+14, height+seat, "REAR_BATTERY_USB_CLEARANCE", GREEN)
-    dim_v(ax, seat, seat+height, -18, 0, "REAR_BATTERY_HEIGHT")
-    setup(ax, -28, length+usb+12, -23, seat+height+34)
-    ax2 = panel(fig, [0.65, 0.43, 0.285, 0.43], "OPEN TOP / EXTERNAL GAP", "END (+Y)")
-    gap = C["REAR_BATTERY_AIR_GAP"]
-    ax2.add_patch(Rectangle((-gap-wall-12, 0), 12, C["BASE_HEIGHT"], facecolor="#e6f1f7", edgecolor=BLUE))
-    ax2.add_patch(Rectangle((fit, seat), thickness, height, facecolor="#e1e5e8", edgecolor=INK))
-    ax2.plot([-wall/2, -wall/2, thickness+2*fit+wall/2, thickness+2*fit+wall/2],
-             [C["REAR_BATTERY_WALL_HEIGHT"], 0, 0, C["REAR_BATTERY_WALL_HEIGHT"]], color=BLUE, lw=4)
-    dim_h(ax2, fit, fit+thickness, height+seat+12, height+seat, "REAR_BATTERY_THICKNESS")
-    ax2.annotate("Lift out", (fit+thickness/2, height+seat+7), (fit+thickness/2, height+seat-12),
-                 ha="center", fontsize=7, arrowprops=dict(arrowstyle="->", color=GREEN), color=GREEN)
-    setup(ax2, -gap-wall-23, thickness+2*fit+15, -12, height+seat+24)
-    note_box(fig, [0.065, 0.16, 0.42, 0.20], "FIT AND RETENTION", [
-        f"Slot width: {thickness+2*fit:.1f} mm; length: {length+2*fit:.1f} mm (open +Y end).",
-        f"Battery seat: Z={seat:.1f} mm; battery top: Z={seat+height:.1f} mm.",
-        f"Two 15 mm hook-and-loop straps through {C['REAR_BATTERY_STRAP_SLOT_WIDTH']:.1f} x {C['REAR_BATTERY_STRAP_SLOT_HEIGHT']:.1f} mm tunnels.",
-        "Thread below the battery, up outside the slot walls and over the pack; tighten both straps.",
-        "The full USB end remains open. Unplug and release both straps before lifting out.",
-    ], PURPLE)
-    note_box(fig, [0.515, 0.16, 0.42, 0.20], "AIRFLOW AND ASSEMBLY", [
-        f"Holder starts {gap:.1f} mm behind the assembled case/lid/fan envelope.",
-        "Only external roots join the case wall; battery and plugs stay outside the cooling chamber.",
-        "Route power cables outside the case to the existing bottom keystone USB connections.",
-        "Original main shell dimensions and lid fit remain unchanged. Base gains a rear projection.",
-        "Use lid fans; disable REAR_BATTERY_SLOT_ENABLED for rear-wall fans. Views are NTS.",
-    ], GREEN)
+        ax.add_patch(Rectangle((y-7.5,-2),15,width+4,fill=False,edgecolor=PURPLE,lw=1.3))
+    ax.add_patch(Rectangle((length,0),usb,width,facecolor="#e5f2e9",edgecolor=GREEN,ls="--"))
+    ax.text(length+usb/2,width/2,"USB plugs\n+ cable bend\nINSIDE CASE",ha="center",va="center",fontsize=7,color=GREEN)
+    dim_h(ax,0,length,-20,-8,"REAR_BATTERY_LENGTH")
+    dim_h(ax,length,length+usb,width+18,width+8,"REAR_BATTERY_USB_CLEARANCE",GREEN)
+    dim_v(ax,0,width,-21,-8,"REAR_BATTERY_WIDTH")
+    setup(ax,-34,length+usb+18,-30,width+42)
+    ax2 = panel(fig,[0.65,0.43,0.285,0.43],"BATTERY BELOW CLOSED LID","END (+Y)")
+    full_width = width+2*fit
+    case_left = -wall-C["REAR_BATTERY_STRAP_ACCESS"]-C["BODY_WALL_THICKNESS"]
+    case_right = full_width-case_left
+    ax2.add_patch(Rectangle((case_left,0),case_right-case_left,C["BODY_HEIGHT"],facecolor="#e6f1f7",edgecolor=BLUE,lw=1.5))
+    ax2.add_patch(Rectangle((case_left+C["BODY_WALL_THICKNESS"],C["BOTTOM_THICKNESS"]),
+                            case_right-case_left-2*C["BODY_WALL_THICKNESS"],C["BASE_HEIGHT"]-C["BOTTOM_THICKNESS"],
+                            facecolor=WHITE,edgecolor=BLUE))
+    ax2.add_patch(Rectangle((fit,seat),width,thickness,facecolor="#e1e5e8",edgecolor=INK))
+    ax2.plot([-wall/2,-wall/2,full_width+wall/2,full_width+wall/2],
+             [C["REAR_BATTERY_WALL_HEIGHT"],0,0,C["REAR_BATTERY_WALL_HEIGHT"]],color=BLUE,lw=4)
+    dim_v(ax2,seat,seat+thickness,case_right+10,full_width,"REAR_BATTERY_THICKNESS")
+    ax2.text(full_width/2,52,"Lid off to load\nStraps below lid",ha="center",va="center",fontsize=7,color=GREEN)
+    setup(ax2,case_left-8,case_right+22,-10,C["BODY_HEIGHT"]+12)
+    note_box(fig,[0.065,0.16,0.42,0.20],"INTERNAL FIT AND RETENTION",[
+        f"Pack orientation X/Y/Z: {width:g} x {length:g} x {thickness:g} mm.",
+        f"Slot clear width: {width+2*fit:.1f} mm; length to USB end: {length+2*fit:.1f} mm.",
+        f"Battery seat Z={seat:.1f} mm; pack top Z={seat+thickness:.1f} mm, under the closed lid.",
+        f"Two 15 mm straps pass through {C['REAR_BATTERY_STRAP_SLOT_WIDTH']:g} x {C['REAR_BATTERY_STRAP_SLOT_HEIGHT']:g} mm tunnels and over the pack.",
+        "Remove the main lid, unplug and release the straps before lifting out the battery.",
+    ],PURPLE)
+    note_box(fig,[0.515,0.16,0.42,0.20],"COOLING AND LARGER ENCLOSURE",[
+        f"Battery, holder, straps and USB zone stay at least {C['REAR_BATTERY_AIR_GAP']:g} mm aft of the fan/camera flow region.",
+        "The base and main lid both extend rearward. Rear lid screws move behind the battery.",
+        "Camera placement, worm-shaft exit and case height stay unchanged in the default configuration.",
+        f"A {C['REAR_BATTERY_CABLE_DIAMETER']:g} mm cable exit corridor connects the USB zone to the camera chamber; route camera leads low inside the case.",
+        "The enlarged rear bay overrides width taper there. Views are NTS; build logs report the solved footprint.",
+    ],GREEN)
     pdf.savefig(fig)
     plt.close(fig)
 
