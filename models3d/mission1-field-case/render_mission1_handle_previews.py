@@ -79,7 +79,8 @@ def main():
     render('mission1_handle_comparison.png', (65, -150, 220), (0, -17, 5), 244,
            [('BEFORE / perforated 11 x 12.2 mm grip', -114,  60, 3.2),
             ('NEW / solid 16 x 18 mm grip', 9, 60, 3.2),
-            ('Continuous fork cheeks; existing base and lid fit', -107, -53, 3.3)])
+            ('Continuous fork cheeks; existing base and lid fit', -107, -50, 3.1),
+            ('75 mm at grip / 66.8 mm between reinforced forks', -107, -58, 3.1)])
     old.hide_render = True
     handle.location = (0, case.HANDLE_PIVOT_Y + case.HANDLE_LOCAL_PIVOT_Z, case.HANDLE_PIVOT_Z)
     handle.rotation_euler = (math.pi / 2, 0, 0)

@@ -658,7 +658,10 @@ The grip is now solid, 16 mm deep and 18 mm thick, replacing the perforated
 cheeks extend past the fixed-lug sweep cavity and taper into the grip; this
 removes the former 2.1 mm webs between the enlarged pivot bosses and grip.
 The thickening projects away from the case when folded, retaining the 0.5 mm
-case-face gap. The raised grip has 30.6 mm finger clearance and a 75 mm opening.
+case-face gap. The raised grip has 30.6 mm clearance from the case face. The opening spans
+75 mm at the grip and tapers to **66.8 mm between the reinforced forks**
+(previously 71.8 mm at the forks). The thicker forks trade some hand room for
+strength while retaining the existing mounting lugs.
 The full handle envelope is 99.2 × 46.1 × 18 mm; its grip is 95 mm wide.
 
 Install with **two M3 × 14 ISO 4762 / DIN 912 socket-head screws and two standard

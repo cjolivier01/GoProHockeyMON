@@ -1944,7 +1944,7 @@ HANDLE_ALLEN_SHORT_LEG = 25.0
 HANDLE_ALLEN_LONG_LEG = 70.0
 HANDLE_ALLEN_BEND_RADIUS = 4.0
 HANDLE_ALLEN_TURN_DEGREES = 60.0
-HANDLE_MIN_USABLE_GRIP_WIDTH = 75.0
+HANDLE_MIN_GRIP_SPAN = 75.0
 HANDLE_RAISED_FINGER_CLEARANCE = 25.0
 HANDLE_SWEEP_STEP_DEGREES = 2.0
 HANDLE_SWEEP_RESIDUAL_VOLUME_LIMIT = 1e-5
@@ -6008,8 +6008,8 @@ def validate_configuration() -> None:
         raise ValueError("Handle M3 screw does not fully engage its captive nut")
     if not 0.0 <= handle_m3_tip_protrusion <= HANDLE_M3_MAX_TIP_PROTRUSION:
         raise ValueError("Handle M3 screw protrusion is unsafe")
-    if HANDLE_BAR_INNER_WIDTH < HANDLE_MIN_USABLE_GRIP_WIDTH:
-        raise ValueError("Handle needs its specified unobstructed adult-hand width")
+    if HANDLE_BAR_INNER_WIDTH < HANDLE_MIN_GRIP_SPAN:
+        raise ValueError("Handle grip span is below its specified minimum")
     handle_ear_sweep_radius = max(
         math.hypot(y - HANDLE_PIVOT_Y, z - HANDLE_PIVOT_Z)
         for y, z in HANDLE_BASE_EAR_PROFILE_YZ
@@ -6233,7 +6233,8 @@ def validate_configuration() -> None:
         f"handle_pivot_roof_wall={handle_pivot_roof_wall:.2f} "
         f"handle_m3_shaft_chord_wall={handle_m3_shaft_chord_wall:.2f} "
         f"handle_folded_face_gap={folded_handle_face_gap:.2f} "
-        f"handle_grip_width={HANDLE_BAR_INNER_WIDTH:.2f} "
+        f"handle_grip_span={HANDLE_BAR_INNER_WIDTH:.2f} "
+        f"handle_fork_opening={2.0 * abs(handle_m3_pivot_faces(1.0)[0]):.2f} "
         f"handle_center_z={HANDLE_PIVOT_Z:.2f} "
         f"handle_raised_finger_gap={handle_raised_finger_gap:.2f} "
         f"gasket_with_lid={str(PRINT_TPU_GASKET_WITH_LID).lower()} "
@@ -8939,7 +8940,7 @@ def create_pivoting_handle_bar(material):
     for side in (-1.0, 1.0):
         head_face_x, nut_face_x, _head_direction = handle_m3_pivot_faces(side)
         # Carry the full cheek widths beyond the fixed-ear relief, then taper
-        # into the 75 mm clear grip opening. A local boss alone leaves thin webs.
+        # into the 75 mm grip span. The opening narrows to 66.8 mm at the forks.
         inner_x, outer_x = abs(head_face_x), abs(nut_face_x)
         loop = (
             (inner_x, 1.5), (outer_x, 1.5),
