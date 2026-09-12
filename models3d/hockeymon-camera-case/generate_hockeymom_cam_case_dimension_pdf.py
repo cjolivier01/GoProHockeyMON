@@ -2464,7 +2464,8 @@ def page_body(pdf):
 
 def page_rear_battery(pdf):
     fig = new_sheet(None, "EXTERNAL REAR BATTERY SLOT",
-                    "26.3 x 70 x 138 mm pack; USB face toward +Y; original cooling chamber retained")
+                    f"{C['REAR_BATTERY_THICKNESS']:g} x {C['REAR_BATTERY_HEIGHT']:g} x "
+                    f"{C['REAR_BATTERY_LENGTH']:g} mm pack; USB face toward +Y; original cooling chamber retained")
     length = C["REAR_BATTERY_LENGTH"]
     height = C["REAR_BATTERY_HEIGHT"]
     thickness = C["REAR_BATTERY_THICKNESS"]
@@ -2483,7 +2484,7 @@ def page_rear_battery(pdf):
     dim_h(ax, 0, length, -12, 0, "REAR_BATTERY_LENGTH")
     dim_h(ax, length, length+usb, height+seat+14, height+seat, "REAR_BATTERY_USB_CLEARANCE", GREEN)
     dim_v(ax, seat, seat+height, -18, 0, "REAR_BATTERY_HEIGHT")
-    setup(ax, -28, length+usb+12, -23, seat+height+24)
+    setup(ax, -28, length+usb+12, -23, seat+height+34)
     ax2 = panel(fig, [0.65, 0.43, 0.285, 0.43], "OPEN TOP / EXTERNAL GAP", "END (+Y)")
     gap = C["REAR_BATTERY_AIR_GAP"]
     ax2.add_patch(Rectangle((-gap-wall-12, 0), 12, C["BASE_HEIGHT"], facecolor="#e6f1f7", edgecolor=BLUE))
