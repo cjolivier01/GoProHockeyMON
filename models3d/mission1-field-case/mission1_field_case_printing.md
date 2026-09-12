@@ -439,19 +439,53 @@ printable roof. At the moving pivot, the 4 mm rod passes through the lever's
 4.4 mm running bore and is retained by the hook's 3.9 mm bore.
 
 `PIVOT_MIN_WALL_THICKNESS = 2.0` is the shared configurable strength rule for
-the case mounts, latch parts, and handle. Each case ear now starts as a gradual
+the case mounts, lever, and handle. The upper latch hook has its own stricter
+3 mm minimum. Each case ear now starts as a gradual
 lower web, reaches the boss on a 45-degree printable chord, follows a rounded
 upper arc, and curves back into the case wall. There is no horizontal underside
 ledge to support. The reinforced ears retain at least 2.22 mm
 beside the lower chord and 3.14 mm above the teardrop bore roof.
 
 The lever has dedicated circular reinforcement around its 3.5 mm fixed bore
-and 4.4 mm moving-link bore, and
-the hook has reinforced outer cheeks around its 3.9 mm bore. These moving-part
-bosses provide 2.50 mm nominal radial wall. The closest intentional opening is
+and 4.4 mm moving-link bore, with 2.50 mm nominal radial walls. The upper hook
+has 3.20 mm nominal radial walls around its unchanged 3.9 mm bore. The closest
+intentional opening in the lever is
 the lever snap dimple, which still leaves 2.90 mm between the fixed bore and
 air. Matching generated sweep reliefs preserve the complete source toggle path
 without thinning either link-pivot ring.
+
+The upper hook's tension strap now has a 3.4 mm nominal neck, measured normal
+to the inclined lid-side surface, and a continuous outward reinforcement into
+both pivot cheeks. This replaces the original sub-millimeter section between
+the grabber and the pivot. Reinforcement spans 20.40 mm of the 20.48 mm hook
+width, with a 0.04 mm inset at each original side face. The central lever gap
+remains open. Generation verifies 19 overlapping solid core volumes through
+the broad neck, both cheeks, and both complete pivot rings, proving a continuous
+3 mm load path after all motion reliefs. A regression deliberately notches the
+neck and verifies rejection.
+
+**Print two new hooks and two matching levers together.** The enlarged hook
+pivot needs the updated lever relief. Reuse the existing case, either lid,
+fixed M3 screws, nuts, and 4 mm link rods. Use a solid wall/infill configuration
+through the latch and its side-down export orientation so layer lines follow
+the tension path. The dimensions and motion checks do not establish a fatigue
+or sustained-load rating; confirm creep and repeated closure with the selected
+filament and printer settings.
+
+![Original and reinforced upper latch](renderings/mission1_latch_web_comparison.png)
+
+![Reinforced hook and pivot cheeks](renderings/mission1_latch_reinforced_hook.png)
+
+Installed cutaway with the outer guard removed **only in the visualization**:
+
+![Reinforced latch fit](renderings/mission1_latch_reinforced_installed.png)
+
+Regenerate these views and the two latch STLs with:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/render_mission1_latch_previews.py
+```
 
 The lid has one continuous 5 mm flared rim with a full 3 mm vertical loaded
 edge and 5.4 mm radial thickness. At each latch, a deep bay is cut through the
@@ -550,12 +584,12 @@ lever angle -22 degrees. Pushing the lever in the wrong direction is stopped
 by the base across the same axial range.
 
 `LATCH_HOOK_OVERALL_LENGTH` directly configures the finished moving hook's
-true overall length about its unchanged link-pivot boss after removing the
+true overall length about its unchanged link-pivot center after removing the
 source's narrow central crown fin. The original finned source is 50.241260 mm;
-the usable crownless reference body is 46.703189 mm. The configured 44.703189 mm
-default is exactly 2.0 mm shorter than that body and 0.5 mm shorter than the
-previous default. This trim reduces the compliant length of the source-derived
-backbone. A separate localized upper-surface relief clears the unchanged lid
+the usable crownless reference body is 46.703189 mm. The reinforced default is
+45.403189 mm overall: it preserves the existing 2.0 mm source-arm shortening
+and adds 0.7 mm only at the enlarged pivot end. The source-derived grabber
+coordinates remain unchanged. A separate localized upper-surface relief clears the unchanged lid
 skirt. Neither operation moves the separately generated load-bearing pad or
 retention bosses: those remain fixed relative to the lid rail, so linkage
 geometry—not the visual/source-arm trim—sets clamp draw and post-peak pressure

@@ -88,6 +88,28 @@ def check_latch() -> None:
     case.validate_built_latch_fixed_m3_hardware(parts)
     case.validate_installed_latch_mechanics(parts)
 
+    # A localized weak section must fail even if the rest of the hook is solid.
+    notched_hook = hook.copy()
+    notched_hook.data = hook.data.copy()
+    case.bpy.context.collection.objects.link(notched_hook)
+    try:
+        notch = case.add_rounded_box(
+            "TEMPORARY_Weak_Hook_Web", (2.0, 2.0, 2.0),
+            (7.0, -27.0, -6.3), bevel=0.0,
+        )
+        notched_hook.location = (0.0, 0.0, 0.0)
+        notched_hook.rotation_euler = (0.0, 0.0, 0.0)
+        case.difference_from(notched_hook, notch)
+        try:
+            case.validate_built_latch_hook_web(notched_hook)
+        except ValueError as error:
+            assert "continuous 3 mm solid core" in str(error), str(error)
+        else:
+            raise AssertionError("A locally thinned hook web was accepted")
+    finally:
+        case.bpy.data.objects.remove(notched_hook, do_unlink=True)
+    print("FIELD_CASE_LATCH_WEAK_WEB_REJECTED", flush=True)
+
     case.bpy.data.objects.remove(lid_inlay, do_unlink=True)
     print(
         "FIELD_CASE_LATCH_REGRESSION_PASS "
