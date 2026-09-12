@@ -1501,18 +1501,27 @@ LATCH_FIXED_M3_MAX_TIP_PROTRUSION = 3.0
 LATCH_LID_INSTALLED_Z = BASE_HEIGHT + LID_WALL_HEIGHT
 LATCH_SOURCE_SCALE = 0.8
 LATCH_WIDTH = 20.48
+# Add material on the outward face while preserving the lid-side jaw plane.
+# The neck has 0.4 mm margin above the required 3 mm; the pivot has 0.2 mm.
+LATCH_HOOK_WEB_MIN_THICKNESS = 3.0
+LATCH_HOOK_WEB_THICKNESS = 3.4
+LATCH_HOOK_PIVOT_WALL_MARGIN = 0.2
+LATCH_HOOK_SOURCE_BOSS_RADIUS = 4.45
+LATCH_HOOK_LINK_BOSS_RADIUS = (
+    LATCH_PRESS_FIT_BORE_DIAMETER / 2.0
+    + LATCH_HOOK_WEB_MIN_THICKNESS
+    + LATCH_HOOK_PIVOT_WALL_MARGIN
+)
 # The narrow source crown fin is removed before overall length is considered.
-# The reinforced link-pivot boss fixes the pivot-end extent; uniformly scale
-# only the remaining source-derived arm about that pivot so this value is the
-# finished crownless print's true overall Y length.  The default is 1.5 mm
-# shorter than the crownless reference body.  The extra half millimeter over
-# previous 1.5 mm reduction raises the short hook arm's spring rate while
-# its broad bearing pad and behind-rail boss retain the same seated lid datum.
+# Keep the source arm's existing 2 mm shortening and all capture datums.  The
+# larger reinforced pivot adds 0.7 mm at the pivot end only; include that in
+# the finished print's true overall length without scaling the grabber again.
 LATCH_HOOK_REFERENCE_OVERALL_LENGTH = 50.241260
 LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH = 46.703189
 LATCH_HOOK_DEFAULT_SHORTENING = 2.0
 LATCH_HOOK_OVERALL_LENGTH = (
     LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH - LATCH_HOOK_DEFAULT_SHORTENING
+    + LATCH_HOOK_LINK_BOSS_RADIUS - LATCH_HOOK_SOURCE_BOSS_RADIUS
 )
 LATCH_HOOK_CROWN_FIN_HALF_WIDTH = 4.6
 LATCH_HOOK_CROWN_FIN_CUT_CLEARANCE = 0.1
@@ -1591,11 +1600,6 @@ LATCH_LEVER_FIXED_BOSS_RADIUS = (
 )
 LATCH_LEVER_LINK_BOSS_RADIUS = (
     LATCH_RUNNING_BORE_DIAMETER / 2.0
-    + PIVOT_MIN_WALL_THICKNESS
-    + PIVOT_REINFORCEMENT_MARGIN
-)
-LATCH_HOOK_LINK_BOSS_RADIUS = (
-    LATCH_PRESS_FIT_BORE_DIAMETER / 2.0
     + PIVOT_MIN_WALL_THICKNESS
     + PIVOT_REINFORCEMENT_MARGIN
 )
@@ -1810,7 +1814,7 @@ def latch_hook_global_angle_degrees(lever_angle: float) -> float:
 def latch_hook_source_y(source_y: float) -> float:
     """Scale the crownless source arm to its configured true overall length."""
     reference_tip_y = (
-        LATCH_HOOK_LINK_BOSS_RADIUS
+        LATCH_HOOK_SOURCE_BOSS_RADIUS
         - LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH
     )
     configured_tip_y = LATCH_HOOK_LINK_BOSS_RADIUS - LATCH_HOOK_OVERALL_LENGTH
@@ -5525,6 +5529,12 @@ def validate_configuration() -> None:
     if LATCH_LINK_ROD_LENGTH < LATCH_WIDTH - 0.1:
         raise ValueError("Latch link rod does not span both hook cheeks")
     if not (
+        math.isfinite(LATCH_HOOK_WEB_MIN_THICKNESS)
+        and math.isfinite(LATCH_HOOK_WEB_THICKNESS)
+        and 3.0 <= LATCH_HOOK_WEB_MIN_THICKNESS <= LATCH_HOOK_WEB_THICKNESS
+    ):
+        raise ValueError("Latch hook load path must remain at least 3 mm thick")
+    if not (
         LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH - 5.0
         <= LATCH_HOOK_OVERALL_LENGTH
         <= LATCH_HOOK_CROWNLESS_REFERENCE_OVERALL_LENGTH
@@ -8537,6 +8547,58 @@ def create_pelican_latch_parts(material):
                 )
                 difference_from(part, dimple)
         else:
+            # The source strap becomes less than 1 mm thick after the obsolete
+            # lower jaw is removed.  Carry a broad outward spine from the
+            # grabber into both pivot cheeks, before re-cutting the unchanged
+            # jaw, bore, and lever sweep clearances below.
+            jaw_y0, jaw_z0 = installed_yz_in_hook_local(
+                LATCH_LEVER_CLOSED_ANGLE,
+                LATCH_CAPTURE_LOWER_JAW_REMOVAL_OUTWARD_Y,
+                LATCH_CAPTURE_LOWER_JAW_REMOVAL_BOTTOM_Z,
+            )
+            jaw_y1, jaw_z1 = installed_yz_in_hook_local(
+                LATCH_LEVER_CLOSED_ANGLE,
+                LATCH_CAPTURE_LOWER_JAW_REMOVAL_OUTWARD_Y,
+                LATCH_CAPTURE_LOWER_JAW_REMOVAL_TOP_Z,
+            )
+            jaw_slope = (jaw_z1 - jaw_z0) / (jaw_y1 - jaw_y0)
+            web_drop = LATCH_HOOK_WEB_THICKNESS * math.hypot(1.0, jaw_slope)
+
+            def neck_outer_z(y):
+                return jaw_z0 + (y - jaw_y0) * jaw_slope - web_drop
+
+            web = extrude_loop_x(
+                "Pelican_Hook_Continuous_3mm_Minimum_Web",
+                (
+                    (-37.5, -2.4),
+                    (-32.0, -2.4),
+                    (-22.0, -4.1),
+                    (-18.0, -5.8),
+                    (-11.0, -7.0),
+                    (-5.0, -6.4),
+                    (0.0, -4.5),
+                    (0.0, -5.15),
+                    (-1.5, -5.5),
+                    (-3.0, -6.3),
+                    (-5.0, -7.6),
+                    (-8.0, -8.2),
+                    (-11.0, -8.2),
+                    (-18.0, -7.8),
+                    (-22.0, neck_outer_z(-22.0)),
+                    (-35.0, neck_outer_z(-35.0)),
+                    (-37.5, -2.7),
+                ),
+                -LATCH_WIDTH / 2.0 + LATCH_CAPTURE_UPPER_ARM_AXIAL_INSET,
+                LATCH_WIDTH / 2.0 - LATCH_CAPTURE_UPPER_ARM_AXIAL_INSET,
+            )
+            tongue_gap = add_rounded_box(
+                "Pelican_Hook_Web_Keep_Central_Lever_Tongue_Clear",
+                (2.0 * LATCH_HOOK_CHEEK_INNER_X, 40.0, 40.0),
+                (0.0, 1.0, 0.0),
+                bevel=0.0,
+            )
+            difference_from(web, tongue_gap)
+            union_into(part, web)
             for side in (-1.0, 1.0):
                 cheek_center_x = side * (
                     LATCH_HOOK_CHEEK_INNER_X + LATCH_HOOK_CHEEK_WIDTH / 2.0
@@ -9446,8 +9508,93 @@ def validate_built_lid_capture_rails(lid) -> None:
     )
 
 
+def validate_built_latch_hook_web(hook) -> None:
+    """Prove continuous 3 mm solid corridors after every motion relief.
+
+    Overlapping capsules enclose a true 3 mm disk everywhere along each
+    segment, including bends.  Exact intersection verifies their whole volume
+    across the usable web width, rather than isolated points or Z thickness.
+    The two cheek corridors overlap the broad neck and the pivot-ring probes.
+    """
+    outer_x = LATCH_WIDTH / 2.0 - LATCH_CAPTURE_UPPER_ARM_AXIAL_INSET - 0.01
+    inner_x = LATCH_HOOK_CHEEK_INNER_X + 0.01
+    cheek_path = (
+        (-23.5, -5.78), (-18.0, -6.05), (-13.0, -6.35),
+        (-11.0, -6.5), (-8.0, -6.5), (-5.0, -5.6),
+        (-2.0, -4.05), (0.0, -3.55),
+    )
+    paths = (
+        ("neck", -outer_x, outer_x,
+         ((-34.5, -3.5), (-32.0, -4.28), (-23.5, -5.78), (-21.0, -6.0))),
+        ("left_cheek", -outer_x, -inner_x, cheek_path),
+        ("right_cheek", inner_x, outer_x, cheek_path),
+    )
+    maximum_missing = 0.0
+    core_count = 0
+
+    def check_core(core, label):
+        nonlocal maximum_missing, core_count
+        try:
+            expected = mesh_object_volume(core)
+            _faces, actual = exact_transformed_intersection(hook, core)
+        finally:
+            bpy.data.objects.remove(core, do_unlink=True)
+        missing = max(0.0, expected - actual)
+        maximum_missing = max(maximum_missing, missing)
+        if missing > 0.0001:
+            raise ValueError(
+                f"Latch hook lacks a continuous 3 mm solid core at {label}: "
+                f"missing={missing:.6f} mm^3"
+            )
+        core_count += 1
+
+    arc_steps = 16
+    # Circumscribe the required disk so faceting cannot make the probe thinner.
+    radius = LATCH_HOOK_WEB_MIN_THICKNESS / (2.0 * math.cos(math.pi / 32.0))
+    for label, x0, x1, path in paths:
+        for index, (start, end) in enumerate(pairwise(path)):
+            angle = math.atan2(end[1] - start[1], end[0] - start[0])
+            loop = []
+            for center, first_angle in (
+                (end, angle - math.pi / 2.0),
+                (start, angle + math.pi / 2.0),
+            ):
+                for step in range(arc_steps + 1):
+                    theta = first_angle + math.pi * step / arc_steps
+                    loop.append((center[0] + radius * math.cos(theta),
+                                 center[1] + radius * math.sin(theta)))
+            core = extrude_loop_x("TEMPORARY_Hook_Web_Core", loop, x0, x1)
+            check_core(core, f"{label}_{index}")
+
+    for label, x0, x1, _path in paths[1:]:
+        # Insets avoid coplanar bore faces; the polygon's minimum radial wall
+        # still exceeds 3 mm between vertices, not just at the vertices.
+        inner_radius = LATCH_PRESS_FIT_BORE_DIAMETER / 2.0 + 0.01
+        outer_radius = (inner_radius + LATCH_HOOK_WEB_MIN_THICKNESS) / math.cos(
+            math.pi / 64.0
+        )
+        center = ((x0 + x1) / 2.0, 0.0, 0.0)
+        core = add_cylinder_x("TEMPORARY_Hook_Pivot_Core", outer_radius,
+                              x1 - x0, center, vertices=64)
+        bore = add_cylinder_x("TEMPORARY_Hook_Pivot_Core_Bore", inner_radius,
+                              x1 - x0 + 0.2, center, vertices=64)
+        difference_from(core, bore)
+        # Cylinder helpers store transforms; bake them before intersection,
+        # which deliberately uses the hook's unposed mesh coordinates.
+        select_only(core)
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        check_core(core, f"{label}_pivot_ring")
+    print(
+        "FIELD_CASE_LATCH_HOOK_WEB_VALID "
+        f"minimum={LATCH_HOOK_WEB_MIN_THICKNESS:.2f} "
+        f"neck_nominal={LATCH_HOOK_WEB_THICKNESS:.2f} "
+        f"continuous_cores={core_count} missing_max={maximum_missing:.9f}"
+    )
+
+
 def validate_built_latch_hook_capture(hook) -> None:
     """Prove the hook retains its flat bearing pad and round retention boss."""
+    validate_built_latch_hook_web(hook)
     rail_local_y, _rail_local_z = latch_rail_in_hook_local_yz(LATCH_LEVER_CLOSED_ANGLE)
     rail_running_radius = (
         LID_LATCH_CAPTURE_RAIL_RADIUS + LATCH_CAPTURE_RAIL_PATH_CLEARANCE
