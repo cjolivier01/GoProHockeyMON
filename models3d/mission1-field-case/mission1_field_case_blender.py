@@ -429,9 +429,13 @@ FAN_CASE_CABLE_COIL_REFERENCE_INSET = (4.0, 2.0)
 # immediately outside their cable wells, but the dock walls can now pass the
 # already-printed rigid upper-tray rails during insert installation/removal.
 PWM_CONNECTOR_DOCK_CENTERS = ((-98.0, -54.0), (98.0, -54.0))
-FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = 3.0
-FAN_CASE_PAIR_LID_PRELOAD = 0.6
-FAN_CASE_PAIR_BIN_RIM_PRELOAD = 0.3
+# Preserve existing tray rim heights independently of pad thickness. A thinner
+# replacement pad removes broad rim compression without reprinting both trays.
+FAN_CASE_PAIR_TRAY_RIM_LID_RECESS = 2.7
+FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = 2.0
+FAN_CASE_PAIR_LID_STACK_TOLERANCE = 0.6
+FAN_CASE_PAIR_MIN_LID_PAD_CLEARANCE = 0.1
+FAN_CASE_PAIR_TRAY_KEY_NOTCH_DEPTH = 3.0
 FAN_CASE_PAIR_LID_PAD_DISPLAY_Y = 440.0
 # Two independently useful flat-bottom trays fill the upper footprint.  The
 # front tray is deeper over the fans/batteries; the rear tray clears cameras.
@@ -811,13 +815,6 @@ def fan_case_pair_storage_geometry():
             )
         )
     assembly_top_z = max(bounds[5] for bounds in installed_reference_bounds)
-    broad_shell_top_z = translation_z + back_height / 2.0
-    installed_lid_inner_face = BASE_HEIGHT + (
-        LID_WALL_HEIGHT - LID_PLATE_THICKNESS
-    )
-    lid_pad_height = (
-        installed_lid_inner_face - broad_shell_top_z + FAN_CASE_PAIR_LID_PRELOAD
-    )
     # Land the lid bosses on the broad upper edge of the upright rear shell,
     # rather than using a narrow button or thumb nut as the hold-down datum.
     shell_center_y = fan_case.BACK_DEPTH + translation_y - 2.0
@@ -892,8 +889,6 @@ def fan_case_pair_storage_geometry():
         "cavity_bounds": tuple(cavity_bounds),
         "installed_reference_bounds": tuple(installed_reference_bounds),
         "assembly_top_z": assembly_top_z,
-        "broad_shell_top_z": broad_shell_top_z,
-        "lid_pad_height": lid_pad_height,
         "shell_contact_base_y": shell_center_y,
         "back_dimensions": (back_width, back_height),
         "lower_fasteners": lower_fasteners,
@@ -934,8 +929,7 @@ def fan_case_pair_overhead_storage_geometry():
         + BATTERY_HEIGHT + FAN_CASE_PAIR_DEEP_TRAY_BATTERY_CLEARANCE,
     )
     rim_z = (
-        installed_lid_inner_face - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
-        + FAN_CASE_PAIR_BIN_RIM_PRELOAD
+        installed_lid_inner_face - FAN_CASE_PAIR_TRAY_RIM_LID_RECESS
     )
     division_y = min(route[-2][1] for route in FAN_CASE_PAIR_STORAGE["cable_route_points"]) \
         - FAN_CASE_CABLE_DIAMETER / 2.0 - FAN_CASE_PAIR_DEEP_TRAY_CABLE_CLEARANCE
@@ -1325,9 +1319,9 @@ GASKET_INTERLOCK_DEPTH = 2
 GASKET_INTERLOCK_ORIENTATION = 22.5
 GASKET_INTERLOCK_BOUNDARY_AVOIDANCE = 0
 
-# Hinge axis is along X.  A 4.1 mm rod runs only through the base knuckles.
+# Hinge axis is along X. A measured 3.8 mm rod runs through the base knuckles.
 # Each lid receiver opens rearward, parallel to the lid plate in print
-# orientation.  The closed case cannot lift off vertically; the unchanged base
+# orientation. The closed case cannot lift off vertically; the base shell
 # remains in the actual slot escape path through 60 degrees, and the complete
 # lid slides diagonally up/forward off the rod at 70 degrees open.
 HINGE_AXIS_Y = CASE_DEPTH / 2.0 + 3.8
@@ -1342,14 +1336,26 @@ HINGE_LID_ROOT_FLOOR_Z = 0.20
 HINGE_LID_ROOT_SPINE_OFFSET = 3.1
 HINGE_LID_RIM_RADIAL_CLEARANCE = 0.7
 HINGE_LID_RIM_AXIAL_CLEARANCE = 0.6
-HINGE_ROD_DIAMETER = 4.1
-HINGE_BASE_HOLE_DIAMETER = 4.5
-HINGE_LID_RECEIVER_DIAMETER = 4.8
-HINGE_LID_SLOT_WIDTH = 4.6
+HINGE_ROD_DIAMETER = 3.8
+# Reduce the previous clearance around the user's measured rod by 25%, not
+# the hole diameter. Keep the fixed hinge axis and outer barrel envelopes.
+HINGE_RUNNING_CLEARANCE_SCALE = 0.75
+HINGE_BASE_HOLE_DIAMETER = (
+    HINGE_ROD_DIAMETER
+    + (4.5 - HINGE_ROD_DIAMETER) * HINGE_RUNNING_CLEARANCE_SCALE
+)
+HINGE_LID_RECEIVER_DIAMETER = (
+    HINGE_ROD_DIAMETER
+    + (4.8 - HINGE_ROD_DIAMETER) * HINGE_RUNNING_CLEARANCE_SCALE
+)
+HINGE_LID_SLOT_WIDTH = (
+    HINGE_ROD_DIAMETER
+    + (4.6 - HINGE_ROD_DIAMETER) * HINGE_RUNNING_CLEARANCE_SCALE
+)
 HINGE_LID_SLOT_TILT_DEGREES = 0.0
 HINGE_PROFILE_RIGID_SLIDE = "RIGID_SLIDE"
 HINGE_PROFILE_TPU_68D_SNAP = "TPU_68D_SNAP"
-TPU_HINGE_SNAP_THROAT_WIDTH = 3.9
+TPU_HINGE_SNAP_THROAT_WIDTH = 3.6
 TPU_HINGE_SNAP_MOUTH_WIDTH = 5.0
 TPU_HINGE_SNAP_THROAT_LENGTH = 1.5
 TPU_HINGE_SNAP_LEAD_LENGTH = 0.8
@@ -1357,7 +1363,7 @@ TPU_HINGE_SNAP_LEAD_RADIUS = 0.8
 TPU_HINGE_SNAP_LEAD_SAMPLES = 8
 TPU_HINGE_CLIPS_PER_SEGMENT = 3
 TPU_HINGE_CLIP_RELIEF_GAP = 1.2
-TPU_HINGE_COUPON_THROATS = (3.8, 3.9, 4.0, 4.1)
+TPU_HINGE_COUPON_THROATS = (3.5, 3.6, 3.7, 3.8)
 TPU_HINGE_COUPON_BLOCK_SIZE = 22.0
 TPU_HINGE_COUPON_BREAKAWAY_WIDTH = 0.4
 HINGE_LID_RELEASE_ANGLE_DEGREES = 70.0
@@ -4764,6 +4770,12 @@ def validate_configuration() -> None:
         and FAN_CASE_PAIR_INSERT_FLOOR >= 3.0
     ):
         raise ValueError("Alternate fan-case insert floors are too thin")
+    pad_gap = (FAN_CASE_PAIR_TRAY_RIM_LID_RECESS
+               - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS)
+    if (FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS < 1.5
+            or pad_gap - FAN_CASE_PAIR_LID_STACK_TOLERANCE
+            < FAN_CASE_PAIR_MIN_LID_PAD_CLEARANCE - 1e-6):
+        raise ValueError("Alternate lid pad must clear the tray rims including stack tolerance")
     overhead = FAN_CASE_PAIR_OVERHEAD_STORAGE
     rear = overhead["carrier_bounds"]
     front = overhead["bin_bounds"]
@@ -6695,8 +6707,8 @@ def create_base(material):
         )
         difference_from(base, relief)
 
-    # The base knuckles share one continuous 4.5 mm path for the user's 4.1 mm
-    # rod.  This bore enlargement is the only base-side hinge change.  A
+    # The base knuckles share one continuous 4.325 mm path for the user's 3.8 mm
+    # rod. This bore reduction is the only base-side hinge change. A
     # full-width lower web rises from the rear wall at 45 degrees and meets
     # each barrel tangentially, eliminating its unsupported lower arc while
     # adding substantially more bonded section at the shell.
@@ -7402,6 +7414,17 @@ def create_fan_case_pair_standalone_tray(material, key, name):
             name + "_Finger_Scallop", 24.0, 2.0 * wall + 1.0,
             z1 - 7.0, z1 + 0.3, 3.0, (x, facing_y))
         difference_from(tray, grip)
+    if key == "carrier_bounds":
+        # The pad notch alone does not clear its rigid locating key: the key
+        # also reaches the rear tray rim. Mirror the lid's local Y into the
+        # installed frame and leave an upward-open notch in this rim.
+        notch = add_rounded_prism(
+            name + "_Lid_Locating_Key_Clearance",
+            LID_PAD_KEY_NOTCH_SIZE[0], LID_PAD_KEY_NOTCH_SIZE[1],
+            z1 - FAN_CASE_PAIR_TRAY_KEY_NOTCH_DEPTH, z1 + 0.3, 1.4,
+            (LID_PAD_KEY_CENTER[0], -LID_PAD_KEY_CENTER[1]),
+        )
+        difference_from(tray, notch)
     assign_material(tray, material)
     return tray
 
@@ -7419,7 +7442,7 @@ def create_fan_case_pair_storage_bin(material):
 
 
 def create_fan_case_pair_lid_pad(material):
-    """Create the flat keyed pad that closes the removable storage bin."""
+    """Create the flat keyed pad with clearance above both tray rims."""
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     pad_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
@@ -7549,7 +7572,7 @@ def create_tpu_hinge_coupon(material):
             )
             union_into(coupon, bridge)
             union_into(coupon, sample)
-    coupon.name = "Field_Case_TPU_68D_Hinge_Fit_Coupon_38_39_40_41"
+    coupon.name = "Field_Case_TPU_68D_Hinge_Fit_Coupon_35_36_37_38"
     assign_material(coupon, material)
     return coupon
 
@@ -7979,12 +8002,12 @@ def create_lid(
 
     # In print orientation the lid's hinge is at -Y; flipping the finished lid
     # around X places it on the base's +Y hinge line.  Union each barrel into
-    # the complete flared rim, cut a round 4.8 mm receiver, then open that
-    # receiver through its rear side with a 4.6 mm slot.  The installed escape
+    # the complete flared rim, cut a round 4.55 mm receiver, then open that
+    # receiver through its rear side with a 4.4 mm slot.  The installed escape
     # vector remains blocked by the unchanged base through 60 degrees.  At 70
-    # degrees the lid slides diagonally up/forward off the already-installed 4.1
+    # degrees the lid slides diagonally up/forward off the already-installed 3.8
     # mm base rod.  These full-width slots need removable print support; the
-    # extra 0.5 mm width leaves cleanup allowance around the physical rod.
+    # extra 0.6 mm width leaves cleanup allowance around the physical rod.
     if hinge_profile == HINGE_PROFILE_TPU_68D_SNAP:
         # Both production banks use the exact same constructor as all four
         # coupon samples, including their independent clips and shared spines.
@@ -11767,7 +11790,7 @@ def validate_built_lid_hinge_receivers(lid) -> None:
         bore_overlap_maximum = max(bore_overlap_maximum, bore_overlap)
 
         rod_probe = add_cylinder_x(
-            f"TEMPORARY_Lid_Hinge_{index}_4p1mm_Release_Probe",
+            f"TEMPORARY_Lid_Hinge_{index}_Rod_Release_Probe",
             HINGE_ROD_DIAMETER / 2.0,
             x1 - x0 - 0.8,
             (0.0, 0.0, 0.0),
@@ -11796,7 +11819,7 @@ def validate_built_lid_hinge_receivers(lid) -> None:
                 )
                 if release_faces or release_overlap > 1e-6:
                     raise ValueError(
-                        "Lid hinge slot obstructs 4.1 mm rod release: "
+                        "Lid hinge slot obstructs the configured rod release: "
                         f"segment={index} sample={sample_index} "
                         f"faces={release_faces} volume={release_overlap:.6f}"
                     )
@@ -12900,6 +12923,92 @@ def validate_fan_case_bottom_cable_routes(parts, reference_objects, assembly_gro
     return max(overlaps)
 
 
+def validate_alternate_lid_closure(parts, reference_objects=()) -> None:
+    """Check both actual lid solids through closure, including the locating key.
+
+    The pad must have free clearance at the hard case seat. A second closed
+    check lowers the lid/pad relative to the loadout by the stack allowance;
+    it represents a shorter printed base, so the nominal base is excluded there.
+    """
+    from mathutils import Euler
+
+    bpy.context.view_layer.update()
+
+    def pose_bounds(obj, location, rotation):
+        matrix = Matrix.LocRotScale(Vector(location), Euler(rotation).to_quaternion(), obj.scale)
+        corners = [matrix @ Vector(point) for point in obj.bound_box]
+        return tuple((min(point[i] for point in corners), max(point[i] for point in corners))
+                     for i in range(3))
+
+    def intersect(first, second, first_pose, second_pose):
+        nonlocal exact_checks
+        a = pose_bounds(first, *first_pose)
+        b = pose_bounds(second, *second_pose)
+        if any(a[i][1] < b[i][0] - 1e-5 or b[i][1] < a[i][0] - 1e-5 for i in range(3)):
+            return 0.0
+        exact_checks += 1
+        return exact_transformed_intersection(
+            first, second, first_location=first_pose[0], first_rotation=first_pose[1],
+            second_location=second_pose[0], second_rotation=second_pose[1],
+        )[1]
+
+    loadout = [parts[key] for key in ("fan_case_pair_insert", "fan_case_pair_carrier",
+                                    "fan_case_pair_storage_bin")]
+    loadout.extend(reference_objects)
+    pad = parts["fan_case_pair_lid_pad"]
+    pad_pose = installed_flat_lid_pad_pose(0.0)
+    pad_bottom = pose_bounds(pad, *pad_pose)[2][0]
+    tray_top = max(pose_bounds(obj, obj.location, obj.rotation_euler)[2][1]
+                   for obj in loadout[1:3])
+    gap = pad_bottom - tray_top
+    if gap - FAN_CASE_PAIR_LID_STACK_TOLERANCE < FAN_CASE_PAIR_MIN_LID_PAD_CLEARANCE - 2e-5:
+        raise ValueError(f"Alternate lid pad presses on tray rims: clearance={gap:.6f}")
+
+    angles = tuple(index / 4.0 for index in range(21)) + tuple(range(10, 111, 5))
+    exact_checks = 0
+    maximum = 0.0
+    variants = [key for key in ("lid", "tpu_snap_lid") if key in parts]
+    for lid_key in variants:
+        lid = parts[lid_key]
+        # The pad is fixed to the lid: check their fit once in the lid's local
+        # frame. A 0.01 mm face separation avoids Boolean noise on the broad
+        # coincident mounting planes; all key/side-wall geometry remains checked.
+        volume = intersect(lid, pad, ((-LID_DISPLAY_OFFSET_X, 0, 0), (0, 0, 0)),
+                           ((0, 0, LID_PLATE_THICKNESS + 0.01), (0, 0, 0)))
+        if volume > 1e-5:
+            raise ValueError(f"Alternate pad does not fit its lid: {lid_key} {volume:.6f}")
+        for angle in angles:
+            lid_pose = installed_lid_pose(angle)
+            moving_pad_pose = installed_flat_lid_pad_pose(angle)
+            for moving, pose in ((lid, lid_pose), (pad, moving_pad_pose)):
+                for obstacle in (parts["base"], *loadout):
+                    check_pose = pose
+                    if moving == lid and obstacle == parts["base"] and angle == 0:
+                        # Match the existing hard-seat check: separate coincident
+                        # rim faces by 0.01 mm only for this base/lid comparison.
+                        check_pose = installed_lid_pose(0.0, 0.01)
+                    volume = intersect(moving, obstacle, check_pose,
+                                       (obstacle.location.copy(), obstacle.rotation_euler.copy()))
+                    maximum = max(maximum, volume)
+                    if volume > 1e-5:
+                        raise ValueError(f"Alternate lid closure obstructed: lid={lid_key} "
+                                         f"angle={angle} moving={moving.name} "
+                                         f"obstacle={obstacle.name} volume={volume:.6f}")
+        for moving, pose in ((lid, installed_lid_pose(0)), (pad, pad_pose)):
+            lowered_pose = (Vector(pose[0]) - Vector((0, 0, FAN_CASE_PAIR_LID_STACK_TOLERANCE)), pose[1])
+            for obstacle in loadout:
+                volume = intersect(moving, obstacle, lowered_pose,
+                                   (obstacle.location.copy(), obstacle.rotation_euler.copy()))
+                if volume > 1e-5:
+                    raise ValueError(f"Alternate closure lacks stack tolerance: "
+                                     f"moving={moving.name} obstacle={obstacle.name} volume={volume:.6f}")
+    print("FIELD_CASE_ALTERNATE_LID_CLOSURE_VALID "
+          f"variants={','.join(variants)} angles={len(angles)} exact_checks={exact_checks} "
+          f"pad_gap={gap:.4f} stack_allowance={FAN_CASE_PAIR_LID_STACK_TOLERANCE:.2f} "
+          f"remaining_gap={gap - FAN_CASE_PAIR_LID_STACK_TOLERANCE:.4f} "
+          f"maximum_overlap={maximum:.6f}", flush=True)
+
+
 def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
     """Prove the mutually exclusive two-fan-case loadout fits exactly."""
     assembly_groups = []
@@ -13350,17 +13459,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         second_location=parts["fan_case_pair_storage_bin"].location.copy(),
         second_rotation=parts["fan_case_pair_storage_bin"].rotation_euler.copy())
     overhead_unwanted_overlap = max(overhead_unwanted_overlap, tray_pair_overlap)
-    lid_tray_contacts = []
-    for part_key in ("fan_case_pair_carrier", "fan_case_pair_storage_bin"):
-        part = parts[part_key]
-        _faces, contact = exact_transformed_intersection(
-            parts["fan_case_pair_lid_pad"], part,
-            first_location=(0.0, 0.0, installed_lid_inner_face),
-            first_rotation=(math.pi, 0.0, 0.0),
-            second_location=part.location.copy(), second_rotation=part.rotation_euler.copy())
-        if contact < 100.0:
-            raise ValueError(f"Flat lid pad fails to close the standalone tray rim: {part_key} {contact}")
-        lid_tray_contacts.append(contact)
+    validate_alternate_lid_closure(parts, reference_objects)
     for obj in (obj for group in assembly_groups for obj in group):
         _faces, volume = exact_transformed_intersection(
             parts["fan_case_pair_lid_pad"], obj,
@@ -13472,9 +13571,8 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         parts["fan_case_pair_carrier"],
         parts["fan_case_pair_storage_bin"],
     )
-    # At zero degrees the 0.6 mm bin-rim compression is intentional.  By five
-    # degrees the pad must have peeled completely clear, then remain clear for
-    # the full normal 110-degree opening sweep.
+    # The focused closure check also covers both the rigid lid and pad below
+    # five degrees, including the key notch and the closed stack tolerance.
     for angle in (5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110):
         pad_location, pad_rotation = installed_flat_lid_pad_pose(angle)
         for obstacle in sweep_obstacles:
@@ -13507,7 +13605,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
             or minimum.y <= -inner_half_depth
             or maximum.y >= inner_half_depth
             or minimum.z <= BASE_FLOOR_THICKNESS
-            or maximum.z >= installed_lid_inner_face + FAN_CASE_PAIR_LID_PRELOAD + 0.01
+            or maximum.z >= installed_lid_inner_face - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS + 0.01
         ):
             raise ValueError(f"Overhead storage exceeds the closed case: {part_key}")
 
@@ -13560,7 +13658,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         f"rigid_base_unwanted_overlap={rigid_base_unwanted_overlap:.6f} "
         f"insert_withdrawal_overlap={insert_withdrawal_overlap:.6f} "
         f"bin_withdrawal_overlap={withdrawal_overlap:.6f} "
-        f"lid_tray_contacts={','.join(f'{value:.3f}' for value in lid_tray_contacts)} "
+        f"lid_tray_clearance={FAN_CASE_PAIR_TRAY_RIM_LID_RECESS - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS:.2f} "
         f"lid_pad_sweep={lid_pad_sweep_overlap:.6f} "
         f"overhead_unwanted_overlap={overhead_unwanted_overlap:.6f}"
     )
@@ -14655,8 +14753,8 @@ def field_case_3mf_groups():
             FAN_CASE_PAIR_INSERT_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Shallow Carrier Tray",
-            "Alternate TPU Fan-Case Shallow Carrier Tray",
+            "Alternate Fan-Case - Key-Notched Rear Tray",
+            "Alternate TPU Fan-Case Key-Notched Rear Tray",
             "fan_case_pair_carrier",
             FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME,
         ),
@@ -14667,8 +14765,8 @@ def field_case_3mf_groups():
             FAN_CASE_PAIR_STORAGE_BIN_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Flat Lid Pad",
-            "Alternate TPU Fan-Case Flat Lid Pad",
+            "Alternate Fan-Case - 2 mm Lid Pad",
+            "Alternate TPU Fan-Case 2 mm Lid Pad",
             "fan_case_pair_lid_pad",
             FAN_CASE_PAIR_LID_PAD_STL_NAME,
         ),

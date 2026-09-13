@@ -16,16 +16,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mission1_field_case_blender as case
 
 
+# Baselines include the authorized 25% hinge-clearance reduction for a 3.8 mm rod.
 FIXED_PART_BASELINES = {
     "base": (
         3713,
         2543,
-        "9c985a41d75c3deee79660d402053b0b69c65271bf38ea5e1457deee10f7d31d",
+        "8f5a3124dfd45c3747120c52cfae962bc67985edb365162b4a313c3c17b7c1f8",
     ),
     "lid": (
         4692,
         3370,
-        "13b804a9c537bb009b7747d32a58f9bbfb4cf610c385e91034c9bba00aa5d75f",
+        "bf277641a8db533a2924b0e4848cbb73ca33d283cac48e30e91566ddf6719ff3",
     ),
 }
 
