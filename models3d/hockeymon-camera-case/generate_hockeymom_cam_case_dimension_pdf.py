@@ -2607,10 +2607,10 @@ def page_optics(pdf):
               "ADJUSTABLE_EYE_FORWARD_CLEARANCE_OFFSET",
               "EYE_ADJUSTABLE_BODY_RELIEF_DEPTH / EYE_FRONT_DATUM_DEPTH",
               "EYE_MOUTH_MAX_RECESS_DEPTH",
-              "No ring, rear shelf/ramp, recess island, or support web is generated.",
               "minimum yaw-sweep protrusion: CAMERA_LENS_MIN_SWEEP_EYE_FACE_PROTRUSION",
-              "Actual solved protrusions are printed by each Blender build.",
-              "Top-loading closure, visor, and camera datums remain generated."],ORANGE)
+              "Lid eye filler faces follow the actual outer shell contour.",
+              "EYE_TOP_LOADING_CHEEK_CHAMFER_DEPTH: internal 45-degree lead-in.",
+              "EYE_TOP_LOADING_CHEEK_FRONT_LAND: retains the outside slot edge."],ORANGE)
     pdf.savefig(fig); plt.close(fig)
 
 

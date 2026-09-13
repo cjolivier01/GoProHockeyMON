@@ -8,6 +8,7 @@ make -C models3d dim-pdf
 make -C models3d check-dim-pdf-sync
 make -C models3d check-hockeymon-battery-slot
 make -C models3d check-hockeymon-fan-cover
+make -C models3d check-hockeymon-eye-closures
 make -C models3d check-print-3mf
 ```
 
@@ -29,6 +30,27 @@ arranging the parts onto separate plates. Use supports under the fan fairing's
 tail. The near-bed-width base and lid need no outward brim or skirt.
 For custom Blender runs, set `EXPORT_3MF = False` for STL-only output.
 The Make target always generates both formats.
+
+## Flush lid eye fillers
+
+![Installed lid fillers follow the outside case face](docs/images/eye_fillers_front.png)
+
+![Close view of the lid filler and case seam](docs/images/eye_filler_close.png)
+
+![Lid raised to show the descending eye fillers](docs/images/eye_fillers_lifted.png)
+
+The descending lid fillers restore the upper eye openings **flush with the
+actual outside case contour**. Their visible faces follow the same outline
+as the lid edge. The camera mounting plane stays recessed; the wider keyed
+backing remains inside. Each filler keeps **0.25 mm side clearance** and
+**0.20 mm aperture clearance** around the eye opening.
+
+The base's slot cheeks have **45-degree internal lead-ins**, extending
+**5 mm inward**, with a **0.25 mm front land**. These clear the fillers as
+the lid tilts into its front anchor while preserving the visible slot edges.
+**Print the matching base and lid from this revision**; the new flush lid
+can bind against the previous base during insertion. Exterior dimensions
+and the 250 × 255 mm individual-part print limit remain unchanged.
 
 ## Streamlined fan cover and rear corners
 

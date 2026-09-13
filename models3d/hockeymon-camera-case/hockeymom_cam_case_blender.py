@@ -450,6 +450,10 @@ EYE_MOUTH_CUTTER_OUTWARD_EXTENSION = 25.0
 EYE_TOP_LOADING_ENABLED = True
 EYE_TOP_LOADING_SLOT_WIDTH = 44.0
 EYE_TOP_LOADING_SLOT_BOTTOM_OFFSET_Z = 0.0
+# Internal 45-degree lead-ins clear the nose-first lid insertion.
+# Preserve the visible outside slot edges and the keyed backing pockets.
+EYE_TOP_LOADING_CHEEK_CHAMFER_DEPTH = 5.0
+EYE_TOP_LOADING_CHEEK_FRONT_LAND = 0.25
 EYE_LID_CLOSURE_FIT_CLEARANCE = 0.25
 EYE_LID_CLOSURE_RADIAL_CLEARANCE = 0.20
 EYE_LID_CLOSURE_PLATE_EMBED = 2.5
@@ -2899,7 +2903,11 @@ def eye_mouth_cutter_radial_bounds(camera):
 
 
 def eye_lid_closure_radial_bounds(camera):
-    """Return central tongue and inside backing-flange radial bounds."""
+    """Return the inner tongue core and inside backing-flange radial bounds.
+
+    The visible tongue face is extended and clipped to the actual shell loft
+    in add_lid_eye_closures; this recessed datum only locates its inner key.
+    """
     # Key the removable upper eye closure directly behind the abstract front
     # datum plane, without adding annular material around the mouth.
     rim_backplane = eye_front_datum_plane(camera)
@@ -6513,6 +6521,8 @@ def validate_config() -> None:
         ),
         "CAMERA_FRONT_STOP_EDGE_RADIUS": CAMERA_FRONT_STOP_EDGE_RADIUS,
         "EYE_MOUTH_CUTTER_INWARD_EXTRA": EYE_MOUTH_CUTTER_INWARD_EXTRA,
+        "EYE_TOP_LOADING_CHEEK_CHAMFER_DEPTH": EYE_TOP_LOADING_CHEEK_CHAMFER_DEPTH,
+        "EYE_TOP_LOADING_CHEEK_FRONT_LAND": EYE_TOP_LOADING_CHEEK_FRONT_LAND,
         "EYE_LID_CLOSURE_FIT_CLEARANCE": EYE_LID_CLOSURE_FIT_CLEARANCE,
         "EYE_LID_CLOSURE_RADIAL_CLEARANCE": (
             EYE_LID_CLOSURE_RADIAL_CLEARANCE
@@ -7033,6 +7043,8 @@ def validate_config() -> None:
             )
         if 2.0 * EYE_LID_CLOSURE_FIT_CLEARANCE >= EYE_TOP_LOADING_SLOT_WIDTH:
             raise ValueError("Eye-lid closure fit clearance consumes the insert")
+        if not EYE_TOP_LOADING_CHEEK_FRONT_LAND < EYE_TOP_LOADING_CHEEK_CHAMFER_DEPTH < (EYE_MOUTH_WIDTH-EYE_TOP_LOADING_SLOT_WIDTH)/2:
+            raise ValueError("Eye slot internal chamfer must preserve its front land and side structure")
         if VISORS_ENABLED:
             if EYE_LID_VISOR_ROOT_RIB_WIDTH <= 0.0:
                 raise ValueError(
@@ -15881,7 +15893,6 @@ def add_camera_openings_and_visors(base, cameras, footprint):
     support webs are deliberately absent.  Each mouth is cut in its own
     Boolean stage because the close-angle cutters overlap inside the case.
     """
-    del footprint  # Kept in the signature for the base-construction API.
     if VISORS_ENABLED:
         for camera in cameras:
             boolean_union(
@@ -15922,11 +15933,11 @@ def add_camera_openings_and_visors(base, cameras, footprint):
             f"edges={non_manifold_edge_diagnostics(base)}"
         )
     add_camera_eye_body_reliefs(base, cameras, "Base")
-    add_camera_top_loading_slots(base, cameras)
+    add_camera_top_loading_slots(base, cameras, footprint)
     return base
 
 
-def add_camera_top_loading_slots(base, cameras):
+def add_camera_top_loading_slots(base, cameras, footprint):
     if not EYE_TOP_LOADING_ENABLED:
         return base
     slot_bottom = eye_top_loading_slot_bottom_z()
@@ -15945,6 +15956,22 @@ def add_camera_top_loading_slots(base, cameras):
             [slot],
             f"Eye_{index}_Top_Loading_U_Slot_Cut",
         )
+        # The flush tongue swings sideways slightly while the front anchor
+        # engages. Bevel the inside cheeks, keeping the exterior U-slot size.
+        depth = EYE_TOP_LOADING_CHEEK_CHAMFER_DEPTH
+        land = EYE_TOP_LOADING_CHEEK_FRONT_LAND
+        for sign in (-1.0,1.0):
+            edge = camera["eye_tangent"]+sign*EYE_TOP_LOADING_SLOT_WIDTH/2
+            radial = radial_surface_distance(camera["angle"],edge,footprint)
+            points = (
+                (radial-land,edge-sign*0.05),
+                (radial-depth,edge-sign*0.05),
+                (radial-depth,edge+sign*(depth-land)),
+            )
+            loop = convex_hull_2d([tuple(axis_point(camera["angle"],r,t,0)[:2]) for r,t in points])
+            cutter = polygon_prism_z(f"Eye_{index}_Internal_Cheek_Lead_In",loop,
+                                     slot_bottom,BASE_HEIGHT+BOOLEAN_OVERLAP)
+            boolean_difference(base,[cutter],f"Eye_{index}_Cheek_Lead_In_Cut")
         if camera.get("eye_mouth_recess_depth", 0.0) > (
             CAMERA_NOSE_CONTACT_TOLERANCE
         ):
@@ -30930,7 +30957,21 @@ def add_front_lid_anchor_tab(lid, footprint):
     return lid
 
 
-def add_lid_eye_closures(lid, cameras):
+def eye_closure_shell_envelope(footprint, top_z):
+    """Use the base's actual loft stations, continued into the flat lid plate."""
+    anchor = min(effective_rear_height_taper_anchor_z(), BASE_HEIGHT)
+    heights = [z for z,_ in BODY_SECTIONS if z < anchor-1e-9]
+    if not heights or heights[0] != 0.0:
+        heights.insert(0,0.0)
+    if anchor < BASE_HEIGHT-1e-9:
+        heights.append(anchor)
+    heights.extend((BASE_HEIGHT,top_z))
+    return loft_solid("Lid_Eye_Outer_Shell_Envelope",tuple(
+        (z,scale_loop(footprint,body_scale_at_z(z))) for z in heights
+    ))
+
+
+def add_lid_eye_closures(lid, cameras, footprint):
     if not EYE_TOP_LOADING_ENABLED:
         return lid
     z0 = eye_top_loading_slot_bottom_z()
@@ -30944,7 +30985,10 @@ def add_lid_eye_closures(lid, cameras):
     )
     for camera in cameras:
         index = camera["index"]
-        main_radial, backing_radial = eye_lid_closure_radial_bounds(camera)
+        keyed_radial, backing_radial = eye_lid_closure_radial_bounds(camera)
+        angle = math.radians(camera["angle"])
+        outer_limit = max(x*math.cos(angle)+y*math.sin(angle) for x,y in footprint)
+        main_radial = (keyed_radial[0],outer_limit+BOOLEAN_OVERLAP)
         closure = eye_axis_box(
             f"Lid_Eye_{index}_Central_Closure_Tongue",
             camera,
@@ -30953,6 +30997,11 @@ def add_lid_eye_closures(lid, cameras):
             z0,
             z1,
         )
+        # The camera datum is recessed from the enclosure. Fill all the way
+        # to the real case/lid face, matching its contour at every height.
+        envelope = eye_closure_shell_envelope(footprint,z1+BOOLEAN_OVERLAP)
+        apply_boolean(closure,envelope,"INTERSECT",
+                      f"Lid_Eye_{index}_Flush_Outer_Face",solver="MANIFOLD")
         backing = eye_axis_box(
             f"Lid_Eye_{index}_Inside_Keyed_Backing_Flange",
             camera,
@@ -31021,7 +31070,9 @@ def add_lid_eye_closures(lid, cameras):
             # and tie the removable visor center into the keyed lid tongue.
             # They remain within main_width, avoiding the base-side visor
             # wings and the U-slot fit-clearance envelope.
-            rib_radial_width = main_radial[1] - main_radial[0]
+            # Keep optional visor roots on the existing inner key; the
+            # extended tongue cutter deliberately overshoots the shell.
+            rib_radial_width = keyed_radial[1] - keyed_radial[0]
             rib_z0 = min(
                 resolved_visor_z(VISOR_BACK_TOP_Z),
                 resolved_visor_z(VISOR_FRONT_TOP_Z),
@@ -31044,7 +31095,7 @@ def add_lid_eye_closures(lid, cameras):
             for rib_index, tangent_sign in enumerate((-1.0, 1.0), start=1):
                 rib_center = axis_point(
                     camera["angle"],
-                    sum(main_radial) / 2.0,
+                    sum(keyed_radial) / 2.0,
                     camera["eye_tangent"]
                     + tangent_sign * rib_tangent_offset,
                     (rib_z0 + rib_z1) / 2.0,
@@ -31074,10 +31125,52 @@ def add_lid_eye_closures(lid, cameras):
         )
         print(
             f"LID_EYE_CLOSURE {index}: tongue_width={main_width:.2f} "
-            f"backing_width={backing_width:.2f} z=({z0:.2f}, {z1:.2f})"
+            f"backing_width={backing_width:.2f} z=({z0:.2f}, {z1:.2f}) face=flush_shell_loft"
         )
     return lid
 
+
+
+def validate_lid_eye_closure_faces(lid, cameras, footprint):
+    """Check the final fillers reach the actual case face above each eye."""
+    if not EYE_TOP_LOADING_ENABLED:
+        return
+    bpy.context.view_layer.update()
+    evaluated = lid.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    inverse = evaluated.matrix_world.inverted()
+    half_width = EYE_TOP_LOADING_SLOT_WIDTH/2-EYE_LID_CLOSURE_FIT_CLEARANCE
+    roof = camera_eye_center_z()+EYE_MOUTH_HEIGHT/2+EYE_LID_CLOSURE_APERTURE_CLEARANCE
+    heights = (roof+1.0,(roof+BASE_HEIGHT)/2,BASE_HEIGHT-0.5)
+    worst_error = 0.0
+    for camera in cameras:
+        angle = math.radians(camera["angle"])
+        direction = Vector((-math.cos(angle),-math.sin(angle),0.0))
+        for z in heights:
+            if z <= roof or z >= BASE_HEIGHT:
+                continue
+            # The eye is on the untapered front; interpolate the actual loft
+            # segments, whose faces are planar between BODY_SECTIONS.
+            scale = body_scale_at_z(z)
+            for (low,s0),(high,s1) in zip(BODY_SECTIONS,BODY_SECTIONS[1:]):
+                if low <= z <= high:
+                    scale = s0+(s1-s0)*(z-low)/(high-low)
+                    break
+            section = scale_loop(footprint,scale)
+            for offset in (-0.9*half_width,0.0,0.9*half_width):
+                tangent = camera["eye_tangent"]+offset
+                expected = radial_surface_distance(camera["angle"],tangent,section)
+                origin = axis_point(camera["angle"],expected+10.0,tangent,z)
+                hit,location,_normal,_face = evaluated.ray_cast(
+                    inverse @ origin,inverse.to_3x3() @ direction,distance=30.0)
+                if not hit:
+                    raise RuntimeError(f"Eye {camera['index']} lid filler does not reach the outer case face")
+                actual = evaluated.matrix_world @ location
+                radial = actual.x*math.cos(angle)+actual.y*math.sin(angle)
+                error = abs(radial-expected)
+                worst_error = max(worst_error,error)
+                if error > 0.02:
+                    raise RuntimeError(f"Eye {camera['index']} lid filler is not flush: {error:.4f} mm at Z={z:.2f}")
+    print(f"LID_EYE_FLUSH_FACE PASS max_error={worst_error:.6f}mm")
 
 def add_lid_camera_bracket_reliefs(lid, cameras):
     """Clear bracket roofs from the lip and adjustable eye-closure tongue."""
@@ -31593,7 +31686,7 @@ def create_lid(positions, footprint, cameras):
 
     cut_front_lid_anchor_alignment_lip_relief(lid, footprint)
     add_front_lid_anchor_tab(lid, footprint)
-    add_lid_eye_closures(lid, cameras)
+    add_lid_eye_closures(lid, cameras, footprint)
     add_camera_eye_body_reliefs(lid, cameras, "Lid")
     add_lid_camera_bracket_reliefs(lid, cameras)
     add_lid_fastener_seating_islands(lid, positions)
@@ -40056,6 +40149,7 @@ def build_hockeymom_cam_case():
         bottom_keystone_positions,
     )
     validate_object(lid)
+    validate_lid_eye_closure_faces(lid, cameras, footprint)
     validate_front_lid_anchor(base, lid, footprint)
     validate_front_lid_anchor_installation_path(base, lid, footprint)
     if lid_fan_pod is not None:
