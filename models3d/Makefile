@@ -295,7 +295,7 @@ STL_FILES := \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn horn-renderings mission1-dummy mission1-field-case mission1-field-case-plate-overview dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymon-camera-case hockeymom-cam-case \
-	hockeymom-keystone-test-coupon check-hockeymon-battery-slot check-hockeymon-fan-cover check-print-3mf \
+	hockeymom-keystone-test-coupon check-hockeymon-battery-slot check-hockeymon-fan-cover check-hockeymon-eye-closures check-print-3mf \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-mission1-field-case clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
 	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf
@@ -497,6 +497,10 @@ $(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF) &: $(HOCKEYMON_CAMERA_CASE_
 
 hockeymon-camera-case: $(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF)
 hockeymom-cam-case: hockeymon-camera-case
+
+check-hockeymon-eye-closures:
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 \
+		--python $(HOCKEYMON_CAMERA_CASE_DIR)/check_lid_eye_closures.py
 
 check-print-3mf:
 	$(PDF_PYTHON) common/check_print_3mf.py
