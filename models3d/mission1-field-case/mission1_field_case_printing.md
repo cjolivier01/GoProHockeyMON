@@ -261,9 +261,54 @@ The split follows the generated fan/cable route.
 The legacy `overhead_carrier` filename now contains the complete shallow rear
 tray, not a flat carrier panel.
 
-The alternate keyed lid pad remains a flat 224 x 148 x 3 mm plate with no long
-columns. It closes both tray rims with 0.3 mm nominal TPU compression. The rim
-finger scallops are not sealed; use a small bag for tiny loose fasteners.
+The alternate keyed lid pad is a flat **224 × 148 × 2 mm** plate. It leaves
+**0.7 mm clearance** above the tray rims, with no intended rim compression.
+Use your 85A TPU for this replacement pad; no pad squeeze is required for closure.
+The rear tray has a **14 × 8 mm, 3 mm-deep notch** at its back rim for the rigid
+lid's locating key. The notch is centered at X = −42 mm, Y = +71 mm in the
+installed case frame. It opens through the rear edge; its floor is Z = 99.1 mm.
+
+The previous rear tray had no notch and collided with the rigid key by 0.8 mm.
+The former 3 mm pad also overlapped both rims by 0.3 mm. The previous loadout
+checks tested the pad opening but missed the rigid key. Softer TPU, including
+85A, does not remove these dimensional interferences.
+
+For this closure correction, reprint the rear shallow tray and the flat lid
+pad. The front deep tray, lower insert, tray supports, and tray rim heights remain
+unchanged. Case and lid dimensions remain unchanged; the separate hinge-fit
+revision below changes their rod openings. Applying the tighter fit to an
+existing print requires reprinting the base and chosen lid. The locating notch can also be cut into an existing
+rear tray to the dimensions above, if preferred. Keep the normal lid gasket.
+The open rim scallops already prevent these trays from sealing small items;
+use a small bag for loose fasteners.
+
+The nominal case measurement is **97.8 mm from the outside bottom to the main
+hard rim**. It excludes the projecting hinge features; the inside floor uses a
+separate 3.2 mm datum. If that external measurement is 97.25 mm and the other
+parts match their nominal dimensions, the revised pad still clears the rims
+by 0.15 mm. That is a conditional stack calculation, not a measurement of
+printer shrinkage or of the assembled printed trays. The generator checks a
+0.6 mm shorter-base allowance, leaving at least 0.1 mm nominal pad clearance.
+
+| Installed height above outside case bottom | Nominal model |
+| --- | ---: |
+| Highest fan-case assembly feature | 75.27 mm |
+| Rear shallow tray underside | 75.97 mm |
+| Front deep tray underside | 48.26 mm |
+| Both tray rims | 102.10 mm |
+| Revised pad underside | 102.80 mm |
+| Rigid lid inner face | 104.80 mm |
+
+The focused closure regression checks both lid variants from 0–5° in 0.25°
+steps and from 10–110° in 5° steps, as well as the lowered closed stack. It
+rejects the original unnotched tray, the old pad, a pad that consumes the
+height allowance, and a pad with its locating notch reversed:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_alternate_closure.py
+```
+
 Do not stack any of these four alternate parts with a dual-fan-loadout insert.
 
 The exact references are built directly from the current local fan-case,
@@ -328,6 +373,8 @@ plates; hinge coupon; and printed hardware. The rigid and TPU lid plates are
 clearly marked as alternatives, so print one lid plate for a normal case or
 both only if both lid variants are wanted. Every loadout part remains in the
 same project even when it is not used with the selected lid or insert set.
+The revised alternate plates are labeled `Key-Notched Rear Tray` and
+`2 mm Lid Pad` to distinguish them from older exports.
 
 Each lid-choice plate is an independently printable, aligned three-material
 compound object:
@@ -352,7 +399,9 @@ project to preserve plate assignments and multipart lid alignment. Select one
 lid plate and the desired loadout plates before slicing; the project includes
 both mutually exclusive choices. The printed-hardware plate already contains
 two levers and two hooks. Review filament profiles and localized hinge supports
-for the actual printer before printing.
+for the actual printer before printing. For the alternate pad, select your
+85A TPU profile on its separate plate; the shared generic TPU preset does not
+specify Shore hardness.
 
 To regenerate the labeled overview directly from the packaged 3MF meshes:
 
@@ -650,8 +699,9 @@ committing the full shell.
 ## Separate pivoting handle
 
 `mission1_field_case_pivoting_handle_bar.stl` is a replacement handle for the
-existing case lugs. The case and lid meshes, 3.9 mm lug bores, pivot positions,
-and latch protectors are unchanged. Reprint only the handle to upgrade.
+existing case lugs. That handle revision preserves the case/lid geometry,
+3.9 mm lug bores, pivot positions, and latch protectors. Reprint only the handle for the handle upgrade;
+the later hinge-fit revision below changes the case/lid rod openings.
 
 The grip is now solid, 16 mm deep and 18 mm thick, replacing the perforated
 11 × 12.2 mm section. The drop increases from 32.5 to 40 mm. Continuous fork
@@ -715,28 +765,42 @@ barrel. The web begins 0.3 mm inside the rear case wall, rises outward at 45
 degrees, and joins the 10 mm barrel at its lower-outboard tangent. This removes
 the unsupported lower circular arc and gives the barrel a much larger load path
 into the shell without changing the hinge axis, alternating axial clearances,
-or internal case dimensions. Its original hinge path is enlarged only to a 4.5
-mm bore so the requested 4.1 mm bar can pass through all three base knuckles.
+or internal case dimensions. The continuous bore is now 4.325 mm for the
+measured 3.8 mm steel rod.
 Print the base upright as exported; the hinge webs are designed not to require
 support.
 
 Both replacement lids use 9.6 mm barrel arcs inside the existing base's 10.8 mm
 swing pockets, increasing nominal radial clearance from 0.4 to 0.6 mm. Their
 22 mm receiver banks leave 1 mm between adjacent base and lid knuckles. The
-base geometry, hinge axis, and rod dimensions are unchanged. Only the lids' pockets
-around the fixed base knuckles grow, to 0.7 mm radial and 0.6 mm axial clearance.
+hinge axis and outer barrel envelopes are preserved. The lids' pockets around
+the fixed base knuckles retain 0.7 mm radial and 0.6 mm axial clearance.
 
 Each jaw ends at a blunt face 2.4 mm outward from the rod center. This removes
 the circular profile's thin, easily damaged tips: the rigid slot retains at
 least 1.85 mm of material at each jaw end, and the TPU mouth retains 1.65 mm.
 A broad tapered root joins each receiver to the lid plate; the TPU banks also
 have a continuous caseward spine between their independently flexing jaws.
-The unchanged 4.8 mm round receiver gives the 4.1 mm rod 0.35 mm radial play.
+The rod openings now reduce clearance around the measured **3.8 mm rod by
+25%**. This scales the gap, not the hole diameter:
+
+| Opening | Previous | Revised | Total clearance, before → after |
+| --- | ---: | ---: | ---: |
+| Base support-free bore | 4.5 mm | 4.325 mm | 0.7 → 0.525 mm |
+| Lid round receiver | 4.8 mm | 4.55 mm | 1.0 → 0.75 mm |
+| Rigid lid slot | 4.6 mm | 4.4 mm | 0.8 → 0.6 mm |
+
+The base bore has a support-free roof, so its total vertical rod travel differs
+from its nominal diametral gap. Rod play is separate from the tray obstruction;
+pad compression should not be used to mask it. The TPU snap throat is now
+3.6 mm, preserving 0.2 mm interference with this rod. The 5 mm entry mouth and
+hinge axis remain unchanged. Existing larger printed openings need new parts
+to obtain this tighter fit; the tray/pad correction works with existing shells.
 These geometry improvements still need a physical fit and repeated-opening
 test with the chosen filament and print settings.
 
-The rigid lid's 4.6 mm slot remains parallel to the lid plate. The closed lid
-cannot lift vertically off the rod. With the increased running clearance, the
+The rigid lid's 4.4 mm slot remains parallel to the lid plate. The closed lid
+cannot lift vertically off the rod. With the revised running clearance, the
 removal path is checked as blocked through 60 degrees; 70 degrees remains the
 fully validated installation/removal position. Do not rely on the former
 65-degree retention threshold.
@@ -766,27 +830,27 @@ stops and retention.
 TPU-for-AMS with a Shore rating of 68D. It replaces
 `mission1_field_case_lid.stl`; never stack the two lids. The default rigid lid
 retains its deliberate 70-degree slide-off receiver. The TPU lid
-keeps the same case closure, latch protectors, gasket channel, and 4.8 mm seated
-rod receiver, but narrows the snap throat to 3.9 mm and flares it to a smooth
+keeps the same case closure, latch protectors, gasket channel, and 4.55 mm seated
+rod receiver, but narrows the snap throat to 3.6 mm and flares it to a smooth
 5.0 mm mouth. Each of the two 22 mm lid receivers is divided into three
 6.53 mm clips with 1.2 mm axial relief gaps. Their jaws flex locally while a
 continuous spine joins their roots. The smooth lead reaches the full mouth
 width before the new blunt jaw ends. Its 1.5 mm straight throat extends past
 the round receiver before the 0.8 mm lead begins, preserving the configured
-3.8–4.1 mm coupon widths.
+3.5–3.8 mm coupon widths.
 
-With the 4.1 mm rod already centered in the three base knuckles, hold the TPU
+With the 3.8 mm rod already centered in the three base knuckles, hold the TPU
 lid partly open, align both banks of mouths with the rod, and press the clips
-onto it progressively. The hard TPU can flex past the 3.9 mm throat and recover
-around the 4.8 mm seat. To remove it, support one short clip bank at a time and
+onto it progressively. The hard TPU can flex past the 3.6 mm throat and recover
+around the 4.55 mm seat. To remove it, support one short clip bank at a time and
 peel it back off the rod; avoid sharply folding the lid plate or pulling one
 end of the full hinge at once.
 
 Print `mission1_field_case_tpu_68d_hinge_coupon.stl` before committing to the
 full TPU lid. The 91 x 14.7 x 15.8 mm coupon contains four breakaway, dot-coded
-three-clip banks with 3.8, 3.9, 4.0, and 4.1 mm throats: one dot is 3.8 mm,
-two dots is the nominal 3.9 mm, three
-dots is 4.0 mm, and four dots is 4.1 mm. Test the actual 4.1 mm rod using the
+three-clip banks with 3.5, 3.6, 3.7, and 3.8 mm throats: one dot is 3.5 mm,
+two dots is the nominal 3.6 mm, three dots is 3.7 mm, and four dots is 3.8 mm.
+Test the actual 3.8 mm rod using the
 same filament, layer height, wall count, orientation, and dry-filament state as
 the lid. Each coupon bank reproduces all three 6.53 mm clips, their 1.2 mm gaps,
 and the continuous shared root spine. The reinforced plate-to-barrel root,
@@ -797,7 +861,7 @@ all twelve coupon receivers that will be used inside the TPU lid clips; a change
 interface gap can distort the throat comparison. Choose the smallest throat
 that snaps repeatedly without whitening, cracking, or requiring excessive
 force, then set `TPU_HINGE_SNAP_THROAT_WIDTH` to that value if it differs from
-3.9 mm. The 4.1 mm bank is a clearance control for the nominal 4.1 mm rod; the
+3.6 mm. The 3.8 mm bank is a clearance control for the nominal 3.8 mm rod; the
 retaining snap-lid configuration requires positive throat interference.
 
 The optional TPU lid is included on its own clearly labeled 3MF plate beside
@@ -819,7 +883,8 @@ the selected lid is complete.
 - Lower fan cradle, upper equipment tray, and lid pad: TPU 95A, two or three
   walls, and 15-20% infill.
 - Alternate fan-case lower cradle, rear shallow tray, front deep tray,
-  and flat lid pad: TPU 95A or a comparably resilient protective material,
+  and flat lid pad: TPU 95A (85A for the replacement flat lid pad) or a
+  comparably resilient protective material,
   three walls, and 15-20% infill. Keep the PWM dock nubs flexible; do not fill
   the plug channels with support. Print both standalone trays flat-floor-down
   and open-side-up; neither has feet or long lid-mounted projections.
@@ -843,10 +908,10 @@ the selected lid is complete.
   three-clip banks. Use the same
   removable support-interface settings for the TPU lid and coupon so support
   removal does not bias throat calibration. Remove support completely and
-  verify the actual 4.1 mm bar moves through every selected receiver before
+  verify the actual 3.8 mm bar moves through every selected receiver before
   assembly.
-- Print the optional headless 4.1 mm hinge pin on its D-shaped flat, or cut a
-  4.1 mm metal bar to 151 mm. Verify the actual bar against a small bore test
+- Print the optional headless 3.8 mm hinge pin on its D-shaped flat, or cut a
+  3.8 mm metal bar to 151 mm. Verify the actual bar against a small bore test
   before printing the full base.
 
 Test camera, battery, latch, handle, and hinge fits before field use. Pocket,
@@ -866,7 +931,7 @@ and can be regenerated without editing an STL.
    for a continuous bond to the lid channel. If the separate-gasket option was
    used, seat the hollow TPU ring in the channel. Fit the TPU pad with its
    asymmetric notch over the matching rigid boss.
-3. Feed and center the 151 mm-long, 4.1 mm bar (or headless printed D-profile
+3. Feed and center the 151 mm-long, 3.8 mm bar (or headless printed D-profile
    pin) through the three base knuckles, leaving both ends about 0.5 mm inset.
    Hold the lid approximately 70 degrees open. Align both rearward-opening
    receivers with the installed bar and slide the lid diagonally down and rear

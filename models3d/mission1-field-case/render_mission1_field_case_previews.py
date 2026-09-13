@@ -637,7 +637,7 @@ def render_tpu_snap_hinge(camera):
         rotation=(0.0, math.pi / 2.0, 0.0),
     )
     rod = bpy.context.object
-    rod.name = "PREVIEW_ONLY_Installed_4p1mm_Hinge_Rod"
+    rod.name = "PREVIEW_ONLY_Installed_Hinge_Rod"
     assign_material(
         rod,
         make_principled_material(
