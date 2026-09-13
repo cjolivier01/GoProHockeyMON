@@ -12,8 +12,8 @@ import zipfile
 from print_3mf import export_print_project, tag, validate_print_project
 
 
-def write_tetra(path, width=20, z=0):
-    points = ((-width/2,-5,z),(width/2,-5,z),(0,5,z),(0,0,z+15))
+def write_tetra(path, width=20, depth=10, z=0):
+    points = ((-width/2,-depth/2,z),(width/2,-depth/2,z),(0,depth/2,z),(0,0,z+15))
     faces = ((0,2,1),(0,1,3),(1,2,3),(2,0,3))
     data = bytearray(80) + struct.pack('<I',len(faces))
     for face in faces:
@@ -26,7 +26,7 @@ class PrintProjectTests(unittest.TestCase):
     def test_explicit_parts_on_separate_beds(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            parts = [write_tetra(root/f'part_{i}.stl',width=249.9 if i==0 else 20) for i in range(5)]
+            parts = [write_tetra(root/f'part_{i}.stl',width=249.9 if i==0 else 20,depth=254.9 if i==0 else 10) for i in range(5)]
             write_tetra(root/'stale_reference.stl')
             project = export_print_project(root/'print.3mf',parts)
             validate_print_project(project,parts)
@@ -35,14 +35,14 @@ class PrintProjectTests(unittest.TestCase):
                 items = model.find(tag('build')).findall(tag('item'))
                 assert len(items) == 5
                 translations = [list(map(float,item.get('transform').split()))[9:] for item in items]
-                assert translations == [[125,125,0],[425,125,0],[725,125,0],[125,-175,0],[425,-175,0]]
+                assert translations == [[125,127.5,0],[425,127.5,0],[725,127.5,0],[125,-178.5,0],[425,-178.5,0]]
                 assert b'stale_reference' not in archive.read('Metadata/print_manifest.json')
 
     @unittest.skipUnless(shutil.which('bambu-studio'), 'Bambu Studio CLI not installed')
     def test_bambu_preserves_plate_layout(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            parts = [write_tetra(root/f'part_{i}.stl',width=249.9 if i==0 else 20) for i in range(5)]
+            parts = [write_tetra(root/f'part_{i}.stl',width=249.9 if i==0 else 20,depth=254.9 if i==0 else 10) for i in range(5)]
             project = export_print_project(root/'print.3mf',parts)
             output = root/'roundtrip.3mf'
             result = subprocess.run([shutil.which('bambu-studio'),'--arrange','0','--orient','0',
@@ -52,7 +52,7 @@ class PrintProjectTests(unittest.TestCase):
             with zipfile.ZipFile(output) as archive:
                 settings = json.loads(archive.read('Metadata/project_settings.config'))
                 config = ET.fromstring(archive.read('Metadata/model_settings.config'))
-                self.assertEqual(settings['printable_area'],['0x0','250x0','250x250','0x250'])
+                self.assertEqual(settings['printable_area'],['0x0','250x0','250x255','0x255'])
                 self.assertEqual(len(config.findall('object')),5)
                 self.assertEqual([len(p.findall('model_instance')) for p in config.findall('plate')],[1]*5)
                 names = [{m.get('key'):m.get('value') for m in p.findall('metadata')}['plater_name']
@@ -66,6 +66,7 @@ class PrintProjectTests(unittest.TestCase):
             project.write_bytes(b'previous project')
             valid = write_tetra(root/'valid.stl')
             for parts in ([],[valid,valid],[write_tetra(root/'oversize.stl',250.1)],
+                          [write_tetra(root/'too_deep.stl',depth=255.1)],
                           [write_tetra(root/'floating.stl',z=0.1)]):
                 with self.assertRaises(ValueError):
                     export_print_project(project,parts)

@@ -156,7 +156,8 @@ EXPORT_COMBINED_STL = False
 BASE_STL_NAME = "hockeymom_cam_case_base.stl"
 LID_STL_NAME = "hockeymom_cam_case_lid.stl"
 BATTERY_BRACKET_STL_NAME = "hockeymom_cam_case_battery_bracket.stl"
-PRINT_BED_SIZE_MM = 250.0
+PRINT_BED_WIDTH_MM = 250.0
+PRINT_BED_DEPTH_MM = 255.0
 ASSEMBLY_STL_NAME = "hockeymom_cam_case_ASSEMBLY_REFERENCE_NOT_FOR_PRINT.stl"
 CAMERA_BRACKET_1_STL_NAME = "hockeymom_cam_case_camera_bracket_1.stl"
 CAMERA_BRACKET_2_STL_NAME = "hockeymom_cam_case_camera_bracket_2.stl"
@@ -339,7 +340,7 @@ REAR_BATTERY_SLOT_ENABLED = True
 REAR_BATTERY_THICKNESS = 26.3
 REAR_BATTERY_LENGTH = 138.0
 REAR_BATTERY_WIDTH = 70.0
-REAR_BATTERY_FIT_CLEARANCE = 0.6  # per side in X and at the closed Y end
+REAR_BATTERY_FIT_CLEARANCE = 0.6  # per side in X and at both Y ends
 REAR_BATTERY_USB_CLEARANCE = 40.0  # straight plugs plus cable bend allowance
 REAR_BATTERY_AIR_GAP = 8.0  # aft of the protected fan/camera flow region
 REAR_BATTERY_WALL_THICKNESS = 3.2
@@ -358,7 +359,7 @@ REAR_BATTERY_LID_CLEARANCE = 4.0
 REAR_BATTERY_CABLE_DIAMETER = 6.0
 REAR_BATTERY_BAY_CORNER_RADIUS = 24.0
 REAR_BATTERY_BAY_ENVELOPE_MARGIN = 4.0
-# Low corner stops at the open USB end oppose the cradle's closed end wall.
+# Matching low corner stops at both ends retain the pack with balanced mass.
 # These reserve the lowest 4 mm of the pack's outermost 3 mm corners; ports
 # must lie above those corners or within the open center of the face.
 REAR_BATTERY_END_STOP_HEIGHT = 4.0
@@ -30049,14 +30050,20 @@ def extend_rear_battery_bay(footprint, cameras, mechanism):
     radius = REAR_BATTERY_BAY_CORNER_RADIUS
     outer_margin = BODY_WALL_THICKNESS + REAR_BATTERY_BAY_ENVELOPE_MARGIN
     cx = (inner_x0 + inner_x1) / 2
-    cy = (inner_y0 + inner_y1) / 2
+    # Both sides get the USB-side envelope: the outer shell stays symmetric
+    # about the battery and bottom bolt at Y=0.
+    inner_half_y = max(abs(inner_y0), abs(inner_y1))
+    cy = 0.0
     raw_bay = rounded_rectangle_loop(
         inner_x1-inner_x0 + 2*outer_margin,
-        inner_y1-inner_y0 + 2*outer_margin, radius,
+        2*(inner_half_y + outer_margin), radius,
     )
     scale = minimum_body_scale_between(BOTTOM_THICKNESS, BASE_HEIGHT)
     bay = [((cx+x)/scale, (cy+y)/scale) for x,y in raw_bay]
-    hull = convex_hull_2d((*footprint, *bay))
+    # Arc sampling omits tangent endpoints, so explicitly mirror the hull
+    # rather than relying on symmetric rectangle dimensions alone.
+    outline = (*footprint, *bay)
+    hull = convex_hull_2d((*outline, *((x,-y) for x,y in outline)))
     # Reject overly wide tails that alter a camera datum or the existing
     # shaft's exterior wall. In particular, a hull expansion must not silently
     # move the fixed-length purchased worm shaft or bury its control knob.
@@ -30064,6 +30071,7 @@ def extend_rear_battery_bay(footprint, cameras, mechanism):
     if any(x <= protected_x and polygon_boundary_distance((x,y), hull) > 0.001 for x,y in footprint):
         raise ValueError("Battery bay would alter the protected front perimeter; reduce bay width")
     expanded = vertex_preserving_resample(hull, max(FOOTPRINT_POINTS, len(hull)))
+    validate_rear_battery_envelope_symmetry(expanded)
     if mechanism is not None:
         check_mechanism = adjustable_mechanism_layout(cameras, expanded)
         for key in ("wall_point", "shaft_direction"):
@@ -30083,6 +30091,14 @@ def extend_rear_battery_bay(footprint, cameras, mechanism):
     _RESOLVED_REAR_BATTERY_LAYOUT = layout
     return expanded, layout
 
+
+
+def validate_rear_battery_envelope_symmetry(footprint):
+    """Require the outer plan to mirror around the bottom bolt's Y=0 axis."""
+    error = max(polygon_boundary_distance((x,-y),footprint) for x,y in footprint)
+    if error > 0.001:
+        raise ValueError(f"Battery case outer envelope is not symmetric about Y=0: {error:.6f} mm")
+    print(f"BATTERY_ENVELOPE_SYMMETRY max_error={error:.6f}mm axis=Y0")
 
 def circular_feature_intersects_rear_battery(position, radius):
     layout = _RESOLVED_REAR_BATTERY_LAYOUT
@@ -30139,8 +30155,9 @@ def create_rear_battery_bracket(layout):
 def rear_battery_end_stop_bounds(layout):
     bx,by,bz = layout["pack_bounds"]
     wall = REAR_BATTERY_WALL_THICKNESS
-    return tuple((x,(layout["y1"]-wall,layout["y1"]+REAR_BATTERY_END_STOP_THICKNESS),
-                  (0.0,bz[0]+REAR_BATTERY_END_STOP_HEIGHT)) for x in (
+    positive_y = (layout["y1"]-wall,layout["y1"]+REAR_BATTERY_END_STOP_THICKNESS)
+    ends = (positive_y, (-positive_y[1],-positive_y[0]))
+    return tuple((x,y,(0.0,bz[0]+REAR_BATTERY_END_STOP_HEIGHT)) for y in ends for x in (
         (layout["x0"]-wall,bx[0]+REAR_BATTERY_END_STOP_WIDTH),
         (bx[1]-REAR_BATTERY_END_STOP_WIDTH,layout["x1"]+wall),
     ))
@@ -30161,10 +30178,10 @@ def add_rear_battery_slot(base,layout,obstacles):
     x0,x1,y0,y1 = (layout[key] for key in ("x0","x1","y0","y1"))
     wall,height = REAR_BATTERY_WALL_THICKNESS,REAR_BATTERY_WALL_HEIGHT
     holder = rear_battery_box("Internal_Rear_Battery_Slot",(
-        (x0-wall,x1+wall),(y0-wall,y1),(0,height),
+        (x0-wall,x1+wall),(y0,y1),(0,height),
     ))
     boolean_difference(holder,[rear_battery_box("Battery_Open_Top_And_USB_End",(
-        (x0,x1),(y0,y1+1),(layout["seat_z"],height+1),
+        (x0,x1),(y0-1,y1+1),(layout["seat_z"],height+1),
     ))])
     for index,bounds in enumerate(rear_battery_end_stop_bounds(layout)):
         stop = rear_battery_box(f"Battery_Bottom_Corner_Stop_{index}",bounds)
@@ -39027,15 +39044,33 @@ def export_stl(path: Path, objects) -> Path:
     return path
 
 
-def validate_print_bed_fit(objects):
-    if not math.isfinite(PRINT_BED_SIZE_MM) or PRINT_BED_SIZE_MM <= 0:
-        raise ValueError("PRINT_BED_SIZE_MM must be finite and positive")
+def print_bed_dimensions():
+    dimensions = (PRINT_BED_WIDTH_MM, PRINT_BED_DEPTH_MM)
+    if not all(math.isfinite(value) and value > 0 for value in dimensions):
+        raise ValueError("Print bed width and depth must be finite and positive")
+    return dimensions
+
+
+def print_xy_fits(spans):
+    return all(span <= limit + 0.001 for span,limit in zip(spans,print_bed_dimensions()))
+
+
+def evaluated_world_vertices(objects):
     bpy.context.view_layer.update()
-    corners = [obj.matrix_world @ Vector(corner) for obj in objects for corner in obj.bound_box]
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    return [evaluated.matrix_world @ vertex.co
+            for obj in objects
+            for evaluated in (obj.evaluated_get(depsgraph),)
+            for vertex in evaluated.data.vertices]
+
+
+def validate_print_bed_fit(objects):
+    corners = evaluated_world_vertices(objects)
     spans = tuple(max(point[i] for point in corners)-min(point[i] for point in corners) for i in (0,1))
-    if max(spans) > PRINT_BED_SIZE_MM + 0.001:
-        raise ValueError(f"Print footprint {spans[0]:.2f} x {spans[1]:.2f} mm exceeds {PRINT_BED_SIZE_MM:g} x {PRINT_BED_SIZE_MM:g} mm bed")
-    print(f"PRINT_BED_FIT {spans[0]:.2f}x{spans[1]:.2f}mm limit={PRINT_BED_SIZE_MM:g}mm")
+    width,depth = print_bed_dimensions()
+    if not print_xy_fits(spans):
+        raise ValueError(f"Print footprint {spans[0]:.2f} x {spans[1]:.2f} mm exceeds {width:g} x {depth:g} mm bed")
+    print(f"PRINT_BED_FIT {spans[0]:.2f}x{spans[1]:.2f}mm limit={width:g}x{depth:g}mm")
 
 
 _PRINT_PROJECT_STLS = None
@@ -39051,26 +39086,28 @@ def export_single_stl(
     if not NORMALIZE_SEPARATE_STLS:
         return export_stl(path, [obj])
     original_matrix = obj.matrix_world.copy()
-    if PRINT_ORIENT_SEPARATE_STLS and print_face_down:
-        obj.matrix_world = Matrix.Rotation(math.pi, 4, "X") @ original_matrix
-        bpy.context.view_layer.update()
-    elif PRINT_ORIENT_SEPARATE_STLS and print_axis_to_z:
-        angle = math.radians(float(obj["print_axis_angle_deg"]))
-        assembled_axis = Vector((math.cos(angle), math.sin(angle), 0.0))
-        rotation = assembled_axis.rotation_difference(
-            Vector((0.0, 0.0, 1.0))
-        ).to_matrix().to_4x4()
-        obj.matrix_world = rotation @ original_matrix
-        bpy.context.view_layer.update()
-    # A rotated bounding box can extend below the real mesh (notably the
-    # angled knob). Normalize the evaluated vertices so every part touches Z=0.
-    evaluated = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
-    corners = [evaluated.matrix_world @ vertex.co for vertex in evaluated.data.vertices]
-    center_x = (min(point.x for point in corners) + max(point.x for point in corners)) / 2.0
-    center_y = (min(point.y for point in corners) + max(point.y for point in corners)) / 2.0
-    minimum_z = min(point.z for point in corners)
-    obj.location += Vector((-center_x, -center_y, -minimum_z))
     try:
+        if PRINT_ORIENT_SEPARATE_STLS and print_face_down:
+            obj.matrix_world = Matrix.Rotation(math.pi, 4, "X") @ original_matrix
+        elif PRINT_ORIENT_SEPARATE_STLS and print_axis_to_z:
+            angle = math.radians(float(obj["print_axis_angle_deg"]))
+            assembled_axis = Vector((math.cos(angle), math.sin(angle), 0.0))
+            rotation = assembled_axis.rotation_difference(
+                Vector((0.0, 0.0, 1.0))
+            ).to_matrix().to_4x4()
+            obj.matrix_world = rotation @ original_matrix
+        # Preserve the print face, rotating in-plane only if the longer bed
+        # axis is needed. STL and 3MF receive exactly the same orientation.
+        corners = evaluated_world_vertices([obj])
+        spans = tuple(max(p[i] for p in corners)-min(p[i] for p in corners) for i in (0,1))
+        if PRINT_ORIENT_SEPARATE_STLS and not print_xy_fits(spans) and print_xy_fits(spans[::-1]):
+            obj.matrix_world = Matrix.Rotation(math.pi/2, 4, "Z") @ obj.matrix_world
+            corners = evaluated_world_vertices([obj])
+        # Use actual vertices: a rotated bounding box can float above Z=0.
+        center_x = (min(point.x for point in corners) + max(point.x for point in corners)) / 2.0
+        center_y = (min(point.y for point in corners) + max(point.y for point in corners)) / 2.0
+        minimum_z = min(point.z for point in corners)
+        obj.location += Vector((-center_x, -center_y, -minimum_z))
         result = export_stl(path, [obj])
         if printable and _PRINT_PROJECT_STLS is not None:
             _PRINT_PROJECT_STLS.append(result)
@@ -40371,7 +40408,7 @@ def build_hockeymom_cam_case():
                     printable=False,
                 )
         if EXPORT_3MF:
-            export_print_project(directory / PRINT_PROJECT_3MF_NAME, _PRINT_PROJECT_STLS, PRINT_BED_SIZE_MM)
+            export_print_project(directory / PRINT_PROJECT_3MF_NAME, _PRINT_PROJECT_STLS, print_bed_dimensions())
         _PRINT_PROJECT_STLS = None
         if EXPORT_COMBINED_STL:
             print(

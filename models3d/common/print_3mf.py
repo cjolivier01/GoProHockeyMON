@@ -1,4 +1,4 @@
-"""Package explicitly selected, print-oriented binary STLs on 250 mm plates.
+"""Package explicitly selected, print-oriented binary STLs on rectangular plates.
 
 Uses 3MF core meshes plus the Bambu Studio / OrcaSlicer plate convention.
 No printer, material or slicing profile is imposed. Standard 3MF readers can
@@ -54,14 +54,14 @@ def xml_bytes(node):
     return ET.tostring(node, encoding='utf-8', xml_declaration=True)
 
 
-def export_print_project(path, stl_paths, bed_size=250.0):
+def export_print_project(path, stl_paths, bed_size=(250.0, 255.0)):
     """Export exactly this run's printable parts, one centered part per plate."""
     path = Path(path)
     stl_paths = [Path(item) for item in stl_paths]
     if not stl_paths or len({p.name for p in stl_paths}) != len(stl_paths):
         raise ValueError('3MF requires a nonempty, unique printable part list')
-    if not math.isfinite(bed_size) or bed_size <= 0:
-        raise ValueError('3MF bed size must be finite and positive')
+    if len(bed_size) != 2 or not all(math.isfinite(value) and value > 0 for value in bed_size):
+        raise ValueError('3MF bed width and depth must be finite and positive')
     ET.register_namespace('', CORE)
     model = ET.Element(tag('model'), {'unit': 'millimeter', '{http://www.w3.org/XML/1998/namespace}lang': 'en-US'})
     # Bambu gates project-setting import on this compatibility marker.
@@ -79,8 +79,8 @@ def export_print_project(path, stl_paths, bed_size=250.0):
         vertices, faces = stl_payload(source)
         bounds = [(min(v[a] for v in vertices), max(v[a] for v in vertices)) for a in range(3)]
         spans = [high-low for low, high in bounds]
-        if max(spans[:2]) > bed_size + 0.001:
-            raise ValueError(f'{source.name} exceeds {bed_size:g} mm plate: {spans}')
+        if any(span > limit + 0.001 for span,limit in zip(spans[:2],bed_size)):
+            raise ValueError(f'{source.name} exceeds {bed_size[0]:g} x {bed_size[1]:g} mm plate: {spans}')
         if abs(bounds[2][0]) > 0.001:
             raise ValueError(f'{source.name} must rest on Z=0 before packaging')
         name = source.stem.removeprefix('hockeymom_cam_case_').replace('_', ' ')
@@ -92,8 +92,8 @@ def export_print_project(path, stl_paths, bed_size=250.0):
         triangle_node = ET.SubElement(mesh, tag('triangles'))
         for face in faces:
             ET.SubElement(triangle_node, tag('triangle'), {key: str(value) for key, value in zip(('v1','v2','v3'), face)})
-        origin = ((index % columns)*bed_size*1.2, -(index//columns)*bed_size*1.2)
-        x, y = [origin[a]+bed_size/2-sum(bounds[a])/2 for a in range(2)]
+        origin = ((index % columns)*bed_size[0]*1.2, -(index//columns)*bed_size[1]*1.2)
+        x, y = [origin[a]+bed_size[a]/2-sum(bounds[a])/2 for a in range(2)]
         ET.SubElement(build, tag('item'), {'objectid': object_id, 'printable': '1', 'transform': f'1 0 0 0 1 0 0 0 1 {x:.9g} {y:.9g} 0'})
         config_obj = ET.SubElement(settings, 'object', {'id': object_id})
         metadata(config_obj, 'name', name)
@@ -126,7 +126,7 @@ def export_print_project(path, stl_paths, bed_size=250.0):
         'flush_volumes_matrix': ['0'],
         'print_settings_id': '', 'printer_settings_id': '',
         'nozzle_diameter': ['0.4'], 'printable_height': '250',
-        'printable_area': ['0x0',f'{bed_size:g}x0',f'{bed_size:g}x{bed_size:g}',f'0x{bed_size:g}'], 'bed_exclude_area': []}
+        'printable_area': ['0x0',f'{bed_size[0]:g}x0',f'{bed_size[0]:g}x{bed_size[1]:g}',f'0x{bed_size[1]:g}'], 'bed_exclude_area': []}
     members = {'[Content_Types].xml': xml_bytes(types), '_rels/.rels': xml_bytes(relationships), '3D/3dmodel.model': xml_bytes(model), 'Metadata/model_settings.config': xml_bytes(settings), 'Metadata/project_settings.config': json.dumps(project_settings).encode(), 'Metadata/print_manifest.json': json.dumps({'bed_size_mm': bed_size, 'parts': manifest}, indent=2).encode()}
     with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.'+path.name, delete=False) as stream:
         temporary = Path(stream.name)
@@ -140,7 +140,7 @@ def export_print_project(path, stl_paths, bed_size=250.0):
         temporary.replace(path)
     finally:
         temporary.unlink(missing_ok=True)
-    print(f'EXPORTED_3MF {path} parts={len(stl_paths)} plates={len(stl_paths)} bed={bed_size:g}mm')
+    print(f'EXPORTED_3MF {path} parts={len(stl_paths)} plates={len(stl_paths)} bed={bed_size[0]:g}x{bed_size[1]:g}mm')
     return path
 
 
@@ -173,5 +173,5 @@ def validate_print_project(path, stl_paths):
         for axis in range(2):
             low = min(v[axis] for v in vertices)+transform[9+axis]-record['plate_origin'][axis]
             high = max(v[axis] for v in vertices)+transform[9+axis]-record['plate_origin'][axis]
-            assert low >= -0.001 and high <= manifest['bed_size_mm']+0.001
+            assert low >= -0.001 and high <= manifest['bed_size_mm'][axis]+0.001
         assert abs(min(v[2] for v in vertices)) < 0.001
