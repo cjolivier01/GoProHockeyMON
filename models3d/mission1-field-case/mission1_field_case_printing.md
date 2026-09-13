@@ -362,7 +362,7 @@ with the assemblies removed for visibility. Only one lead per fan is installed.
 
 ## Lid logo
 
-The lid text is `GoPro Missions`, set in the compact embedded Neuropol
+The lid text is `Sports AI`, set in the compact embedded Neuropol
 GoPro-style face. Its minimum stroke is widened from 1.475 mm to 2.2125 mm,
 exactly 50% thicker than the original. Two broad, rounded hockey sticks cross
 above the text with opposing blades and a compact rounded puck centered below
@@ -386,7 +386,7 @@ Each lid-choice plate is an independently printable, aligned three-material
 compound object:
 
 - rigid black or hard-TPU shell, according to the chosen plate
-- orange hockey artwork, `GoPro Missions` text, and four orange blocks
+- orange hockey artwork, `Sports AI` text, and four orange blocks
 - hollow hard-TPU lid gasket
 
 The inlay and gasket meshes intentionally appear in both lid groups so either
@@ -416,6 +416,8 @@ blender --background --factory-startup --python models3d/mission1-field-case/ren
   --input models3d/mission1-field-case/compact/mission1_field_case_ams_project.3mf \
   --output models3d/mission1-field-case/compact/plate_overview.png
 ```
+
+![Compact kit print plates](compact/plate_overview.png)
 
 This writes `compact/plate_overview.png` and checks
 the actual package's mesh bounds, plate membership, and material assignments.
@@ -546,8 +548,8 @@ blender --background --factory-startup --threads 8 --python-exit-code 1 \
 
 The lid has one continuous 5 mm flared rim with a full 3 mm vertical loaded
 edge and 5.4 mm radial thickness. At each latch, a deep bay is cut through the
-outer skirt while retaining a 4 mm skirt back wall. A continuous 2.4 mm-thick,
-22.4 mm-wide flat load ledge fills the former open space between that wall and
+outer skirt while retaining a 4 mm skirt back wall. A continuous flat load ledge, 3.2 mm thick on the rigid lid and 4.0 mm on
+the TPU lid, spans 22.4 mm and fills the former open space between that wall and
 the catch. It overlaps the back wall by 1 mm and reaches 0.4 mm into each side
 tower. The 2.6 mm-diameter horizontal capture rail is embedded through the
 outer edge of this ledge rather than hanging as a stand-alone cylinder. Its
@@ -801,7 +803,7 @@ The rod openings now reduce clearance around the measured **3.8 mm rod by
 The base bore has a support-free roof, so its total vertical rod travel differs
 from its nominal diametral gap. Rod play is separate from the tray obstruction;
 pad compression should not be used to mask it. The TPU snap throat is now
-3.6 mm, preserving 0.2 mm interference with this rod. The 5 mm entry mouth and
+3.5 mm, providing 0.3 mm interference with this rod. The 5 mm entry mouth and
 hinge axis remain unchanged. Existing larger printed openings need new parts
 to obtain this tighter fit; the tray/pad correction works with existing shells.
 These geometry improvements still need a physical fit and repeated-opening
@@ -839,25 +841,25 @@ TPU-for-AMS with a Shore rating of 68D. It replaces
 `mission1_field_case_lid.stl`; never stack the two lids. The default rigid lid
 retains its deliberate 70-degree slide-off receiver. The TPU lid
 keeps the same case closure, latch protectors, gasket channel, and 4.55 mm seated
-rod receiver, but narrows the snap throat to 3.6 mm and flares it to a smooth
+rod receiver, but narrows the snap throat to 3.5 mm and flares it to a smooth
 5.0 mm mouth. Each of the two 22 mm lid receivers is divided into three
 6.53 mm clips with 1.2 mm axial relief gaps. Their jaws flex locally while a
 continuous spine joins their roots. The smooth lead reaches the full mouth
-width before the new blunt jaw ends. Its 1.5 mm straight throat extends past
+width before the new blunt jaw ends. Its 1.55 mm straight throat extends past
 the round receiver before the 0.8 mm lead begins, preserving the configured
 3.5–3.8 mm coupon widths.
 
 With the 3.8 mm rod already centered in the three base knuckles, hold the TPU
 lid partly open, align both banks of mouths with the rod, and press the clips
-onto it progressively. The hard TPU can flex past the 3.6 mm throat and recover
+onto it progressively. The hard TPU can flex past the 3.5 mm throat and recover
 around the 4.55 mm seat. To remove it, support one short clip bank at a time and
 peel it back off the rod; avoid sharply folding the lid plate or pulling one
 end of the full hinge at once.
 
 Print `mission1_field_case_tpu_68d_hinge_coupon.stl` before committing to the
 full TPU lid. The 91 x 14.7 x 15.8 mm coupon contains four breakaway, dot-coded
-three-clip banks with 3.5, 3.6, 3.7, and 3.8 mm throats: one dot is 3.5 mm,
-two dots is the nominal 3.6 mm, three dots is 3.7 mm, and four dots is 3.8 mm.
+three-clip banks with 3.5, 3.6, 3.7, and 3.8 mm throats: one dot is the nominal 3.5 mm,
+two dots is 3.6 mm, three dots is 3.7 mm, and four dots is 3.8 mm.
 Test the actual 3.8 mm rod using the
 same filament, layer height, wall count, orientation, and dry-filament state as
 the lid. Each coupon bank reproduces all three 6.53 mm clips, their 1.2 mm gaps,
@@ -869,7 +871,7 @@ all twelve coupon receivers that will be used inside the TPU lid clips; a change
 interface gap can distort the throat comparison. Choose the smallest throat
 that snaps repeatedly without whitening, cracking, or requiring excessive
 force, then set `TPU_HINGE_SNAP_THROAT_WIDTH` to that value if it differs from
-3.6 mm. The 3.8 mm bank is a clearance control for the nominal 3.8 mm rod; the
+3.5 mm. The 3.8 mm bank is a clearance control for the nominal 3.8 mm rod; the
 retaining snap-lid configuration requires positive throat interference.
 
 The optional TPU lid is included on its own clearly labeled 3MF plate beside

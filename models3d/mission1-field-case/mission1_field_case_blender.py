@@ -326,7 +326,9 @@ LID_LATCH_CAPTURE_WEB_THICKNESS = 1.2
 LID_LATCH_CAPTURE_RAIL_END_OVERLAP = 0.4
 LID_LATCH_CAPTURE_BAY_Z0 = LID_PLATE_THICKNESS
 LID_LATCH_CAPTURE_BAY_CLEARANCE = 0.5
-LID_LATCH_LOAD_LEDGE_THICKNESS = 2.4
+# Add support below the existing bearing plane, preserving latch take-up.
+LID_LATCH_LOAD_LEDGE_THICKNESS = 3.2
+TPU_LID_LATCH_LOAD_LEDGE_THICKNESS = 4.0
 LID_LATCH_LOAD_LEDGE_RAIL_EMBED = 0.2
 LID_LATCH_LOAD_LEDGE_BACK_OVERLAP = 1.0
 LID_LATCH_LOAD_LEDGE_AXIAL_OVERLAP = 0.4
@@ -1391,9 +1393,9 @@ HINGE_LID_SLOT_WIDTH = (
 HINGE_LID_SLOT_TILT_DEGREES = 0.0
 HINGE_PROFILE_RIGID_SLIDE = "RIGID_SLIDE"
 HINGE_PROFILE_TPU_68D_SNAP = "TPU_68D_SNAP"
-TPU_HINGE_SNAP_THROAT_WIDTH = 3.6
+TPU_HINGE_SNAP_THROAT_WIDTH = 3.5
 TPU_HINGE_SNAP_MOUTH_WIDTH = 5.0
-TPU_HINGE_SNAP_THROAT_LENGTH = 1.5
+TPU_HINGE_SNAP_THROAT_LENGTH = 1.55
 TPU_HINGE_SNAP_LEAD_LENGTH = 0.8
 TPU_HINGE_SNAP_LEAD_RADIUS = 0.8
 TPU_HINGE_SNAP_LEAD_SAMPLES = 8
@@ -1755,7 +1757,7 @@ LATCH_PROTECTOR_PROFILE_YZ = (
 
 # Each closed source hook nests in a deep molded bay cut through the lid skirt.
 # A 2.6 mm horizontal rail is embedded through the outer edge of a continuous
-# 2.4 mm load ledge bonded to the 4 mm recess back wall.  The hook's broad flat
+# reinforced load ledge bonded to the 4 mm recess back wall.  The hook's broad flat
 # pad presses downward on that ledge; its cylindrical boss sits behind the rail
 # only to prevent outward escape.  A second overlapping round boss gives the
 # TPU retention feature a thick root instead of a folding wedge.  Buttressed
@@ -3504,7 +3506,7 @@ PELICAN_BLEND_LATCH_MESHES_LZMA_BASE85 = (
 )
 
 # Flush orange GoPro-style inlay with strokes 50% wider than the original.
-LID_LOGO_TEXT = "GoPro Missions"
+LID_LOGO_TEXT = "Sports AI"
 LID_LOGO_TEXT_SIZE = 18.0
 LID_LOGO_TEXT_MAX_WIDTH = 122.0
 LID_LOGO_TEXT_CENTER_Y = -7.0
@@ -3532,39 +3534,46 @@ LID_HOCKEY_PUCK_SIZE = (14.0, 6.0)
 LID_INLAY_DEPTH = 0.8
 LID_INLAY_CUTTER_OVERTRAVEL = 0.2
 
-# Embedded CC0 Neuropol 3.100 glyph subset used for the GoPro-style lettering.
-NEUROPOL_GOPRO_MISSIONS_OTF_GZIP_BASE64 = (
-    "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"
-    "FgOAAA=="
+# Embedded CC0 Neuropol 3.100 subset, including Sports AI and the prior title.
+# Source: https://dl.dafont.com/dl/?f=neuropol (Neuropol.otf by Ray Larabie).
+NEUROPOL_LID_TEXT_OTF_GZIP_BASE64 = (
+    "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"
+    "nIf4/wCAs0suYBAAAA=="
 )
 
 ROUNDED_RECT_SEGMENTS = 10
@@ -4277,8 +4286,8 @@ def load_embedded_logo_font():
     global _embedded_logo_font
     if _embedded_logo_font is not None:
         return _embedded_logo_font
-    payload = gzip.decompress(base64.b64decode(NEUROPOL_GOPRO_MISSIONS_OTF_GZIP_BASE64))
-    if len(payload) != 3672:
+    payload = gzip.decompress(base64.b64decode(NEUROPOL_LID_TEXT_OTF_GZIP_BASE64))
+    if len(payload) != 4192:
         raise RuntimeError("Embedded Neuropol subset failed its size check")
     with tempfile.NamedTemporaryFile(
         prefix="mission1-neuropol-",
@@ -5878,8 +5887,9 @@ def validate_configuration() -> None:
         raise ValueError("Latch capture rail center needs a 5.5-6.5 mm rim outset")
     if LID_LATCH_CAPTURE_WEB_THICKNESS < 1.2:
         raise ValueError("Latch capture rail web is too thin")
-    if LID_LATCH_LOAD_LEDGE_THICKNESS < 2.4:
-        raise ValueError("Latch load ledge needs at least 2.4 mm thickness")
+    if (LID_LATCH_LOAD_LEDGE_THICKNESS < 3.2
+            or TPU_LID_LATCH_LOAD_LEDGE_THICKNESS < 4.0):
+        raise ValueError("Latch load ledges need at least 3.2 mm rigid / 4.0 mm TPU thickness")
     if not 0.1 <= LID_LATCH_LOAD_LEDGE_RAIL_EMBED <= 0.5:
         raise ValueError("Latch rail needs 0.1-0.5 mm ledge-center embed")
     if LID_LATCH_LOAD_LEDGE_BACK_OVERLAP < 1.0:
@@ -6261,6 +6271,7 @@ def validate_configuration() -> None:
         f"latch_rail_outset={LID_LATCH_CAPTURE_RAIL_CENTER_OUTSET:.2f} "
         f"latch_rail_web={LID_LATCH_CAPTURE_WEB_THICKNESS:.2f} "
         f"latch_load_ledge={LID_LATCH_LOAD_LEDGE_THICKNESS:.2f} "
+        f"tpu_latch_load_ledge={TPU_LID_LATCH_LOAD_LEDGE_THICKNESS:.2f} "
         f"latch_rail_path_clearance={LATCH_CAPTURE_RAIL_PATH_CLEARANCE:.2f} "
         f"latch_rail_release={LATCH_CAPTURE_FULL_RELEASE_ANGLE:.2f}deg "
         f"latch_capture_hook_wall={LATCH_CAPTURE_HOOK_WALL:.2f} "
@@ -7991,6 +8002,9 @@ def create_lid(
     logo_orange_material,
     hinge_profile=HINGE_PROFILE_RIGID_SLIDE,
 ):
+    ledge_thickness = (TPU_LID_LATCH_LOAD_LEDGE_THICKNESS
+                       if hinge_profile == HINGE_PROFILE_TPU_68D_SNAP
+                       else LID_LATCH_LOAD_LEDGE_THICKNESS)
     dx = LID_DISPLAY_OFFSET_X
     lid = add_rounded_prism(
         "Field_Case_Lid",
@@ -8052,7 +8066,7 @@ def create_lid(
 
     # Match the supplied Pelican case's actual capture architecture: first cut
     # a deep molded bay through the front skirt while retaining a 4 mm back
-    # wall.  A full-width 2.4 mm ledge then fills the radial gap and embeds the
+    # wall.  A full-width reinforced ledge then fills the radial gap and embeds the
     # horizontal rail through its outer edge.  The latch's flat bearing pad
     # presses on this ledge to pull the lid down; its round boss sits above the
     # ledge and behind the exposed half of the rail only to prevent outward
@@ -8191,11 +8205,11 @@ def create_lid(
                 (load_ledge_front_y, LID_LATCH_LOAD_LEDGE_CONTACT_Z),
                 (
                     load_ledge_front_y,
-                    LID_LATCH_LOAD_LEDGE_CONTACT_Z + LID_LATCH_LOAD_LEDGE_THICKNESS,
+                    LID_LATCH_LOAD_LEDGE_CONTACT_Z + ledge_thickness,
                 ),
                 (
                     load_ledge_back_y,
-                    LID_LATCH_LOAD_LEDGE_CONTACT_Z + LID_LATCH_LOAD_LEDGE_THICKNESS,
+                    LID_LATCH_LOAD_LEDGE_CONTACT_Z + ledge_thickness,
                 ),
             ),
             dx + x - load_ledge_half_width,
@@ -8209,11 +8223,11 @@ def create_lid(
                 (recess_back_y + 0.2, LID_WALL_HEIGHT - 1.0),
                 (
                     recess_back_y + 0.2,
-                    LID_LATCH_LOAD_LEDGE_CONTACT_Z + LID_LATCH_LOAD_LEDGE_THICKNESS,
+                    LID_LATCH_LOAD_LEDGE_CONTACT_Z + ledge_thickness,
                 ),
                 (
                     load_ledge_back_y,
-                    LID_LATCH_LOAD_LEDGE_CONTACT_Z + LID_LATCH_LOAD_LEDGE_THICKNESS,
+                    LID_LATCH_LOAD_LEDGE_CONTACT_Z + ledge_thickness,
                 ),
             ),
             dx + x - load_ledge_half_width,
@@ -8394,7 +8408,7 @@ def create_lid(
     # compact GoPro-style face or enlarging the original lettering footprint.
     logo_text_objects = [
         add_text_mesh(
-            "Lid_GoPro_Missions_Orange_Inlay",
+            "Lid_Sports_AI_Orange_Inlay",
             LID_LOGO_TEXT,
             LID_LOGO_TEXT_SIZE,
             LID_LOGO_TEXT_MAX_WIDTH,
@@ -8506,7 +8520,7 @@ def create_lid(
         hockey_inlay.select_set(True)
     bpy.context.view_layer.objects.active = logo_orange
     bpy.ops.object.join()
-    logo_orange.name = "Lid_GoPro_Missions_Hockey_Artwork_Orange_Inlay"
+    logo_orange.name = "Lid_Sports_AI_Hockey_Artwork_Orange_Inlay"
 
     # Bake the joined islands, duplicate them as one Boolean tool, and extend
     # only the tool's bottom through the lid's build-facing plane.  The orange
@@ -8535,6 +8549,7 @@ def create_lid(
 
     if hinge_profile == HINGE_PROFILE_TPU_68D_SNAP:
         lid.name = "Field_Case_Lid_TPU_68D_Snap_Hinge"
+    lid["hinge_profile"] = hinge_profile
     assign_material(lid, shell_material)
     assign_material(logo_orange, logo_orange_material)
     return lid, logo_orange
@@ -9691,6 +9706,12 @@ def exact_transformed_intersection(
 
 def validate_built_lid_capture_rails(lid) -> None:
     """Prove each rail is embedded in a solid full-width lid load ledge."""
+    thickness = (TPU_LID_LATCH_LOAD_LEDGE_THICKNESS
+                 if lid.get("hinge_profile") == HINGE_PROFILE_TPU_68D_SNAP
+                 else LID_LATCH_LOAD_LEDGE_THICKNESS)
+    thickness_dimensions = (0.5, 0.4, thickness - 0.2)
+    thickness_fill_min = math.prod(thickness_dimensions) * 0.95
+    thickness_volumes = []
     rim_inner_front_y = (CASE_DEPTH - 0.8) / 2.0
     recess_back_y = rim_inner_front_y + LID_LATCH_RECESS_BACK_WALL
     load_ledge_front_y = (
@@ -9768,6 +9789,11 @@ def validate_built_lid_capture_rails(lid) -> None:
             ),
             start=1,
         ):
+            thickness_volumes.append(overlap_at(
+                f"TEMPORARY_Lid_Latch_{index}_Full_Lip_Thickness_{probe_index}",
+                (probe_x, (load_ledge_back_y + load_ledge_front_y) / 2.0,
+                 LID_LATCH_LOAD_LEDGE_CONTACT_Z + thickness / 2.0),
+                thickness_dimensions))
             load_ledge_volumes.append(
                 overlap_at(
                     f"TEMPORARY_Lid_Latch_{index}_Load_Ledge_Probe_{probe_index}",
@@ -9812,6 +9838,8 @@ def validate_built_lid_capture_rails(lid) -> None:
                 back_wall_dimensions,
             )
         )
+    if min(thickness_volumes) < thickness_fill_min:
+        raise ValueError(f"Lid latch lip lacks its full {thickness:.1f} mm thickness")
     if max(bay_air_volumes) > 1e-7:
         raise ValueError("Lid skirt filled the molded latch capture bay")
     if min(rail_volumes) < minimum_solid_fill:
@@ -9828,6 +9856,7 @@ def validate_built_lid_capture_rails(lid) -> None:
         raise ValueError("A generated latch recess weakened its skirt back wall")
     print(
         "FIELD_CASE_LID_RAIL_VALID "
+        f"lip_thickness={thickness:.2f} thickness_core_min={min(thickness_volumes):.6f} "
         f"bay_air_max={max(bay_air_volumes):.9f} "
         f"rail_solid_min={min(rail_volumes):.6f} "
         f"nub_recess_air_max={max(nub_recess_air_volumes):.9f} "
@@ -10828,10 +10857,13 @@ def validate_installed_latch_mechanics(parts) -> None:
         ),
         vertices=64,
     )
+    ledge_thickness = (TPU_LID_LATCH_LOAD_LEDGE_THICKNESS
+                       if parts["lid"].get("hinge_profile") == HINGE_PROFILE_TPU_68D_SNAP
+                       else LID_LATCH_LOAD_LEDGE_THICKNESS)
     flat_ledge_probe_dimensions = (
         LATCH_CAPTURE_FLAT_PAD_AXIAL_WIDTH - 2.0 * LATCH_BASE_EAR_AXIAL_CLEARANCE,
         LATCH_CAPTURE_FLAT_PAD_CASEWARD_LENGTH + 0.4,
-        LID_LATCH_LOAD_LEDGE_THICKNESS,
+        ledge_thickness,
     )
     flat_ledge_probe_location = (
         LATCH_X_CENTERS[1],
@@ -10840,7 +10872,7 @@ def validate_installed_latch_mechanics(parts) -> None:
             + LATCH_CAPTURE_FLAT_PAD_CASEWARD_INSTALLED_Y
         )
         / 2.0,
-        LATCH_CAPTURE_LOAD_LEDGE_INSTALLED_Z - LID_LATCH_LOAD_LEDGE_THICKNESS / 2.0,
+        LATCH_CAPTURE_LOAD_LEDGE_INSTALLED_Z - ledge_thickness / 2.0,
     )
     central_load_ledge = add_rounded_box(
         "TEMPORARY_Central_Lid_Flat_Load_Ledge_Probe",
@@ -13998,6 +14030,28 @@ def validate_tpu_snap_lid(lid) -> None:
             raise ValueError(f"TPU snap receiver {index} has an obstructed seat")
         bore_overlap_maximum = max(bore_overlap_maximum, overlap)
 
+        # Measure the actual flat throat after subtracting the round receiver.
+        # This rejects a wider opening even when it still has some rod contact.
+        transition = math.sqrt((HINGE_LID_RECEIVER_DIAMETER / 2.0) ** 2
+                               - (TPU_HINGE_SNAP_THROAT_WIDTH / 2.0) ** 2)
+        flat_run = TPU_HINGE_SNAP_THROAT_LENGTH - transition
+        travel = transition + flat_run / 2.0
+        for side in (-1.0, 0.0, 1.0):
+            transverse = side * (TPU_HINGE_SNAP_THROAT_WIDTH / 2.0 + 0.02)
+            size = (probe_length, flat_run / 2.0,
+                    0.02 if side else TPU_HINGE_SNAP_THROAT_WIDTH - 0.02)
+            probe = add_rounded_box(f"TEMPORARY_TPU_Clip_{index}_Flat_Throat_{side}",
+                size, (center_x, -HINGE_AXIS_Y + opening_y * travel - opening_z * transverse,
+                       LID_WALL_HEIGHT + opening_z * travel + opening_y * transverse), bevel=0.0)
+            try:
+                _faces, fill = exact_transformed_intersection(lid, probe,
+                    first_location=lid.location.copy(), first_rotation=lid.rotation_euler.copy(),
+                    second_location=probe.location.copy(), second_rotation=probe.rotation_euler.copy())
+            finally:
+                bpy.data.objects.remove(probe, do_unlink=True)
+            if (side and fill < math.prod(size) * 0.95) or (not side and fill > 1e-6):
+                raise ValueError(f"TPU snap receiver {index} does not retain its calibrated throat")
+
         rod_probe = add_cylinder_x(
             f"TEMPORARY_TPU_Snap_Clip_{index}_Rod_Probe",
             HINGE_ROD_DIAMETER / 2.0,
@@ -16605,6 +16659,7 @@ def build_mission1_field_case():
     validate_installed_case_closure(tpu_lid_parts)
     validate_built_lid_capture_rails(parts["tpu_snap_lid"])
     validate_built_latch_impact_protectors(tpu_lid_parts)
+    validate_installed_latch_mechanics(tpu_lid_parts)
     lid_payload = evaluated_mesh_payload(parts["lid"], Vector((0.0, 0.0, 0.0)))
     logo_orange_payload = evaluated_mesh_payload(
         parts["logo_orange_inlay"], Vector((0.0, 0.0, 0.0))

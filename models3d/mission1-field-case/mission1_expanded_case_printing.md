@@ -5,6 +5,11 @@ small fan cables, batteries and battery doors, plus the assembled goalpost mount
 two remotes, and a large rolled cord. It replaces the compact case and inserts.
 The stronger latch, handle hardware, and 3.8 mm hinge-rod fit remain in use.
 
+Both lids carry **Sports AI** in the same embedded Neuropol font style, with
+the orange inlay and hockey artwork.
+
+![Sports AI lid artwork](renderings/mission1_sports_ai_lid.png)
+
 The default generator produces this kit:
 
 ```sh
@@ -131,8 +136,24 @@ The enlarged base, lid, gasket, pad and insert set require new prints. The
 separate latch parts, handle, 151 mm-long 3.8 mm hinge rod, and hinge coupon retain
 their prior dimensions. Use the existing M3 latch and M3 × 14 handle hardware.
 The hinge openings remain 4.325 mm in the base, 4.55 mm at the lid receiver and
-4.4 mm at the rigid slot. The optional snap throat remains 3.6 mm, with coupon
-banks at 3.5/3.6/3.7/3.8 mm.
+4.4 mm at the rigid slot. The optional snap throat is now 3.5 mm, giving 0.3 mm diametral interference
+with the 3.8 mm rod (previously 0.2 mm). Its straight section is 1.55 mm long,
+leaving approximately 0.096 mm of flat throat beyond the round receiver before
+the smooth 0.8 mm lead-in. The four coupon banks use this same updated entrance;
+one dot is the nominal 3.5 mm, followed by 3.6/3.7/3.8 mm.
+
+The latch-bearing lip is now **3.2 mm thick on the rigid lid** and **4.0 mm on
+the 68D TPU lid**, increased from 2.4 mm. Added material sits below the existing
+bearing surface and continues into its back-wall reinforcement. Latch take-up,
+rail position, case dimensions and storage clearances are unchanged. These are
+lid-only refinements; existing base, latch, handle and inserts remain compatible.
+The hinge change tightens nominal snap interference; retention force depends
+on the printed material. The optional lid still uses 68D TPU; the separate
+2 mm lid pad remains 85A TPU.
+
+![Lid lip thickness comparison](renderings/mission1_lid_lip_thickness.png)
+
+![TPU hinge snap comparison](renderings/mission1_tpu_hinge_snap_comparison.png)
 
 ## Checks
 
@@ -154,3 +175,12 @@ The accessory regression rejects a mount placed outside its assigned cavity,
 an oversized button envelope, and a blocked cable bay. The closure regression
 rejects the unnotched top tray, overly thick lid pads and a reversed pad notch.
 Cached-scene runs may use `-- --scene /path/to/validated-field-case.blend`.
+
+The focused lid regression checks both lip thicknesses, latch motion and hinge
+closure, then rejects a lip cut back to 2.4 mm and a TPU opening widened to
+3.6 mm:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_lid_lip_hinge.py
+```
