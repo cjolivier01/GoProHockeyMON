@@ -8,7 +8,27 @@ make -C models3d dim-pdf
 make -C models3d check-dim-pdf-sync
 make -C models3d check-hockeymon-battery-slot
 make -C models3d check-hockeymon-fan-cover
+make -C models3d check-print-3mf
 ```
+
+## Printable 3MF
+
+`make -C models3d hockeymon-camera-case` now also generates
+`models3d/hockeymon-camera-case/hockeymom_cam_case.3mf` alongside the STLs.
+It contains all **12 default printable parts**, each labeled on its own
+**250 × 250 mm plate** in the same orientation as its STL, resting on Z=0.
+Purchased hardware, battery mockups and assembly references are excluded.
+Optional printable parts follow the active configuration; stale STLs are
+never collected from the output directory.
+
+Open the project in Bambu Studio or OrcaSlicer to retain separate plates.
+Choose your printer and material profile before slicing; the project does
+not assign either. Its generic 0.4 mm nozzle and 250 mm height entries are
+import placeholders; replace them with your actual machine profile. Readers that only support standard 3MF meshes may require
+arranging the parts onto separate plates. Use supports under the fan fairing's
+tail. The near-bed-width base and lid need no outward brim or skirt.
+For custom Blender runs, set `EXPORT_3MF = False` for STL-only output.
+The Make target always generates both formats.
 
 ## Streamlined fan cover and rear corners
 
@@ -33,6 +53,8 @@ against the rounded shell. Use the matching base and lid for this revision.
 
 ## Internal rear battery bay
 
+![Battery centered across the bottom mount with one-sided USB space](docs/images/centered_battery_plan.png)
+
 ![Battery inside the enlarged base, with the lid removed](docs/images/rear_battery_loaded.png)
 
 ![Enlarged case with the battery enclosed by the main lid](docs/images/rear_battery_closed.png)
@@ -41,13 +63,16 @@ against the rounded shell. Use the matching base and lid for this revision.
 
 The **26.3 × 70 × 138 mm** battery goes **inside the case**, upright:
 26.3 mm along X (front to back), 138 mm along Y (across the back), and
-70 mm vertically. Its USB-A/USB-C face points toward **+Y**, into a
+70 mm vertically. The pack spans **Y = −69 to +69 mm**, centered east–west
+on the bottom bolt mount at **Y = 0**. Its rearward X position and seat height
+stay unchanged. Its USB-A/USB-C face points toward **+Y**, into a
 **40 mm internal clearance zone** for plugs and cable bends. The plug region extends over the face above the low corner stops, with an
-open path through the center below them.
+open path through the center below them. The USB zone spans **Y = +69 to
++109 mm**; only that side of the rear bay needs the additional plug space.
 
 The base and matching main lid extend rearward, with a taller roof to keep
 the footprint within a **250 × 250 mm print bed**. The default base measures
-**249.25 × 231.11 × 90 mm**. Main body height is 94.653 mm; the external fan
+**249.25 × 234.74 × 90 mm**. Main body height is 94.653 mm; the external fan
 and grille sit above it. Camera positions and the worm-shaft exit remain
 unchanged. Rear lid screws move behind the battery and stay accessible.
 Use the matching base and lid from this revision. The largest part has only

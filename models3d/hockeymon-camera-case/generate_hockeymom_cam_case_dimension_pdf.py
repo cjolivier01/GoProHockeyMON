@@ -2488,6 +2488,8 @@ def page_rear_battery(pdf):
     ax.add_patch(Rectangle((length,fit),usb,thickness,facecolor="#e5f2e9",edgecolor=GREEN,ls="--"))
     for y in (fit,fit+thickness-C["REAR_BATTERY_END_STOP_WIDTH"]):
         ax.add_patch(Rectangle((length+fit,y),C["REAR_BATTERY_END_STOP_THICKNESS"],C["REAR_BATTERY_END_STOP_WIDTH"],facecolor=BLUE,edgecolor=BLUE))
+    centerline(ax, (length/2,-post-8), (length/2,slot_w+post+10))
+    ax.text(length/2,slot_w+post+12,"Y=0: pack + bottom mount centerline",ha="center",fontsize=6,color=PURPLE)
     ax.text(length+usb/2,slot_w/2,"USB plugs\n+ cable bend",ha="center",va="center",fontsize=7,color=GREEN)
     dim_h(ax,0,length,-post-20,-post-8,"REAR_BATTERY_LENGTH")
     dim_h(ax,length,length+usb,slot_w+post+18,slot_w+post+8,"REAR_BATTERY_USB_CLEARANCE",GREEN)
@@ -2509,7 +2511,8 @@ def page_rear_battery(pdf):
     setup(ax2,case_left-8,case_right+22,-10,C["BODY_HEIGHT"]+12)
     note_box(fig,[0.065,0.16,0.42,0.20],"INTERNAL FIT AND RETENTION",[
         f"Pack X/Y/Z: {thickness:g} x {length:g} x {height:g} mm; seat Z={seat:g} mm.",
-        f"Slot clear width {slot_w:g} mm; length to open USB end {length+2*fit:g} mm.",
+        f"Pack centered east-west: Y=-{length/2:g} to +{length/2:g} mm; bottom bolt Y=0.",
+        f"USB space Y=+{length/2:g} to +{length/2+usb:g} mm; rearward X placement unchanged.",
         f"Separate bar: {bar_length:g} x {bar_w:g} x {bar_t:g} mm; two M3 x {C['REAR_BATTERY_BRACKET_SCREW_LENGTH']:g} screws.",
         f"Rigid base: two M3 x {C['REAR_BATTERY_BRACKET_INSERT_DEPTH']:g} heat-set inserts; TPU base uses pointed-M3 pilots.",
         f"USB-end stops: {C['REAR_BATTERY_END_STOP_HEIGHT']:g} mm high; {C['REAR_BATTERY_END_STOP_WIDTH']:g} mm across each bottom corner.",
@@ -2518,7 +2521,7 @@ def page_rear_battery(pdf):
     note_box(fig,[0.515,0.16,0.42,0.20],"COOLING AND PRINT ENVELOPE",[
         f"Pack, cradle, bar and USB zone remain {C['REAR_BATTERY_AIR_GAP']:g} mm aft of the fan/camera flow region.",
         f"Base height {C['BASE_HEIGHT']:g} mm; main body height {C['BODY_HEIGHT']:g} mm. Rear lid screws move aft.",
-        f"Each exported STL must fit {C['PRINT_BED_SIZE_MM']:g} x {C['PRINT_BED_SIZE_MM']:g} mm; logs report the solved footprint.",
+        f"Each STL / 3MF plate must fit {C['PRINT_BED_SIZE_MM']:g} x {C['PRINT_BED_SIZE_MM']:g} mm; logs report the solved footprint.",
         f"A {C['REAR_BATTERY_CABLE_DIAMETER']:g} mm cable exit connects the USB space to the camera chamber.",
         f"Rear corner radius {C['REAR_BATTERY_BAY_CORNER_RADIUS']:g} mm; fixed envelope margin preserves print size.",
     ],GREEN)

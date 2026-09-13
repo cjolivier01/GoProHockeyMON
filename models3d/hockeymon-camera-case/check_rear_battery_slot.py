@@ -76,6 +76,13 @@ def check_mesh(mode, material="RIGID"):
     bx,by,bz = layout["pack_bounds"]
     assert tuple(round(high-low,3) for low,high in (bx,by,bz)) == (26.3,138.0,70.0)
     assert abs(layout["usb_bounds"][1][1]-layout["usb_bounds"][1][0]-40) < 1e-8
+    assert sum(by) == 0.0 and layout["center_y"] == 0.0
+    assert bx[0] == layout["protected_x"] + 8.0 + 10.0 + 0.6
+    assert bz == (5.7,75.7)
+    shifted = deepcopy(layout)
+    shifted["pack_bounds"] = (bx,(by[0]+1,by[1]+1),bz)
+    expect_error(RuntimeError,lambda: model["validate_rear_battery_slot"](
+        base,lid,shifted,footprint,(),bracket=bracket),"centered east-west")
     assert bz[1] < model["BASE_HEIGHT"]
     assert tuple(round(high-low,3) for low,high in record["bounds"]) == (47.5,16.0,4.0)
     # Stops survive the final union and block translation toward either end.

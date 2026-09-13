@@ -135,6 +135,7 @@ if common_directory_text not in sys.path:
     sys.path.insert(0, common_directory_text)
 
 from fan_size_presets import get_standard_fan_preset  # noqa: E402
+from print_3mf import export_print_project  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +143,9 @@ from fan_size_presets import get_standard_fan_preset  # noqa: E402
 
 CLEAR_SCENE = True
 EXPORT_STL = False
+# STL builds also package their printable parts on labeled 250 mm plates.
+EXPORT_3MF = True
+PRINT_PROJECT_3MF_NAME = "hockeymom_cam_case.3mf"
 EXPORT_DIRECTORY = ""
 EXPORT_SEPARATE_STLS = True
 # The assembled scene contains removable parts at their real running gaps.
@@ -29998,7 +30002,8 @@ def rear_battery_layout(cameras=(), mechanism=None):
     fit = REAR_BATTERY_FIT_CLEARANCE
     x0 = protected_x + REAR_BATTERY_AIR_GAP + REAR_BATTERY_BRACKET_POST_DIAMETER
     x1 = x0 + REAR_BATTERY_THICKNESS + 2 * fit
-    center_y = -REAR_BATTERY_USB_CLEARANCE / 2
+    # The bottom bolt mount is constrained to Y=0; center the pack mass there.
+    center_y = 0.0
     pack_y0 = center_y - REAR_BATTERY_LENGTH / 2
     pack_y1 = center_y + REAR_BATTERY_LENGTH / 2
     seat = REAR_BATTERY_FLOOR_THICKNESS
@@ -30036,16 +30041,21 @@ def extend_rear_battery_bay(footprint, cameras, mechanism):
     # face, bracket and rear post lands inside the printed inner wall.
     inner_x0 = layout["x0"] - wall - access
     inner_x1 = layout["post_targets"][0][0] + max(FASTENER_POST_DIAMETER/2, REAR_TAPER_SCREW_ISLAND_RADIUS + REAR_TAPER_SCREW_ISLAND_BLEND)
-    inner_half_y = max(abs(layout["y0"] - wall), layout["usb_bounds"][1][1]) + access
+    post_margin = max(FASTENER_POST_DIAMETER/2, REAR_TAPER_SCREW_ISLAND_RADIUS + REAR_TAPER_SCREW_ISLAND_BLEND)
+    inner_y0 = min(layout["y0"] - wall, min(y for _,y in layout["post_targets"]) - post_margin) - access
+    # The USB keepout already includes cable service room; the exterior
+    # margin supplies shell clearance without widening the camera perimeter.
+    inner_y1 = max(layout["usb_bounds"][1][1], max(y for _,y in layout["post_targets"]) + post_margin)
     radius = REAR_BATTERY_BAY_CORNER_RADIUS
     outer_margin = BODY_WALL_THICKNESS + REAR_BATTERY_BAY_ENVELOPE_MARGIN
     cx = (inner_x0 + inner_x1) / 2
+    cy = (inner_y0 + inner_y1) / 2
     raw_bay = rounded_rectangle_loop(
         inner_x1-inner_x0 + 2*outer_margin,
-        2*(inner_half_y + outer_margin), radius,
+        inner_y1-inner_y0 + 2*outer_margin, radius,
     )
     scale = minimum_body_scale_between(BOTTOM_THICKNESS, BASE_HEIGHT)
-    bay = [((cx+x)/scale, y/scale) for x,y in raw_bay]
+    bay = [((cx+x)/scale, (cy+y)/scale) for x,y in raw_bay]
     hull = convex_hull_2d((*footprint, *bay))
     # Reject overly wide tails that alter a camera datum or the existing
     # shaft's exterior wall. In particular, a hull expansion must not silently
@@ -30203,6 +30213,8 @@ def validate_rear_battery_slot(base,lid,layout,footprint,obstacles,lid_parts=(),
     if bracket is None:
         raise RuntimeError("Missing battery hold-down bracket")
     bx,by,bz = layout["pack_bounds"]
+    if abs(sum(by)/2) > 0.001 or abs(layout["center_y"]) > 0.001:
+        raise RuntimeError("Battery must be centered east-west on the bottom mount Y=0")
     record = rear_battery_bracket_layout(layout)
     protected_limit = layout["protected_x"] + REAR_BATTERY_AIR_GAP
     if min(bx[0],layout["usb_bounds"][0][0],record["bounds"][0][0]) < protected_limit-0.001:
@@ -39026,11 +39038,15 @@ def validate_print_bed_fit(objects):
     print(f"PRINT_BED_FIT {spans[0]:.2f}x{spans[1]:.2f}mm limit={PRINT_BED_SIZE_MM:g}mm")
 
 
+_PRINT_PROJECT_STLS = None
+
+
 def export_single_stl(
     path: Path,
     obj,
     print_face_down=False,
     print_axis_to_z=False,
+    printable=True,
 ) -> Path:
     if not NORMALIZE_SEPARATE_STLS:
         return export_stl(path, [obj])
@@ -39046,13 +39062,19 @@ def export_single_stl(
         ).to_matrix().to_4x4()
         obj.matrix_world = rotation @ original_matrix
         bpy.context.view_layer.update()
-    corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+    # A rotated bounding box can extend below the real mesh (notably the
+    # angled knob). Normalize the evaluated vertices so every part touches Z=0.
+    evaluated = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
+    corners = [evaluated.matrix_world @ vertex.co for vertex in evaluated.data.vertices]
     center_x = (min(point.x for point in corners) + max(point.x for point in corners)) / 2.0
     center_y = (min(point.y for point in corners) + max(point.y for point in corners)) / 2.0
     minimum_z = min(point.z for point in corners)
     obj.location += Vector((-center_x, -center_y, -minimum_z))
     try:
-        return export_stl(path, [obj])
+        result = export_stl(path, [obj])
+        if printable and _PRINT_PROJECT_STLS is not None:
+            _PRINT_PROJECT_STLS.append(result)
+        return result
     finally:
         obj.matrix_world = original_matrix
         bpy.context.view_layer.update()
@@ -39330,7 +39352,10 @@ def build_bottom_keystone_test_coupon():
 @validation_bvh_cache_lifecycle
 def build_hockeymom_cam_case():
     global _RESOLVED_CAMERA_LENS_FACE_OUTSET, _RESOLVED_REAR_ENVELOPE
-    global _RESOLVED_REAR_BATTERY_LAYOUT
+    global _RESOLVED_REAR_BATTERY_LAYOUT, _PRINT_PROJECT_STLS
+    _PRINT_PROJECT_STLS = None
+    if EXPORT_STL and EXPORT_3MF and not (EXPORT_SEPARATE_STLS and NORMALIZE_SEPARATE_STLS and PRINT_ORIENT_SEPARATE_STLS):
+        raise ValueError("3MF export requires separate, normalized, print-oriented STLs")
     _RESOLVED_CAMERA_LENS_FACE_OUTSET = None
     _RESOLVED_REAR_ENVELOPE = None
     _RESOLVED_REAR_BATTERY_LAYOUT = None
@@ -40215,6 +40240,7 @@ def build_hockeymom_cam_case():
     close_validation_bvh_cache()
     if EXPORT_STL:
         directory = output_directory()
+        _PRINT_PROJECT_STLS = [] if EXPORT_3MF else None
         if EXPORT_SEPARATE_STLS:
             export_single_stl(directory / BASE_STL_NAME, base)
             if battery_bracket is not None:
@@ -40275,6 +40301,7 @@ def build_hockeymom_cam_case():
                 export_single_stl(
                     directory / CAMERA_IDLER_WHEEL_STL_NAME,
                     camera_idler_wheel,
+                    printable=False,
                 )
             if (
                 camera_idler_shaft is not None
@@ -40283,6 +40310,7 @@ def build_hockeymom_cam_case():
                 export_single_stl(
                     directory / CAMERA_IDLER_SHAFT_STL_NAME,
                     camera_idler_shaft,
+                    printable=False,
                 )
             if len(worm_bearing_caps) == 2:
                 export_single_stl(
@@ -40340,7 +40368,11 @@ def build_hockeymom_cam_case():
                 export_single_stl(
                     directory / CAMERA_WORM_STL_NAME,
                     camera_worm,
+                    printable=False,
                 )
+        if EXPORT_3MF:
+            export_print_project(directory / PRINT_PROJECT_3MF_NAME, _PRINT_PROJECT_STLS, PRINT_BED_SIZE_MM)
+        _PRINT_PROJECT_STLS = None
         if EXPORT_COMBINED_STL:
             print(
                 "COMBINED_ASSEMBLY_EXPORT_WARNING "
