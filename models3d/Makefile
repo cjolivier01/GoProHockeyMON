@@ -224,6 +224,7 @@ HOCKEYMOM_CAM_CASE_ACTIVE_BATTERY_STLS :=
 ifeq ($(HOCKEYMOM_REAR_BATTERY_SLOT_ENABLED),True)
 HOCKEYMOM_CAM_CASE_ACTIVE_BATTERY_STLS += $(HOCKEYMOM_CAM_CASE_BATTERY_BRACKET_STL)
 endif
+HOCKEYMOM_CAM_CASE_3MF := $(HOCKEYMON_CAMERA_CASE_DIR)/hockeymom_cam_case.3mf
 HOCKEYMOM_CAM_CASE_STLS := $(HOCKEYMOM_CAM_CASE_CORE_STLS) \
 	$(HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS) $(HOCKEYMOM_CAM_CASE_ACTIVE_BATTERY_STLS)
 
@@ -294,7 +295,7 @@ STL_FILES := \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn horn-renderings mission1-dummy mission1-field-case mission1-field-case-plate-overview dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymon-camera-case hockeymom-cam-case \
-	hockeymom-keystone-test-coupon check-hockeymon-battery-slot check-hockeymon-fan-cover \
+	hockeymom-keystone-test-coupon check-hockeymon-battery-slot check-hockeymon-fan-cover check-print-3mf \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-mission1-field-case clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
 	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf
@@ -302,7 +303,7 @@ STL_FILES := \
 # Keep every generated dimension guide synchronized with its model sources.
 # Each PDF target also depends on its generator, so any configuration or
 # documentation-layout change is reflected by the next normal `make all`.
-all: $(STL_FILES) $(MISSION1_FIELD_CASE_3MF) $(HOCKEYMOM_CAM_CASE_STLS) \
+all: $(STL_FILES) $(MISSION1_FIELD_CASE_3MF) $(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF) \
 	$(DUAL_FAN_DIMENSION_PDF) $(FAN_CASE_DIMENSION_PDF) $(DIMENSION_PDF) \
 	check-dual-fan-dim-pdf-sync check-fan-case-dim-pdf-sync check-dim-pdf-sync
 
@@ -485,17 +486,20 @@ $(FAN_CASE_STLS) &: $(FAN_CASE_SOURCE) $(FAN_PRESET_SOURCE)
 # Hockeymom component.  This keeps direct component targets useful and avoids
 # rebuilding an unchanged cover every time `make all` is run.  Artifacts behind
 # explicit opt-in export switches remain outside this group.
-$(HOCKEYMOM_CAM_CASE_STLS) &: $(HOCKEYMON_CAMERA_CASE_SOURCE) \
-	$(MISSION1_DUMMY_SOURCE) $(FAN_PRESET_SOURCE)
-	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS) \
+$(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF) &: $(HOCKEYMON_CAMERA_CASE_SOURCE) \
+	$(MISSION1_DUMMY_SOURCE) $(FAN_PRESET_SOURCE) common/print_3mf.py
+	$(RM) $(HOCKEYMOM_CAM_CASE_3MF) $(HOCKEYMOM_CAM_CASE_ALL_STLS) \
 		$(HOCKEYMOM_CAM_CASE_OBSOLETE_STLS) \
 		$(HOCKEYMOM_CAM_CASE_OBSOLETE_IMAGES)
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
-		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)/$(HOCKEYMON_CAMERA_CASE_DIR)'; ns['build_hockeymom_cam_case']()"
-	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(HOCKEYMOM_CAM_CASE_STLS)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
+		"p='$<'; ns={'__name__':'make_stl','__file__':p}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']='$(CURDIR)/$(HOCKEYMON_CAMERA_CASE_DIR)'; ns['EXPORT_3MF']=True; ns['build_hockeymom_cam_case']()"
+	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
 
-hockeymon-camera-case: $(HOCKEYMOM_CAM_CASE_STLS)
+hockeymon-camera-case: $(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF)
 hockeymom-cam-case: hockeymon-camera-case
+
+check-print-3mf:
+	$(PDF_PYTHON) common/check_print_3mf.py
 
 check-hockeymon-battery-slot:
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 \
@@ -544,7 +548,7 @@ clean-fan-case:
 	$(RM) $(FAN_CASE_ALL_STLS)
 
 clean-hockeymom-cam-case:
-	$(RM) $(HOCKEYMOM_CAM_CASE_ALL_STLS) \
+	$(RM) $(HOCKEYMOM_CAM_CASE_3MF) $(HOCKEYMOM_CAM_CASE_ALL_STLS) \
 		$(HOCKEYMOM_CAM_CASE_OBSOLETE_STLS) \
 		$(HOCKEYMOM_CAM_CASE_OBSOLETE_IMAGES)
 

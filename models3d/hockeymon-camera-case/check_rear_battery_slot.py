@@ -6,6 +6,7 @@ The normal camera-case build also checks the complete assembled hardware.
 
 from copy import deepcopy
 from pathlib import Path
+import tempfile
 
 import bpy
 
@@ -60,13 +61,40 @@ def check_mesh(mode, material="RIGID"):
     box = model["rear_battery_box"]
     old_footprint = ((-80,-115),(80,-115),(80,115),(-80,115))
     footprint,layout = model["extend_rear_battery_bay"](old_footprint,(),None)
+    model["validate_rear_battery_envelope_symmetry"](footprint)
+    asymmetric = [(x,y+(1 if y>0 else 0)) for x,y in footprint]
+    expect_error(ValueError,lambda: model["validate_rear_battery_envelope_symmetry"](asymmetric),"not symmetric")
+    stops = model["rear_battery_end_stop_bounds"](layout)
+    assert len(stops) == 4
+    assert all((x,(-y[1],-y[0]),z) in stops for x,y,z in stops)
     outer = tuple((z,model["scale_loop"](footprint,scale)) for z,scale in model["BODY_SECTIONS"])
     inner = tuple((z,model["inset_footprint_loop"](
         model["scale_loop"](footprint,model["body_scale_at_z"](z)),3.2,
     )) for z in (3.2,6.0,12.0,model["BASE_HEIGHT"]))
     base = model["hollow_loft_solid"]("Fixture_Base",outer,inner)
     lid = model["polygon_prism_z"]("Fixture_Lid",footprint,model["BASE_HEIGHT"],model["BODY_HEIGHT"])
-    model["add_rear_battery_slot"](base,layout,(lid,))
+    # Measure the actual holder solid before it joins the case, independent
+    # of its parameter layout. Equal-density plastic must balance around Y=0.
+    original_union = model["boolean_union"]
+    holder_centroids = []
+    def check_holder_union(target,part,label="Union",**kwargs):
+        if label == "Internal_Battery_Slot":
+            part.data.calc_loop_triangles()
+            volume6 = moment_y = 0.0
+            for triangle in part.data.loop_triangles:
+                a,b,c = (part.matrix_world @ part.data.vertices[i].co for i in triangle.vertices)
+                signed = a.dot(b.cross(c))
+                volume6 += signed
+                moment_y += signed*(a.y+b.y+c.y)/4
+            holder_centroids.append(moment_y/volume6)
+        return original_union(target,part,label,**kwargs)
+    model["boolean_union"] = check_holder_union
+    try:
+        model["add_rear_battery_slot"](base,layout,(lid,))
+    finally:
+        model["boolean_union"] = original_union
+    assert len(holder_centroids) == 1 and abs(holder_centroids[0]) < 0.001, holder_centroids
+
     bracket = model["create_rear_battery_bracket"](layout)
     record = model["rear_battery_bracket_layout"](layout)
     model["triangulate_mesh"](base)
@@ -76,6 +104,13 @@ def check_mesh(mode, material="RIGID"):
     bx,by,bz = layout["pack_bounds"]
     assert tuple(round(high-low,3) for low,high in (bx,by,bz)) == (26.3,138.0,70.0)
     assert abs(layout["usb_bounds"][1][1]-layout["usb_bounds"][1][0]-40) < 1e-8
+    assert sum(by) == 0.0 and layout["center_y"] == 0.0
+    assert bx[0] == layout["protected_x"] + 8.0 + 10.0 + 0.6
+    assert bz == (5.7,75.7)
+    shifted = deepcopy(layout)
+    shifted["pack_bounds"] = (bx,(by[0]+1,by[1]+1),bz)
+    expect_error(RuntimeError,lambda: model["validate_rear_battery_slot"](
+        base,lid,shifted,footprint,(),bracket=bracket),"centered east-west")
     assert bz[1] < model["BASE_HEIGHT"]
     assert tuple(round(high-low,3) for low,high in record["bounds"]) == (47.5,16.0,4.0)
     # Stops survive the final union and block translation toward either end.
@@ -140,15 +175,31 @@ def check_mesh(mode, material="RIGID"):
     expect_error(RuntimeError,validate,"screw path is obstructed")
     for obj in (base,lid,bracket):
         model["validate_print_bed_fit"]([obj])
-    oversize = box("Too_Large_To_Print",((0,250.1),(0,12),(0,4)))
+    oversize = box("Too_Large_To_Print",((0,255.1),(0,12),(0,4)))
     transform = oversize.matrix_world.copy()
     expect_error(ValueError,lambda: model["export_single_stl"](
         Path("/tmp/oversize-battery-regression.stl"),oversize,print_face_down=True),"exceeds 250")
     assert oversize.matrix_world == transform, "Failed export changed assembly pose"
+    # The long axis may exceed 250 mm only along the 255 mm bed direction.
+    from print_3mf import stl_payload
+    with tempfile.TemporaryDirectory() as temporary:
+        for x,y in ((249,254),(254,249)):
+            part = box("Rectangular_Print_Bed",((0,x),(0,y),(0,4)))
+            pose = part.matrix_world.copy()
+            path = Path(temporary)/"rectangular.stl"
+            model["export_single_stl"](path,part)
+            vertices,_ = stl_payload(path)
+            spans = tuple(max(v[a] for v in vertices)-min(v[a] for v in vertices) for a in (0,1))
+            assert abs(spans[0]-249)<0.001 and abs(spans[1]-254)<0.001, spans
+            assert part.matrix_world == pose
+            bpy.data.objects.remove(part,do_unlink=True)
+        too_square = box("Both_Axes_Too_Wide",((0,251),(0,251),(0,4)))
+        expect_error(ValueError,lambda: model["export_single_stl"](
+            Path(temporary)/"square.stl",too_square),"exceeds 250 x 255")
 
 
 check_configuration()
 check_mesh("lid_single")
 check_mesh("lid_pair")
 check_mesh("lid_single", "TPU")
-print("REAR_BATTERY_REGRESSION PASS upright pack, two-screw bracket, loading, USB, cable, cooling, rigid/TPU posts, single/pair fans, 250 mm exports")
+print("REAR_BATTERY_REGRESSION PASS upright pack, two-screw bracket, loading, USB, cable, cooling, rigid/TPU posts, single/pair fans, 250 x 255 mm exports")
