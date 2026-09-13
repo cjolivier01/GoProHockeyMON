@@ -27,10 +27,15 @@ import mission1_field_case_blender as case
 PART_OBJECT_NAMES = {
     "base": "Field_Case_Base",
     "fan_case_pair_insert": "Field_Case_Fan_Case_Pair_Lower_TPU_Insert",
-    "fan_case_pair_carrier": "Field_Case_Fan_Case_Pair_Rear_Shallow_Tray",
+    "fan_case_pair_carrier": ("Field_Case_Fan_Case_Pair_Mount_Tray"
+                              if case.EXPANDED_ACCESSORY_STORAGE
+                              else "Field_Case_Fan_Case_Pair_Rear_Shallow_Tray"),
     "fan_case_pair_storage_bin": "Field_Case_Fan_Case_Pair_Front_Deep_Tray",
     "fan_case_pair_lid_pad": "Field_Case_Fan_Case_Pair_TPU_Lid_Pad",
 }
+
+if case.EXPANDED_ACCESSORY_STORAGE:
+    PART_OBJECT_NAMES["accessory_organizer"] = "Field_Case_Coil_And_Remote_Organizer"
 
 
 def arguments():
@@ -89,7 +94,11 @@ def load_or_build_loadout(scene_path):
             ),
             "fan_case_pair_lid_pad": case.create_fan_case_pair_lid_pad(material),
         }
+        if case.EXPANDED_ACCESSORY_STORAGE:
+            parts["accessory_organizer"] = case.create_accessory_organizer(material)
         references = case.create_fan_case_pair_reference_mockups(*([material] * 7))
+        if case.EXPANDED_ACCESSORY_STORAGE:
+            references.extend(case.create_accessory_reference_mockups(material))
         parts["fan_case_pair_insert"] = case.create_fan_case_pair_insert(
             material, references
         )

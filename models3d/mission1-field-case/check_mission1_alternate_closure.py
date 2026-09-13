@@ -28,12 +28,14 @@ def must_reject(action, message):
 def main():
     args = arguments()
     parts, references, _groups, source = load_or_build_loadout(args.scene)
-    references = [obj for obj in references if obj.name.startswith('REFERENCE_ONLY_Fan_Case_')]
+    references = [obj for obj in references if obj.name.startswith(('REFERENCE_ONLY_Fan_Case_', 'REFERENCE_ONLY_Field_Accessory_'))]
     material = case.make_material('Closure_Check', (0.5, 0.5, 0.5))
     if args.scene:
         parts['base'] = case.create_base(material)
         parts['fan_case_pair_carrier'] = case.create_fan_case_pair_overhead_carrier(material)
         parts['fan_case_pair_lid_pad'] = case.create_fan_case_pair_lid_pad(material)
+        if case.EXPANDED_ACCESSORY_STORAGE:
+            parts['accessory_organizer'] = case.create_accessory_organizer(material)
     for key, profile in (('lid', case.HINGE_PROFILE_RIGID_SLIDE),
                          ('tpu_snap_lid', case.HINGE_PROFILE_TPU_68D_SNAP)):
         parts[key], inlay = case.create_lid(material, material, hinge_profile=profile)
@@ -45,16 +47,18 @@ def main():
         case.validate_built_part(key, parts[key])
     case.validate_alternate_lid_closure(parts, references)
 
-    # An unnotched rear tray must expose the original rigid key/rim collision.
+    # An unnotched top tray must expose the rigid key/rim collision.
+    top_key = "accessory_organizer" if case.EXPANDED_ACCESSORY_STORAGE else "fan_case_pair_carrier"
+    build_top = case.create_accessory_organizer if case.EXPANDED_ACCESSORY_STORAGE else case.create_fan_case_pair_overhead_carrier
     depth = case.FAN_CASE_PAIR_TRAY_KEY_NOTCH_DEPTH
     try:
         case.FAN_CASE_PAIR_TRAY_KEY_NOTCH_DEPTH = 0.0
-        old_tray = case.create_fan_case_pair_overhead_carrier(material)
+        old_tray = build_top(material)
     finally:
         case.FAN_CASE_PAIR_TRAY_KEY_NOTCH_DEPTH = depth
     try:
         must_reject(lambda: case.validate_alternate_lid_closure(
-            {**parts, 'fan_case_pair_carrier': old_tray}, references), 'closure obstructed')
+            {**parts, top_key: old_tray}, references), 'closure obstructed')
     finally:
         case.bpy.data.objects.remove(old_tray, do_unlink=True)
 
