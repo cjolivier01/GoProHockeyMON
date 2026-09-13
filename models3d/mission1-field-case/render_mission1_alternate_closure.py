@@ -174,4 +174,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if case.EXPANDED_ACCESSORY_STORAGE:
+        from render_mission1_expanded_storage import main as render_expanded
+        render_expanded()
+    else:
+        main()

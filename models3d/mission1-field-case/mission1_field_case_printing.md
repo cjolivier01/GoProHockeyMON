@@ -1,3 +1,9 @@
+> This guide describes the **compact 234 × 158 × 97.8 mm case**.
+> The default generator now builds the larger alternate accessory case; see
+> [expanded case printing and packing](mission1_expanded_case_printing.md).
+> To regenerate this compact kit separately, run `make -C models3d mission1-field-case-compact`.
+> Its STLs and 3MF are written under `models3d/mission1-field-case/compact/`.
+
 # Dual MISSION 1 field case
 
 `mission1_field_case_blender.py` creates every printable part of a
@@ -16,7 +22,7 @@ Build the eleven-part default kit, six optional loadout/calibration STLs, and
 the complete all-parts multicolor 3MF project with:
 
 ```sh
-make -C models3d mission1-field-case
+make -C models3d mission1-field-case-compact
 ```
 
 The Makefile requires GNU Make 4.3 or newer. On macOS, install a current GNU
@@ -27,7 +33,7 @@ and exact reference assembly with:
 
 ```sh
 blender --background --factory-startup \
-  --python models3d/mission1-field-case/render_mission1_field_case_previews.py
+  --python models3d/mission1-field-case/render_mission1_field_case_previews.py -- --compact
 ```
 
 This writes loaded and exploded views of both storage configurations, separate
@@ -394,7 +400,7 @@ Use an AMS-compatible hard TPU, a TPU-capable multimaterial system, or the
 printer's supported external-spool/manual-change workflow. Do not feed ordinary
 soft TPU through an AMS that does not support it.
 
-Open `models3d/mission1-field-case/mission1_field_case_ams_project.3mf` as a
+Open `models3d/mission1-field-case/compact/mission1_field_case_ams_project.3mf` as a
 project to preserve plate assignments and multipart lid alignment. Select one
 lid plate and the desired loadout plates before slicing; the project includes
 both mutually exclusive choices. The printed-hardware plate already contains
@@ -406,10 +412,12 @@ specify Shore hardness.
 To regenerate the labeled overview directly from the packaged 3MF meshes:
 
 ```sh
-make -C models3d mission1-field-case-plate-overview
+blender --background --factory-startup --python models3d/mission1-field-case/render_3mf_plate_overview.py -- \
+  --input models3d/mission1-field-case/compact/mission1_field_case_ams_project.3mf \
+  --output models3d/mission1-field-case/compact/plate_overview.png
 ```
 
-This writes `renderings/mission1_field_case_all_print_plates.png` and checks
+This writes `compact/plate_overview.png` and checks
 the actual package's mesh bounds, plate membership, and material assignments.
 
 For another slicer, import these files together without changing their relative

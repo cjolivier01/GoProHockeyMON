@@ -64,9 +64,6 @@ MISSION1_DUMMY_STLS := $(MISSION1_DUMMY_DIR)/gopro_mission1_dummy_recreated.stl
 MISSION1_FIELD_CASE_STLS := \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_base.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lid.stl \
-	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lower_fan_cradle_tpu.stl \
-	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_upper_equipment_tray_tpu.stl \
-	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lid_retainer_tpu.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_gasket_tpu.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_pelican_latch_lever_print_two.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_pelican_latch_hook_print_two.stl \
@@ -78,7 +75,8 @@ MISSION1_FIELD_CASE_AUXILIARY_STLS := \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_tpu_68d_hinge_coupon.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_lower_insert_tpu.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_lid_pad_tpu.stl \
-	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_overhead_carrier_tpu.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_accessory_organizer.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_mount_tray.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_fan_side_storage_bin_tpu.stl
 MISSION1_FIELD_CASE_3MF := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_ams_project.3mf
 MISSION1_FIELD_CASE_PLATE_RENDER := \
@@ -86,6 +84,10 @@ MISSION1_FIELD_CASE_PLATE_RENDER := \
 MISSION1_FIELD_CASE_OUTPUTS := $(MISSION1_FIELD_CASE_STLS) \
 	$(MISSION1_FIELD_CASE_AUXILIARY_STLS) $(MISSION1_FIELD_CASE_3MF)
 MISSION1_FIELD_CASE_OBSOLETE_STL_NAMES := \
+	mission1_field_case_lower_fan_cradle_tpu.stl \
+	mission1_field_case_upper_equipment_tray_tpu.stl \
+	mission1_field_case_lid_retainer_tpu.stl \
+	mission1_field_case_fan_case_pair_overhead_carrier_tpu.stl \
 	mission1_field_case_lower_insert.stl \
 	mission1_field_case_lower_tray_tpu.stl \
 	mission1_field_case_latch_print_two.stl \
@@ -318,7 +320,8 @@ print_targets:
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
 		'horn                      Build the parametric horn STL.' \
 		'mission1-dummy            Build the recreated GoPro Mission 1 dummy STL.' \
-		'mission1-field-case       Build all field-case STLs and one labeled all-parts 3MF project.' \
+		'mission1-field-case       Build the expanded case STLs and labeled all-parts 3MF project.' \
+		'mission1-field-case-compact  Build the original compact kit in its own directory.' \
 		'dual-fan                  Build the fan holder and both GoPro adapter variants; optional splitter follows CONFIG.' \
 		'fan-silencer              Build a fan silencer; set FAN_SILENCER_SIZE=40/60/80/120.' \
 		'fan-case                  Build the case, optional rear-fan horn, baffle, buttons, gate, and keeper STLs.' \
@@ -369,6 +372,13 @@ horn-renderings: $(HORN_RENDERINGS)
 mission1-dummy: $(MISSION1_DUMMY_STLS)
 mission1-field-case: $(MISSION1_FIELD_CASE_OUTPUTS)
 mission1-field-case-plate-overview: $(MISSION1_FIELD_CASE_PLATE_RENDER)
+
+.PHONY: mission1-field-case-compact
+mission1-field-case-compact:
+	mkdir -p $(MISSION1_FIELD_CASE_DIR)/compact
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
+		"import os; p='$(MISSION1_FIELD_CASE_SOURCE)'; ns={'__name__':'compact_case','__file__':p,'EXPANDED_ACCESSORY_STORAGE':False}; exec(compile(open(p,'rb').read(),p,'exec'),ns); ns['EXPORT_STL']=True; ns['EXPORT_DIRECTORY']=os.path.abspath('$(MISSION1_FIELD_CASE_DIR)/compact'); ns['build_mission1_field_case']()"
+
 dual-fan: $(DUAL_FAN_STLS)
 fan-silencer: $(FAN_SILENCER_STLS)
 fan-silencer-cross-section: $(FAN_SILENCER_CROSS_SECTION)

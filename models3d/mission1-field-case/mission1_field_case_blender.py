@@ -1,24 +1,17 @@
 """Parametric rugged field case for two GoPro MISSION 1 cameras.
 
 The generator creates every printable component without loading an STL or font
-from disk.  The default kit holds:
+from disk. The default expanded alternate kit holds two complete upright
+fan-case camera assemblies, their batteries/doors/cables/PWM plugs, an assembled
+approximately 205 x 140 x 35 mm mount, two remotes, and a rolled 150 x 40 mm cord.
+A lower front utility bin, rigid mount tray and rigid upper organizer preserve
+additional storage. The shell is 234 x 180 x 160 mm and all parts fit a 250 mm bed.
 
-* two GoPro MISSION 1 / MISSION 1 PRO cameras standing upright with their
-  lenses opposed and laterally nested, including flared soft-lens-hood reliefs,
-* four MISSION 1 Enduro 2 / HERO13-format batteries, terminal end downward,
-* two shallow flat pockets for the removable camera battery-cage doors,
-* two open general-purpose pockets beside the camera pair,
-* a lower TPU cradle for the assembled parametric dual-80 mm-fan holder and
-  its installed 80 x 80 x 27 mm padded fans,
-* a removable upper TPU equipment tray and a one-way-keyed TPU lid pad,
-* an alternate four-piece TPU loadout for two complete fan-case assemblies,
-  including their cameras, direct 40 mm fans, wrapping covers, M3 hardware,
-  cable coils, and PWM plugs,
-* a hollow TPU dust/splash gasket that prints into the lid by default, two
-  source-derived two-piece Pelican latch
-  mechanisms mounted on M3 fixed pivots and 4 mm moving-link rods, and a
-  separate pivoting handle mounted with two M3 socket-head pivots,
-* flush orange GoPro-style ``GoPro Missions`` lettering with four matching blocks.
+Set EXPANDED_ACCESSORY_STORAGE=False before executing the module (or use the
+mission1-field-case-compact Make target) to regenerate the previous compact kit,
+including its mutually exclusive dual-fan and paired fan-case insert sets.
+Both profiles include the hollow TPU gasket, reinforced two-piece latches,
+separate M3-mounted handle, 3.8 mm hinge rod and rigid/68D snap lid alternatives.
 
 The case is Pelican/rugged-box inspired.  The user-supplied MakerWorld example is used as
 a functional precedent for recessed upper/lower inserts, gasket, case shell,
@@ -50,7 +43,7 @@ Run inside Blender::
 
 Set ``EXPORT_STL = True`` below, or use
 ``make -C models3d mission1-field-case`` from the repository root, to emit
-the eleven-part default kit, six optional loadout/calibration STLs, and
+the 15-part expanded kit (17 parts for the compact profile), and
 ``mission1_field_case_ams_project.3mf``.
 The 3MF contains every printable part on labeled plates; by default both its
 rigid and 68D TPU lid alternatives are complete compound objects with one flush
@@ -196,6 +189,8 @@ wrapping_fan_cover, WRAPPING_FAN_COVER_SOURCE_DIRECTORY = import_companion_modul
 
 CLEAR_SCENE = True
 BUILD_REFERENCE_MOCKUPS = True
+# Set False before executing this module to regenerate the compact all-loadouts kit.
+EXPANDED_ACCESSORY_STORAGE = globals().get("EXPANDED_ACCESSORY_STORAGE", True)
 EXPORT_STL = False
 EXPORT_DIRECTORY = ""
 SAVE_BLEND = False
@@ -227,7 +222,8 @@ FAN_CASE_PAIR_LID_PAD_STL_NAME = (
     "mission1_field_case_fan_case_pair_lid_pad_tpu.stl"
 )
 FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME = (
-    "mission1_field_case_fan_case_pair_overhead_carrier_tpu.stl"
+    "mission1_field_case_mount_tray.stl" if EXPANDED_ACCESSORY_STORAGE
+    else "mission1_field_case_fan_case_pair_overhead_carrier_tpu.stl"
 )
 FAN_CASE_PAIR_STORAGE_BIN_STL_NAME = (
     "mission1_field_case_fan_case_pair_fan_side_storage_bin_tpu.stl"
@@ -246,6 +242,10 @@ PRINTABLE_STL_NAMES = (
     HINGE_PIN_STL_NAME,
     LOGO_ORANGE_INLAY_STL_NAME,
 )
+if EXPANDED_ACCESSORY_STORAGE:
+    PRINTABLE_STL_NAMES = tuple(name for name in PRINTABLE_STL_NAMES
+                               if name not in (FAN_CRADLE_STL_NAME, EQUIPMENT_TRAY_STL_NAME, LID_RETAINER_STL_NAME))
+
 
 # These mutually exclusive loadout/calibration parts are exported beside the
 # default kit and on clearly labeled alternative plates in the all-parts 3MF.
@@ -259,7 +259,11 @@ AUXILIARY_STL_NAMES = (
     FAN_CASE_PAIR_LID_PAD_STL_NAME,
     FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME,
     FAN_CASE_PAIR_STORAGE_BIN_STL_NAME,
+    "mission1_field_case_accessory_organizer.stl",
 )
+if not EXPANDED_ACCESSORY_STORAGE:
+    AUXILIARY_STL_NAMES = AUXILIARY_STL_NAMES[:-1]
+
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +276,16 @@ PROJECT_PLATE_SIZE = 250.0
 # 244 mm flanged lid below the 250 mm print-bed limit while providing at least
 # 4.75 mm of TPU beside the 214.5 mm fan-cradle pocket.
 CASE_WIDTH = 234.0
-CASE_DEPTH = 158.0
+CASE_DEPTH = 180.0 if EXPANDED_ACCESSORY_STORAGE else 158.0
+# Authorized larger accessory case; retain the established camera/cable poses.
+FAN_CASE_STORAGE_LAYOUT_DEPTH = 158.0
+ACCESSORY_CASE_BASE_HEIGHT = 160.0
+ACCESSORY_MOUNT_ENVELOPE = (210.0, 146.0, 37.0)
+ACCESSORY_COIL_ENVELOPE = (154.0, 42.0)
+ACCESSORY_REMOTE_BODY = (37.5, 45.5, 14.5)
+ACCESSORY_REMOTE_BUTTON_PROJECTION = 1.5
+ACCESSORY_ORGANIZER_BOTTOM_Z = 118.0
+ACCESSORY_ORGANIZER_STL_NAME = "mission1_field_case_accessory_organizer.stl"
 CASE_CORNER_RADIUS = 12.0
 WALL_THICKNESS = 4.5
 BASE_FLOOR_THICKNESS = 3.2
@@ -441,7 +454,7 @@ FAN_CASE_PAIR_LID_PAD_DISPLAY_Y = 440.0
 # front tray is deeper over the fans/batteries; the rear tray clears cameras.
 # Keep the old export keys/filenames so existing Make targets remain valid.
 FAN_CASE_PAIR_CARRIER_THICKNESS = 3.0
-FAN_CASE_PAIR_CARRIER_REAR_Y = 73.5
+FAN_CASE_PAIR_CARRIER_REAR_Y = (CASE_DEPTH - 2.0 * WALL_THICKNESS) / 2.0 - 1.0
 FAN_CASE_PAIR_CARRIER_ASSEMBLY_CLEARANCE = 0.70
 FAN_CASE_PAIR_INSERT_WITHDRAWAL_CLEARANCE = 1.0
 FAN_CASE_PAIR_SUPPORT_ARCH_CLEARANCE = 1.0
@@ -552,9 +565,8 @@ EQUIPMENT_TRAY_INSTALLED_Z = EQUIPMENT_TRAY_Z_INCREMENT * math.ceil(
     (FAN_BODY_INSTALLED_TOP_Z + FAN_BODY_TOP_CLEARANCE)
     / EQUIPMENT_TRAY_Z_INCREMENT
 )
-BASE_HEIGHT = LEGACY_BASE_HEIGHT + (
-    EQUIPMENT_TRAY_INSTALLED_Z - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z
-)
+BASE_HEIGHT = (ACCESSORY_CASE_BASE_HEIGHT if EXPANDED_ACCESSORY_STORAGE else
+               LEGACY_BASE_HEIGHT + EQUIPMENT_TRAY_INSTALLED_Z - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z)
 
 
 def fan_case_storage_mount_transform(horizontal, vertical):
@@ -764,7 +776,7 @@ def fan_case_pair_storage_geometry():
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     # Include the 1 mm cavity expansion while retaining a true 4 mm TPU wall
     # to the alternate insert's front edge.
-    target_front_y = inner_depth / 2.0 - 5.5
+    target_front_y = (FAN_CASE_STORAGE_LAYOUT_DEPTH - 2.0 * WALL_THICKNESS) / 2.0 - 5.5
     translation_y = target_front_y - straight_reference_bounds[3]
     body_floor_z = (
         FAN_CASE_PAIR_INSERT_INSTALLED_Z
@@ -937,20 +949,44 @@ def fan_case_pair_overhead_storage_geometry():
     rear_y1 = inner_depth / 2.0 - EQUIPMENT_TRAY_SIDE_CLEARANCE
     front_y0 = -inner_depth / 2.0 + EQUIPMENT_TRAY_SIDE_CLEARANCE
     front_y1 = division_y
+    if not EXPANDED_ACCESSORY_STORAGE:
+        result = {
+            "carrier_bounds": (-tray_width / 2.0, tray_width / 2.0,
+                               rear_y0, rear_y1, rear_bottom_z, rim_z),
+            "bin_bounds": (-tray_width / 2.0, tray_width / 2.0,
+                           front_y0, front_y1, front_bottom_z, rim_z),
+            "carrier_contact_z": rear_bottom_z,
+            "bin_bottom_z": front_bottom_z,
+            "bin_rim_z": rim_z,
+            "bin_flange_z": rear_bottom_z,
+            "bin_inner_size": (tray_width - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL,
+                               front_y1 - front_y0 - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL),
+            "rear_inner_size": (tray_width - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL,
+                                rear_y1 - rear_y0 - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL),
+        }
+        result["carrier_support_bounds"] = result["carrier_bounds"]
+        return result
     return {
+        # Full-footprint mount tray above the cameras; the lower front bin
+        # supports its front edge and remains useful for loose accessories.
         "carrier_bounds": (-tray_width / 2.0, tray_width / 2.0,
-                           rear_y0, rear_y1, rear_bottom_z, rim_z),
+                           front_y0, rear_y1, rear_bottom_z, ACCESSORY_ORGANIZER_BOTTOM_Z),
+        "carrier_support_bounds": (-tray_width / 2.0, tray_width / 2.0,
+                                   rear_y0, rear_y1, rear_bottom_z, ACCESSORY_ORGANIZER_BOTTOM_Z),
         "bin_bounds": (-tray_width / 2.0, tray_width / 2.0,
-                       front_y0, front_y1, front_bottom_z, rim_z),
+                       front_y0, front_y1, front_bottom_z, rear_bottom_z),
+        "organizer_bounds": (-tray_width / 2.0, tray_width / 2.0,
+                             front_y0, rear_y1, ACCESSORY_ORGANIZER_BOTTOM_Z, rim_z),
         "carrier_contact_z": rear_bottom_z,
         "bin_bottom_z": front_bottom_z,
-        "bin_rim_z": rim_z,
+        "bin_rim_z": rear_bottom_z,
         "bin_flange_z": rear_bottom_z,
         "bin_inner_size": (tray_width - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL,
                            front_y1 - front_y0 - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL),
         "rear_inner_size": (tray_width - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL,
-                            rear_y1 - rear_y0 - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL),
+                            rear_y1 - front_y0 - 2.0 * FAN_CASE_PAIR_STORAGE_BIN_WALL),
     }
+
 
 
 FAN_CASE_PAIR_OVERHEAD_STORAGE = fan_case_pair_overhead_storage_geometry()
@@ -1023,7 +1059,7 @@ def fan_case_pair_carrier_support_geometry():
     )
     web_top_z = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][4]
     front_top_z = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bottom_z"]
-    step_y = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][2]
+    step_y = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_support_bounds"][2]
     web_yz = (
         (web_y0, web_base_z),
         (web_y0, front_top_z),
@@ -1295,7 +1331,7 @@ LID_RETAINER_HEIGHT = 12.4
 LID_BUTTON_RELIEF_DEPTH = 4.2
 LID_BUTTON_RELIEF_CLEARANCE = 1.0
 LID_LENS_HOOD_RELIEF_DEPTH = 2.0
-LID_PAD_KEY_CENTER = (-42.0, -71.0)
+LID_PAD_KEY_CENTER = (-42.0, -CASE_DEPTH / 2.0 + 8.0)
 LID_PAD_KEY_NOTCH_SIZE = (14.0, 8.0)
 LID_PAD_KEY_BOSS_SIZE = (12.0, 6.0, 4.0)
 
@@ -4473,12 +4509,10 @@ def validate_configuration() -> None:
     )
     if fan_width > ledge_opening[0] or fan_depth > ledge_opening[1]:
         raise ValueError("Upper tray support ledge enters the dual-fan envelope")
-    if not math.isclose(
-        BASE_HEIGHT - EQUIPMENT_TRAY_INSTALLED_Z,
-        LEGACY_BASE_HEIGHT - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z,
-        abs_tol=1e-6,
+    if BASE_HEIGHT < LEGACY_BASE_HEIGHT + (
+        EQUIPMENT_TRAY_INSTALLED_Z - LEGACY_EQUIPMENT_TRAY_INSTALLED_Z
     ):
-        raise ValueError("Upper equipment tier no longer preserves lid-pad preload")
+        raise ValueError("Case height is below the default equipment stack")
 
     cover_values = FAN_CASE_PAIR_STORAGE["cover_values"]
     if not (
@@ -4779,24 +4813,40 @@ def validate_configuration() -> None:
     overhead = FAN_CASE_PAIR_OVERHEAD_STORAGE
     rear = overhead["carrier_bounds"]
     front = overhead["bin_bounds"]
-    if not (
-        math.isclose(rear[0], front[0]) and math.isclose(rear[1], front[1])
-        and math.isclose(rear[2] - front[3], FAN_CASE_PAIR_TRAY_SEPARATION)
-        and math.isclose(front[2], -alternate_insert_half_depth + 0.5)
-        and math.isclose(rear[3], alternate_insert_half_depth - 0.5)
-        and rear[4] > FAN_CASE_PAIR_STORAGE["assembly_top_z"]
-        and rear[4] > front[4]
-        and rear[5] == front[5] == overhead["bin_rim_z"]
-    ):
-        raise ValueError("The two useful trays must cover the upper footprint with a lift gap")
-    for label, bounds in (("front", front), ("rear", rear)):
-        x0, x1, y0, y1, z0, z1 = bounds
-        if not (x1 - x0 <= 250.0 and y1 - y0 <= 250.0
-                and z1 - z0 - FAN_CASE_PAIR_STORAGE_BIN_FLOOR >= 20.0
-                and FAN_CASE_PAIR_STORAGE_BIN_WALL >= 3.0):
-            raise ValueError(f"The {label} standalone tray lacks storage depth or print clearance")
-    if front[5] - front[4] - FAN_CASE_PAIR_STORAGE_BIN_FLOOR < 30.0:
-        raise ValueError("Front fan-side storage must retain at least 30 mm usable depth")
+    if EXPANDED_ACCESSORY_STORAGE:
+        organizer = overhead["organizer_bounds"]
+        if not (rear[:4] == organizer[:4]
+                and rear[5] == organizer[4]
+                and front[5] == rear[4]
+                and rear[4] > FAN_CASE_PAIR_STORAGE["assembly_top_z"]
+                and rear[2] == front[2]
+                and overhead["carrier_support_bounds"][2] - front[3] == FAN_CASE_PAIR_TRAY_SEPARATION):
+            raise ValueError("Accessory trays must form a supported, separated stack")
+        for label, bounds in (("front", front), ("mount", rear), ("organizer", organizer)):
+            x0, x1, y0, y1, z0, z1 = bounds
+            if not (x1 - x0 <= MAX_PRINT_XY and y1 - y0 <= MAX_PRINT_XY
+                    and z1 - z0 - FAN_CASE_PAIR_STORAGE_BIN_FLOOR >= 20.0
+                    and FAN_CASE_PAIR_STORAGE_BIN_WALL >= 3.0):
+                raise ValueError(f"The {label} tray lacks storage depth or print clearance")
+    else:
+        if not (
+            math.isclose(rear[0], front[0]) and math.isclose(rear[1], front[1])
+            and math.isclose(rear[2] - front[3], FAN_CASE_PAIR_TRAY_SEPARATION)
+            and math.isclose(front[2], -alternate_insert_half_depth + 0.5)
+            and math.isclose(rear[3], alternate_insert_half_depth - 0.5)
+            and rear[4] > FAN_CASE_PAIR_STORAGE["assembly_top_z"]
+            and rear[4] > front[4]
+            and rear[5] == front[5] == overhead["bin_rim_z"]
+        ):
+            raise ValueError("The two useful trays must cover the upper footprint with a lift gap")
+        for label, bounds in (("front", front), ("rear", rear)):
+            x0, x1, y0, y1, z0, z1 = bounds
+            if not (x1 - x0 <= 250.0 and y1 - y0 <= 250.0
+                    and z1 - z0 - FAN_CASE_PAIR_STORAGE_BIN_FLOOR >= 20.0
+                    and FAN_CASE_PAIR_STORAGE_BIN_WALL >= 3.0):
+                raise ValueError(f"The {label} standalone tray lacks storage depth or print clearance")
+        if front[5] - front[4] - FAN_CASE_PAIR_STORAGE_BIN_FLOOR < 30.0:
+            raise ValueError("Front fan-side storage must retain at least 30 mm usable depth")
     support = FAN_CASE_PAIR_CARRIER_SUPPORT
     if not (
         support["web_outer_x"] - support["web_inner_x"] >= 9.0
@@ -5382,43 +5432,44 @@ def validate_configuration() -> None:
     if min(LID_HOCKEY_PUCK_SIZE) < 6.0:
         raise ValueError("Hockey puck inlay is too small for reliable printing")
 
-    camera_contact_top = (
-        EQUIPMENT_TRAY_INSTALLED_Z + CAMERA_FLOOR_Z + mission1.BODY_HEIGHT
-    )
-    battery_top = EQUIPMENT_TRAY_INSTALLED_Z + BATTERY_FLOOR_Z + BATTERY_HEIGHT
-    content_top = max(camera_contact_top, battery_top)
-    installed_lid_inner_face = BASE_HEIGHT + (LID_WALL_HEIGHT - LID_PLATE_THICKNESS)
-    fan_rigid_lid_clearance = installed_lid_inner_face - FAN_ASSEMBLY_INSTALLED_TOP_Z
-    if fan_rigid_lid_clearance < FAN_ARM_RIGID_LID_CLEARANCE:
-        raise ValueError("Stored fan arm sits too close to the rigid lid plate")
-    pad_compression = content_top + LID_RETAINER_HEIGHT - installed_lid_inner_face
-    if not 0.2 <= pad_compression <= 1.5:
-        raise ValueError(
-            "TPU lid retainer preload must remain 0.2-1.5 mm; "
-            f"computed {pad_compression:.2f} mm"
+    if not EXPANDED_ACCESSORY_STORAGE:
+        camera_contact_top = (
+            EQUIPMENT_TRAY_INSTALLED_Z + CAMERA_FLOOR_Z + mission1.BODY_HEIGHT
         )
-    battery_door_top = (
-        EQUIPMENT_TRAY_INSTALLED_Z
-        + BATTERY_DOOR_SLOT_FLOOR_Z
-        + BATTERY_DOOR_SIZE[2]
-    )
-    battery_door_pad_compression = (
-        battery_door_top
-        + LID_RETAINER_HEIGHT
-        + BATTERY_DOOR_LID_HOLD_DOWN_EXTENSION
-        - installed_lid_inner_face
-    )
-    if not 0.2 <= battery_door_pad_compression <= 1.5:
-        raise ValueError(
-            "Battery-door lid hold-down preload must remain 0.2-1.5 mm; "
-            f"computed {battery_door_pad_compression:.2f} mm"
+        battery_top = EQUIPMENT_TRAY_INSTALLED_Z + BATTERY_FLOOR_Z + BATTERY_HEIGHT
+        content_top = max(camera_contact_top, battery_top)
+        installed_lid_inner_face = BASE_HEIGHT + (LID_WALL_HEIGHT - LID_PLATE_THICKNESS)
+        fan_rigid_lid_clearance = installed_lid_inner_face - FAN_ASSEMBLY_INSTALLED_TOP_Z
+        if fan_rigid_lid_clearance < FAN_ARM_RIGID_LID_CLEARANCE:
+            raise ValueError("Stored fan arm sits too close to the rigid lid plate")
+        pad_compression = content_top + LID_RETAINER_HEIGHT - installed_lid_inner_face
+        if not 0.2 <= pad_compression <= 1.5:
+            raise ValueError(
+                "TPU lid retainer preload must remain 0.2-1.5 mm; "
+                f"computed {pad_compression:.2f} mm"
+            )
+        battery_door_top = (
+            EQUIPMENT_TRAY_INSTALLED_Z
+            + BATTERY_DOOR_SLOT_FLOOR_Z
+            + BATTERY_DOOR_SIZE[2]
         )
-    camera_button_top = EQUIPMENT_TRAY_INSTALLED_Z + CAMERA_FLOOR_Z + CAMERA_HEIGHT
-    relief_ceiling = installed_lid_inner_face - (
-        LID_RETAINER_HEIGHT - LID_BUTTON_RELIEF_DEPTH
-    )
-    if relief_ceiling - camera_button_top < 0.3:
-        raise ValueError("Lid pad button relief does not clear the shutter buttons")
+        battery_door_pad_compression = (
+            battery_door_top
+            + LID_RETAINER_HEIGHT
+            + BATTERY_DOOR_LID_HOLD_DOWN_EXTENSION
+            - installed_lid_inner_face
+        )
+        if not 0.2 <= battery_door_pad_compression <= 1.5:
+            raise ValueError(
+                "Battery-door lid hold-down preload must remain 0.2-1.5 mm; "
+                f"computed {battery_door_pad_compression:.2f} mm"
+            )
+        camera_button_top = EQUIPMENT_TRAY_INSTALLED_Z + CAMERA_FLOOR_Z + CAMERA_HEIGHT
+        relief_ceiling = installed_lid_inner_face - (
+            LID_RETAINER_HEIGHT - LID_BUTTON_RELIEF_DEPTH
+        )
+        if relief_ceiling - camera_button_top < 0.3:
+            raise ValueError("Lid pad button relief does not clear the shutter buttons")
 
     if PIVOT_MIN_WALL_THICKNESS < 2.0:
         raise ValueError("Pivot minimum wall must remain at least 2 mm")
@@ -6147,7 +6198,6 @@ def validate_configuration() -> None:
         f"equipment_tray_side_clearance={EQUIPMENT_TRAY_SIDE_CLEARANCE:.2f} "
         f"lens_web={lateral_lens_web:.2f} hood_web={hood_lateral_web:.2f} "
         f"hood_body_web={hood_body_web:.2f} axial_web={axial_body_web:.2f} "
-        f"pad_preload={pad_compression:.2f} "
         f"battery_pocket={BATTERY_POCKET_DEPTH:.1f}x"
         f"{BATTERY_POCKET_WIDTH:.1f}x{BATTERY_POCKET_INSERTION_DEPTH:.1f} "
         f"door_pocket={BATTERY_DOOR_SLOT_SIZE[0]:.1f}x"
@@ -6157,7 +6207,6 @@ def validate_configuration() -> None:
         f"{SIDE_STORAGE_POCKET_SIZE[1]:.1f}x"
         f"{TRAY_HEIGHT - SIDE_STORAGE_POCKET_FLOOR_Z:.1f} "
         f"side_storage_edge_wall_min={min(side_storage_edge_walls):.2f} "
-        f"door_pad_preload={battery_door_pad_compression:.2f} "
         f"lid_pad_hood_relief={LID_LENS_HOOD_RELIEF_DEPTH:.2f} "
         f"fan_cradle_installed_z={FAN_CRADLE_INSTALLED_Z:.2f} "
         f"equipment_tray_installed_z={EQUIPMENT_TRAY_INSTALLED_Z:.2f} "
@@ -6171,7 +6220,6 @@ def validate_configuration() -> None:
         f"{FAN_CRADLE_HEIGHT - FAN_CRADLE_FLOOR_THICKNESS:.2f} "
         f"fan_cradle_wall_min={min(cradle_walls):.2f} "
         f"fan_body_clearance={fan_body_vertical_clearance:.2f} "
-        f"fan_lid_clearance={fan_rigid_lid_clearance:.2f} "
         f"fan_arm_passage={arm_passage_size[0]:.1f}x"
         f"{arm_passage_size[1]:.1f} "
         f"tray_lift_scallops={len(lift_notch_centers)}x"
@@ -7097,7 +7145,7 @@ def create_fan_case_pair_insert(material, reference_objects=None):
     # mold the actual handed shells out of it. This fills all four dome-side
     # wedges, continuously joining the outer ledges and the center support.
     # The front boundary is the independently removable deep tray's rear edge.
-    bulk_y0 = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][2]
+    bulk_y0 = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_support_bounds"][2]
     bulk_y1 = insert_depth / 2.0
     bulk = add_rounded_prism(
         "Fan_Case_Runtime_Contoured_Bulk_Cradle", insert_width, bulk_y1 - bulk_y0,
@@ -7387,6 +7435,24 @@ def create_fan_case_pair_insert(material, reference_objects=None):
         CASE_CORNER_RADIUS - WALL_THICKNESS - FAN_CASE_PAIR_CRADLE_WALL_CLEARANCE)
     boolean_apply(insert, outer_limit, "INTERSECT")
 
+    if EXPANDED_ACCESSORY_STORAGE:
+        # Final guide/web unions must not refill the PWM insertion corridors.
+        # Reopen each complete vertical path, then restore its small side nubs.
+        for index, center in enumerate(PWM_CONNECTOR_DOCK_CENTERS, 1):
+            channel = add_rounded_prism(f"PWM_{index}_Final_Insertion_Channel",
+                connector_running_width, connector_length,
+                FAN_CASE_PAIR_INSERT_HEIGHT,
+                FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 0.3,
+                0.0, center)
+            difference_from(insert, channel)
+            for side in (-1.0, 1.0):
+                nub = add_rounded_box(f"PWM_{index}_Final_Retention_Nub",
+                    (PWM_DOCK_WALL_THICKNESS + PWM_CONNECTOR_RETENTION_PER_SIDE, 3.0, 2.0),
+                    (center[0] + side * (connector_running_width / 2.0
+                     + PWM_DOCK_WALL_THICKNESS / 2.0 - PWM_CONNECTOR_RETENTION_PER_SIDE / 2.0),
+                     center[1], FAN_CASE_PAIR_INSERT_HEIGHT + connector_height - 1.0), bevel=0.45)
+                union_into(insert, nub)
+
     for spec in fan_case_pair_shell_retention_specs():
         union_into(insert, create_fan_case_shell_retention_rib(spec, local=True))
 
@@ -7414,7 +7480,26 @@ def create_fan_case_pair_standalone_tray(material, key, name):
             name + "_Finger_Scallop", 24.0, 2.0 * wall + 1.0,
             z1 - 7.0, z1 + 0.3, 3.0, (x, facing_y))
         difference_from(tray, grip)
-    if key == "carrier_bounds":
+    if EXPANDED_ACCESSORY_STORAGE and key == "carrier_bounds":
+        # Inward eyes keep 2 mm pull cords out of the 1 mm shell-side gap.
+        # Their 45-degree undersides print without support; knots sit below
+        # the eyes and loops tuck in front of the reserved mount envelope.
+        for side in (-1.0, 1.0):
+            for x in (-55.0, 55.0):
+                front_profile = ((y0 + wall - 0.5, z1 - 20.0),
+                                 (y0 + wall - 0.5, z1 - 7.0),
+                                 (y0 + wall + 7.5, z1 - 7.0),
+                                 (y0 + wall + 7.5, z1 - 12.0))
+                profile = front_profile if side < 0 else tuple(
+                    (-y, z) for y, z in reversed(front_profile))
+                eye = extrude_loop_x(name + "_Inward_Pull_Cord_Eye",
+                    profile, x - 8.0, x + 8.0)
+                hole = add_rounded_prism(name + "_Vertical_Pull_Cord_Hole",
+                    3.5, 3.5, z1 - 21.0, z1 - 6.5, 1.75,
+                    (x, -side * (y0 + wall + 3.5)))
+                difference_from(eye, hole)
+                union_into(tray, eye)
+    if key == ("organizer_bounds" if EXPANDED_ACCESSORY_STORAGE else "carrier_bounds"):
         # The pad notch alone does not clear its rigid locating key: the key
         # also reaches the rear tray rim. Mirror the lid's local Y into the
         # installed frame and leave an upward-open notch in this rim.
@@ -7430,9 +7515,10 @@ def create_fan_case_pair_standalone_tray(material, key, name):
 
 
 def create_fan_case_pair_overhead_carrier(material):
-    """Create the full rear shallow tray (legacy carrier export key)."""
+    """Create the full-footprint mount tray (legacy carrier export key)."""
     return create_fan_case_pair_standalone_tray(
-        material, "carrier_bounds", "Field_Case_Fan_Case_Pair_Rear_Shallow_Tray")
+        material, "carrier_bounds", "Field_Case_Fan_Case_Pair_Mount_Tray" if EXPANDED_ACCESSORY_STORAGE
+        else "Field_Case_Fan_Case_Pair_Rear_Shallow_Tray")
 
 
 def create_fan_case_pair_storage_bin(material):
@@ -7441,8 +7527,209 @@ def create_fan_case_pair_storage_bin(material):
         material, "bin_bounds", "Field_Case_Fan_Case_Pair_Front_Deep_Tray")
 
 
+def accessory_storage_geometry():
+    """Conservative accessory envelopes; photo dimensions are not precision CAD."""
+    bounds = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"]
+    floor_z = bounds[4] + FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+    remote_size = (ACCESSORY_REMOTE_BODY[0] + ACCESSORY_REMOTE_BUTTON_PROJECTION + 3.0,
+                   ACCESSORY_REMOTE_BODY[1] + 2.5, ACCESSORY_REMOTE_BODY[2] + 2.5)
+    return {
+        "coil_center": (-29.5, 0.0, floor_z + ACCESSORY_COIL_ENVELOPE[1] / 2.0),
+        "remote_centers": ((80.25, -56.5, floor_z + remote_size[2] / 2.0),
+                           (80.25, -3.5, floor_z + remote_size[2] / 2.0)),
+        "remote_clearance": remote_size,
+        "spare_bounds": (52.0, 108.5, 24.5, 81.5, floor_z, bounds[5]),
+        "mount_center": (0.0, 0.0,
+            FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][4]
+            + FAN_CASE_PAIR_STORAGE_BIN_FLOOR + ACCESSORY_MOUNT_ENVELOPE[2] / 2.0),
+    }
+
+
+def create_accessory_organizer(material):
+    """Full-depth coil bay, two button-clear remote cells, and a spare bin."""
+    tray = create_fan_case_pair_standalone_tray(
+        material, "organizer_bounds", "Field_Case_Coil_And_Remote_Organizer")
+    x0, x1, y0, y1, z0, z1 = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"]
+    floor = z0 + FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+    # The coil has a broad 154 mm diameter bay. The right strip provides two
+    # 50 mm long remote cells and a separate 56.5 x 57 mm general storage cell.
+    divider = add_rounded_box("Organizer_Coil_Remote_Divider",
+        (3.0, y1 - y0 - 4.0, z1 - floor + 0.5),
+        (50.5, 0.0, (z1 + floor - 0.5) / 2.0), bevel=0.0)
+    union_into(tray, divider)
+    for y in (-30.0, 23.0):
+        divider = add_rounded_box("Organizer_Remote_Cell_Divider",
+            (x1 - 51.0, 3.0, 18.5),
+            ((x1 + 51.0) / 2.0, y, floor + 8.75), bevel=0.0)
+        union_into(tray, divider)
+    # Expose each remote edge after lifting the organizer out of the shell.
+    for y in (-56.5, -3.5):
+        scallop = add_rounded_prism("Organizer_Remote_Finger_Access",
+            8.0, 22.0, floor + 8.0, z1 + 0.3, 2.0, (x1 - 1.0, y))
+        difference_from(tray, scallop)
+    assign_material(tray, material)
+    return tray
+
+
+def create_accessory_reference_mockups(material):
+    """Envelopes include clearance for the photo mount and loosely wound coil."""
+    geometry = accessory_storage_geometry()
+    refs = [add_rounded_box("REFERENCE_ONLY_Field_Accessory_Mount_Envelope",
+                           ACCESSORY_MOUNT_ENVELOPE, geometry["mount_center"], bevel=0.0)]
+    bpy.ops.mesh.primitive_cylinder_add(vertices=128,
+        radius=ACCESSORY_COIL_ENVELOPE[0] / 2.0,
+        depth=ACCESSORY_COIL_ENVELOPE[1], location=geometry["coil_center"])
+    coil = bpy.context.object
+    coil.name = "REFERENCE_ONLY_Field_Accessory_Coil_Envelope"
+    select_only(coil)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    refs.append(coil)
+    for index, center in enumerate(geometry["remote_centers"], 1):
+        obj = add_rounded_box(f"REFERENCE_ONLY_Field_Accessory_Remote_{index}_Envelope",
+                             geometry["remote_clearance"], center, bevel=0.0)
+        refs.append(obj)
+    for obj in refs:
+        assign_material(obj, material)
+        obj["dimension_basis"] = "Clearance envelope; mount from photo, coil and remotes from user measurements"
+    return refs
+
+
+def validate_accessory_storage(parts, reference_objects):
+    """Prove accessory clearances, support, residual storage and removal order."""
+    refs = [obj for obj in reference_objects
+            if obj.name.startswith("REFERENCE_ONLY_Field_Accessory_")]
+    if len(refs) != 4:
+        raise ValueError("Accessory storage requires mount, coil and two remote envelopes")
+    tray_keys = ("fan_case_pair_storage_bin", "fan_case_pair_carrier", "accessory_organizer")
+    bpy.context.view_layer.update()
+
+    def volume(a, b, lift=0.0):
+        amin, amax = object_world_bounds(a)
+        bmin, bmax = object_world_bounds(b)
+        # Bounds also avoid touching-plane numerical noise; bearing surfaces
+        # are verified separately with solid probes across each support plane.
+        if (amax.z + lift <= bmin.z + 1e-5 or bmax.z <= amin.z + lift + 1e-5
+                or amax.x <= bmin.x or bmax.x <= amin.x
+                or amax.y <= bmin.y or bmax.y <= amin.y):
+            return 0.0
+        return exact_transformed_intersection(a, b,
+            first_location=a.location + Vector((0.0, 0.0, lift)),
+            first_rotation=a.rotation_euler.copy(),
+            second_location=b.location.copy(), second_rotation=b.rotation_euler.copy())[1]
+
+    for obj in refs:
+        minimum, maximum = object_world_bounds(obj)
+        expected_size = (ACCESSORY_MOUNT_ENVELOPE if "Mount" in obj.name else
+                         (ACCESSORY_COIL_ENVELOPE[0], ACCESSORY_COIL_ENVELOPE[0], ACCESSORY_COIL_ENVELOPE[1])
+                         if "Coil" in obj.name else accessory_storage_geometry()["remote_clearance"])
+        if any(abs(maximum[axis] - minimum[axis] - expected_size[axis]) > 1e-4
+               for axis in range(3)):
+            raise ValueError(f"Accessory envelope dimension mismatch: {obj.name}")
+        if "Mount" in obj.name:
+            tray_bounds = FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"]
+            cavity = (tray_bounds[0] + 3.0, tray_bounds[1] - 3.0,
+                      tray_bounds[2] + 3.0, tray_bounds[3] - 3.0,
+                      tray_bounds[4] + 3.0, tray_bounds[5])
+        elif "Coil" in obj.name:
+            tray_bounds = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"]
+            cavity = (tray_bounds[0] + 3.0, 49.0, tray_bounds[2] + 3.0,
+                      tray_bounds[3] - 3.0, tray_bounds[4] + 3.0, tray_bounds[5])
+        else:
+            index = 0 if "Remote_1" in obj.name else 1
+            center = accessory_storage_geometry()["remote_centers"][index]
+            cavity = (52.0, 108.5, center[1] - 25.0, center[1] + 25.0,
+                      ACCESSORY_ORGANIZER_BOTTOM_Z + 3.0, ACCESSORY_ORGANIZER_BOTTOM_Z + 21.0)
+        minimum, maximum = object_world_bounds(obj)
+        if any(minimum[axis] < cavity[2 * axis] - 2e-5
+               or maximum[axis] > cavity[2 * axis + 1] + 2e-5 for axis in range(3)):
+            raise ValueError(f"Accessory envelope outside assigned cavity: {obj.name}")
+
+    obstacles = [parts[k] for k in ("base", "fan_case_pair_insert", *tray_keys)]
+    for obj in refs:
+        # A 0.02 mm initial lift separates coincident floor faces only; no
+        # XY allowance is removed from the conservative reference envelopes.
+        for obstacle in obstacles:
+            overlap = volume(obj, obstacle, lift=0.02)
+            if overlap > 1e-5:
+                raise ValueError(f"Accessory envelope obstructed: {obj.name}/{obstacle.name} {overlap:.6f}")
+    for index, first in enumerate(refs):
+        for second in refs[index + 1:]:
+            if volume(first, second) > 1e-5:
+                raise ValueError("Accessory clearance envelopes overlap")
+    for index, first in enumerate(tray_keys):
+        for second in tray_keys[index + 1:]:
+            if volume(parts[first], parts[second]) > 1e-5:
+                raise ValueError(f"Accessory trays overlap: {first}/{second}")
+    for key in tray_keys:
+        if volume(parts[key], parts["base"]) > 1e-5:
+            raise ValueError(f"Accessory tray intersects shell: {key}")
+
+    def solid_fill(obj, size, center):
+        probe = add_rounded_box("TEMPORARY_Accessory_Stack_Bearing", size, center, bevel=0.0)
+        try:
+            fill = volume(obj, probe)
+            if fill < math.prod(size) * 0.40:
+                raise ValueError(f"Accessory stack lacks support: {obj.name} at {center}")
+            return fill
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+
+    bearing_min = float("inf")
+    # Rear mount floor bears on the existing cradle. Its front is carried by
+    # the lower bin's side walls, avoiding a cantilever over the front void.
+    front = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bounds"]
+    for x in (-110.0, 110.0):
+        center = (x, (front[2] + front[3]) / 2.0, front[5])
+        for key in ("fan_case_pair_storage_bin", "fan_case_pair_carrier"):
+            bearing_min = min(bearing_min, solid_fill(parts[key], (2.0, 12.0, 0.4), center))
+    for x in (-110.0, 110.0):
+        for y in (-60.0, 60.0):
+            for key in ("fan_case_pair_carrier", "accessory_organizer"):
+                bearing_min = min(bearing_min, solid_fill(parts[key], (2.0, 12.0, 0.4),
+                    (x, y, ACCESSORY_ORGANIZER_BOTTOM_Z)))
+    # Verify a useful free storage cell after reserving coil and remotes.
+    spare = accessory_storage_geometry()["spare_bounds"]
+    spare_size = (spare[1] - spare[0] - 0.4, spare[3] - spare[2] - 0.4,
+                  spare[5] - spare[4] - 0.4)
+    probe = add_rounded_prism("TEMPORARY_Organizer_Spare_Storage", spare_size[0], spare_size[1],
+        spare[4] + 0.2, spare[5] - 0.2, 3.5,
+        ((spare[0] + spare[1]) / 2, (spare[2] + spare[3]) / 2))
+    try:
+        if volume(probe, parts["accessory_organizer"]) > 1e-5:
+            raise ValueError("Organizer loses its reserved general-storage cell")
+    finally:
+        bpy.data.objects.remove(probe, do_unlink=True)
+    # Remove the upper tray, then the mount tray, then the lower front bin.
+    # Each loaded tray must clear the fully open lid as well as the shell.
+    for lid_key in ("lid", "tpu_snap_lid"):
+        lid = parts[lid_key]
+        saved_pose = (lid.location.copy(), lid.rotation_euler.copy())
+        lid.location, lid.rotation_euler = installed_lid_pose(110.0)
+        bpy.context.view_layer.update()
+        try:
+            for key in reversed(tray_keys):
+                lower_keys = tray_keys[:tray_keys.index(key)]
+                contents = [o for o in refs if ("Mount" in o.name) == (key == "fan_case_pair_carrier")]
+                if key == "fan_case_pair_storage_bin":
+                    contents = []
+                for moving in (parts[key], *contents):
+                    for lift in (0.5, *range(2, math.ceil(BASE_HEIGHT) + 10, 4)):
+                        for obstacle in (parts["base"], lid, *(parts[k] for k in lower_keys)):
+                            overlap = volume(moving, obstacle, float(lift))
+                            if overlap > 1e-5:
+                                raise ValueError(f"Loaded accessory tray cannot lift: {key}/{moving.name}/{obstacle.name} lift={lift} {overlap:.6f}")
+        finally:
+            lid.location, lid.rotation_euler = saved_pose
+            bpy.context.view_layer.update()
+    print("FIELD_CASE_ACCESSORY_STORAGE_VALID "
+          f"mount_envelope={ACCESSORY_MOUNT_ENVELOPE} coil_envelope={ACCESSORY_COIL_ENVELOPE} "
+          f"remotes=2 button_projection={ACCESSORY_REMOTE_BUTTON_PROJECTION:.1f} "
+          f"spare_cell={spare_size} bearing_min={bearing_min:.6f} "
+          "removal=organizer,mount,front_bin", flush=True)
+
+
 def create_fan_case_pair_lid_pad(material):
-    """Create the flat keyed pad with clearance above both tray rims."""
+    """Create the flat keyed pad with clearance above the organizer rim."""
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     pad_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
@@ -8683,10 +8970,10 @@ def create_pelican_latch_parts(material):
             # touch the unchanged lid skirt; the structural underside and the
             # separately generated flat pad/retention boss remain intact.
             closed_lid_clearance_corners_installed = (
-                (-90.0, BASE_HEIGHT - 0.5),
-                (-87.4, BASE_HEIGHT - 0.5),
-                (-87.4, BASE_HEIGHT + 4.0),
-                (-90.0, BASE_HEIGHT + 4.0),
+                (LATCH_BASE_PIVOT_Y - 3.0, BASE_HEIGHT - 0.5),
+                (LATCH_BASE_PIVOT_Y - 0.4, BASE_HEIGHT - 0.5),
+                (LATCH_BASE_PIVOT_Y - 0.4, BASE_HEIGHT + 4.0),
+                (LATCH_BASE_PIVOT_Y - 3.0, BASE_HEIGHT + 4.0),
             )
             closed_lid_clearance = extrude_loop_x(
                 "Pelican_Hook_Unchanged_Lid_Skirt_Closed_Clearance",
@@ -12828,7 +13115,7 @@ def validate_fan_case_contoured_cradle(parts, assembly_groups):
             center_x = FAN_CASE_PAIR_STORAGE["placements"][index][0]
             xmin, ymin, xmax, ymax = profile.bounds
             wedge_area = box(
-                xmin, FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][2] + 3.0,
+                xmin, FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_support_bounds"][2] + 3.0,
                 xmax, FAN_CASE_PAIR_STORAGE["shell_contact_base_y"]).difference(profile)
             # These functional openings intentionally interrupt the infill;
             # probe the remaining support, not a door slot or cable throat.
@@ -12952,14 +13239,16 @@ def validate_alternate_lid_closure(parts, reference_objects=()) -> None:
             second_location=second_pose[0], second_rotation=second_pose[1],
         )[1]
 
-    loadout = [parts[key] for key in ("fan_case_pair_insert", "fan_case_pair_carrier",
-                                    "fan_case_pair_storage_bin")]
+    tray_keys = ("fan_case_pair_carrier", "fan_case_pair_storage_bin")
+    if EXPANDED_ACCESSORY_STORAGE:
+        tray_keys += ("accessory_organizer",)
+    loadout = [parts[key] for key in ("fan_case_pair_insert", *tray_keys)]
     loadout.extend(reference_objects)
     pad = parts["fan_case_pair_lid_pad"]
     pad_pose = installed_flat_lid_pad_pose(0.0)
     pad_bottom = pose_bounds(pad, *pad_pose)[2][0]
     tray_top = max(pose_bounds(obj, obj.location, obj.rotation_euler)[2][1]
-                   for obj in loadout[1:3])
+                   for obj in loadout[1:1 + len(tray_keys)])
     gap = pad_bottom - tray_top
     if gap - FAN_CASE_PAIR_LID_STACK_TOLERANCE < FAN_CASE_PAIR_MIN_LID_PAD_CLEARANCE - 2e-5:
         raise ValueError(f"Alternate lid pad presses on tray rims: clearance={gap:.6f}")
@@ -13330,7 +13619,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
     support = FAN_CASE_PAIR_CARRIER_SUPPORT
     tray_bearing_contacts = []
     for part_key, bounds_key in (
-        ("fan_case_pair_carrier", "carrier_bounds"),
+        ("fan_case_pair_carrier", "carrier_support_bounds"),
         ("fan_case_pair_storage_bin", "bin_bounds"),
     ):
         x0, x1, y0, y1, z0, z1 = FAN_CASE_PAIR_OVERHEAD_STORAGE[bounds_key]
@@ -13386,8 +13675,14 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         floor = FAN_CASE_PAIR_STORAGE_BIN_FLOOR
         cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
         inner = (width - 2.0 * wall, depth - 2.0 * wall, z1 - z0 - floor)
+        # Expanded mount tray has inward pull eyes in the front/rear bands.
+        # Check its central usable bay; the exact mount envelope is validated
+        # independently against every eye and wall above.
+        air_depth = (ACCESSORY_MOUNT_ENVELOPE[1] + 0.4
+                     if EXPANDED_ACCESSORY_STORAGE and part_key == "fan_case_pair_carrier"
+                     else inner[1] - 0.4)
         air = add_rounded_prism("TEMPORARY_Standalone_Tray_Usable_Air",
-            inner[0] - 0.4, inner[1] - 0.4, z0 + floor + 0.2, z1 + 0.2,
+            inner[0] - 0.4, air_depth, z0 + floor + 0.2, z1 + 0.2,
             3.5, (cx, cy))
         try:
             air_overlap = probe_fill_volume(parts[part_key], air)
@@ -13459,6 +13754,8 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         second_location=parts["fan_case_pair_storage_bin"].location.copy(),
         second_rotation=parts["fan_case_pair_storage_bin"].rotation_euler.copy())
     overhead_unwanted_overlap = max(overhead_unwanted_overlap, tray_pair_overlap)
+    if EXPANDED_ACCESSORY_STORAGE:
+        validate_accessory_storage(parts, reference_objects)
     validate_alternate_lid_closure(parts, reference_objects)
     for obj in (obj for group in assembly_groups for obj in group):
         _faces, volume = exact_transformed_intersection(
@@ -13522,7 +13819,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
     # The empty insert starts below the fixed tray rails.  Sample the complete
     # lift through and above the shell at less than the rails' 4 mm height so a
     # side-relief or protrusion regression cannot slip between test positions.
-    for lift in (0.5, *(float(value) for value in range(2, 104, 2))):
+    for lift in (0.5, *(float(value) for value in range(2, math.ceil(BASE_HEIGHT) + 10, 2))):
         _faces, volume = exact_transformed_intersection(
             parts["fan_case_pair_insert"],
             parts["base"],
@@ -13548,9 +13845,11 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         ("fan_case_pair_carrier", "fan_case_pair_storage_bin"),
     ):
         tray = parts[tray_key]
-        obstacles = (parts["base"], parts["fan_case_pair_insert"], parts[other_key],
+        lower_trays = ((parts[other_key],) if not EXPANDED_ACCESSORY_STORAGE
+                       or tray_key == "fan_case_pair_carrier" else ())
+        obstacles = (parts["base"], parts["fan_case_pair_insert"], *lower_trays,
                      *(obj for group in assembly_groups for obj in group), *accessory_objects)
-        for lift in (0.5, 2.0, 5.0, 10.0, 20.0, 40.0, 60.0):
+        for lift in (0.5, 2.0, 5.0, 10.0, 20.0, 40.0, 60.0, 90.0, 130.0, 170.0):
             for obstacle in obstacles:
                 _faces, volume = exact_transformed_intersection(
                     tray, obstacle,
@@ -13562,7 +13861,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
                     withdrawal_overlap = volume
                     withdrawal_worst = (tray_key, lift, obstacle.name)
     if withdrawal_overlap > 1e-5:
-        raise ValueError(f"A standalone tray cannot lift independently: "
+        raise ValueError(f"A tray cannot lift in top-to-bottom removal order: "
                          f"maximum={withdrawal_overlap:.6f} at {withdrawal_worst}")
     lid_pad_sweep_overlap = 0.0
     lid_pad_sweep_worst = None
@@ -14683,6 +14982,7 @@ def field_case_3mf_groups():
         (BASE_STL_NAME,),
         (1,),
         new_plate("01 - Rigid Base Shell"),
+        print_rotations={"base": (0.0, 0.0, math.pi / 2.0)} if EXPANDED_ACCESSORY_STORAGE else {},
     )
     rigid_lid_keys = ("lid", "logo_orange_inlay")
     rigid_lid_sources = (LID_STL_NAME, LOGO_ORANGE_INLAY_STL_NAME)
@@ -14706,6 +15006,7 @@ def field_case_3mf_groups():
         rigid_lid_extruders,
         new_plate("02 - Rigid AMS Lid (Choose This or Plate 03)"),
         role="rigid_lid",
+        print_rotations={key: (0.0, 0.0, math.pi / 2.0) for key in rigid_lid_keys} if EXPANDED_ACCESSORY_STORAGE else {},
     )
     add_group(
         "Optional 68D TPU Snap Lid - Shell, Orange Inlay, and TPU Gasket"
@@ -14716,6 +15017,7 @@ def field_case_3mf_groups():
         tpu_lid_extruders,
         new_plate("03 - Optional 68D TPU Lid (Choose This or Plate 02)"),
         role="tpu_lid",
+        print_rotations={key: (0.0, 0.0, math.pi / 2.0) for key in tpu_lid_keys} if EXPANDED_ACCESSORY_STORAGE else {},
     )
     if not PRINT_TPU_GASKET_WITH_LID:
         add_group(
@@ -14753,16 +15055,25 @@ def field_case_3mf_groups():
             FAN_CASE_PAIR_INSERT_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Key-Notched Rear Tray",
-            "Alternate TPU Fan-Case Key-Notched Rear Tray",
+            "Alternate Fan-Case - Mount Tray" if EXPANDED_ACCESSORY_STORAGE
+            else "Alternate Fan-Case - Key-Notched Rear Tray",
+            "Alternate Fan-Case Mount Tray" if EXPANDED_ACCESSORY_STORAGE
+            else "Alternate TPU Fan-Case Key-Notched Rear Tray",
             "fan_case_pair_carrier",
             FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Deep Storage Tray",
+            "Alternate Fan-Case - Front Utility Tray" if EXPANDED_ACCESSORY_STORAGE
+            else "Alternate Fan-Case - Deep Storage Tray",
             "Alternate TPU Fan-Case Deep Storage Tray",
             "fan_case_pair_storage_bin",
             FAN_CASE_PAIR_STORAGE_BIN_STL_NAME,
+        ),
+        (
+            "Alternate Fan-Case - Coil and Remotes",
+            "Alternate Coil and Remote Organizer",
+            "accessory_organizer",
+            ACCESSORY_ORGANIZER_STL_NAME,
         ),
         (
             "Alternate Fan-Case - 2 mm Lid Pad",
@@ -14771,11 +15082,14 @@ def field_case_3mf_groups():
             FAN_CASE_PAIR_LID_PAD_STL_NAME,
         ),
     ):
+        if ((EXPANDED_ACCESSORY_STORAGE and key in ("fan_cradle", "equipment_tray", "lid_retainer"))
+                or (not EXPANDED_ACCESSORY_STORAGE and key == "accessory_organizer")):
+            continue
         add_group(
             name,
             (key,),
             (source_file,),
-            (3,),
+            (1 if EXPANDED_ACCESSORY_STORAGE and key in ("fan_case_pair_carrier", "accessory_organizer") else 3,),
             new_plate(plate_name),
         )
 
@@ -14817,6 +15131,9 @@ def field_case_3mf_groups():
             ((25.0, 132.0),),
         ),
     ):
+        if ((EXPANDED_ACCESSORY_STORAGE and key in ("fan_cradle", "equipment_tray", "lid_retainer"))
+                or (not EXPANDED_ACCESSORY_STORAGE and key == "accessory_organizer")):
+            continue
         add_group(
             name,
             (key,),
@@ -16168,19 +16485,21 @@ def build_mission1_field_case():
     )
     parts = {}
     parts["base"] = create_base(shell_material)
-    parts["fan_cradle"] = create_fan_cradle(tpu_material)
-    translate_object(parts["fan_cradle"], (0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
+    if not EXPANDED_ACCESSORY_STORAGE:
+        parts["fan_cradle"] = create_fan_cradle(tpu_material)
+        translate_object(parts["fan_cradle"], (0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
     parts["fan_case_pair_carrier"] = create_fan_case_pair_overhead_carrier(
-        tpu_material
+        hardware_material
     )
     parts["fan_case_pair_storage_bin"] = create_fan_case_pair_storage_bin(
         tpu_material
     )
-    parts["equipment_tray"] = create_equipment_tray(tpu_material)
-    translate_object(
-        parts["equipment_tray"],
-        (0.0, 0.0, EQUIPMENT_TRAY_INSTALLED_Z),
-    )
+    if not EXPANDED_ACCESSORY_STORAGE:
+        parts["equipment_tray"] = create_equipment_tray(tpu_material)
+        translate_object(
+            parts["equipment_tray"],
+            (0.0, 0.0, EQUIPMENT_TRAY_INSTALLED_Z),
+        )
     lid, logo_orange = create_lid(
         shell_material,
         logo_orange_material,
@@ -16195,8 +16514,11 @@ def build_mission1_field_case():
     parts["tpu_snap_lid"] = tpu_snap_lid
     bpy.data.objects.remove(duplicate_logo, do_unlink=True)
     parts["gasket"] = create_gasket(tpu_material)
-    parts["lid_retainer"] = create_lid_retainer(tpu_material)
+    if not EXPANDED_ACCESSORY_STORAGE:
+        parts["lid_retainer"] = create_lid_retainer(tpu_material)
     parts["fan_case_pair_lid_pad"] = create_fan_case_pair_lid_pad(tpu_material)
+    if EXPANDED_ACCESSORY_STORAGE:
+        parts["accessory_organizer"] = create_accessory_organizer(hardware_material)
     parts["tpu_hinge_coupon"] = create_tpu_hinge_coupon(tpu_material)
     parts["latch_lever"], parts["latch_hook"] = create_pelican_latch_parts(
         hardware_material
@@ -16205,7 +16527,7 @@ def build_mission1_field_case():
     parts["hinge_pin"] = create_hinge_pin(hardware_material)
 
     reference_objects = []
-    if BUILD_REFERENCE_MOCKUPS:
+    if BUILD_REFERENCE_MOCKUPS and not EXPANDED_ACCESSORY_STORAGE:
         reference_objects = create_reference_mockups(
             (
                 camera_material,
@@ -16229,6 +16551,8 @@ def build_mission1_field_case():
         fan_reference_material, fan_case_cover_reference_material,
         cable_reference_material, latch_rod_reference_material)
     parts["fan_case_pair_insert"] = create_fan_case_pair_insert(tpu_material, fan_case_references)
+    if EXPANDED_ACCESSORY_STORAGE:
+        fan_case_references.extend(create_accessory_reference_mockups(hardware_material))
     if BUILD_REFERENCE_MOCKUPS:
         reference_objects.extend(fan_case_references)
 
@@ -16237,15 +16561,16 @@ def build_mission1_field_case():
     validate_built_hollow_gasket(parts)
     validate_built_flush_lid_inlay(parts)
     validate_built_lid_hockey_inlay(parts)
-    validate_built_lid_retainer_hood_reliefs(parts["lid_retainer"])
-    validate_built_upper_tray_access(
-        parts["equipment_tray"],
-        parts["lid_retainer"],
-    )
-    validate_installed_trays(parts)
-    validate_built_fan_cradle(parts["fan_cradle"])
-    if reference_objects:
-        validate_stored_dual_fan_reference(parts, reference_objects)
+    if not EXPANDED_ACCESSORY_STORAGE:
+        validate_built_lid_retainer_hood_reliefs(parts["lid_retainer"])
+        validate_built_upper_tray_access(
+            parts["equipment_tray"],
+            parts["lid_retainer"],
+        )
+        validate_installed_trays(parts)
+        validate_built_fan_cradle(parts["fan_cradle"])
+        if reference_objects:
+            validate_stored_dual_fan_reference(parts, reference_objects)
     validate_fan_case_pair_loadout(parts, fan_case_references)
     if not BUILD_REFERENCE_MOCKUPS:
         for obj in fan_case_references:
@@ -16303,40 +16628,45 @@ def build_mission1_field_case():
 
     if EXPORT_STL:
         exports = (
-            (BASE_STL_NAME, parts["base"]),
-            (LID_STL_NAME, parts["lid"]),
-            (FAN_CRADLE_STL_NAME, parts["fan_cradle"]),
-            (EQUIPMENT_TRAY_STL_NAME, parts["equipment_tray"]),
-            (LID_RETAINER_STL_NAME, parts["lid_retainer"]),
-            (GASKET_STL_NAME, parts["gasket"]),
-            (LATCH_LEVER_STL_NAME, parts["latch_lever"]),
-            (LATCH_HOOK_STL_NAME, parts["latch_hook"]),
-            (HANDLE_BAR_STL_NAME, parts["handle_bar"]),
-            (HINGE_PIN_STL_NAME, parts["hinge_pin"]),
-            (LOGO_ORANGE_INLAY_STL_NAME, parts["logo_orange_inlay"]),
-            (TPU_SNAP_LID_STL_NAME, parts["tpu_snap_lid"]),
-            (TPU_HINGE_COUPON_STL_NAME, parts["tpu_hinge_coupon"]),
-            (FAN_CASE_PAIR_INSERT_STL_NAME, parts["fan_case_pair_insert"]),
+            (BASE_STL_NAME, parts.get("base")),
+            (ACCESSORY_ORGANIZER_STL_NAME, parts.get("accessory_organizer")),
+            (LID_STL_NAME, parts.get("lid")),
+            (FAN_CRADLE_STL_NAME, parts.get("fan_cradle")),
+            (EQUIPMENT_TRAY_STL_NAME, parts.get("equipment_tray")),
+            (LID_RETAINER_STL_NAME, parts.get("lid_retainer")),
+            (GASKET_STL_NAME, parts.get("gasket")),
+            (LATCH_LEVER_STL_NAME, parts.get("latch_lever")),
+            (LATCH_HOOK_STL_NAME, parts.get("latch_hook")),
+            (HANDLE_BAR_STL_NAME, parts.get("handle_bar")),
+            (HINGE_PIN_STL_NAME, parts.get("hinge_pin")),
+            (LOGO_ORANGE_INLAY_STL_NAME, parts.get("logo_orange_inlay")),
+            (TPU_SNAP_LID_STL_NAME, parts.get("tpu_snap_lid")),
+            (TPU_HINGE_COUPON_STL_NAME, parts.get("tpu_hinge_coupon")),
+            (FAN_CASE_PAIR_INSERT_STL_NAME, parts.get("fan_case_pair_insert")),
             (
                 FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME,
-                parts["fan_case_pair_carrier"],
+                parts.get("fan_case_pair_carrier"),
             ),
             (
                 FAN_CASE_PAIR_STORAGE_BIN_STL_NAME,
-                parts["fan_case_pair_storage_bin"],
+                parts.get("fan_case_pair_storage_bin"),
             ),
             (
                 FAN_CASE_PAIR_LID_PAD_STL_NAME,
-                parts["fan_case_pair_lid_pad"],
+                parts.get("fan_case_pair_lid_pad"),
             ),
         )
         for filename, obj in exports:
+            if obj is None:
+                continue
             print_origin = None
             print_rotation = None
             expected_minimum_z = 0.0
-            if obj is parts["fan_cradle"]:
+            if obj is parts.get("accessory_organizer"):
+                print_origin = Vector((0.0, 0.0, ACCESSORY_ORGANIZER_BOTTOM_Z))
+            elif obj is parts.get("fan_cradle"):
                 print_origin = Vector((0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
-            elif obj is parts["equipment_tray"]:
+            elif obj is parts.get("equipment_tray"):
                 print_origin = Vector((0.0, 0.0, EQUIPMENT_TRAY_INSTALLED_Z))
             elif obj is parts["fan_case_pair_insert"]:
                 print_origin = Vector(

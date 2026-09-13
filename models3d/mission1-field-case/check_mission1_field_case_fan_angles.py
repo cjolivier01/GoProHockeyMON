@@ -315,6 +315,11 @@ def check_loadout():
         "fan_case_pair_storage_bin": case.create_fan_case_pair_storage_bin(material),
         "fan_case_pair_lid_pad": case.create_fan_case_pair_lid_pad(material),
     }
+    parts["lid"], inlay = case.create_lid(material, material)
+    case.bpy.data.objects.remove(inlay, do_unlink=True)
+    if case.EXPANDED_ACCESSORY_STORAGE:
+        parts["accessory_organizer"] = case.create_accessory_organizer(material)
+        references.extend(case.create_accessory_reference_mockups(material))
     profile_delta = check_profile_tracks_runtime_mesh(references, profiles[0])
 
     for name, obj in parts.items():
@@ -326,7 +331,7 @@ def check_loadout():
     check_failed_source_build_restores_config(material)
 
     assert source_config() == original_config, "Regression leaked source configuration"
-    assert (case.CASE_WIDTH, case.CASE_DEPTH, case.BASE_HEIGHT) == (234.0, 158.0, 97.8)
+    assert (case.CASE_WIDTH, case.CASE_DEPTH, case.BASE_HEIGHT) == ((234.0, 180.0, 160.0) if case.EXPANDED_ACCESSORY_STORAGE else (234.0, 158.0, 97.8))
     print(
         "FIELD_CASE_FAN_ANGLE_REGRESSION_PASS "
         "storage_yaws=-15,+15 source_defaults=0,31 "

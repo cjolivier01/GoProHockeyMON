@@ -608,7 +608,9 @@ def render_overview(project: ThreeMFProject, output_path: Path, width: int) -> N
     )
     add_text(
         "Alternative_Notice",
-        "CHOOSE ONE LID: 02 OR 03  •  DEFAULT AND FAN-CASE LOADOUT PLATES ARE ALTERNATIVES, NOT ONE ASSEMBLY",
+        ("CHOOSE ONE LID: 02 OR 03  •  DEFAULT AND FAN-CASE LOADOUT PLATES ARE ALTERNATIVES"
+         if any("Default Loadout" in plate.name for plate in project.plates) else
+         "CHOOSE ONE LID: 02 OR 03  •  EXPANDED CAMERA, MOUNT, CORD AND REMOTE KIT"),
         (full_width_center, 313.0, 1.0),
         6.0,
         note_material,
@@ -616,7 +618,7 @@ def render_overview(project: ThreeMFProject, output_path: Path, width: int) -> N
     bottom_y = -(rows - 1) * PLATE_STRIDE - 30.0
     add_text(
         "Material_Legend",
-        "DARK = RIGID  •  ORANGE = RIGID INLAY  •  CORAL = 68D TPU  •  RED CORNER = PRINTER EXCLUSION",
+        "DARK = RIGID  •  ORANGE = RIGID INLAY  •  CORAL = TPU (SELECT THE REQUIRED HARDNESS)  •  RED CORNER = PRINTER EXCLUSION",
         (full_width_center, bottom_y, 1.0),
         5.0,
         label_material,

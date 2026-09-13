@@ -24,6 +24,12 @@ if str(SCRIPT_DIRECTORY) not in sys.path:
 
 import mission1_field_case_blender as field_case
 
+if "--compact" in sys.argv:
+    field_case.EXPANDED_ACCESSORY_STORAGE = False
+    exec(compile(Path(field_case.__file__).read_bytes(), field_case.__file__, "exec"),
+         vars(field_case))
+    sys.argv.remove("--compact")
+
 
 RENDER_DIRECTORY = SCRIPT_DIRECTORY / "renderings"
 RENDER_RESOLUTION = (1600, 1100)
@@ -727,27 +733,31 @@ def render_reinforced_hinge_sections(camera):
         bpy.data.objects.remove(section, do_unlink=True)
 
 
-field_case.BUILD_REFERENCE_MOCKUPS = True
-field_case.EXPORT_STL = False
-field_case.SAVE_BLEND = False
-PARTS = field_case.build_mission1_field_case()
-RENDER_DIRECTORY.mkdir(parents=True, exist_ok=True)
-CAMERA = set_studio_scene()
-hide_non_storage_objects()
-set_reference_materials()
-render_loaded_compact_stack(CAMERA)
-render_exploded_stack(CAMERA)
-render_closed_latch_protectors(CAMERA)
-render_fan_case_loadout(CAMERA)
-render_handed_fan_loadout(CAMERA)
-render_bottom_cable_routes(CAMERA)
-render_fan_side_storage(CAMERA)
-render_fan_side_support_path(CAMERA)
-render_fan_side_closed_stack(CAMERA)
-render_fan_case_insert_detail(CAMERA)
-render_fan_case_front_hardware(CAMERA)
-render_fan_case_loadout_exploded(CAMERA)
-render_reinforced_hinge_sections(CAMERA)
-render_tpu_snap_hinge(CAMERA)
-render_tpu_hinge_coupon(CAMERA)
-print(f"FIELD_CASE_RENDERED_PREVIEWS {RENDER_DIRECTORY}")
+if field_case.EXPANDED_ACCESSORY_STORAGE:
+    from render_mission1_expanded_storage import main as render_expanded
+    render_expanded()
+else:
+    field_case.BUILD_REFERENCE_MOCKUPS = True
+    field_case.EXPORT_STL = False
+    field_case.SAVE_BLEND = False
+    PARTS = field_case.build_mission1_field_case()
+    RENDER_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    CAMERA = set_studio_scene()
+    hide_non_storage_objects()
+    set_reference_materials()
+    render_loaded_compact_stack(CAMERA)
+    render_exploded_stack(CAMERA)
+    render_closed_latch_protectors(CAMERA)
+    render_fan_case_loadout(CAMERA)
+    render_handed_fan_loadout(CAMERA)
+    render_bottom_cable_routes(CAMERA)
+    render_fan_side_storage(CAMERA)
+    render_fan_side_support_path(CAMERA)
+    render_fan_side_closed_stack(CAMERA)
+    render_fan_case_insert_detail(CAMERA)
+    render_fan_case_front_hardware(CAMERA)
+    render_fan_case_loadout_exploded(CAMERA)
+    render_reinforced_hinge_sections(CAMERA)
+    render_tpu_snap_hinge(CAMERA)
+    render_tpu_hinge_coupon(CAMERA)
+    print(f"FIELD_CASE_RENDERED_PREVIEWS {RENDER_DIRECTORY}")

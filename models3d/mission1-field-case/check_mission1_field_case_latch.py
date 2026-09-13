@@ -17,7 +17,7 @@ import mission1_field_case_blender as case
 
 
 # Baselines include the authorized 25% hinge-clearance reduction for a 3.8 mm rod.
-FIXED_PART_BASELINES = {
+COMPACT_FIXED_PART_BASELINES = {
     "base": (
         3713,
         2543,
@@ -29,6 +29,17 @@ FIXED_PART_BASELINES = {
         "bf277641a8db533a2924b0e4848cbb73ca33d283cac48e30e91566ddf6719ff3",
     ),
 }
+
+
+# The expanded case dimensions were explicitly authorized for accessory storage.
+EXPANDED_FIXED_PART_BASELINES = {
+    "base": (3708, 2543,
+             "015bd5ff7d8d9a21a36f034ec10ec8032b83ceab30babbad5720b51383a11e88"),
+    "lid": (4697, 3370,
+            "70ca535fce35348821159de209c631c206384d36f902a8516f48f790f4d7f964"),
+}
+FIXED_PART_BASELINES = (EXPANDED_FIXED_PART_BASELINES if case.EXPANDED_ACCESSORY_STORAGE
+                        else COMPACT_FIXED_PART_BASELINES)
 
 
 def validate_fixed_part_compatibility(name, obj) -> None:
@@ -57,7 +68,8 @@ def validate_fixed_part_compatibility(name, obj) -> None:
 
 
 def check_latch() -> None:
-    expected_case_dimensions = (234.0, 158.0, 97.8)
+    expected_case_dimensions = ((234.0, 180.0, 160.0) if case.EXPANDED_ACCESSORY_STORAGE
+                                else (234.0, 158.0, 97.8))
     assert (
         case.CASE_WIDTH,
         case.CASE_DEPTH,
