@@ -5,6 +5,7 @@
 """
 
 from pathlib import Path
+import math
 import sys
 from unittest.mock import patch
 
@@ -148,11 +149,14 @@ def create_insert_from_existing_references(material, references):
     real_profile_builder = case.fan_case_pair_extraction_profiles
     captured = {}
 
-    def capture_profiles(received):
+    def capture_profiles(received, return_rear_reliefs=False):
         assert received is references, "Lower insert did not reuse supplied references"
-        profiles = real_profile_builder(received)
+        result = real_profile_builder(
+            received, return_rear_reliefs=return_rear_reliefs
+        )
+        profiles = result[0] if return_rear_reliefs else result
         captured["profiles"] = profiles
-        return profiles
+        return result
 
     previous_preview = case.BUILD_REFERENCE_MOCKUPS
     case.BUILD_REFERENCE_MOCKUPS = PreviewModeMustNotBeRead()
@@ -206,6 +210,90 @@ def check_profile_tracks_runtime_mesh(references, baseline_profile):
         back.data.update()
         case.bpy.context.view_layer.update()
     return changed_area
+
+
+def profile_projection_limits(profile, direction):
+    """Return min/max coordinates along a world-XY direction."""
+    polygons = list(profile.geoms) if profile.geom_type == "MultiPolygon" else [profile]
+    projections = []
+    for polygon in polygons:
+        for ring in (polygon.exterior, *polygon.interiors):
+            projections.extend(
+                x * direction.x + y * direction.y for x, y in ring.coords
+            )
+    return min(projections), max(projections)
+
+
+def check_rear_fan_depth_allowance(references, relieved_profiles):
+    """Prove each handed cavity gains exactly 1.5 mm behind its fan."""
+    assert math.isclose(case.FAN_CASE_REAR_DEPTH_ALLOWANCE, 1.5, abs_tol=1e-9)
+    measured = []
+    nominal_profiles = []
+    for index, relieved in enumerate(relieved_profiles, start=1):
+        group = [
+            obj for obj in references
+            if obj.name.startswith(f"REFERENCE_ONLY_Fan_Case_Assembly_{index}_")
+        ]
+        nominal = case.fan_case_assembly_extraction_profile(group)
+        nominal_profiles.append(nominal)
+        outward = (
+            case.FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1].to_3x3()
+            @ case.Vector((0.0, -1.0, 0.0))
+        ).normalized()
+        nominal_rear = profile_projection_limits(nominal, outward)[1]
+        relieved_rear = profile_projection_limits(relieved, outward)[1]
+        allowance = relieved_rear - nominal_rear
+        assert math.isclose(
+            allowance, case.FAN_CASE_REAR_DEPTH_ALLOWANCE, abs_tol=0.01
+        ), (
+            f"Assembly {index} rear relief is {allowance:.6f} mm, expected "
+            f"{case.FAN_CASE_REAR_DEPTH_ALLOWANCE:.6f} mm"
+        )
+        measured.append(allowance)
+    return measured, nominal_profiles
+
+
+def check_finished_rear_fan_depth_relief(insert, nominal_profiles, relieved_profiles):
+    """Ensure no later insert operation refills the added rear cavity bands."""
+    maximum_overlap = 0.0
+    for index, (nominal, relieved) in enumerate(
+        zip(nominal_profiles, relieved_profiles), start=1
+    ):
+        added_relief = relieved.difference(nominal)
+        if added_relief.area <= 1.0:
+            raise AssertionError(
+                f"Assembly {index} has no substantial rear depth relief"
+            )
+        # Stay 0.01 mm off the Boolean's coincident walls and top/bottom faces;
+        # the separate directional check above owns the exact 1.500 mm extent.
+        probe_region = added_relief.buffer(-0.01)
+        if probe_region.is_empty:
+            raise AssertionError(f"Assembly {index} rear depth relief is too narrow")
+        probe = case.extrude_planar_region(
+            f"TEST_Finished_Insert_Rear_Fan_Relief_{index}",
+            probe_region,
+            case.FAN_CASE_PAIR_INSERT_FLOOR + 0.01,
+            case.FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 0.99,
+        )
+        probe.location.z = case.FAN_CASE_PAIR_INSERT_INSTALLED_Z
+        try:
+            _faces, overlap = case.exact_transformed_intersection(
+                insert,
+                probe,
+                first_location=insert.location.copy(),
+                first_rotation=insert.rotation_euler.copy(),
+                second_location=probe.location.copy(),
+                second_rotation=probe.rotation_euler.copy(),
+            )
+        finally:
+            case.bpy.data.objects.remove(probe, do_unlink=True)
+        if overlap > 1e-5:
+            raise AssertionError(
+                f"Finished insert refills assembly {index} rear relief: "
+                f"overlap={overlap:.6f} mm^3"
+            )
+        maximum_overlap = max(maximum_overlap, overlap)
+    return maximum_overlap
 
 
 def check_blocked_door(references):
@@ -318,9 +406,21 @@ def check_loadout():
     parts["lid"], inlay = case.create_lid(material, material)
     case.bpy.data.objects.remove(inlay, do_unlink=True)
     if case.EXPANDED_ACCESSORY_STORAGE:
+        parts["tpu_snap_lid"], inlay = case.create_lid(
+            material,
+            material,
+            hinge_profile=case.HINGE_PROFILE_TPU_68D_SNAP,
+        )
+        case.bpy.data.objects.remove(inlay, do_unlink=True)
         parts["accessory_organizer"] = case.create_accessory_organizer(material)
         references.extend(case.create_accessory_reference_mockups(material))
     profile_delta = check_profile_tracks_runtime_mesh(references, profiles[0])
+    rear_depth_allowances, nominal_profiles = check_rear_fan_depth_allowance(
+        references, profiles
+    )
+    finished_relief_overlap = check_finished_rear_fan_depth_relief(
+        insert, nominal_profiles, profiles
+    )
 
     for name, obj in parts.items():
         case.validate_built_part(name, obj)
@@ -336,6 +436,10 @@ def check_loadout():
         "FIELD_CASE_FAN_ANGLE_REGRESSION_PASS "
         "storage_yaws=-15,+15 source_defaults=0,31 "
         f"runtime_profile_delta={profile_delta:.3f} "
+        "rear_depth_allowances="
+        + ",".join(f"{value:.3f}" for value in rear_depth_allowances)
+        + " "
+        f"finished_relief_overlap={finished_relief_overlap:.6f} "
         f"synthetic_broad_gap_clearance={broad_gap_clearance:.3f} "
         "preview_independent=True references_reused=True bad_pose_rejected=True "
         "blocked_door_lift_rejected=True blocked_assembly_lift_rejected=True "

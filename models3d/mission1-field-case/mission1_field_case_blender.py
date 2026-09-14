@@ -375,6 +375,12 @@ FAN_CASE_STORAGE_FAN_ANGLES = (
     (FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
 )
 FAN_CASE_STORAGE_CLEARANCE = 1.0
+# The bought 40 mm fans can run slightly deeper than their nominal 20 mm
+# specification.  Sweep only the fan and its wrapping cover farther outward
+# along each handed mount axis so those rear edges cannot snag the tall TPU
+# guide during insertion.  This is local cavity relief: assembly placement and
+# every rigid case dimension remain unchanged.
+FAN_CASE_REAR_DEPTH_ALLOWANCE = 1.5
 FAN_CASE_STORAGE_COVER_CASE_CLEARANCE = 0.1
 FAN_CASE_M3_BOLT_LENGTH = 40.0
 FAN_CASE_M3_SHAFT_DIAMETER = 3.0
@@ -4608,9 +4614,12 @@ def validate_configuration() -> None:
         )
     if not (
         FAN_CASE_STORAGE_CLEARANCE >= 0.5
+        and FAN_CASE_REAR_DEPTH_ALLOWANCE >= 0.0
         and FAN_CASE_PAIR_GUIDE_HEIGHT > FAN_CASE_PAIR_INSERT_HEIGHT
     ):
-        raise ValueError("Contoured fan-case cradles lack height or running clearance")
+        raise ValueError(
+            "Contoured fan-case cradles lack height or nonnegative clearances"
+        )
 
     dock_support = FAN_CASE_PAIR_PWM_DOCK_SUPPORT
     cable_centerline_size = tuple(
@@ -7070,16 +7079,50 @@ def extrude_planar_region(name, region, z0, z1):
     return create_mesh_object(name, vertices, faces)
 
 
-def fan_case_pair_extraction_profiles(reference_objects):
+def fan_case_pair_extraction_profiles(reference_objects, return_rear_reliefs=False):
+    from shapely import union_all
+    from shapely.affinity import translate
+
     profiles = []
+    rear_reliefs = []
     for index in range(1, FAN_CASE_STORAGE_COUNT + 1):
         group = [obj for obj in reference_objects
                  if obj.name.startswith(f"REFERENCE_ONLY_Fan_Case_Assembly_{index}_")]
         profile = fan_case_assembly_extraction_profile(group)
+        rear_group = [
+            obj for obj in group
+            if (
+                "Direct_40mm_Rear_Fan" in obj.name
+                or "Wrapping_Fan_Cover" in obj.name
+            )
+        ]
+        if len(rear_group) != 2:
+            raise ValueError(
+                f"Fan-case assembly {index} needs one rear fan and one wrapping cover"
+            )
+        rear_profile = fan_case_assembly_extraction_profile(rear_group)
+        outward = (
+            FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1].to_3x3()
+            @ Vector((0.0, -1.0, 0.0))
+        ).normalized()
+        rear_depth_relief = union_all((
+            rear_profile,
+            translate(
+                rear_profile,
+                xoff=outward.x * FAN_CASE_REAR_DEPTH_ALLOWANCE,
+                yoff=outward.y * FAN_CASE_REAR_DEPTH_ALLOWANCE,
+            ),
+        ))
+        added_rear_relief = rear_depth_relief.difference(profile)
+        profile = union_all((profile, added_rear_relief))
         profiles.append(profile)
+        rear_reliefs.append(added_rear_relief)
         print(f"FIELD_CASE_RUNTIME_CONTOUR assembly={index} objects={len(group)} "
               f"yaw={FAN_CASE_STORAGE_FAN_ANGLES[index - 1][0]:+.1f} "
+              f"rear_depth_allowance={FAN_CASE_REAR_DEPTH_ALLOWANCE:.3f} "
               f"area={profile.area:.3f} bounds={profile.bounds}", flush=True)
+    if return_rear_reliefs:
+        return profiles, rear_reliefs
     return profiles
 
 
@@ -7114,7 +7157,9 @@ def create_fan_case_pair_insert(material, reference_objects=None):
     if own_references:
         reference_objects = create_fan_case_pair_reference_mockups(*([material] * 7))
     try:
-        profiles = fan_case_pair_extraction_profiles(reference_objects)
+        profiles, rear_depth_reliefs = fan_case_pair_extraction_profiles(
+            reference_objects, return_rear_reliefs=True
+        )
     finally:
         if own_references:
             for obj in reference_objects:
@@ -7473,6 +7518,27 @@ def create_fan_case_pair_insert(material, reference_objects=None):
                      + PWM_DOCK_WALL_THICKNESS / 2.0 - PWM_CONNECTOR_RETENTION_PER_SIDE / 2.0),
                      center[1], FAN_CASE_PAIR_INSERT_HEIGHT + connector_height - 1.0), bevel=0.45)
                 union_into(insert, nub)
+
+    # The assembly molds are cut before the accessory towers and carrier webs
+    # are added. Reopen only the extra 1.5 mm rear fan bands after those unions
+    # so a deep fan cannot snag on refilled guide material. The original
+    # contoured shell support and its deliberate retention ribs remain intact.
+    for index, (profile, rear_relief) in enumerate(
+        zip(profiles, rear_depth_reliefs), 1
+    ):
+        if rear_relief.is_empty or rear_relief.area <= 1e-9:
+            continue
+        # Overlap the earlier nominal cavity by 0.01 mm to prevent coincident
+        # Boolean seam faces, while intersecting with the relieved profile so
+        # the requested outer boundary remains exactly 1.5 mm farther back.
+        final_region = rear_relief.buffer(0.01).intersection(profile)
+        final_rear_relief = extrude_planar_region(
+            f"Fan_Case_{index}_Final_Rear_Fan_Depth_Relief",
+            final_region,
+            FAN_CASE_PAIR_INSERT_FLOOR,
+            FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 1.0,
+        )
+        difference_from(insert, final_rear_relief)
 
     for spec in fan_case_pair_shell_retention_specs():
         union_into(insert, create_fan_case_shell_retention_rib(spec, local=True))
@@ -13963,6 +14029,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         f"{actual_bounds[0][5] - actual_bounds[0][4]:.2f} "
         "cameras=installed direct_fans=2x40x40x20 wrapping_covers=2 "
         f"fan_yaws={','.join(f'{angles[0]:+.1f}' for angles in FAN_CASE_STORAGE_FAN_ANGLES)} "
+        f"rear_fan_depth_allowance={FAN_CASE_REAR_DEPTH_ALLOWANCE:.2f}mm "
         f"fan_mount_error_max={max(mount_alignment_errors):.6f} "
         f"case_bolts={FAN_CASE_STORAGE_COUNT * len(fan_case.CASE_FASTENER_POSITIONS_XZ)}x"
         f"M3x{FAN_CASE_M3_BOLT_LENGTH:.0f} "

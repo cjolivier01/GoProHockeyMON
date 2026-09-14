@@ -48,7 +48,15 @@ adjacent battery-pocket rims, with 11 mm seating depth and 7 mm of door exposed
 for removal. This change requires reprinting only the lower TPU insert; the
 case bottom, camera seats, battery pockets, trays and lids are unchanged.
 
+That same lower insert now sweeps the rear fan-and-cover portion of each
+contoured cavity **1.5 mm farther outward along its handed ±15-degree fan
+axis**. It accepts a fan 1.5 mm deeper than the nominal 20 mm reference without
+flexing the insert during loading. Camera seats, loadout positions, and all
+case internal and external dimensions remain unchanged.
+
 ![Raised battery-door pockets](renderings/mission1_raised_battery_door_pockets.png)
+
+![Rear fan depth clearance](renderings/mission1_fan_rear_clearance.png)
 
 The lower insert extends to the new shell walls and retains the bearing webs
 for the tray stack.
