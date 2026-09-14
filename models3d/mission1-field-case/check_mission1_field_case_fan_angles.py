@@ -156,6 +156,8 @@ def create_insert_from_existing_references(material, references):
         )
         profiles = result[0] if return_rear_reliefs else result
         captured["profiles"] = profiles
+        if return_rear_reliefs:
+            captured["rear_reliefs"] = result[1]
         return result
 
     previous_preview = case.BUILD_REFERENCE_MOCKUPS
@@ -174,7 +176,7 @@ def create_insert_from_existing_references(material, references):
     finally:
         case.BUILD_REFERENCE_MOCKUPS = previous_preview
     assert "profiles" in captured, "Lower insert did not derive runtime extraction profiles"
-    return insert, captured["profiles"]
+    return insert, captured["profiles"], captured["rear_reliefs"]
 
 
 def check_profile_tracks_runtime_mesh(references, baseline_profile):
@@ -224,18 +226,23 @@ def profile_projection_limits(profile, direction):
     return min(projections), max(projections)
 
 
-def check_rear_fan_depth_allowance(references, relieved_profiles):
-    """Prove each handed cavity gains exactly 1.5 mm behind its fan."""
+def check_rear_fan_depth_allowance(references, nominal_profiles, rear_reliefs):
+    """Prove only each rectangular slot's back edge gains exactly 1.5 mm."""
+    from shapely import union_all
+
     assert math.isclose(case.FAN_CASE_REAR_DEPTH_ALLOWANCE, 1.5, abs_tol=1e-9)
     measured = []
-    nominal_profiles = []
-    for index, relieved in enumerate(relieved_profiles, start=1):
+    for index, (nominal, rear_relief) in enumerate(
+        zip(nominal_profiles, rear_reliefs), start=1
+    ):
         group = [
             obj for obj in references
             if obj.name.startswith(f"REFERENCE_ONLY_Fan_Case_Assembly_{index}_")
         ]
-        nominal = case.fan_case_assembly_extraction_profile(group)
-        nominal_profiles.append(nominal)
+        rebuilt_nominal = case.fan_case_assembly_extraction_profile(group)
+        if nominal.symmetric_difference(rebuilt_nominal).area > 1e-7:
+            raise AssertionError(f"Assembly {index} nominal profile was modified")
+        relieved = union_all((nominal, rear_relief))
         outward = (
             case.FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1].to_3x3()
             @ case.Vector((0.0, -1.0, 0.0))
@@ -249,17 +256,54 @@ def check_rear_fan_depth_allowance(references, relieved_profiles):
             f"Assembly {index} rear relief is {allowance:.6f} mm, expected "
             f"{case.FAN_CASE_REAR_DEPTH_ALLOWANCE:.6f} mm"
         )
+        slot_band = case.fan_case_rear_slot_relief_region(index)
+        added = relieved.difference(nominal)
+        unexpected_added_area = added.difference(slot_band).area
+        removed_area = nominal.difference(relieved).area
+        if unexpected_added_area > 1e-7 or removed_area > 1e-7:
+            raise AssertionError(
+                f"Assembly {index} changed outside its rectangular rear slot: "
+                f"unexpected_added={unexpected_added_area:.9f} "
+                f"removed={removed_area:.9f}"
+            )
+        lateral = (
+            case.FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1].to_3x3()
+            @ case.Vector((1.0, 0.0, 0.0))
+        ).normalized()
+        transform = case.FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1]
+        placement = case.Vector(
+            case.FAN_CASE_PAIR_STORAGE["placements"][index - 1]
+        )
+        cover_x0, cover_x1 = (
+            case.FAN_CASE_PAIR_STORAGE["straight_cover_bounds"][:2]
+        )
+        expected_clearance = case.FAN_CASE_STORAGE_CLEARANCE + 0.01
+        expected_local_sides = (
+            cover_x0 - expected_clearance,
+            cover_x1 + expected_clearance,
+        )
+        expected_sides = []
+        for x in expected_local_sides:
+            point = transform @ case.Vector((x, 0.0, 0.0)) + placement
+            expected_sides.append(point.x * lateral.x + point.y * lateral.y)
+        expected_sides = tuple(sorted(expected_sides))
+        actual_sides = profile_projection_limits(slot_band, lateral)
+        if any(
+            not math.isclose(expected, actual, abs_tol=0.001)
+            for expected, actual in zip(expected_sides, actual_sides)
+        ):
+            raise AssertionError(
+                f"Assembly {index} rectangular slot width or side walls changed: "
+                f"expected={expected_sides} actual={actual_sides}"
+            )
         measured.append(allowance)
-    return measured, nominal_profiles
+    return measured
 
 
-def check_finished_rear_fan_depth_relief(insert, nominal_profiles, relieved_profiles):
+def check_finished_rear_fan_depth_relief(insert, rear_reliefs):
     """Ensure no later insert operation refills the added rear cavity bands."""
     maximum_overlap = 0.0
-    for index, (nominal, relieved) in enumerate(
-        zip(nominal_profiles, relieved_profiles), start=1
-    ):
-        added_relief = relieved.difference(nominal)
+    for index, added_relief in enumerate(rear_reliefs, start=1):
         if added_relief.area <= 1.0:
             raise AssertionError(
                 f"Assembly {index} has no substantial rear depth relief"
@@ -272,7 +316,7 @@ def check_finished_rear_fan_depth_relief(insert, nominal_profiles, relieved_prof
         probe = case.extrude_planar_region(
             f"TEST_Finished_Insert_Rear_Fan_Relief_{index}",
             probe_region,
-            case.FAN_CASE_PAIR_INSERT_FLOOR + 0.01,
+            case.fan_case_rear_slot_relief_bottom_z(index) + 0.01,
             case.FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 0.99,
         )
         probe.location.z = case.FAN_CASE_PAIR_INSERT_INSTALLED_Z
@@ -395,7 +439,9 @@ def check_loadout():
     remove_objects(alternate_references)
     assert source_config() == original_config
 
-    insert, profiles = create_insert_from_existing_references(material, references)
+    insert, profiles, rear_reliefs = create_insert_from_existing_references(
+        material, references
+    )
     parts = {
         "base": case.create_base(material),
         "fan_case_pair_insert": insert,
@@ -415,11 +461,11 @@ def check_loadout():
         parts["accessory_organizer"] = case.create_accessory_organizer(material)
         references.extend(case.create_accessory_reference_mockups(material))
     profile_delta = check_profile_tracks_runtime_mesh(references, profiles[0])
-    rear_depth_allowances, nominal_profiles = check_rear_fan_depth_allowance(
-        references, profiles
+    rear_depth_allowances = check_rear_fan_depth_allowance(
+        references, profiles, rear_reliefs
     )
     finished_relief_overlap = check_finished_rear_fan_depth_relief(
-        insert, nominal_profiles, profiles
+        insert, rear_reliefs
     )
 
     for name, obj in parts.items():
