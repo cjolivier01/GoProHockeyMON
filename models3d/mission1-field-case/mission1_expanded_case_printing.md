@@ -41,8 +41,17 @@ corner exclusion. Check any brim or skirt against the remaining bed margin.
 
 Case depth and height were increased with explicit authorization for this
 loadout. Camera and fan locations, outward fan angles, cable routes, and the
-positions of the batteries, doors and PWM plugs are preserved. The lower insert
-extends to the new shell walls and retains the bearing webs for the tray stack.
+positions of the batteries and PWM plugs are preserved. The door slots keep
+their horizontal positions; their floors now sit at 13.8 mm above the insert
+underside, raising each door by 10.8 mm. Their 24.8 mm front rims match the
+adjacent battery-pocket rims, with 11 mm seating depth and 7 mm of door exposed
+for removal. This change requires reprinting only the lower TPU insert; the
+case bottom, camera seats, battery pockets, trays and lids are unchanged.
+
+![Raised battery-door pockets](renderings/mission1_raised_battery_door_pockets.png)
+
+The lower insert extends to the new shell walls and retains the bearing webs
+for the tray stack.
 The PWM insertion corridors are cut after the final guide/web unions so those
 unions cannot close the plug channels.
 
