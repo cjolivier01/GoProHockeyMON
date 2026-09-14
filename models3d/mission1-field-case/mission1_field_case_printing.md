@@ -225,8 +225,16 @@ Approximately 18.8 mm of each battery remains exposed for removal; small
 opposed nubs create only 0.15 mm nominal local interference instead of making
 the full pocket a friction fit. Two 11 x 50.8 x 11 mm battery-door pockets run
 lengthwise on opposite sides of the center spine. They store two 50 x 10 x 18 mm doors,
-leave 7 mm proud, and use the same 0.15 mm local retention. The exposed
-camera tops and cable wells give access for lifting the assemblies and
+leave 7 mm proud, and use the same 0.15 mm local retention. Their floors are
+now 13.8 mm above the insert underside, raising each door by 10.8 mm. The
+24.8 mm front pocket rims match the adjacent battery-pocket rims; the door
+tops sit at 31.8 mm above the insert underside, making them easier to grasp.
+Only the lower TPU insert needs reprinting for this change. Case, battery
+pockets, camera seats, trays and lid geometry remain unchanged.
+
+![Raised battery-door pockets](renderings/mission1_raised_battery_door_pockets.png)
+
+The exposed camera tops and cable wells give access for lifting the assemblies and
 insert. Unclip the PWM plugs and free the coiled leads before lifting a camera
 assembly; the cables travel with it.
 

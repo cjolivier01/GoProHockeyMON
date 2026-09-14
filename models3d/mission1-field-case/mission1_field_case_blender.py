@@ -417,12 +417,14 @@ FAN_CASE_BATTERY_NUB_HEIGHT = 2.0
 FAN_CASE_BATTERY_NUB_INTRUSION = 0.65
 # Turn the two 50 x 10 x 18 mm doors lengthwise, one on either side of the
 # center spine. Their vertical removal paths stay open with both trays lifted.
+# Raise their pocket rims to the adjacent battery-pocket rims while retaining
+# 11 mm seating depth and 7 mm of exposed door above the front retaining wall.
 FAN_CASE_BATTERY_DOOR_COUNT = 2
 FAN_CASE_BATTERY_DOOR_SLOT_SIZE = (11.0, 50.8)
 FAN_CASE_BATTERY_DOOR_CENTERS = ((-12.0, -47.0), (12.0, -47.0))
 FAN_CASE_BATTERY_DOOR_WALL = 1.5
-FAN_CASE_BATTERY_DOOR_FLOOR_Z = 3.0
-FAN_CASE_BATTERY_DOOR_WALL_HEIGHT = 14.0
+FAN_CASE_BATTERY_DOOR_WALL_HEIGHT = FAN_CASE_BATTERY_TOWER_HEIGHT
+FAN_CASE_BATTERY_DOOR_FLOOR_Z = FAN_CASE_BATTERY_DOOR_WALL_HEIGHT - 11.0
 FAN_CASE_BATTERY_DOOR_NUB_WIDTH = 6.0
 FAN_CASE_BATTERY_DOOR_NUB_HEIGHT = 2.0
 FAN_CASE_BATTERY_DOOR_NUB_INTRUSION = 0.55
@@ -4690,6 +4692,11 @@ def validate_configuration() -> None:
     if not (
         FAN_CASE_BATTERY_DOOR_COUNT == len(FAN_CASE_BATTERY_DOOR_CENTERS) == 2
         and math.isclose(
+            FAN_CASE_BATTERY_DOOR_WALL_HEIGHT,
+            FAN_CASE_BATTERY_TOWER_HEIGHT,
+            abs_tol=1e-6,
+        )
+        and math.isclose(
             FAN_CASE_BATTERY_DOOR_WALL_HEIGHT
             - FAN_CASE_BATTERY_DOOR_FLOOR_Z,
             11.0,
@@ -4700,7 +4707,10 @@ def validate_configuration() -> None:
         - (FAN_CASE_BATTERY_DOOR_SLOT_SIZE[1] - BATTERY_DOOR_SIZE[0]) / 2.0
         <= 0.25
     ):
-        raise ValueError("Alternate loadout needs two lightly retained door pockets")
+        raise ValueError(
+            "Alternate loadout needs two lightly retained door pockets "
+            "raised to the battery-pocket rims"
+        )
     door_tower_size = tuple(
         value + 2.0 * FAN_CASE_BATTERY_DOOR_WALL
         for value in FAN_CASE_BATTERY_DOOR_SLOT_SIZE
