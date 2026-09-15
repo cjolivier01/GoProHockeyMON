@@ -43,6 +43,7 @@ HORN_SOURCE := $(HORN_DIR)/horn_parametric_blender.py
 HORN_RENDER_SOURCE := $(HORN_DIR)/render_horn_previews.py
 MISSION1_DUMMY_SOURCE := $(MISSION1_DUMMY_DIR)/gopro_mission1_dummy_blender.py
 MISSION1_FIELD_CASE_SOURCE := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_blender.py
+MISSION1_FIELD_CASE_PDF_SOURCE := $(MISSION1_FIELD_CASE_DIR)/generate_mission1_field_case_config_dimension_pdf.py
 MISSION1_FIELD_CASE_SCENE_CHECK_SOURCE := $(MISSION1_FIELD_CASE_DIR)/check_mission1_field_case_scene_visibility.py
 MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE := $(MISSION1_FIELD_CASE_DIR)/render_3mf_plate_overview.py
 WRAPPING_FAN_COVER_SOURCE := $(WRAPPING_FAN_COVER_DIR)/wrapping-fan-cover.py
@@ -54,6 +55,7 @@ HOCKEYMOM_CAM_CASE_OBSOLETE_IMAGES := \
 	$(HOCKEYMON_CAMERA_CASE_DIR)/hockeymom_3_cam_cover_original_style.png
 FAN_CASE_DIMENSION_PDF := $(FAN_CASE_DIR)/gopro_fan_case_configuration_dimensions.pdf
 DUAL_FAN_DIMENSION_PDF := $(DUAL_FAN_DIR)/gopro_dual_fan_configuration_dimensions.pdf
+MISSION1_FIELD_CASE_DIMENSION_PDF := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_configuration_dimensions.pdf
 
 FLAT_FAN_COVER_STLS := $(FLAT_FAN_COVER_DIR)/flat-fan-cover.stl
 WRAPPING_FAN_COVER_STLS := $(WRAPPING_FAN_COVER_DIR)/wrapping-fan-cover.stl
@@ -296,19 +298,23 @@ STL_FILES := \
 	all print_targets dim-pdf check-dim-pdf-sync \
 	dual-fan-dim-pdf check-dual-fan-dim-pdf-sync \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
+	mission1-field-case-dim-pdf check-mission1-field-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn horn-renderings mission1-dummy mission1-field-case mission1-field-case-plate-overview dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymon-camera-case hockeymom-cam-case \
 	hockeymom-keystone-test-coupon check-hockeymon-battery-slot check-hockeymon-fan-cover check-hockeymon-eye-closures check-mission1-field-case-scene check-print-3mf \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-mission1-field-case clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
-	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf
+	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf \
+	clean-mission1-field-case-dim-pdf
 
 # Keep every generated dimension guide synchronized with its model sources.
 # Each PDF target also depends on its generator, so any configuration or
 # documentation-layout change is reflected by the next normal `make all`.
 all: $(STL_FILES) $(MISSION1_FIELD_CASE_3MF) $(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF) \
-	$(DUAL_FAN_DIMENSION_PDF) $(FAN_CASE_DIMENSION_PDF) $(DIMENSION_PDF) \
-	check-dual-fan-dim-pdf-sync check-fan-case-dim-pdf-sync check-dim-pdf-sync
+	$(DUAL_FAN_DIMENSION_PDF) $(FAN_CASE_DIMENSION_PDF) \
+	$(MISSION1_FIELD_CASE_DIMENSION_PDF) $(DIMENSION_PDF) \
+	check-dual-fan-dim-pdf-sync check-fan-case-dim-pdf-sync \
+	check-mission1-field-case-dim-pdf-sync check-dim-pdf-sync
 
 print_targets:
 	@printf '%s\n' \
@@ -344,6 +350,8 @@ print_targets:
 		'check-dual-fan-dim-pdf-sync  Verify dual-fan PDF synchronization and drawing coverage.' \
 		'fan-case-dim-pdf          Build the fan-case configuration dimension PDF.' \
 		'check-fan-case-dim-pdf-sync  Verify PDF synchronization and engineering-drawing coverage.' \
+		'mission1-field-case-dim-pdf  Build the Mission 1 field-case configuration dimension PDF.' \
+		'check-mission1-field-case-dim-pdf-sync  Verify field-case PDF synchronization and drawing coverage.' \
 		'dim-pdf                   Build the Hockeymom camera-case configuration dimension PDF.' \
 		'check-dim-pdf-sync        Verify the PDF matches its model and generator sources.' \
 		'' \
@@ -361,6 +369,7 @@ print_targets:
 		'clean-hockeymom-cam-case  Remove all Hockeymom camera-case STLs.' \
 		'clean-dual-fan-dim-pdf    Remove the dual-fan configuration dimension PDF.' \
 		'clean-fan-case-dim-pdf    Remove the fan-case configuration dimension PDF.' \
+		'clean-mission1-field-case-dim-pdf  Remove the Mission 1 field-case configuration dimension PDF.' \
 		'clean-dim-pdf             Remove the Hockeymom camera-case configuration dimension PDF.' \
 		'' \
 		'Meta' \
@@ -392,6 +401,7 @@ fan-silencer-mounted-view: $(FAN_SILENCER_MOUNTED_VIEW)
 fan-case: $(FAN_CASE_STLS)
 dual-fan-dim-pdf: $(DUAL_FAN_DIMENSION_PDF)
 fan-case-dim-pdf: $(FAN_CASE_DIMENSION_PDF)
+mission1-field-case-dim-pdf: $(MISSION1_FIELD_CASE_DIMENSION_PDF)
 dim-pdf: $(DIMENSION_PDF)
 
 check-dual-fan-dim-pdf-sync: $(DUAL_FAN_DIMENSION_PDF)
@@ -402,6 +412,9 @@ check-dim-pdf-sync: $(DIMENSION_PDF)
 
 check-fan-case-dim-pdf-sync: $(FAN_CASE_DIMENSION_PDF)
 	$(PDF_PYTHON) $(FAN_CASE_PDF_SOURCE) --check-sync
+
+check-mission1-field-case-dim-pdf-sync: $(MISSION1_FIELD_CASE_DIMENSION_PDF)
+	$(PDF_PYTHON) $(MISSION1_FIELD_CASE_PDF_SOURCE) --check-sync
 
 $(DIMENSION_PDF): $(HOCKEYMON_CAMERA_CASE_PDF_SOURCE) \
 	$(HOCKEYMON_CAMERA_CASE_SOURCE) $(MISSION1_DUMMY_SOURCE) \
@@ -414,6 +427,16 @@ $(FAN_CASE_DIMENSION_PDF): $(FAN_CASE_PDF_SOURCE) \
 
 $(DUAL_FAN_DIMENSION_PDF): $(DUAL_FAN_PDF_SOURCE) \
 	$(DUAL_FAN_SOURCE) $(FAN_PRESET_SOURCE) $(DUAL_FAN_STLS)
+	$(PDF_PYTHON) $<
+
+# The field-case model imports the dummy, dual-fan, fan-case and wrapping-cover
+# generators for its clearance math, so the guide has to be rebuilt when any of
+# them changes.  It projects the auxiliary TPU and organizer parts too, which is
+# why both STL groups are listed.
+$(MISSION1_FIELD_CASE_DIMENSION_PDF): $(MISSION1_FIELD_CASE_PDF_SOURCE) \
+	$(MISSION1_FIELD_CASE_SOURCE) $(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) \
+	$(FAN_CASE_SOURCE) $(WRAPPING_FAN_COVER_SOURCE) $(FAN_PRESET_SOURCE) \
+	$(MISSION1_FIELD_CASE_STLS) $(MISSION1_FIELD_CASE_AUXILIARY_STLS)
 	$(PDF_PYTHON) $<
 
 # Load a generator without triggering its __main__ block, build its selected
@@ -540,7 +563,8 @@ hockeymom-keystone-test-coupon: $(HOCKEYMOM_CAM_CASE_KEYSTONE_TEST_COUPON_STL)
 
 clean: clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-mission1-field-case clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
-	clean-dual-fan-dim-pdf clean-fan-case-dim-pdf clean-dim-pdf
+	clean-dual-fan-dim-pdf clean-fan-case-dim-pdf \
+	clean-mission1-field-case-dim-pdf clean-dim-pdf
 
 clean-flat-fan-cover:
 	$(RM) $(FLAT_FAN_COVER_STLS)
@@ -580,3 +604,6 @@ clean-dim-pdf:
 
 clean-fan-case-dim-pdf:
 	$(RM) $(FAN_CASE_DIMENSION_PDF)
+
+clean-mission1-field-case-dim-pdf:
+	$(RM) $(MISSION1_FIELD_CASE_DIMENSION_PDF)
