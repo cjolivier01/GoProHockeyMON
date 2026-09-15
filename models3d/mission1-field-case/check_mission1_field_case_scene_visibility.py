@@ -44,7 +44,7 @@ def mesh_fingerprint(obj):
 
 # Model Text Editor reruns after objects and collections were hidden or excluded.
 bpy.ops.mesh.primitive_cube_add(size=1.0)
-hidden_rerun_sentinel_pointer = bpy.context.object.as_pointer()
+hidden_rerun_sentinel_name = bpy.context.object.name
 bpy.context.object.hide_set(True)
 bpy.context.object.hide_render = True
 
@@ -55,8 +55,8 @@ hidden_collection_sentinel = linked_mesh_object(
 )
 hidden_collection.hide_viewport = True
 hidden_collection.hide_render = True
-hidden_collection_pointer = hidden_collection.as_pointer()
-hidden_collection_sentinel_pointer = hidden_collection_sentinel.as_pointer()
+hidden_collection_name = hidden_collection.name
+hidden_collection_sentinel_name = hidden_collection_sentinel.name
 
 excluded_collection = bpy.data.collections.new("FIELD_CASE_STALE_EXCLUDED_COLLECTION")
 bpy.context.scene.collection.children.link(excluded_collection)
@@ -70,8 +70,8 @@ excluded_layer_collection = bpy.context.view_layer.layer_collection.children.get
 if excluded_layer_collection is None:
     raise AssertionError("Could not create the excluded-collection rerun fixture")
 excluded_layer_collection.exclude = True
-excluded_collection_pointer = excluded_collection.as_pointer()
-excluded_collection_sentinel_pointer = excluded_collection_sentinel.as_pointer()
+excluded_collection_name = excluded_collection.name
+excluded_collection_sentinel_name = excluded_collection_sentinel.name
 
 other_scene = bpy.data.scenes.new("FIELD_CASE_OTHER_SCENE_SENTINEL")
 other_scene_object = linked_mesh_object(
@@ -213,28 +213,32 @@ data_object_pointers = {obj.as_pointer() for obj in bpy.data.objects}
 data_collection_pointers = {
     collection.as_pointer() for collection in bpy.data.collections
 }
-stale_object_pointers = {
-    hidden_rerun_sentinel_pointer,
-    hidden_collection_sentinel_pointer,
-    excluded_collection_sentinel_pointer,
+stale_object_names = {
+    hidden_rerun_sentinel_name,
+    hidden_collection_sentinel_name,
+    excluded_collection_sentinel_name,
 }
-surviving_stale_objects = stale_object_pointers & data_object_pointers
+surviving_stale_objects = sorted(
+    name for name in stale_object_names if bpy.data.objects.get(name) is not None
+)
 if surviving_stale_objects:
     raise AssertionError(
         "Hidden or excluded current-scene objects survived clear_scene: "
-        f"{sorted(surviving_stale_objects)}"
+        f"{surviving_stale_objects}"
     )
-stale_collection_pointers = {
-    hidden_collection_pointer,
-    excluded_collection_pointer,
+stale_collection_names = {
+    hidden_collection_name,
+    excluded_collection_name,
 }
-surviving_stale_collections = (
-    stale_collection_pointers & data_collection_pointers
+surviving_stale_collections = sorted(
+    name
+    for name in stale_collection_names
+    if bpy.data.collections.get(name) is not None
 )
 if surviving_stale_collections:
     raise AssertionError(
         "Hidden or excluded current-scene collections survived clear_scene: "
-        f"{sorted(surviving_stale_collections)}"
+        f"{surviving_stale_collections}"
     )
 
 other_scene_pointers = {obj.as_pointer() for obj in other_scene.objects}
