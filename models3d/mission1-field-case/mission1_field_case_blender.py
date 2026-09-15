@@ -375,6 +375,11 @@ FAN_CASE_STORAGE_FAN_ANGLES = (
     (FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
 )
 FAN_CASE_STORAGE_CLEARANCE = 1.0
+# The bought 40 mm fans can run slightly deeper than their nominal 20 mm
+# specification. Extend only the back edge of the rectangular fan-inlet slot
+# along each handed mount axis so the fan cannot snag during insertion. Slot
+# width, side walls, assembly placement, and every case dimension stay fixed.
+FAN_CASE_REAR_DEPTH_ALLOWANCE = 1.5
 FAN_CASE_STORAGE_COVER_CASE_CLEARANCE = 0.1
 FAN_CASE_M3_BOLT_LENGTH = 40.0
 FAN_CASE_M3_SHAFT_DIAMETER = 3.0
@@ -4608,9 +4613,12 @@ def validate_configuration() -> None:
         )
     if not (
         FAN_CASE_STORAGE_CLEARANCE >= 0.5
+        and FAN_CASE_REAR_DEPTH_ALLOWANCE >= 0.0
         and FAN_CASE_PAIR_GUIDE_HEIGHT > FAN_CASE_PAIR_INSERT_HEIGHT
     ):
-        raise ValueError("Contoured fan-case cradles lack height or running clearance")
+        raise ValueError(
+            "Contoured fan-case cradles lack height or nonnegative clearances"
+        )
 
     dock_support = FAN_CASE_PAIR_PWM_DOCK_SUPPORT
     cable_centerline_size = tuple(
@@ -7070,16 +7078,67 @@ def extrude_planar_region(name, region, z0, z1):
     return create_mesh_object(name, vertices, faces)
 
 
-def fan_case_pair_extraction_profiles(reference_objects):
+def fan_case_rear_slot_relief_region(index):
+    """Return the one back-edge extension for a handed rectangular fan slot."""
+    from shapely.geometry import Polygon
+
+    transform = FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1]
+    placement = Vector(FAN_CASE_PAIR_STORAGE["placements"][index - 1])
+    cover_x0, cover_x1, cover_y0, _cover_y1, _z0, _z1 = (
+        FAN_CASE_PAIR_STORAGE["straight_cover_bounds"]
+    )
+    profile_clearance = FAN_CASE_STORAGE_CLEARANCE + 0.01
+    slot_x0 = cover_x0 - profile_clearance
+    slot_x1 = cover_x1 + profile_clearance
+    nominal_rear_y = cover_y0 - profile_clearance
+    extended_rear_y = nominal_rear_y - FAN_CASE_REAR_DEPTH_ALLOWANCE
+
+    # This is deliberately a single rectangular band at the slot's back
+    # edge. Its side coordinates are identical to the existing slot; only
+    # the rear coordinate moves by 1.5 mm. A 0.01 mm inward overlap avoids
+    # a coincident Boolean face without moving the new outer boundary.
+    local_corners = (
+        (slot_x0, extended_rear_y),
+        (slot_x1, extended_rear_y),
+        (slot_x1, nominal_rear_y + 0.01),
+        (slot_x0, nominal_rear_y + 0.01),
+    )
+    world_corners = []
+    for x, y in local_corners:
+        point = transform @ Vector((x, y, 0.0)) + placement
+        world_corners.append((point.x, point.y))
+    return Polygon(world_corners)
+
+
+def fan_case_rear_slot_relief_bottom_z(index):
+    """Local insert Z where the stored fan-cover inlet actually begins."""
+    cover_bottom_z = FAN_CASE_PAIR_STORAGE["cover_source_bounds"][index - 1][4]
+    placement_z = FAN_CASE_PAIR_STORAGE["placements"][index - 1][2]
+    return (
+        cover_bottom_z
+        + placement_z
+        - FAN_CASE_STORAGE_CLEARANCE
+        - FAN_CASE_PAIR_INSERT_INSTALLED_Z
+    )
+
+
+def fan_case_pair_extraction_profiles(reference_objects, return_rear_reliefs=False):
     profiles = []
+    rear_reliefs = []
     for index in range(1, FAN_CASE_STORAGE_COUNT + 1):
         group = [obj for obj in reference_objects
                  if obj.name.startswith(f"REFERENCE_ONLY_Fan_Case_Assembly_{index}_")]
         profile = fan_case_assembly_extraction_profile(group)
+        rear_slot_band = fan_case_rear_slot_relief_region(index)
+        added_rear_relief = rear_slot_band.difference(profile)
         profiles.append(profile)
+        rear_reliefs.append(added_rear_relief)
         print(f"FIELD_CASE_RUNTIME_CONTOUR assembly={index} objects={len(group)} "
               f"yaw={FAN_CASE_STORAGE_FAN_ANGLES[index - 1][0]:+.1f} "
+              f"rear_depth_allowance={FAN_CASE_REAR_DEPTH_ALLOWANCE:.3f} "
               f"area={profile.area:.3f} bounds={profile.bounds}", flush=True)
+    if return_rear_reliefs:
+        return profiles, rear_reliefs
     return profiles
 
 
@@ -7114,7 +7173,9 @@ def create_fan_case_pair_insert(material, reference_objects=None):
     if own_references:
         reference_objects = create_fan_case_pair_reference_mockups(*([material] * 7))
     try:
-        profiles = fan_case_pair_extraction_profiles(reference_objects)
+        profiles, rear_depth_reliefs = fan_case_pair_extraction_profiles(
+            reference_objects, return_rear_reliefs=True
+        )
     finally:
         if own_references:
             for obj in reference_objects:
@@ -7473,6 +7534,33 @@ def create_fan_case_pair_insert(material, reference_objects=None):
                      + PWM_DOCK_WALL_THICKNESS / 2.0 - PWM_CONNECTOR_RETENTION_PER_SIDE / 2.0),
                      center[1], FAN_CASE_PAIR_INSERT_HEIGHT + connector_height - 1.0), bevel=0.45)
                 union_into(insert, nub)
+
+    # The assembly molds are cut before the accessory towers and carrier webs
+    # are added. Reopen only the extra 1.5 mm at the rectangular inlet slot's
+    # back edge after those unions so a deep fan cannot snag on refilled guide
+    # material. The slot width, side walls, contoured shell support, and its
+    # deliberate retention ribs remain intact.
+    for index, (profile, rear_relief) in enumerate(
+        zip(profiles, rear_depth_reliefs), 1
+    ):
+        if rear_relief.is_empty or rear_relief.area <= 1e-9:
+            continue
+        # Overlap the earlier nominal cavity by 0.01 mm to prevent coincident
+        # Boolean seam faces, while intersecting with the relieved profile so
+        # the requested outer boundary remains exactly 1.5 mm farther back.
+        # Start at the fan-cover inlet bottom rather than the insert floor;
+        # structure below the stored fan is unrelated to this rectangular
+        # slot and remains available to tie the surrounding supports together.
+        final_region = rear_relief.buffer(0.01).intersection(
+            fan_case_rear_slot_relief_region(index)
+        )
+        final_rear_relief = extrude_planar_region(
+            f"Fan_Case_{index}_Final_Rear_Fan_Depth_Relief",
+            final_region,
+            fan_case_rear_slot_relief_bottom_z(index),
+            FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 1.0,
+        )
+        difference_from(insert, final_rear_relief)
 
     for spec in fan_case_pair_shell_retention_specs():
         union_into(insert, create_fan_case_shell_retention_rib(spec, local=True))
@@ -13963,6 +14051,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
         f"{actual_bounds[0][5] - actual_bounds[0][4]:.2f} "
         "cameras=installed direct_fans=2x40x40x20 wrapping_covers=2 "
         f"fan_yaws={','.join(f'{angles[0]:+.1f}' for angles in FAN_CASE_STORAGE_FAN_ANGLES)} "
+        f"rear_fan_depth_allowance={FAN_CASE_REAR_DEPTH_ALLOWANCE:.2f}mm "
         f"fan_mount_error_max={max(mount_alignment_errors):.6f} "
         f"case_bolts={FAN_CASE_STORAGE_COUNT * len(fan_case.CASE_FASTENER_POSITIONS_XZ)}x"
         f"M3x{FAN_CASE_M3_BOLT_LENGTH:.0f} "

@@ -186,9 +186,18 @@ gaps between projecting components, preventing tall thin TPU fingers while
 preserving the much larger dome-side curves. No dome dimensions or contour
 points are copied into the field-case generator. Source dimension changes rebuild the mold; changes
 that cannot fit the preserved case fail validation instead of resizing it.
+In addition to the 1 mm running clearance, only the back edge of each
+rectangular fan-inlet slot extends **1.5 mm farther outward along its own
+±15-degree fan axis**. This accepts a fan that is 1.5 mm deeper than the
+nominal 20 mm reference without flexing the insert. The slot width and side
+walls, camera seats, assembly locations, and the case's internal width, depth,
+and height are unchanged; reprint only the lower TPU insert for this fit
+adjustment.
 About 14 mm of assembly remains exposed for lifting. Local 1.4 mm-floor
 reliefs still leave more than 0.5 mm of air beneath the two low 10 mm thumb-nuts
 so the thin hardware does not carry the case weight.
+
+![Rear fan depth clearance](renderings/mission1_fan_rear_clearance.png)
 
 Two 64 x 36 mm rounded wells each carry one coiled fan lead. The modeled cable
 centerline is 52 x 28 mm with a 4 mm corner radius, for 153.1 mm of path around
