@@ -7283,16 +7283,31 @@ def fan_case_cable_relief_region(well_center, routes):
     return union_all(throats).convex_hull
 
 
-def create_fan_case_pair_insert(material, reference_objects=None):
-    """Create the optional lower insert for two complete fan-case assemblies."""
+def create_fan_case_pair_insert(
+    material,
+    reference_objects=None,
+    extraction_geometry=None,
+):
+    """Create the optional lower insert for two complete fan-case assemblies.
+
+    ``extraction_geometry`` may reuse profiles derived from ``reference_objects``
+    while those source meshes and transforms remain unchanged.
+    """
     # Geometry generation must not depend on whether preview mockups are shown.
     own_references = reference_objects is None
     if own_references:
         reference_objects = create_fan_case_pair_reference_mockups(*([material] * 7))
     try:
-        profiles, rear_depth_reliefs = fan_case_pair_extraction_profiles(
-            reference_objects, return_rear_reliefs=True
-        )
+        if extraction_geometry is None:
+            extraction_geometry = fan_case_pair_extraction_profiles(
+                reference_objects, return_rear_reliefs=True
+            )
+        profiles, rear_depth_reliefs = extraction_geometry
+        if not (
+            len(profiles) == FAN_CASE_STORAGE_COUNT
+            and len(rear_depth_reliefs) == FAN_CASE_STORAGE_COUNT
+        ):
+            raise ValueError("Fan-case insert extraction geometry is incomplete")
     finally:
         if own_references:
             for obj in reference_objects:
@@ -9891,7 +9906,10 @@ def exact_transformed_intersection(
         modifier.operation = "INTERSECT"
         modifier.solver = "EXACT"
         modifier.object = tool
-        select_only(probe)
+        # modifier_apply operates on the active object and does not require it
+        # to be selected.  Avoid deselecting the entire dense reference scene
+        # for every temporary clearance Boolean.
+        bpy.context.view_layer.objects.active = probe
         bpy.ops.object.modifier_apply(modifier=modifier.name)
         bm = bmesh.new()
         try:
@@ -13349,13 +13367,25 @@ def validate_fan_case_accessory_lift_paths(accessories, obstacles):
     return accessory_withdrawal_overlap
 
 
-def validate_fan_case_contoured_cradle(parts, assembly_groups):
-    """Check real concave infill and the continuous upward removal volume."""
+def validate_fan_case_contoured_cradle(
+    parts,
+    assembly_groups,
+    extraction_profiles=None,
+):
+    """Check real concave infill and the continuous upward removal volume.
+
+    Supplied extraction profiles must describe the current assembly groups.
+    """
     from shapely.geometry import box
     from shapely import union_all
     from shapely.ops import polylabel
 
-    profiles = [fan_case_assembly_extraction_profile(group) for group in assembly_groups]
+    if extraction_profiles is None:
+        extraction_profiles = [
+            fan_case_assembly_extraction_profile(group) for group in assembly_groups
+        ]
+    if len(extraction_profiles) != len(assembly_groups):
+        raise ValueError("Fan-case validation extraction profiles are incomplete")
     insert = parts["fan_case_pair_insert"]
     infill_volumes, lift_overlaps = [], []
     # Only the four explicitly validated TPU squeeze ribs may flex during
@@ -13366,7 +13396,9 @@ def validate_fan_case_contoured_cradle(parts, assembly_groups):
     try:
         for spec in fan_case_pair_shell_retention_specs():
             difference_from(rigid_cradle, create_fan_case_shell_retention_rib(spec))
-        for index, (profile, group) in enumerate(zip(profiles, assembly_groups)):
+        for index, (profile, group) in enumerate(
+            zip(extraction_profiles, assembly_groups)
+        ):
             minimum_z = min(object_world_bounds(obj)[0].z for obj in group)
             lift = extrude_planar_region(
                 "TEMPORARY_Complete_Assembly_Continuous_Lift",
@@ -13575,7 +13607,11 @@ def validate_alternate_lid_closure(parts, reference_objects=()) -> None:
           f"maximum_overlap={maximum:.6f}", flush=True)
 
 
-def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
+def validate_fan_case_pair_loadout(
+    parts,
+    reference_objects,
+    extraction_profiles=None,
+) -> None:
     """Prove the mutually exclusive two-fan-case loadout fits exactly."""
     assembly_groups = []
     for assembly_index in range(1, FAN_CASE_STORAGE_COUNT + 1):
@@ -13877,7 +13913,7 @@ def validate_fan_case_pair_loadout(parts, reference_objects) -> None:
          *(obj for group in assembly_groups for obj in group), *accessory_objects))
 
     contour_lift_overlap, contour_infill_min = validate_fan_case_contoured_cradle(
-        parts, assembly_groups)
+        parts, assembly_groups, extraction_profiles)
 
     def probe_fill_volume(part, probe):
         """Return how much of a temporary validation probe is solid part."""
@@ -17098,7 +17134,15 @@ def build_mission1_field_case():
         fan_case_reference_material, camera_material, battery_material,
         fan_reference_material, fan_case_cover_reference_material,
         cable_reference_material, latch_rod_reference_material)
-    parts["fan_case_pair_insert"] = create_fan_case_pair_insert(tpu_material, fan_case_references)
+    fan_case_extraction_geometry = fan_case_pair_extraction_profiles(
+        fan_case_references,
+        return_rear_reliefs=True,
+    )
+    parts["fan_case_pair_insert"] = create_fan_case_pair_insert(
+        tpu_material,
+        fan_case_references,
+        extraction_geometry=fan_case_extraction_geometry,
+    )
     if EXPANDED_ACCESSORY_STORAGE:
         fan_case_references.extend(create_accessory_reference_mockups(hardware_material))
     if BUILD_REFERENCE_MOCKUPS:
@@ -17119,7 +17163,11 @@ def build_mission1_field_case():
         validate_built_fan_cradle(parts["fan_cradle"])
         if has_stored_dual_fan_reference_mockups(reference_objects):
             validate_stored_dual_fan_reference(parts, reference_objects)
-    validate_fan_case_pair_loadout(parts, fan_case_references)
+    validate_fan_case_pair_loadout(
+        parts,
+        fan_case_references,
+        extraction_profiles=fan_case_extraction_geometry[0],
+    )
     if not BUILD_REFERENCE_MOCKUPS:
         for obj in fan_case_references:
             bpy.data.objects.remove(obj, do_unlink=True)

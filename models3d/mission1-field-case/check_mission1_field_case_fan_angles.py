@@ -145,20 +145,11 @@ def check_profile_minimum_feature_closing():
 
 
 def create_insert_from_existing_references(material, references):
-    """Build once, capturing its profiles and forbidding a hidden source rebuild."""
-    real_profile_builder = case.fan_case_pair_extraction_profiles
-    captured = {}
-
-    def capture_profiles(received, return_rear_reliefs=False):
-        assert received is references, "Lower insert did not reuse supplied references"
-        result = real_profile_builder(
-            received, return_rear_reliefs=return_rear_reliefs
-        )
-        profiles = result[0] if return_rear_reliefs else result
-        captured["profiles"] = profiles
-        if return_rear_reliefs:
-            captured["rear_reliefs"] = result[1]
-        return result
+    """Build once, reusing profiles and forbidding a hidden source rebuild."""
+    extraction_geometry = case.fan_case_pair_extraction_profiles(
+        references,
+        return_rear_reliefs=True,
+    )
 
     previous_preview = case.BUILD_REFERENCE_MOCKUPS
     case.BUILD_REFERENCE_MOCKUPS = PreviewModeMustNotBeRead()
@@ -168,15 +159,18 @@ def create_insert_from_existing_references(material, references):
                 "create_fan_case_pair_reference_mockups",
                 side_effect=AssertionError("Lower insert rebuilt supplied references"),
         ), patch.object(
-                case,
-                "fan_case_pair_extraction_profiles",
-                side_effect=capture_profiles,
+            case,
+            "fan_case_pair_extraction_profiles",
+            side_effect=AssertionError("Lower insert rebuilt supplied profiles"),
         ):
-            insert = case.create_fan_case_pair_insert(material, references)
+            insert = case.create_fan_case_pair_insert(
+                material,
+                references,
+                extraction_geometry=extraction_geometry,
+            )
     finally:
         case.BUILD_REFERENCE_MOCKUPS = previous_preview
-    assert "profiles" in captured, "Lower insert did not derive runtime extraction profiles"
-    return insert, captured["profiles"], captured["rear_reliefs"]
+    return insert, *extraction_geometry
 
 
 def check_profile_tracks_runtime_mesh(references, baseline_profile):
@@ -380,7 +374,7 @@ def check_bad_fan_pose(references):
     case.validate_fan_case_mount_alignment(group, 1)
 
 
-def check_blocked_complete_assembly_lift(parts, references, profile):
+def check_blocked_complete_assembly_lift(parts, references, profiles):
     assembly_groups = [[
         obj for obj in references
         if obj.name.startswith(
@@ -390,7 +384,7 @@ def check_blocked_complete_assembly_lift(parts, references, profile):
     assembly_top = max(
         case.object_world_bounds(obj)[1].z for obj in assembly_groups[0]
     )
-    xmin, ymin, xmax, ymax = profile.bounds
+    xmin, ymin, xmax, ymax = profiles[0].bounds
     blocker = case.add_rounded_box(
         "TEST_Blocked_Complete_Assembly_Lift",
         (xmax - xmin, ymax - ymin, 3.0),
@@ -405,7 +399,11 @@ def check_blocked_complete_assembly_lift(parts, references, profile):
     parts["base"] = blocker
     try:
         try:
-            case.validate_fan_case_contoured_cradle(parts, assembly_groups)
+            case.validate_fan_case_contoured_cradle(
+                parts,
+                assembly_groups,
+                profiles,
+            )
         except ValueError as error:
             message = str(error)
             assert (
@@ -470,8 +468,17 @@ def check_loadout():
 
     for name, obj in parts.items():
         case.validate_built_part(name, obj)
-    case.validate_fan_case_pair_loadout(parts, references)
-    check_blocked_complete_assembly_lift(parts, references, profiles[0])
+    with patch.object(
+        case,
+        "fan_case_assembly_extraction_profile",
+        side_effect=AssertionError("Loadout validation rebuilt supplied profiles"),
+    ):
+        case.validate_fan_case_pair_loadout(
+            parts,
+            references,
+            extraction_profiles=profiles,
+        )
+    check_blocked_complete_assembly_lift(parts, references, profiles)
     check_blocked_door(references)
     check_bad_fan_pose(references)
     check_failed_source_build_restores_config(material)
