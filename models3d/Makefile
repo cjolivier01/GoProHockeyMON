@@ -43,6 +43,7 @@ HORN_SOURCE := $(HORN_DIR)/horn_parametric_blender.py
 HORN_RENDER_SOURCE := $(HORN_DIR)/render_horn_previews.py
 MISSION1_DUMMY_SOURCE := $(MISSION1_DUMMY_DIR)/gopro_mission1_dummy_blender.py
 MISSION1_FIELD_CASE_SOURCE := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_blender.py
+MISSION1_FIELD_CASE_SCENE_CHECK_SOURCE := $(MISSION1_FIELD_CASE_DIR)/check_mission1_field_case_scene_visibility.py
 MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE := $(MISSION1_FIELD_CASE_DIR)/render_3mf_plate_overview.py
 WRAPPING_FAN_COVER_SOURCE := $(WRAPPING_FAN_COVER_DIR)/wrapping-fan-cover.py
 
@@ -297,7 +298,7 @@ STL_FILES := \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn horn-renderings mission1-dummy mission1-field-case mission1-field-case-plate-overview dual-fan fan-silencer \
 	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymon-camera-case hockeymom-cam-case \
-	hockeymom-keystone-test-coupon check-hockeymon-battery-slot check-hockeymon-fan-cover check-hockeymon-eye-closures check-print-3mf \
+	hockeymom-keystone-test-coupon check-hockeymon-battery-slot check-hockeymon-fan-cover check-hockeymon-eye-closures check-mission1-field-case-scene check-print-3mf \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-mission1-field-case clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
 	clean-dim-pdf clean-dual-fan-dim-pdf clean-fan-case-dim-pdf
@@ -333,6 +334,7 @@ print_targets:
 		'-------' \
 		'horn-renderings             Render default and mixed-size standard-fan horns.' \
 		'mission1-field-case-plate-overview  Render the actual labeled all-parts 3MF plates.' \
+		'check-mission1-field-case-scene  Generate and validate both case/lid scene variants.' \
 		'fan-silencer-cross-section  Render its assembled case/silencer/fan center section.' \
 		'fan-silencer-mounted-view  Render the silencer mounted on its fan intake.' \
 		'' \
@@ -372,6 +374,10 @@ horn-renderings: $(HORN_RENDERINGS)
 mission1-dummy: $(MISSION1_DUMMY_STLS)
 mission1-field-case: $(MISSION1_FIELD_CASE_OUTPUTS)
 mission1-field-case-plate-overview: $(MISSION1_FIELD_CASE_PLATE_RENDER)
+
+check-mission1-field-case-scene:
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 \
+		--python $(MISSION1_FIELD_CASE_SCENE_CHECK_SOURCE)
 
 .PHONY: mission1-field-case-compact
 mission1-field-case-compact:

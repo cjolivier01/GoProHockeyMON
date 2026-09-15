@@ -41,6 +41,13 @@ Run inside Blender::
     blender --background --factory-startup \
       --python mission1_field_case_blender.py
 
+Set ``VISIBLE_CASE_ASSEMBLY`` near the top of the script to ``"FAN_CASE"``
+or ``"ORIGINAL"`` and choose ``VISIBLE_LID_VARIANT`` as ``"RIGID"`` or
+``"TPU_68D"``. A direct Blender/Text Editor run generates both complete case
+profiles and both lid variants, fits the selected lid, and leaves only the
+chosen complete assembly visible; alternatives remain generated and hidden in
+the Outliner.
+
 Set ``EXPORT_STL = True`` below, or use
 ``make -C models3d mission1-field-case`` from the repository root, to emit
 the 15-part expanded kit (17 parts for the compact profile), and
@@ -61,6 +68,13 @@ height.  Every default printable part validates below 250 x 250 mm in XY.
 """
 
 from __future__ import annotations
+
+# BLENDER SCENE SELECTION: edit these values, then run the whole script.
+VISIBLE_CASE_ASSEMBLY = globals().get("VISIBLE_CASE_ASSEMBLY", "FAN_CASE")
+VISIBLE_LID_VARIANT = globals().get("VISIBLE_LID_VARIANT", "RIGID")
+ASSEMBLED_LID_OPEN_ANGLE_DEGREES = globals().get(
+    "ASSEMBLED_LID_OPEN_ANGLE_DEGREES", 110.0
+)
 
 import base64
 import gzip
@@ -109,7 +123,7 @@ def import_companion_module(module_name, sibling_directory, source_filename=None
     # such as ``/script.py``. Prefer the active Text datablock's real filepath,
     # then inspect every loaded Text datablock for context-free runs.
     space_data = getattr(bpy.context, "space_data", None)
-    active_text = getattr(space_data, "HockeyMON", None)
+    active_text = getattr(space_data, "text", None)
     add_text_file_parent(getattr(active_text, "filepath", ""))
 
     text_name = source_filename or f"{module_name}.py"
@@ -187,14 +201,48 @@ wrapping_fan_cover, WRAPPING_FAN_COVER_SOURCE_DIRECTORY = import_companion_modul
 # ---------------------------------------------------------------------------
 # EXPORT AND SCENE CONFIGURATION
 
-CLEAR_SCENE = True
-BUILD_REFERENCE_MOCKUPS = True
-# Set False before executing this module to regenerate the compact all-loadouts kit.
-EXPANDED_ACCESSORY_STORAGE = globals().get("EXPANDED_ACCESSORY_STORAGE", True)
-EXPORT_STL = False
-EXPORT_DIRECTORY = ""
-SAVE_BLEND = False
-BLEND_PATH = "mission1_field_case.blend"
+# Select the one complete assembly Blender leaves visible after generation.
+# Direct runs build both profiles; this controls only final viewport/render
+# visibility and which profile is exported when EXPORT_STL is enabled.
+CASE_ASSEMBLY_FAN_CASE = "FAN_CASE"
+CASE_ASSEMBLY_ORIGINAL = "ORIGINAL"
+
+# Both complete lid variants are always generated.  Select which one is fitted
+# to the visible assembly; the other remains in the scene but hidden.
+LID_VARIANT_RIGID = "RIGID"
+LID_VARIANT_TPU_68D = "TPU_68D"
+TPU_LID_LOGO_REFERENCE_PREFIX = "REFERENCE_ONLY_TPU_68D_Lid_Logo_Inlay"
+TPU_LID_GASKET_REFERENCE_PREFIX = "REFERENCE_ONLY_TPU_68D_Lid_Gasket"
+TPU_LID_PAD_REFERENCE_PREFIX = "REFERENCE_ONLY_TPU_68D_Lid_Pad"
+
+# Leave the fitted lid open so the selected storage loadout is inspectable.
+# Zero produces the fully closed assembly.
+# Direct Blender/Text Editor runs leave the selected assembly posed. Importing
+# the module from validators/renderers preserves the established print-space
+# coordinates unless that caller opts in explicitly.
+ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD = globals().get(
+    "ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD", __name__ == "__main__"
+)
+# Direct Blender/Text Editor runs build both the expanded fan-case profile and
+# the original compact profile. Importers and validators retain the historical
+# single-profile behavior unless they opt in explicitly.
+GENERATE_ALL_CASE_ASSEMBLIES = globals().get(
+    "GENERATE_ALL_CASE_ASSEMBLIES", __name__ == "__main__"
+)
+
+CLEAR_SCENE = globals().get("CLEAR_SCENE", True)
+BUILD_REFERENCE_MOCKUPS = globals().get("BUILD_REFERENCE_MOCKUPS", True)
+# Selecting ORIGINAL in an ordinary Blender run also selects the compact
+# all-loadouts profile that contains it.  Make targets and embedding scripts
+# can still override EXPANDED_ACCESSORY_STORAGE explicitly.
+EXPANDED_ACCESSORY_STORAGE = globals().get(
+    "EXPANDED_ACCESSORY_STORAGE",
+    VISIBLE_CASE_ASSEMBLY == CASE_ASSEMBLY_FAN_CASE,
+)
+EXPORT_STL = globals().get("EXPORT_STL", False)
+EXPORT_DIRECTORY = globals().get("EXPORT_DIRECTORY", "")
+SAVE_BLEND = globals().get("SAVE_BLEND", False)
+BLEND_PATH = globals().get("BLEND_PATH", "mission1_field_case.blend")
 
 # Keep the hollow TPU gasket aligned as the third compound-lid material and
 # enable slicer-generated beam interlocking at its rigid-shell interface.  Set
@@ -1357,6 +1405,7 @@ GASKET_HOLLOW_SIDE_WALL = 0.55
 GASKET_HOLLOW_BOTTOM_WALL = 0.60
 GASKET_HOLLOW_TOP_WALL = 0.40
 GASKET_INSTALLED_Z = LID_WALL_HEIGHT - GASKET_CHANNEL_DEPTH
+GASKET_SEPARATE_PRINT_CENTER = (0.0, 225.0)
 GASKET_INTERLOCK_BEAM_WIDTH = 0.8
 GASKET_INTERLOCK_BEAM_LAYER_COUNT = 2
 GASKET_INTERLOCK_REFERENCE_LAYER_HEIGHT = 0.2
@@ -1418,6 +1467,7 @@ HINGE_LID_RELEASE_PATH_SAMPLES = 17
 HINGE_OPEN_SWEEP_MAX_ANGLE_DEGREES = 110.0
 HINGE_OPEN_SWEEP_STEP_DEGREES = 1.0
 HINGE_PIN_DIAMETER = HINGE_ROD_DIAMETER
+HINGE_PIN_FLAT_CHORD_Z = -1.12
 HINGE_BASE_SEGMENTS = ((-76.0, -42.0), (-18.0, 18.0), (42.0, 76.0))
 HINGE_LID_SEGMENTS = ((-41.4, -18.6), (18.6, 41.4))
 HINGE_ROD_END_INSET = 0.5
@@ -3593,8 +3643,48 @@ BOOLEAN_CLEANUP_DISTANCE = 0.0001
 
 
 def clear_scene() -> None:
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete(use_global=False)
+    """Clear the current scene independent of Outliner visibility.
+
+    Root-link removal reaches objects inside hidden or excluded collections.
+    Orphan cleanup stays limited to the original current-scene inventory, and
+    Blender user counts preserve anything shared with or instanced elsewhere.
+    """
+    scene = bpy.context.scene
+    root_collection = scene.collection
+    view_layer = bpy.context.view_layer
+    objects = {
+        obj.as_pointer(): obj for obj in scene.objects
+    }
+    collections = {
+        collection.as_pointer(): collection
+        for collection in root_collection.children_recursive
+    }
+
+    # Removing the active collection can otherwise leave context.collection
+    # unset, which prevents subsequent generator objects from being linked.
+    view_layer.active_layer_collection = view_layer.layer_collection
+    for collection in tuple(root_collection.children):
+        root_collection.children.unlink(collection)
+    for obj in tuple(root_collection.objects):
+        root_collection.objects.unlink(obj)
+
+    while True:
+        removed = False
+        for pointer, obj in tuple(objects.items()):
+            if obj.users == 0:
+                bpy.data.objects.remove(obj)
+                del objects[pointer]
+                removed = True
+        for pointer, collection in tuple(collections.items()):
+            if collection.users == 0:
+                bpy.data.collections.remove(collection)
+                del collections[pointer]
+                removed = True
+        if not removed:
+            break
+
+    view_layer.update()
+    view_layer.active_layer_collection = view_layer.layer_collection
 
 
 def set_units() -> None:
@@ -4454,6 +4544,33 @@ def rectangles_overlap(a_center, a_size, b_center, b_size, gap=0.0):
 
 
 def validate_configuration() -> None:
+    if VISIBLE_CASE_ASSEMBLY not in (
+        CASE_ASSEMBLY_FAN_CASE,
+        CASE_ASSEMBLY_ORIGINAL,
+    ):
+        raise ValueError(
+            "VISIBLE_CASE_ASSEMBLY must be FAN_CASE or ORIGINAL"
+        )
+    if VISIBLE_LID_VARIANT not in (LID_VARIANT_RIGID, LID_VARIANT_TPU_68D):
+        raise ValueError("VISIBLE_LID_VARIANT must be RIGID or TPU_68D")
+    if not 0.0 <= ASSEMBLED_LID_OPEN_ANGLE_DEGREES <= 110.0:
+        raise ValueError(
+            "ASSEMBLED_LID_OPEN_ANGLE_DEGREES must be between 0 and 110"
+        )
+    if GENERATE_ALL_CASE_ASSEMBLIES and EXPANDED_ACCESSORY_STORAGE != (
+        VISIBLE_CASE_ASSEMBLY == CASE_ASSEMBLY_FAN_CASE
+    ):
+        raise ValueError(
+            "Generating all assemblies requires FAN_CASE with "
+            "EXPANDED_ACCESSORY_STORAGE=True or ORIGINAL with it False"
+        )
+    if (
+        EXPANDED_ACCESSORY_STORAGE
+        and VISIBLE_CASE_ASSEMBLY == CASE_ASSEMBLY_ORIGINAL
+    ):
+        raise ValueError(
+            "The ORIGINAL assembly requires EXPANDED_ACCESSORY_STORAGE=False"
+        )
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     cradle_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
@@ -8729,7 +8846,7 @@ def create_gasket(material):
         center = (LID_DISPLAY_OFFSET_X, 0.0)
         gasket_z0 = GASKET_INSTALLED_Z
     else:
-        center = (0.0, 225.0)
+        center = GASKET_SEPARATE_PRINT_CENTER
         gasket_z0 = 0.0
     gasket = rounded_ring(
         "Field_Case_Hollow_TPU_Gasket",
@@ -9461,7 +9578,7 @@ def create_hinge_pin(material):
     # The circle center sits above z=0 so the closing edge of this major arc
     # forms a printable flat.  Do not append chord points: that would make the
     # loop self-cross before extrusion.
-    flat = -1.12
+    flat = HINGE_PIN_FLAT_CHORD_Z
     arc_limit = math.acos(flat / radius)
     arc_steps = 24
     angles = [
@@ -12844,6 +12961,45 @@ def create_fan_case_pair_reference_mockups(
     return objects
 
 
+def create_case_hardware_reference_mockups(
+    parts,
+    latch_material,
+    latch_rod_material,
+    carry_handle_material,
+):
+    """Build the installed latches, handle, and matching metal hardware."""
+    objects = list(
+        create_latch_reference_mockups(
+            parts,
+            (latch_material, latch_rod_material),
+        )
+    )
+    handle = duplicate_reference_part(
+        parts["handle_bar"],
+        "REFERENCE_ONLY_Folded_Pivoting_Handle",
+        carry_handle_material,
+    )
+    handle.rotation_euler.x = math.radians(90.0)
+    handle.location = (
+        0.0,
+        HANDLE_PIVOT_Y + HANDLE_LOCAL_PIVOT_Z,
+        HANDLE_PIVOT_Z,
+    )
+    objects.append(handle)
+    for index, side in enumerate((-1.0, 1.0), start=1):
+        objects.extend(
+            create_handle_m3_reference_hardware(
+                f"REFERENCE_ONLY_Handle_{index}_M3x"
+                f"{HANDLE_M3_BOLT_LENGTH:.0f}_Pivot",
+                side,
+                HANDLE_PIVOT_Y,
+                HANDLE_PIVOT_Z,
+                latch_rod_material,
+            )
+        )
+    return objects
+
+
 def create_reference_mockups(materials, parts, fan_case_references=None):
     objects = []
     (
@@ -12956,36 +13112,27 @@ def create_reference_mockups(materials, parts, fan_case_references=None):
         )
     )
     objects.extend(
-        create_latch_reference_mockups(
+        create_case_hardware_reference_mockups(
             parts,
-            (latch_material, latch_rod_material),
-        )
-    )
-    handle = duplicate_reference_part(
-        parts["handle_bar"],
-        "REFERENCE_ONLY_Folded_Pivoting_Handle",
-        carry_handle_material,
-    )
-    handle.rotation_euler.x = math.radians(90.0)
-    handle.location = (
-        0.0,
-        HANDLE_PIVOT_Y + HANDLE_LOCAL_PIVOT_Z,
-        HANDLE_PIVOT_Z,
-    )
-    objects.append(handle)
-    for index, side in enumerate((-1.0, 1.0), start=1):
-        hardware = create_handle_m3_reference_hardware(
-            f"REFERENCE_ONLY_Handle_{index}_M3x{HANDLE_M3_BOLT_LENGTH:.0f}_Pivot",
-            side,
-            HANDLE_PIVOT_Y,
-            HANDLE_PIVOT_Z,
+            latch_material,
             latch_rod_material,
+            carry_handle_material,
         )
-        objects.extend(hardware)
+    )
     for obj in objects:
         obj.display_type = "SOLID"
         obj.hide_render = False
     return objects
+
+
+def has_stored_dual_fan_reference_mockups(reference_objects):
+    """Return whether the optional stored dual-fan mockup set is present."""
+    return any(
+        obj.name.startswith(
+            ("REFERENCE_ONLY_Stored_", "REFERENCE_ONLY_Installed_80mm_Fan_")
+        )
+        for obj in reference_objects
+    )
 
 
 def validate_stored_dual_fan_reference(parts, reference_objects) -> None:
@@ -16145,7 +16292,7 @@ def validate_built_hollow_gasket(parts) -> None:
     center = (
         (LID_DISPLAY_OFFSET_X, 0.0)
         if PRINT_TPU_GASKET_WITH_LID
-        else (0.0, 225.0)
+        else GASKET_SEPARATE_PRINT_CENTER
     )
     cavity = create_gasket_hollow_cavity(
         "TEMPORARY_Hollow_TPU_Gasket_Air_Channel_Probe",
@@ -16590,6 +16737,221 @@ def validate_built_upper_tray_access(tray, retainer) -> None:
     )
 
 
+def set_scene_object_visibility(obj, visible):
+    """Set matching viewport and render visibility for one generated object."""
+    obj.hide_set(not visible)
+    obj.hide_render = not visible
+
+
+def reference_object_with_prefix(reference_objects, prefix):
+    matches = [obj for obj in reference_objects if obj.name.startswith(prefix)]
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected one assembled-scene object with prefix {prefix}, "
+            f"found {len(matches)}"
+        )
+    return matches[0]
+
+
+def pose_gasket_with_lid(gasket, lid_location, lid_rotation):
+    """Pose a compound or separately printed gasket with its lid."""
+    gasket.location = lid_location
+    gasket.rotation_euler = lid_rotation
+    if not PRINT_TPU_GASKET_WITH_LID:
+        compound_center = Vector(
+            (LID_DISPLAY_OFFSET_X, 0.0, GASKET_INSTALLED_Z)
+        )
+        separate_center = Vector((*GASKET_SEPARATE_PRINT_CENTER, 0.0))
+        gasket.location += gasket.rotation_euler.to_matrix() @ (
+            compound_center - separate_center
+        )
+
+
+def pose_lid_variant(parts, reference_objects, lid_variant, lid_pad_key):
+    """Pose one independently complete rigid or TPU lid assembly."""
+    if lid_variant == LID_VARIANT_RIGID:
+        lid = parts["lid"]
+        logo = parts["logo_orange_inlay"]
+        gasket = parts["gasket"]
+        lid_pad = parts[lid_pad_key]
+    else:
+        lid = parts["tpu_snap_lid"]
+        logo = reference_object_with_prefix(
+            reference_objects, TPU_LID_LOGO_REFERENCE_PREFIX
+        )
+        gasket = reference_object_with_prefix(
+            reference_objects, TPU_LID_GASKET_REFERENCE_PREFIX
+        )
+        lid_pad = reference_object_with_prefix(
+            reference_objects, TPU_LID_PAD_REFERENCE_PREFIX
+        )
+
+    lid_location, lid_rotation = installed_lid_pose(
+        ASSEMBLED_LID_OPEN_ANGLE_DEGREES
+    )
+    for obj in (lid, logo):
+        obj.location = lid_location
+        obj.rotation_euler = lid_rotation
+    pose_gasket_with_lid(gasket, lid_location, lid_rotation)
+    pad_location, pad_rotation = installed_flat_lid_pad_pose(
+        ASSEMBLED_LID_OPEN_ANGLE_DEGREES
+    )
+    lid_pad.location = pad_location
+    lid_pad.rotation_euler = pad_rotation
+
+
+def configure_assembled_scene_visibility(parts, reference_objects):
+    """Fit one lid and expose exactly one complete storage assembly.
+
+    This runs only after validation and export so it never changes printable
+    coordinates or removes alternative parts. Hidden objects remain available
+    in Blender's Outliner for inspection.
+    """
+    for obj in parts.values():
+        set_scene_object_visibility(obj, False)
+    for obj in reference_objects:
+        set_scene_object_visibility(obj, False)
+
+    common_part_keys = {"base", "hinge_pin"}
+    common_reference_prefixes = (
+        "REFERENCE_ONLY_CLOSED_Pelican_Source_",
+        "REFERENCE_ONLY_Latch_",
+        "REFERENCE_ONLY_Folded_Pivoting_Handle",
+        "REFERENCE_ONLY_Handle_",
+    )
+    if VISIBLE_CASE_ASSEMBLY == CASE_ASSEMBLY_FAN_CASE:
+        visible_part_keys = common_part_keys | {
+            "fan_case_pair_insert",
+            "fan_case_pair_carrier",
+            "fan_case_pair_storage_bin",
+            "accessory_organizer",
+        }
+        visible_reference_prefixes = common_reference_prefixes + (
+            "REFERENCE_ONLY_Fan_Case_Assembly_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Lead_",
+            "REFERENCE_ONLY_Fan_Case_Cable_Coil_",
+            "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+            "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+            "REFERENCE_ONLY_Fan_Case_Battery_Door_",
+            "REFERENCE_ONLY_Field_Accessory_",
+        )
+        lid_pad_key = "fan_case_pair_lid_pad"
+    else:
+        visible_part_keys = common_part_keys | {
+            "fan_cradle",
+            "equipment_tray",
+        }
+        visible_reference_prefixes = common_reference_prefixes + (
+            "REFERENCE_ONLY_Stored_",
+            "REFERENCE_ONLY_Installed_80mm_Fan_",
+            "REFERENCE_ONLY_MISSION1_",
+            "REFERENCE_ONLY_Enduro2_",
+            "REFERENCE_ONLY_MISSION1_Battery_Cage_Door_",
+        )
+        lid_pad_key = "lid_retainer"
+
+    pose_lid_variant(parts, reference_objects, LID_VARIANT_RIGID, lid_pad_key)
+    pose_lid_variant(parts, reference_objects, LID_VARIANT_TPU_68D, lid_pad_key)
+    hinge_pin = parts["hinge_pin"]
+    hinge_pin.location = (
+        0.0,
+        HINGE_AXIS_Y,
+        BASE_HEIGHT + HINGE_PIN_FLAT_CHORD_Z,
+    )
+    hinge_pin.rotation_euler = (0.0, 0.0, 0.0)
+
+    if VISIBLE_LID_VARIANT == LID_VARIANT_RIGID:
+        visible_part_keys.update(
+            ("lid", "logo_orange_inlay", "gasket", lid_pad_key)
+        )
+    else:
+        visible_part_keys.add("tpu_snap_lid")
+        visible_reference_prefixes += (
+            TPU_LID_LOGO_REFERENCE_PREFIX,
+            TPU_LID_GASKET_REFERENCE_PREFIX,
+            TPU_LID_PAD_REFERENCE_PREFIX,
+        )
+    for key in visible_part_keys:
+        obj = parts.get(key)
+        if obj is not None:
+            set_scene_object_visibility(obj, True)
+    for obj in reference_objects:
+        if obj.name.startswith(visible_reference_prefixes):
+            set_scene_object_visibility(obj, True)
+    bpy.context.view_layer.update()
+    print(
+        "FIELD_CASE_SCENE_ASSEMBLED "
+        f"case={VISIBLE_CASE_ASSEMBLY} lid={VISIBLE_LID_VARIANT} "
+        f"lid_angle={ASSEMBLED_LID_OPEN_ANGLE_DEGREES:.1f} "
+        f"visible_parts={len([obj for obj in parts.values() if not obj.hide_get()])} "
+        f"visible_references={len([obj for obj in reference_objects if not obj.hide_get()])}",
+        flush=True,
+    )
+
+
+def field_case_script_source():
+    """Return this generator's source for the second case-profile namespace."""
+    active_text = getattr(getattr(bpy.context, "space_data", None), "text", None)
+    if active_text is not None:
+        source = active_text.as_string()
+        if "def build_mission1_field_case" in source:
+            label = getattr(active_text, "filepath", "") or active_text.name
+            return source, label
+
+    source_path = Path(__file__).expanduser()
+    try:
+        source_path = source_path.resolve()
+    except OSError:
+        source_path = source_path.absolute()
+    if source_path.is_file():
+        return source_path.read_bytes(), str(source_path)
+
+    text_blocks = tuple(
+        text_block
+        for text_block in bpy.data.texts
+        if Path(text_block.name).name == "mission1_field_case_blender.py"
+    )
+    for text_block in text_blocks:
+        source = text_block.as_string()
+        if "def build_mission1_field_case" in source:
+            label = getattr(text_block, "filepath", "") or text_block.name
+            return source, label
+    raise FileNotFoundError(
+        "Could not reload mission1_field_case_blender.py to build both profiles"
+    )
+
+
+def move_objects_to_assembly_collection(objects, assembly):
+    """Group one generated profile so hidden alternatives remain easy to find."""
+    collection_name = f"Generated - {assembly.replace('_', ' ').title()} Assembly"
+    # Collection names are global across the blend file. Always create a fresh
+    # current-scene collection so a same-named collection in another scene is
+    # never imported or mutated; Blender adds a numeric suffix when required.
+    collection = bpy.data.collections.new(collection_name)
+    bpy.context.scene.collection.children.link(collection)
+    for obj in objects:
+        if obj.name not in collection.objects:
+            collection.objects.link(obj)
+        for existing_collection in tuple(obj.users_collection):
+            if existing_collection != collection:
+                existing_collection.objects.unlink(obj)
+    return collection
+
+
+def new_scene_objects(existing_object_pointers):
+    """Return every current-scene object created after an inventory snapshot.
+
+    Companion generators can retain hidden alternatives that are intentionally
+    absent from the active reference list.  They still belong to the generated
+    profile and must move into its collection and remain hidden with it.
+    """
+    return tuple(
+        obj
+        for obj in bpy.context.scene.objects
+        if obj.as_pointer() not in existing_object_pointers
+    )
+
+
 def build_mission1_field_case():
     validate_configuration()
     if CLEAR_SCENE:
@@ -16659,19 +17021,41 @@ def build_mission1_field_case():
     )
     parts["lid"] = lid
     parts["logo_orange_inlay"] = logo_orange
-    tpu_snap_lid, duplicate_logo = create_lid(
+    tpu_snap_lid, tpu_logo = create_lid(
         tpu_lid_material,
         logo_orange_material,
         hinge_profile=HINGE_PROFILE_TPU_68D_SNAP,
     )
     parts["tpu_snap_lid"] = tpu_snap_lid
-    bpy.data.objects.remove(duplicate_logo, do_unlink=True)
     parts["gasket"] = create_gasket(tpu_material)
     if not EXPANDED_ACCESSORY_STORAGE:
         parts["lid_retainer"] = create_lid_retainer(tpu_material)
     parts["fan_case_pair_lid_pad"] = create_fan_case_pair_lid_pad(tpu_material)
     if EXPANDED_ACCESSORY_STORAGE:
         parts["accessory_organizer"] = create_accessory_organizer(hardware_material)
+    lid_variant_reference_objects = []
+    if GENERATE_ALL_CASE_ASSEMBLIES or ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD:
+        tpu_logo.name = TPU_LID_LOGO_REFERENCE_PREFIX
+        tpu_logo.data.name = TPU_LID_LOGO_REFERENCE_PREFIX + "_Mesh"
+        tpu_gasket = duplicate_reference_part(
+            parts["gasket"],
+            TPU_LID_GASKET_REFERENCE_PREFIX,
+            tpu_material,
+        )
+        tpu_lid_pad = duplicate_reference_part(
+            parts[
+                "fan_case_pair_lid_pad"
+                if EXPANDED_ACCESSORY_STORAGE
+                else "lid_retainer"
+            ],
+            TPU_LID_PAD_REFERENCE_PREFIX,
+            tpu_material,
+        )
+        lid_variant_reference_objects.extend(
+            (tpu_logo, tpu_gasket, tpu_lid_pad)
+        )
+    else:
+        bpy.data.objects.remove(tpu_logo, do_unlink=True)
     parts["tpu_hinge_coupon"] = create_tpu_hinge_coupon(tpu_material)
     parts["latch_lever"], parts["latch_hook"] = create_pelican_latch_parts(
         hardware_material
@@ -16679,22 +17063,33 @@ def build_mission1_field_case():
     parts["handle_bar"] = create_pivoting_handle_bar(hardware_material)
     parts["hinge_pin"] = create_hinge_pin(hardware_material)
 
-    reference_objects = []
+    reference_objects = list(lid_variant_reference_objects)
     if BUILD_REFERENCE_MOCKUPS and not EXPANDED_ACCESSORY_STORAGE:
-        reference_objects = create_reference_mockups(
-            (
-                camera_material,
-                battery_material,
-                fan_reference_material,
+        reference_objects.extend(
+            create_reference_mockups(
+                (
+                    camera_material,
+                    battery_material,
+                    fan_reference_material,
+                    latch_reference_material,
+                    latch_rod_reference_material,
+                    carry_handle_reference_material,
+                    fan_case_reference_material,
+                    fan_case_cover_reference_material,
+                    cable_reference_material,
+                ),
+                parts,
+                [],  # Build the dense handed references only once, below.
+            )
+        )
+    elif BUILD_REFERENCE_MOCKUPS:
+        reference_objects.extend(
+            create_case_hardware_reference_mockups(
+                parts,
                 latch_reference_material,
                 latch_rod_reference_material,
                 carry_handle_reference_material,
-                fan_case_reference_material,
-                fan_case_cover_reference_material,
-                cable_reference_material,
-            ),
-            parts,
-            [],  # Build the dense handed references only once, below.
+            )
         )
 
     # Keep the high-resolution companion meshes out of unrelated part-building
@@ -16722,7 +17117,7 @@ def build_mission1_field_case():
         )
         validate_installed_trays(parts)
         validate_built_fan_cradle(parts["fan_cradle"])
-        if reference_objects:
+        if has_stored_dual_fan_reference_mockups(reference_objects):
             validate_stored_dual_fan_reference(parts, reference_objects)
     validate_fan_case_pair_loadout(parts, fan_case_references)
     if not BUILD_REFERENCE_MOCKUPS:
@@ -16865,13 +17260,121 @@ def build_mission1_field_case():
         project_path = export_3mf_project(export_path(PROJECT_3MF_NAME), parts)
         validate_3mf_project(project_path)
 
+    if ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD:
+        configure_assembled_scene_visibility(parts, reference_objects)
+
     if SAVE_BLEND:
         path = Path(BLEND_PATH).expanduser().resolve()
         bpy.ops.wm.save_as_mainfile(filepath=str(path))
         print(f"FIELD_CASE_SAVED_BLEND {path}")
 
+    global _LAST_BUILD_REFERENCE_OBJECTS
+    _LAST_BUILD_REFERENCE_OBJECTS = tuple(reference_objects)
     return parts
 
 
+def build_all_case_assemblies():
+    """Generate both case profiles and expose only the selected assembly."""
+    global ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD, SAVE_BLEND
+    global _LAST_CASE_ASSEMBLIES
+
+    requested_assembly = ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD
+    requested_save = SAVE_BLEND
+    selected_existing_object_pointers = (
+        set()
+        if CLEAR_SCENE
+        else {obj.as_pointer() for obj in bpy.context.scene.objects}
+    )
+    ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD = False
+    SAVE_BLEND = False
+    try:
+        selected_parts = build_mission1_field_case()
+    finally:
+        ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD = requested_assembly
+        SAVE_BLEND = requested_save
+    selected_references = tuple(_LAST_BUILD_REFERENCE_OBJECTS)
+    selected_objects = new_scene_objects(selected_existing_object_pointers)
+
+    alternate_assembly = (
+        CASE_ASSEMBLY_ORIGINAL
+        if VISIBLE_CASE_ASSEMBLY == CASE_ASSEMBLY_FAN_CASE
+        else CASE_ASSEMBLY_FAN_CASE
+    )
+    source, source_label = field_case_script_source()
+    alternate_namespace = {
+        "__name__": "mission1_field_case_alternate_assembly",
+        "__file__": source_label,
+        "VISIBLE_CASE_ASSEMBLY": alternate_assembly,
+        "VISIBLE_LID_VARIANT": VISIBLE_LID_VARIANT,
+        "ASSEMBLED_LID_OPEN_ANGLE_DEGREES": ASSEMBLED_LID_OPEN_ANGLE_DEGREES,
+        "ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD": True,
+        "GENERATE_ALL_CASE_ASSEMBLIES": False,
+        "EXPANDED_ACCESSORY_STORAGE": (
+            alternate_assembly == CASE_ASSEMBLY_FAN_CASE
+        ),
+        "CLEAR_SCENE": False,
+        "BUILD_REFERENCE_MOCKUPS": BUILD_REFERENCE_MOCKUPS,
+        "EXPORT_STL": False,
+        "SAVE_BLEND": False,
+    }
+    alternate_existing_object_pointers = {
+        obj.as_pointer() for obj in bpy.context.scene.objects
+    }
+    exec(compile(source, source_label, "exec"), alternate_namespace)
+    alternate_parts = alternate_namespace["build_mission1_field_case"]()
+    alternate_references = tuple(
+        alternate_namespace["_LAST_BUILD_REFERENCE_OBJECTS"]
+    )
+    alternate_objects = new_scene_objects(
+        alternate_existing_object_pointers
+    )
+
+    selected_collection = move_objects_to_assembly_collection(
+        selected_objects, VISIBLE_CASE_ASSEMBLY
+    )
+    alternate_collection = move_objects_to_assembly_collection(
+        alternate_objects, alternate_assembly
+    )
+    for obj in (*selected_objects, *alternate_objects):
+        set_scene_object_visibility(obj, False)
+    if requested_assembly:
+        configure_assembled_scene_visibility(selected_parts, selected_references)
+
+    _LAST_CASE_ASSEMBLIES = {
+        VISIBLE_CASE_ASSEMBLY: {
+            "parts": selected_parts,
+            "references": selected_references,
+            "objects": selected_objects,
+            "collection": selected_collection,
+            "configure": configure_assembled_scene_visibility,
+        },
+        alternate_assembly: {
+            "parts": alternate_parts,
+            "references": alternate_references,
+            "objects": alternate_objects,
+            "collection": alternate_collection,
+            "configure": alternate_namespace[
+                "configure_assembled_scene_visibility"
+            ],
+        },
+    }
+
+    if requested_save:
+        path = Path(BLEND_PATH).expanduser().resolve()
+        bpy.ops.wm.save_as_mainfile(filepath=str(path))
+        print(f"FIELD_CASE_SAVED_BLEND {path}")
+    print(
+        "FIELD_CASE_ALL_ASSEMBLIES_GENERATED "
+        f"visible={VISIBLE_CASE_ASSEMBLY} "
+        f"fan_case_parts={len(_LAST_CASE_ASSEMBLIES[CASE_ASSEMBLY_FAN_CASE]['parts'])} "
+        f"original_parts={len(_LAST_CASE_ASSEMBLIES[CASE_ASSEMBLY_ORIGINAL]['parts'])}",
+        flush=True,
+    )
+    return selected_parts
+
+
 if __name__ == "__main__":
-    build_mission1_field_case()
+    if GENERATE_ALL_CASE_ASSEMBLIES:
+        build_all_case_assemblies()
+    else:
+        build_mission1_field_case()
