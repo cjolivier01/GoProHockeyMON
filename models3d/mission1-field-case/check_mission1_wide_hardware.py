@@ -10,6 +10,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from mathutils.kdtree import KDTree
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mission1_field_case_blender as case
 from check_mission1_field_case_handle import must_reject
@@ -34,7 +36,7 @@ def main():
     parts['handle_bar'] = case.create_pivoting_handle_bar(material)
     assert (case.CASE_WIDTH, case.CASE_DEPTH, case.BASE_HEIGHT,
             case.WALL_THICKNESS, case.BASE_FLOOR_THICKNESS) == (234, 180, 160, 4.5, 3.2)
-    for key, width in (('latch_lever', 40.96), ('latch_hook', 40.96), ('handle_bar', 124.0)):
+    for key, width in (('latch_lever', 40.96), ('latch_hook', 40.96), ('handle_bar', 119.8)):
         coordinates = [v.co.x for v in parts[key].data.vertices]
         assert math.isclose(max(coordinates) - min(coordinates), width, abs_tol=.0001)
     case.validate_wide_hardware_clearance(parts)
@@ -72,6 +74,52 @@ def main():
         cwd=Path(case.__file__).parent, text=True)
     old = {'__name__': 'old_field_case', '__file__': case.__file__}
     exec(compile(source, case.__file__, 'exec'), old)
+    # Compare complete fork solids after translation, including the formerly
+    # relieved outboard corners. Only the central grip span may grow.
+    old_handle = old['create_pivoting_handle_bar'](material)
+
+    def fork_copy(source, side, shift):
+        obj = source.copy()
+        obj.data = source.data.copy()
+        case.bpy.context.collection.objects.link(obj)
+        obj.location = (0, 0, 0)
+        obj.rotation_euler = (0, 0, 0)
+        for vertex in obj.data.vertices:
+            vertex.co.x += side * shift
+        obj.data.update()
+        grip = case.add_rounded_box('Remove_Grip', (500, 200, 200),
+                                     (0, -124, 0), bevel=0)
+        case.difference_from(obj, grip)
+        opposite = case.add_rounded_box('Remove_Opposite_Fork', (200, 200, 200),
+                                         (-side * 100, 0, 0), bevel=0)
+        case.difference_from(obj, opposite)
+        return obj
+
+    for side in (-1, 1):
+        original = fork_copy(old_handle, side, case.HANDLE_WIDTH_INCREASE / 2)
+        current = fork_copy(parts['handle_bar'], side, 0)
+        # Match vertices and face connectivity directly: subtracting nearly
+        # coincident Boolean surfaces is unstable at float mesh precision.
+        assert len(original.data.vertices) == len(current.data.vertices)
+        tree = KDTree(len(original.data.vertices))
+        for vertex in original.data.vertices:
+            tree.insert(vertex.co, vertex.index)
+        tree.balance()
+        mapping = {}
+        for vertex in current.data.vertices:
+            _, index, distance = tree.find(vertex.co)
+            assert distance < .0001, 'Fork vertex changed'
+            mapping[vertex.index] = index
+        assert len(set(mapping.values())) == len(mapping), 'Fork vertices collapsed'
+        original_faces = sorted(tuple(sorted(p.vertices)) for p in original.data.polygons)
+        current_faces = sorted(tuple(sorted(mapping[i] for i in p.vertices))
+                               for p in current.data.polygons)
+        assert original_faces == current_faces, 'Fork faces changed'
+        for obj in (original, current):
+            case.bpy.data.objects.remove(obj, do_unlink=True)
+    case.bpy.data.objects.remove(old_handle, do_unlink=True)
+    print('FIELD_CASE_HANDLE_FORKS_UNCHANGED translations=+/-10.3mm', flush=True)
+
     old_base = old['create_base'](material)
     for first, second in ((parts['base'], old_base), (old_base, parts['base'])):
         delta = first.copy()
