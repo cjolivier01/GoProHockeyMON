@@ -27,6 +27,8 @@ def main():
     handle = case.create_pivoting_handle_bar(orange)
     minimum_gap = case.validate_wide_hardware_clearance(
         {'latch_lever': lever, 'latch_hook': hook, 'handle_bar': handle})
+    case.validate_handle_closed_latch_full_rotation(
+        {'latch_lever': lever, 'latch_hook': hook, 'handle_bar': handle})
     source = subprocess.check_output(
         ['git', 'show', '438c924:models3d/mission1-field-case/mission1_field_case_blender.py'],
         cwd=DIRECTORY, text=True,
@@ -120,8 +122,8 @@ def main():
     handle.rotation_euler = (0, 0, 0)
     render('mission1_wide_hardware_clearance.png', (0, -600, 105), (0, -95, 111), 270,
            [('HANDLE RAISED / FRONT CLEARANCE', -125, 80, 4.6),
-            (f'{minimum_gap:.2f} mm minimum vertical separation through all motion', -125, -72, 4),
-            ('Latch centers stay at +/-82 mm / handle envelope 124 mm', -125, -82, 3.8)])
+            (f'Normal 0-90 degree travel: {minimum_gap:.2f} mm vertical separation', -125, -72, 3.8),
+            ('Closed moving latches: full 360 degree no-contact check passed', -125, -82, 3.8)])
     print('FIELD_CASE_WIDE_HARDWARE_RENDERINGS_PASS', flush=True)
 
 
