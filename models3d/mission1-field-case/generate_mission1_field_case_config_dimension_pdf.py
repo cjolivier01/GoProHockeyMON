@@ -21,6 +21,7 @@ import argparse
 import ast
 import hashlib
 import math
+import operator
 import re
 import struct
 import subprocess
@@ -467,14 +468,59 @@ TRUSTED_OWNER_TYPES = (Matrix, Quaternion, Vector)
 WHILE_LOOP_LIMIT = 100_000
 CALL_DEPTH_LIMIT = 60
 
+# Distinguishes "this keyword-only parameter has no default" from "its default
+# is the constant None", which ``ast.arguments.kw_defaults`` conflates.
+NO_DEFAULT = object()
+# Marks a call with no receiver, so ``None`` stays a usable receiver value.
+NO_OWNER = object()
+
 
 class Scope(dict):
-    """Function-local namespace that can write through to module globals."""
+    """Function-local namespace chained to the namespace it was created in.
 
-    def __init__(self, initial, module_environment=None):
-        super().__init__(initial)
-        self.module_environment = module_environment
+    The chain matters.  Copying the enclosing namespace would freeze it, so a
+    global another call writes after this frame opens would stay invisible
+    here and a value accumulated across calls would read back as its
+    entry-time value.  Only names the frame binds itself live in the dict;
+    everything else falls through.
+    """
+
+    def __init__(self, enclosing, module_environment=None):
+        super().__init__()
+        self.enclosing = enclosing
+        self.module_environment = (
+            enclosing if module_environment is None else module_environment
+        )
         self.global_names: set[str] = set()
+
+    def __missing__(self, key):
+        if key in self.global_names:
+            return self.module_environment[key]
+        return self.enclosing[key]
+
+    def __contains__(self, key):
+        if dict.__contains__(self, key):
+            return True
+        if key in self.global_names:
+            return key in self.module_environment
+        return key in self.enclosing
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
+def module_environment_for(environment):
+    """The module-level globals behind ``environment``."""
+    seen = set()
+    while isinstance(environment, Scope):
+        if id(environment) in seen:
+            break
+        seen.add(id(environment))
+        environment = environment.module_environment
+    return environment
 
 
 class _BreakLoop(Exception):
@@ -494,14 +540,26 @@ class _ReturnValue(Exception):
 class StaticFunction:
     """A ``def``/``lambda`` from the model, callable by the interpreter."""
 
-    def __init__(self, node, closure, interpreter, module_environment=None):
+    def __init__(self, node, closure, interpreter):
         self.node = node
         self.closure = closure
         self.interpreter = interpreter
-        self.module_environment = (
-            closure if module_environment is None else module_environment
-        )
+        # ``global`` inside a nested ``def`` names the module, not the
+        # enclosing function, so resolve past every intermediate frame.
+        self.module_environment = module_environment_for(closure)
         self.name = node.name
+        # CPython evaluates defaults once, when the ``def`` runs.  Deferring
+        # them to call time would pick up any later rebinding of the global a
+        # default names and silently produce a different argument.
+        self.defaults = [
+            interpreter.evaluate(default, closure)
+            for default in node.args.defaults
+        ]
+        self.kw_defaults = [
+            NO_DEFAULT if default is None
+            else interpreter.evaluate(default, closure)
+            for default in node.args.kw_defaults
+        ]
 
     def __call__(self, *args, **kwargs):
         return self.interpreter.call(self, args, kwargs)
@@ -543,14 +601,36 @@ class StaticInterpreter:
     """Evaluate a model's module-level configuration without importing it."""
 
     BINARY_OPERATIONS = {
-        ast.Add: lambda a, b: a + b,
-        ast.Sub: lambda a, b: a - b,
-        ast.Mult: lambda a, b: a * b,
-        ast.Div: lambda a, b: a / b,
-        ast.FloorDiv: lambda a, b: a // b,
-        ast.Mod: lambda a, b: a % b,
-        ast.Pow: lambda a, b: a**b,
-        ast.MatMult: lambda a, b: a @ b,
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod,
+        ast.Pow: operator.pow,
+        ast.MatMult: operator.matmul,
+        ast.BitOr: operator.or_,
+        ast.BitAnd: operator.and_,
+        ast.BitXor: operator.xor,
+        ast.LShift: operator.lshift,
+        ast.RShift: operator.rshift,
+    }
+    # ``x += y`` is not ``x = x + y``: for a list it extends in place, and every
+    # other name bound to that list has to see the change.
+    AUGMENTED_OPERATIONS = {
+        ast.Add: operator.iadd,
+        ast.Sub: operator.isub,
+        ast.Mult: operator.imul,
+        ast.Div: operator.itruediv,
+        ast.FloorDiv: operator.ifloordiv,
+        ast.Mod: operator.imod,
+        ast.Pow: operator.ipow,
+        ast.MatMult: operator.imatmul,
+        ast.BitOr: operator.ior,
+        ast.BitAnd: operator.iand,
+        ast.BitXor: operator.ixor,
+        ast.LShift: operator.ilshift,
+        ast.RShift: operator.irshift,
     }
     COMPARISONS = {
         ast.Eq: lambda a, b: a == b,
@@ -577,6 +657,18 @@ class StaticInterpreter:
         self.shared_module_loader = shared_module_loader
         self.trusted_callables: list[object] = []
         self.depth = 0
+        # Statements the reader walked past.  Skipping is expected in the
+        # companions, which are full of Blender-only code, but a skip can also
+        # leave a stale value behind, so keep the record rather than
+        # discarding it at the ``except``.
+        self.skipped: list[tuple[str, int, str]] = []
+
+    def note_skipped(self, environment, node, error):
+        """Record a statement that could not run, and where it was."""
+        source = module_environment_for(environment).get("__file__", "?")
+        self.skipped.append(
+            (Path(source).name, getattr(node, "lineno", 0), str(error))
+        )
 
     # -- expressions --------------------------------------------------------
 
@@ -663,12 +755,12 @@ class StaticInterpreter:
 
     def evaluate_Compare(self, node, environment):  # noqa: N802 - AST name
         left = self.evaluate(node.left, environment)
-        for operator, comparator in zip(node.ops, node.comparators):
+        for node_op, comparator in zip(node.ops, node.comparators):
             right = self.evaluate(comparator, environment)
-            comparison = self.COMPARISONS.get(type(operator))
+            comparison = self.COMPARISONS.get(type(node_op))
             if comparison is None:
                 raise UnsupportedConstruct(
-                    f"comparison {type(operator).__name__}"
+                    f"comparison {type(node_op).__name__}"
                 )
             if not comparison(left, right):
                 return False
@@ -731,7 +823,20 @@ class StaticInterpreter:
         return StaticFunction(function, environment, self)
 
     def evaluate_Call(self, node, environment):  # noqa: N802 - AST name
-        function = self.evaluate(node.func, environment)
+        # Evaluate a method call's receiver exactly once.  The trust check
+        # needs it too, and re-deriving it there would run any side effect in
+        # the receiver expression a second time.
+        owner = NO_OWNER
+        if isinstance(node.func, ast.Attribute):
+            owner = self.evaluate(node.func.value, environment)
+            try:
+                function = getattr(owner, node.func.attr)
+            except AttributeError as exc:
+                raise UnsupportedConstruct(
+                    f"attribute {ast.unparse(node.func)}"
+                ) from exc
+        else:
+            function = self.evaluate(node.func, environment)
         arguments = []
         for argument in node.args:
             if isinstance(argument, ast.Starred):
@@ -748,19 +853,18 @@ class StaticInterpreter:
                 )
         if isinstance(function, StaticFunction):
             return function(*arguments, **keywords)
-        if self._is_trusted_call(function, node, environment):
+        if self._is_trusted_call(function, owner):
             return function(*arguments, **keywords)
         raise UnsupportedConstruct(f"call {ast.unparse(node.func)}")
 
-    def _is_trusted_call(self, function, node, environment):
+    def _is_trusted_call(self, function, owner):
         if any(function is trusted for trusted in self.trusted_callables):
             return True
         if any(function is builtin for builtin in SAFE_BUILTINS.values()):
             return True
         if getattr(function, "__module__", None) == "math":
             return True
-        if isinstance(node.func, ast.Attribute):
-            owner = self.evaluate(node.func.value, environment)
+        if owner is not NO_OWNER:
             if isinstance(owner, SAFE_METHOD_OWNERS):
                 return True
             if isinstance(owner, TRUSTED_OWNER_TYPES):
@@ -776,7 +880,13 @@ class StaticInterpreter:
             if isinstance(target, ast.Name):
                 scope[target.id] = value
             elif isinstance(target, (ast.Tuple, ast.List)):
-                for element, item in zip(target.elts, value):
+                items = list(value)
+                if len(items) != len(target.elts):
+                    raise UnsupportedConstruct(
+                        f"comprehension target expects {len(target.elts)} "
+                        f"value(s), got {len(items)}"
+                    )
+                for element, item in zip(target.elts, items):
                     bind(element, item, scope)
             else:
                 raise UnsupportedConstruct("comprehension target")
@@ -795,7 +905,7 @@ class StaticInterpreter:
                 return
             generator = node.generators[index]
             for item in self.evaluate(generator.iter, scope):
-                inner = dict(scope)
+                inner = Scope(scope, module_environment_for(scope))
                 bind(generator.target, item, inner)
                 if all(
                     self.evaluate(condition, inner)
@@ -803,7 +913,9 @@ class StaticInterpreter:
                 ):
                     walk(index + 1, inner)
 
-        walk(0, dict(environment))
+        # A comprehension gets its own scope, chained rather than copied so a
+        # large module namespace is not duplicated per iteration.
+        walk(0, Scope(environment, module_environment_for(environment)))
         if isinstance(node, ast.SetComp):
             return set(results)
         if isinstance(node, ast.DictComp):
@@ -822,19 +934,31 @@ class StaticInterpreter:
     def assign(self, target, value, environment):
         """Bind ``value`` to ``target`` and return the plain names it wrote."""
         if isinstance(target, ast.Name):
-            environment[target.id] = value
             if (
                 isinstance(environment, Scope)
                 and target.id in environment.global_names
-                and environment.module_environment is not None
             ):
+                # A ``global`` name lives in the module namespace only.  Also
+                # writing a local copy would shadow later writes by other
+                # functions and freeze the value at this call's view of it.
                 environment.module_environment[target.id] = value
+            else:
+                environment[target.id] = value
             return [target.id]
         if isinstance(target, (ast.Tuple, ast.List)):
             if any(isinstance(item, ast.Starred) for item in target.elts):
                 raise UnsupportedConstruct("starred assignment target")
+            items = list(value)
+            if len(items) != len(target.elts):
+                # ``zip`` would silently drop the surplus and leave the short
+                # side bound to stale values, which reads back as a plausible
+                # but wrong dimension.
+                raise UnsupportedConstruct(
+                    f"unpack expects {len(target.elts)} value(s), "
+                    f"got {len(items)}"
+                )
             names = []
-            for element, item in zip(target.elts, list(value)):
+            for element, item in zip(target.elts, items):
                 names.extend(self.assign(element, item, environment))
             return names
         if isinstance(target, ast.Subscript):
@@ -875,8 +999,8 @@ class StaticInterpreter:
             if isinstance(node.value, ast.Call):
                 try:
                     self.evaluate(node.value, environment)
-                except UnsupportedConstruct:
-                    pass
+                except UnsupportedConstruct as exc:
+                    self.note_skipped(environment, node, exc)
             return
         if kind in self.IGNORED_STATEMENTS:
             return
@@ -894,7 +1018,7 @@ class StaticInterpreter:
                         on_assign(name, environment[name], node.lineno)
             return
         if kind is ast.AugAssign:
-            operation = self.BINARY_OPERATIONS.get(type(node.op))
+            operation = self.AUGMENTED_OPERATIONS.get(type(node.op))
             if operation is None:
                 raise UnsupportedConstruct(
                     f"augmented {type(node.op).__name__}"
@@ -941,15 +1065,10 @@ class StaticInterpreter:
         raise UnsupportedConstruct(f"statement {kind.__name__}")
 
     def _execute_global(self, node, environment):
-        if not isinstance(environment, Scope):
-            return
-        environment.global_names.update(node.names)
-        module_environment = environment.module_environment
-        if module_environment is None:
-            return
-        for name in node.names:
-            if name in module_environment:
-                dict.__setitem__(environment, name, module_environment[name])
+        # Recording the names is enough: ``Scope`` resolves them against the
+        # module namespace on every read, so they stay live.
+        if isinstance(environment, Scope):
+            environment.global_names.update(node.names)
 
     def _execute_import_from(self, node, environment):
         if self.shared_module_loader is None:
@@ -1041,35 +1160,60 @@ class StaticInterpreter:
                 raise UnsupportedConstruct(
                     f"{function.name}: unsupported signature"
                 )
-            scope = Scope(function.closure, function.module_environment)
             names = [argument.arg for argument in specification.args]
-            defaults = list(specification.defaults)
+            if len(args) > len(names):
+                raise UnsupportedConstruct(
+                    f"{function.name}: takes {len(names)} positional "
+                    f"argument(s), got {len(args)}"
+                )
+            scope = Scope(function.closure, function.module_environment)
+            # Track what this call bound.  ``name in scope`` also sees the
+            # enclosing namespace, so a parameter sharing a name with a global
+            # would look bound even when the caller never passed it, and the
+            # body would silently read the global instead.
+            bound = set()
             keywords = dict(kwargs)
             for name, value in zip(names, args):
                 scope[name] = value
+                bound.add(name)
+            first_default = len(names) - len(function.defaults)
             for index, name in enumerate(names):
-                if index < len(args):
+                if name in bound:
+                    if name in keywords:
+                        raise UnsupportedConstruct(
+                            f"{function.name}: duplicate value for {name!r}"
+                        )
                     continue
-                offset = index - (len(names) - len(defaults))
                 if name in keywords:
                     scope[name] = keywords.pop(name)
-                elif offset >= 0:
-                    scope[name] = self.evaluate(
-                        defaults[offset], function.closure
-                    )
+                elif index >= first_default:
+                    scope[name] = function.defaults[index - first_default]
+                else:
+                    continue
+                bound.add(name)
             for argument, default in zip(
-                specification.kwonlyargs, specification.kw_defaults
+                specification.kwonlyargs, function.kw_defaults
             ):
                 if argument.arg in keywords:
                     scope[argument.arg] = keywords.pop(argument.arg)
-                elif default is not None:
-                    scope[argument.arg] = self.evaluate(
-                        default, function.closure
-                    )
-            missing = [name for name in names if name not in scope]
+                elif default is not NO_DEFAULT:
+                    scope[argument.arg] = default
+                else:
+                    continue
+                bound.add(argument.arg)
+            missing = [name for name in names if name not in bound] + [
+                argument.arg
+                for argument in specification.kwonlyargs
+                if argument.arg not in bound
+            ]
             if missing:
                 raise UnsupportedConstruct(
                     f"{function.name}: unbound arguments {missing}"
+                )
+            if keywords:
+                raise UnsupportedConstruct(
+                    f"{function.name}: unexpected keyword argument(s) "
+                    f"{sorted(keywords)}"
                 )
             try:
                 self.execute_body(function.node.body, scope)
@@ -1092,11 +1236,32 @@ HOST_NAMES = {
 }
 SHARED_MODULE_DIRECTORIES = ("common",)
 
+# Statements the configuration reader walked past, as
+# ``(source file, line, reason)``.  The companions are mostly Blender code, so
+# a long list is normal; it is there so a value that looks wrong can be traced
+# to the statement that never ran.  ``--report-skipped`` prints it.
+CONFIG_READER_SKIPS: list[tuple[str, int, str]] = []
+
 
 def build_interpreter():
     """Interpreter wired with the host objects the field-case CONFIG needs."""
     interpreter = StaticInterpreter()
     companion_cache: dict[str, tuple[ModuleNamespace, Path]] = {}
+
+    def globals_shim(environment):
+        """A ``globals()`` stand-in bound to one module namespace.
+
+        The companions publish configuration by assigning into ``globals()``.
+        Without a shim those statements raise part-way through a function and
+        the module keeps whichever values an earlier branch left behind, so a
+        profile that was meant to be overwritten reads back as live.
+        """
+
+        def module_globals():
+            return environment
+
+        interpreter.trusted_callables.append(module_globals)
+        return module_globals
 
     def load_shared_module(module_name, requested):
         for sibling in SHARED_MODULE_DIRECTORIES:
@@ -1108,12 +1273,13 @@ def build_interpreter():
                 "__file__": str(path),
                 "math": math,
             }
+            environment["globals"] = globals_shim(environment)
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in tree.body:
                 try:
                     interpreter.execute(node, environment)
-                except Exception:  # noqa: BLE001 - unrelated names may fail
-                    continue
+                except Exception as exc:  # noqa: BLE001 - unrelated names may fail
+                    interpreter.note_skipped(environment, node, exc)
             return {
                 name: environment[name]
                 for name in requested
@@ -1147,12 +1313,13 @@ def build_interpreter():
             "import_companion_module": load_companion,
         }
         environment.update(HOST_NAMES)
+        environment["globals"] = globals_shim(environment)
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in tree.body:
             try:
                 interpreter.execute(node, environment)
-            except Exception:  # noqa: BLE001 - Blender-only names may fail
-                continue
+            except Exception as exc:  # noqa: BLE001 - Blender-only names may fail
+                interpreter.note_skipped(environment, node, exc)
         resolved = (ModuleNamespace(environment, module_name), directory)
         companion_cache[module_name] = resolved
         return resolved
@@ -1556,6 +1723,8 @@ def read_model_config():
             f"the model source. Missing: {missing}. Unexpected: {extra}."
         )
 
+    CONFIG_READER_SKIPS[:] = interpreter.skipped
+
     details = literal_source_values(tree, boundary)
     entries = []
     for name in sorted(catalogued):
@@ -1822,6 +1991,34 @@ def union_bounds(*boxes):
         max(box[2] for box in boxes),
         max(box[3] for box in boxes),
     )
+
+
+def intersected_bounds(box, limit):
+    """``box`` clipped to ``limit`` on every side."""
+    return (
+        max(box[0], limit[0]),
+        max(box[1], limit[1]),
+        min(box[2], limit[2]),
+        min(box[3], limit[3]),
+    )
+
+
+def inflated_bounds(box, factor):
+    """``box`` grown by ``factor`` of its larger side on every side."""
+    minimum_x, minimum_y, maximum_x, maximum_y = box
+    margin = factor * max(maximum_x - minimum_x, maximum_y - minimum_y, 1.0e-3)
+    return (
+        minimum_x - margin,
+        minimum_y - margin,
+        maximum_x + margin,
+        maximum_y + margin,
+    )
+
+
+# Landscape-letter page height, and matplotlib's default line spacing.
+# Together they turn a font size in points into a height in figure fractions.
+PAGE_POINTS_HIGH = 612.0
+MATPLOTLIB_LINESPACING = 1.2
 
 
 def axes_box_points(axes):
@@ -2100,6 +2297,10 @@ def fmt(value):
         return str(value)
     if value == int(value) and abs(value) < 1.0e9:
         return f"{int(value)}"
+    if abs(value) < 5.0e-4:
+        # Three decimals would round a real clearance such as the 0.0001 mm
+        # boolean-cleanup distance to a flat "0", which reads as "no gap".
+        return f"{value:g}"
     text = f"{value:.3f}".rstrip("0").rstrip(".")
     return text if text not in ("-0", "") else "0"
 
@@ -2160,8 +2361,29 @@ def dimension_value(entry):
     )
 
 
+# How much value text a callout on the drawing will carry.  The view has to
+# grow until every label fits inside the panel, so a long callout does not just
+# crowd the page — it shrinks the part the label points at.  The card beside the
+# drawing prints the value in full, so the callout only has to be specific
+# enough to find the card.
+MAXIMUM_CALLOUT_CHARACTERS = 18
+
+
+def callout_value(entry):
+    """Value text as the drawing carries it, condensed when it is long."""
+    value = dimension_value(entry)
+    if len(value) <= MAXIMUM_CALLOUT_CHARACTERS:
+        return value
+    leaves = entry.leaves
+    if leaves is not None and len(leaves) > 1:
+        # Keep the count and drop the range.  A profile of thirty coordinates
+        # has no single number to point at anyway, and the card carries both.
+        return f"{len(leaves)} values"
+    return value
+
+
 def graphical_annotation_label(entry, index):
-    return f"D{index + 1} {dimension_value(entry)}"
+    return f"D{index + 1} {callout_value(entry)}"
 
 
 def graphical_annotation_kind(entry):
@@ -2169,6 +2391,11 @@ def graphical_annotation_kind(entry):
     if entry.unit == "deg":
         return "angular_arc"
     if entry.leaves is not None and len(entry.leaves) > 1:
+        return "datum_specification"
+    if entry.unit == "mm" and is_number(entry.value) and entry.value < 0.0:
+        # A negative millimetre value is a position measured from the model
+        # origin, not a size.  A dimension line would claim a negative length;
+        # a datum flag reads as "this coordinate", which is what it is.
         return "datum_specification"
     if name.endswith(("_DIAMETER", "_DIA", "_BORE")):
         return "diameter_dimension"
@@ -2268,19 +2495,69 @@ def _arrow(axes, start, end, color):
     )
 
 
+def annotation_reach(bounds):
+    """Offset unit for leaders, lanes and symbols, in model units.
+
+    Always the larger side of the view.  An edge-on projection can be a couple
+    of millimetres tall and a few hundred wide — the gasket seen from the front
+    is exactly that — and an offset scaled to the short side would stack every
+    callout on the same spot.
+    """
+    minimum_x, minimum_y, maximum_x, maximum_y = bounds
+    return max(maximum_x - minimum_x, maximum_y - minimum_y, 1.0e-3)
+
+
+def measured_span(entry):
+    """Length a dimension line for ``entry`` should cover, in millimetres."""
+    if entry.unit != "mm" or not is_number(entry.value):
+        return None
+    span = abs(float(entry.value))
+    return span if math.isfinite(span) and span > 0.0 else None
+
+
+# A dimension line shorter than this fraction of the view collapses into its
+# own arrowheads; longer than this and it runs off the part it belongs to.
+MINIMUM_DIMENSION_SPAN_FRACTION = 0.05
+MAXIMUM_DIMENSION_SPAN_FRACTION = 0.92
+
+
 def draw_linear_annotation(axes, entry, index, anchor, bounds, color, vertical):
+    """Draw a dimension line whose arrows span the value it labels.
+
+    A fixed-length arrow is worse than none: it invites the reader to scale off
+    the page and get a number unrelated to the callout.  The span here is the
+    value itself at the view's own scale, so the drawing and the text agree.
+    A value too small or too large to draw that way gets a leader instead,
+    which points at the feature without implying a size.
+    """
     minimum_x, minimum_y, maximum_x, maximum_y = bounds
     width = max(maximum_x - minimum_x, 1.0e-3)
     height = max(maximum_y - minimum_y, 1.0e-3)
-    lane = 0.14 + (index // 2) * 0.16
+    reach = annotation_reach(bounds)
+    span = measured_span(entry)
+    extent = height if vertical else width
+    if span is None or not (
+        MINIMUM_DIMENSION_SPAN_FRACTION * extent
+        <= span
+        <= MAXIMUM_DIMENSION_SPAN_FRACTION * extent
+    ):
+        return draw_leader_annotation(axes, entry, index, anchor, bounds, color)
+    half = 0.5 * span
+    # Dimension lines sit outside the silhouette in numbered lanes, measured
+    # from the outline rather than from the anchor.  Offsetting from the anchor
+    # lets two callouts whose anchors differ by roughly one lane land on top of
+    # each other, which is how a 27 mm and a 54.4 mm line ended up sharing a
+    # row on the organizer side view.
+    offset = (0.10 + (index // 2) * 0.09) * reach
     sign = -1.0 if index % 2 == 0 else 1.0
     anchor_x, anchor_y = anchor
     if vertical:
-        line_x = anchor_x + sign * lane * width
-        half = 0.17 * height
+        line_x = (
+            minimum_x - offset if sign < 0.0 else maximum_x + offset
+        )
         start = (line_x, anchor_y - half)
         end = (line_x, anchor_y + half)
-        text_at = (line_x, anchor_y + half + 0.035 * height)
+        text_at = (line_x, anchor_y + half + 0.035 * reach)
         axes.plot(
             [anchor_x, line_x],
             [anchor_y, anchor_y],
@@ -2291,11 +2568,12 @@ def draw_linear_annotation(axes, entry, index, anchor, bounds, color, vertical):
         )
         kind = "vertical_linear"
     else:
-        line_y = anchor_y + sign * lane * height
-        half = 0.17 * width
+        line_y = (
+            minimum_y - offset if sign < 0.0 else maximum_y + offset
+        )
         start = (anchor_x - half, line_y)
         end = (anchor_x + half, line_y)
-        text_at = (anchor_x, line_y + 0.030 * height)
+        text_at = (anchor_x, line_y + 0.030 * reach)
         axes.plot(
             [anchor_x, anchor_x],
             [anchor_y, line_y],
@@ -2311,10 +2589,7 @@ def draw_linear_annotation(axes, entry, index, anchor, bounds, color, vertical):
 
 
 def draw_angular_annotation(axes, entry, index, anchor, bounds, color):
-    minimum_x, minimum_y, maximum_x, maximum_y = bounds
-    extent = min(
-        max(maximum_x - minimum_x, 1.0e-3), max(maximum_y - minimum_y, 1.0e-3)
-    )
+    extent = annotation_reach(bounds)
     radius = 0.13 * extent
     leaves = entry.leaves or (0.0,)
     angle = float(leaves[0])
@@ -2410,16 +2685,14 @@ def draw_circular_annotation(axes, entry, index, anchor, bounds, color, kind):
 
 
 def draw_leader_annotation(axes, entry, index, anchor, bounds, color):
-    minimum_x, minimum_y, maximum_x, maximum_y = bounds
-    width = max(maximum_x - minimum_x, 1.0e-3)
-    height = max(maximum_y - minimum_y, 1.0e-3)
+    reach = annotation_reach(bounds)
     horizontal_sign = -1.0 if index % 2 == 0 else 1.0
     vertical_sign = -1.0 if index < 2 else 1.0
     elbow = (
-        anchor[0] + horizontal_sign * 0.14 * width,
-        anchor[1] + vertical_sign * 0.16 * height,
+        anchor[0] + horizontal_sign * 0.14 * reach,
+        anchor[1] + vertical_sign * 0.16 * reach,
     )
-    text_at = (elbow[0] + horizontal_sign * 0.05 * width, elbow[1])
+    text_at = (elbow[0] + horizontal_sign * 0.05 * reach, elbow[1])
     axes.plot(
         [anchor[0], elbow[0], text_at[0]],
         [anchor[1], elbow[1], elbow[1]],
@@ -2441,12 +2714,10 @@ def draw_leader_annotation(axes, entry, index, anchor, bounds, color):
 
 
 def draw_datum_annotation(axes, entry, index, anchor, bounds, color):
-    minimum_x, minimum_y, maximum_x, maximum_y = bounds
-    width = max(maximum_x - minimum_x, 1.0e-3)
-    height = max(maximum_y - minimum_y, 1.0e-3)
+    reach = annotation_reach(bounds)
     horizontal_sign = -1.0 if index % 2 == 0 else 1.0
     vertical_sign = -1.0 if index < 2 else 1.0
-    flag = 0.035 * min(width, height)
+    flag = 0.018 * reach
     triangle = (
         (anchor[0], anchor[1]),
         (anchor[0] - flag, anchor[1] + vertical_sign * 1.6 * flag),
@@ -2458,10 +2729,10 @@ def draw_datum_annotation(axes, entry, index, anchor, bounds, color):
         )
     )
     elbow = (
-        anchor[0] + horizontal_sign * 0.13 * width,
-        anchor[1] + vertical_sign * 0.19 * height,
+        anchor[0] + horizontal_sign * 0.13 * reach,
+        anchor[1] + vertical_sign * 0.19 * reach,
     )
-    text_at = (elbow[0] + horizontal_sign * 0.04 * width, elbow[1])
+    text_at = (elbow[0] + horizontal_sign * 0.04 * reach, elbow[1])
     axes.plot(
         [anchor[0], elbow[0], text_at[0]],
         [anchor[1] + vertical_sign * 1.6 * flag, elbow[1], elbow[1]],
@@ -2563,8 +2834,16 @@ def new_page(title, subtitle=""):
 
 
 def panel(figure, rectangle, title=None):
+    """Draw the rounded background card a page region sits on.
+
+    The panel is opaque, so it has to be painted behind every axes.  A figure
+    patch at ``zorder=0`` ties with the default axes zorder and, because
+    ``Figure.get_children`` yields the axes first, would be drawn last and hide
+    the whole drawing.  ``zorder=-10`` matches the other generators and keeps
+    it underneath.
+    """
     left, bottom, width, height = rectangle
-    figure.patches.append(
+    figure.add_artist(
         FancyBboxPatch(
             (left, bottom),
             width,
@@ -2574,8 +2853,7 @@ def panel(figure, rectangle, title=None):
             edgecolor=GRID,
             facecolor=WHITE,
             transform=figure.transFigure,
-            figure=figure,
-            zorder=0,
+            zorder=-10,
         )
     )
     if title:
@@ -2605,9 +2883,11 @@ def drawing_axes(figure, rectangle, plane):
 
 
 def note(figure, x, y, text, width=118, color=GRAY, size=6.4):
-    figure.text(
-        x, y, textwrap.fill(text, width), fontsize=size, color=color, va="top"
-    )
+    """Draw a wrapped paragraph; return the height it used in figure units."""
+    wrapped = textwrap.fill(text, width)
+    figure.text(x, y, wrapped, fontsize=size, color=color, va="top")
+    lines = wrapped.count("\n") + 1
+    return lines * size * MATPLOTLIB_LINESPACING / PAGE_POINTS_HIGH
 
 
 def draw_dimension_cards(figure, rectangle, entries):
@@ -2691,37 +2971,29 @@ def page_cover(pdf):
         "against the exported meshes.",
     )
     panel(figure, (0.055, 0.42, 0.42, 0.45), "WHAT THIS DOCUMENT IS")
-    note(
-        figure,
-        0.068,
-        0.825,
+    # Stack the paragraphs on their measured heights rather than on fixed
+    # offsets, so the panel does not open a gap when the wrapping changes.
+    y = 0.828
+    for paragraph in (
         "This guide is generated from "
         f"{MODEL_SOURCE.name} without importing Blender. The model's "
         "configuration block is executed by a small deterministic interpreter, "
         "so derived values — the ones computed from the companion fan-case, "
         "dual-fan, wrapping-cover and camera-dummy models — are catalogued "
         "with the same fidelity as plain literals.",
-        width=62,
-    )
-    note(
-        figure,
-        0.068,
-        0.675,
         "Drawings are orthographic silhouettes of the exported STLs, so a "
         "dimension is always shown against the geometry that was actually "
         "produced. The build fails rather than drawing a stale part: every "
         "STL must exist and be newer than the model sources.",
-        width=62,
-    )
-    note(
-        figure,
-        0.068,
-        0.545,
         "Values that are numbers, or containers of nothing but numbers, are "
         "treated as dimensional and drawn. Everything else — file names, "
         "modes, flags, embedded assets — is listed in the settings appendix.",
-        width=62,
-    )
+        "A dimension line is drawn at the value's own length wherever that "
+        "fits the view, so it can be scaled off the page. Anything too small "
+        "or too large to draw true to scale gets a leader pointing at the "
+        "feature instead of a misleading arrow.",
+    ):
+        y -= note(figure, 0.068, y, paragraph, width=62) + 0.020
 
     panel(figure, (0.515, 0.42, 0.43, 0.45), "CONTENTS")
     rows = [
@@ -2747,7 +3019,9 @@ def page_cover(pdf):
     for entry in CONFIG_ENTRIES:
         categories[entry.category] = categories.get(entry.category, 0) + 1
     ordered = sorted(categories.items(), key=lambda item: -item[1])
-    axes = figure.add_axes((0.075, 0.130, 0.85, 0.215))
+    # The category names are full phrases, so the axes starts well inside the
+    # panel to leave room for the tick labels instead of clipping them.
+    axes = figure.add_axes((0.190, 0.130, 0.735, 0.215))
     axes.barh(
         [name for name, _ in ordered][::-1],
         [count for _, count in ordered][::-1],
@@ -2776,6 +3050,22 @@ def curated_drawing(
             bounds, draw_projected_geometry(axes, part, plane)
         )
     set_drawing_bounds(axes, bounds, 0.10)
+    # Annotate the same values the reference column lists, so the page reads as
+    # a drawing rather than a picture next to an unrelated table.  Only
+    # dimensional entries can carry a leader; a purely textual setting stays in
+    # the column on its own.
+    drawn = [
+        CONFIG_BY_NAME[name]
+        for name in callouts
+        if name in CONFIG_BY_NAME and CONFIG_BY_NAME[name].unit != "setting"
+    ]
+    if drawn:
+        annotated = draw_graphical_annotations(
+            axes, drawn, bounds, PART_COLORS[parts[0]]
+        )
+        set_drawing_bounds(
+            axes, bounds_with_label_allowance(axes, drawn, annotated, 0.10), 0.10
+        )
     axes.set_title(
         " + ".join(PART_TITLES[part] for part in parts)
         + f" — {PLANE_TITLES[plane]}",
@@ -2784,16 +3074,18 @@ def curated_drawing(
         pad=4.0,
     )
 
+    tags = {entry.name: f"D{index + 1}  " for index, entry in enumerate(drawn)}
     panel(figure, (0.670, 0.12, 0.275, 0.78), "REFERENCE VALUES")
     y = 0.845
     for name in callouts:
         entry = CONFIG_BY_NAME.get(name)
         if entry is None:
             raise RuntimeError(f"curated page references unknown value {name}")
+        tag = tags.get(name, "")
         figure.text(
             0.684,
             y,
-            wrap_identifier(entry.name, 30),
+            tag + wrap_identifier(entry.name, 30),
             fontsize=5.8,
             color=GRAY,
             family="DejaVu Sans Mono",
@@ -2915,6 +3207,11 @@ CARDS_AXES_RECT = (0.737, 0.130, 0.201, 0.755)
 # half the line height of the boxed label, both in PDF points.
 LABEL_CHARACTER_POINTS = 4.3
 LABEL_HALF_LINE_POINTS = 6.5
+# The furthest the label allowance may push the view out, as a fraction of the
+# geometry's larger side.  Half the part again on each side is generous for a
+# callout that has already been condensed, and it is a hard stop rather than a
+# target: most pages settle well inside it.
+MAXIMUM_LABEL_ALLOWANCE = 0.50
 
 
 def bounds_with_label_allowance(axes, entries, bounds, padding_fraction):
@@ -2927,6 +3224,13 @@ def bounds_with_label_allowance(axes, entries, bounds, padding_fraction):
     inside without a trial render.
     """
     box_points = axes_box_points(axes)
+    # Growing the limits also grows the millimetres per point, which grows the
+    # label in model units, which asks for more room again.  The loop settles
+    # for any label the panel can hold, but the ceiling keeps a pathological one
+    # from iterating the part down to a speck before anyone notices.
+    ceiling = union_bounds(
+        bounds, inflated_bounds(bounds, MAXIMUM_LABEL_ALLOWANCE)
+    )
     for _ in range(6):
         _, scale = padded_limits(bounds, padding_fraction, box_points)
         grown = bounds
@@ -2945,16 +3249,21 @@ def bounds_with_label_allowance(axes, entries, bounds, padding_fraction):
             grown = union_bounds(
                 grown, (left, text_y - margin, right, text_y + margin)
             )
+        grown = intersected_bounds(grown, ceiling)
         if grown == bounds:
             break
         bounds = grown
     return bounds
 
 
-def page_dimension_drawing(pdf, view, entries):
+def page_dimension_drawing(pdf, view, entries, sheet, sheets):
     part, plane = view.split(":")
+    # A view can run to dozens of sheets.  Numbering them keeps the running
+    # heads distinct, so a page can be cited without counting from the start
+    # of the run.
+    suffix = f" — sheet {sheet} of {sheets}" if sheets > 1 else ""
     figure = new_page(
-        f"{PART_TITLES[part]} — {PLANE_TITLES[plane]}",
+        f"{PART_TITLES[part]} — {PLANE_TITLES[plane]}{suffix}",
         f"{len(entries)} configuration value"
         f"{'' if len(entries) == 1 else 's'} drawn against the exported "
         f"{PART_STLS[part]}.",
@@ -3054,8 +3363,13 @@ def page_catalog(pdf):
             f"catalog started at page {PAGE_NUMBER + 1}, expected page "
             f"{2 + CURATED_PAGE_COUNT}"
         )
+    sheets = {}
+    for view, _ in DRAWING_PAGE_GROUPS:
+        sheets[view] = sheets.get(view, 0) + 1
+    sheet = dict.fromkeys(sheets, 0)
     for view, entries in DRAWING_PAGE_GROUPS:
-        page_dimension_drawing(pdf, view, entries)
+        sheet[view] += 1
+        page_dimension_drawing(pdf, view, entries, sheet[view], sheets[view])
     pages = [
         SETTING_ENTRIES[start : start + SETTINGS_PER_PAGE]
         for start in range(0, len(SETTING_ENTRIES), SETTINGS_PER_PAGE)
@@ -3239,6 +3553,29 @@ DRAWING_CROP = (0, 0, 575, 612)
 CARDS_CROP = (575, 0, 217, 612)
 
 
+def split_dimension_cards(page_text, count):
+    """One text block per card, in the order they were drawn.
+
+    Checking a value against the whole column only proves it is somewhere on
+    the page, which a neighbouring card carrying the same number satisfies for
+    free.  ``-layout`` keeps the cards top-to-bottom and each one opens with
+    its ``D<n>`` tag, so the tags cut the column into the right pieces.  The
+    scan is sequential because a description can mention a later tag.
+    """
+    starts = []
+    cursor = 0
+    for index in range(1, count + 1):
+        match = re.compile(rf"^[ \t]*D{index}(?![0-9])", re.M).search(
+            page_text, cursor
+        )
+        if match is None:
+            return None
+        starts.append(match.start())
+        cursor = match.end()
+    starts.append(len(page_text))
+    return [page_text[starts[i] : starts[i + 1]] for i in range(count)]
+
+
 def validate_pdf_engineering_drawings():
     """Check each dimension really is drawn and tabulated on its own page."""
     drawing_pages = extract_pdf_pages(DRAWING_CROP)
@@ -3247,7 +3584,13 @@ def validate_pdf_engineering_drawings():
     for offset, (view, entries) in enumerate(DRAWING_PAGE_GROUPS):
         page_index = 1 + CURATED_PAGE_COUNT + offset
         drawing_text = normalized_pdf_text(drawing_pages[page_index])
-        card_text = normalized_pdf_text(card_pages[page_index])
+        cards = split_dimension_cards(card_pages[page_index], len(entries))
+        if cards is None:
+            failures.append(
+                f"page {page_index + 1} ({view}): the dimension-card column "
+                f"does not carry D1..D{len(entries)}"
+            )
+            continue
         for index, entry in enumerate(entries):
             label = normalized_pdf_text(graphical_annotation_label(entry, index))
             if label not in drawing_text:
@@ -3255,15 +3598,16 @@ def validate_pdf_engineering_drawings():
                     f"page {page_index + 1} ({view}): callout for "
                     f"{entry.name} is not in the drawing panel"
                 )
+            card_text = normalized_pdf_text(cards[index])
             if normalized_pdf_text(entry.name) not in card_text:
                 failures.append(
-                    f"page {page_index + 1} ({view}): {entry.name} is not in "
-                    "the dimension cards"
+                    f"page {page_index + 1} ({view}): {entry.name} is not on "
+                    f"card D{index + 1}"
                 )
             if normalized_pdf_text(dimension_value(entry)) not in card_text:
                 failures.append(
                     f"page {page_index + 1} ({view}): value for {entry.name} "
-                    "is not in the dimension cards"
+                    f"is not on card D{index + 1}"
                 )
     if failures:
         raise RuntimeError(
@@ -3271,6 +3615,115 @@ def validate_pdf_engineering_drawings():
             + "\n  ".join(failures[:25])
         )
     return len(drawing_pages)
+
+
+# Interiors of the drawing axes and the dimension-card column, as figure
+# fractions.  They sit inside the panel outlines on purpose: counting the
+# outline would keep an otherwise blank page above any threshold.
+DRAWING_INK_REGION = (0.100, 0.190, 0.660, 0.820)
+CARDS_INK_REGION = (0.750, 0.150, 0.930, 0.870)
+# Resolution for the ink check.  40 dpi renders the whole document in a couple
+# of seconds and is far finer than needed to tell "drawn" from "blank".
+INK_CHECK_DPI = 40
+# A grey below this is ink rather than paper.
+INK_LEVEL = 250
+# Measured coverage is 5-50% on a dimension page; a page reduced to its panel
+# outline measures 0%.  One percent separates the two with room to spare.
+MINIMUM_INK_FRACTION = 0.010
+
+
+def read_pgm(path):
+    """Width, height and the pixel plane of a binary (P5) PGM."""
+    data = path.read_bytes()
+    if data[:2] != b"P5":
+        raise RuntimeError(f"{path.name}: not a binary PGM")
+    fields = []
+    index = 2
+    while len(fields) < 3:
+        while index < len(data) and data[index : index + 1].isspace():
+            index += 1
+        if data[index : index + 1] == b"#":
+            index = data.index(b"\n", index) + 1
+            continue
+        start = index
+        while index < len(data) and not data[index : index + 1].isspace():
+            index += 1
+        fields.append(int(data[start:index]))
+    width, height, _ = fields
+    plane = np.frombuffer(data, dtype=np.uint8, count=width * height, offset=index + 1)
+    return plane.reshape(height, width)
+
+
+def region_ink_fraction(frame, region):
+    """Fraction of ``region`` that carries ink, as a figure-fraction rect."""
+    height, width = frame.shape
+    left, bottom, right, top = region
+    # Raster rows run top-down while figure fractions run bottom-up.
+    window = frame[
+        int((1.0 - top) * height) : int((1.0 - bottom) * height),
+        int(left * width) : int(right * width),
+    ]
+    if window.size == 0:
+        return 0.0
+    return float((window < INK_LEVEL).mean())
+
+
+def validate_pdf_ink_coverage():
+    """Prove the drawings are visible rather than merely present.
+
+    ``pdftotext`` reports where a text object sits, not whether anything can be
+    seen.  An opaque panel painted over a page leaves every string exactly
+    where it was, so the text checks pass on a document that renders blank.
+    Rasterising is the only way to notice.
+    """
+    with tempfile.TemporaryDirectory() as directory:
+        try:
+            subprocess.run(
+                [
+                    "pdftoppm", "-r", str(INK_CHECK_DPI), "-gray",
+                    str(OUTPUT_PDF), str(Path(directory) / "page"),
+                ],
+                check=True,
+                capture_output=True,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "pdftoppm is required for --check-sync (poppler-utils)"
+            ) from exc
+        rendered = sorted(Path(directory).glob("page-*.pgm"))
+        if len(rendered) != TOTAL_PAGES:
+            raise RuntimeError(
+                f"rasterised {len(rendered)} page(s), expected {TOTAL_PAGES}"
+            )
+        failures = []
+        first_drawing = 1 + CURATED_PAGE_COUNT
+        for offset in range(len(DRAWING_PAGE_GROUPS)):
+            page_index = first_drawing + offset
+            frame = read_pgm(rendered[page_index])
+            for label, region in (
+                ("drawing panel", DRAWING_INK_REGION),
+                ("dimension-card column", CARDS_INK_REGION),
+            ):
+                inked = region_ink_fraction(frame, region)
+                if inked < MINIMUM_INK_FRACTION:
+                    failures.append(
+                        f"page {page_index + 1}: the {label} is "
+                        f"{inked:.2%} inked — the content is missing or "
+                        "painted over"
+                    )
+        for page_index in range(1, first_drawing):
+            frame = read_pgm(rendered[page_index])
+            inked = region_ink_fraction(frame, DRAWING_INK_REGION)
+            if inked < MINIMUM_INK_FRACTION:
+                failures.append(
+                    f"page {page_index + 1}: the drawing panel is {inked:.2%} "
+                    "inked — the content is missing or painted over"
+                )
+    if failures:
+        raise RuntimeError(
+            f"{len(failures)} blank-page check(s) failed:\n  "
+            + "\n  ".join(failures[:25])
+        )
 
 
 def check_pdf_sync():
@@ -3298,6 +3751,7 @@ def check_pdf_sync():
             f"{OUTPUT_PDF.name} has {pages} pages, expected {TOTAL_PAGES}"
         )
     validate_pdf_engineering_drawings()
+    validate_pdf_ink_coverage()
     print(
         f"{OUTPUT_PDF.name} is in sync: {TOTAL_PAGES} pages, "
         f"{len(DIMENSION_ENTRIES)} dimensions drawn and tabulated across "
@@ -3372,16 +3826,29 @@ def main():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--check-sync",
         action="store_true",
         help="verify the existing PDF matches the model sources instead of "
         "regenerating it",
     )
+    parser.add_argument(
+        "--report-skipped",
+        action="store_true",
+        help="list the model statements the configuration reader walked past "
+        "and exit",
+    )
     arguments = parser.parse_args()
     try:
-        if arguments.check_sync:
+        if arguments.report_skipped:
+            for source, lineno, reason in CONFIG_READER_SKIPS:
+                print(f"{source}:{lineno}: {reason}")
+            print(f"{len(CONFIG_READER_SKIPS)} statement(s) skipped.")
+        elif arguments.check_sync:
             check_pdf_sync()
         else:
             main()
