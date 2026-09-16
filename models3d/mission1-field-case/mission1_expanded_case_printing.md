@@ -151,8 +151,9 @@ specified 68D material, not the 85A pad filament. The project uses a generic TPU
 preset, which does not itself encode Shore hardness.
 
 The enlarged base, lid, gasket, pad and insert set require new prints. The
-separate latch parts, handle, 151 mm-long 3.8 mm hinge rod, and hinge coupon retain
-their prior dimensions. Use the existing M3 latch and M3 × 14 handle hardware.
+latest exterior hardware revision also requires the matching wide latch parts
+and handle described below. The 151 mm-long 3.8 mm hinge rod and hinge coupon
+retain their prior dimensions.
 The hinge openings remain 4.325 mm in the base, 4.55 mm at the lid receiver and
 4.4 mm at the rigid slot. The optional snap throat is now 3.5 mm, giving 0.3 mm diametral interference
 with the 3.8 mm rod (previously 0.2 mm). Its straight section is 1.55 mm long,
@@ -163,8 +164,8 @@ one dot is the nominal 3.5 mm, followed by 3.6/3.7/3.8 mm.
 The latch-bearing lip is now **3.2 mm thick on the rigid lid** and **4.0 mm on
 the 68D TPU lid**, increased from 2.4 mm. Added material sits below the existing
 bearing surface and continues into its back-wall reinforcement. Latch take-up,
-rail position, case dimensions and storage clearances are unchanged. These are
-lid-only refinements; existing base, latch, handle and inserts remain compatible.
+rail position, case dimensions and storage clearances are unchanged by the lip
+refinement. Use the matching wide base, lid and latch set for the hardware revision.
 The hinge change tightens nominal snap interference; retention force depends
 on the printed material. The optional lid still uses 68D TPU; the separate
 2 mm lid pad remains 85A TPU.
@@ -172,6 +173,40 @@ on the printed material. The optional lid still uses 68D TPU; the separate
 ![Lid lip thickness comparison](renderings/mission1_lid_lip_thickness.png)
 
 ![TPU hinge snap comparison](renderings/mission1_tpu_hinge_snap_comparison.png)
+
+## Wider latches and handle
+
+The expanded case has **40.96 mm-wide latches**, twice the previous 20.48 mm,
+and a **124.0 mm overall handle envelope**, 25% wider than 99.2 mm. The handle's
+solid grip is 119.8 mm wide with a 99.8 mm opening; the original fork sections
+move outward 12.4 mm per side without changing their wall thickness or bores.
+Latch centers remain at ±82 mm. The taller case separates the handle from the
+latches vertically, including while either mechanism moves. Validation checks
+continuous motion envelopes, the full handle sweep, latch release, and Allen access.
+The conservative minimum vertical gap through all combinations of motion is
+**3.31 mm**; the enlarged guards remain 8.22 mm inside the case sides.
+
+Reprint the **base, chosen lid, both latch levers, both hooks, and handle** as a
+matching set. The wider mounts are incompatible with the previous narrow
+latches and handle. The case interior remains **225 × 171 mm**, with the same
+156.8 mm floor-to-rim depth, so existing inserts, gasket, inlay and hinge parts
+remain usable. The compact profile retains its original hardware and dimensions.
+
+Each wide latch needs one **M3 × 50 socket-head screw**, one M3 hex nut, and a
+**4 mm-diameter rod cut to 40.96 mm**. The 3.6 mm-deep head recess leaves a
+2.4 mm guard floor and nominally 0.04 mm screw-tip projection with full nut
+engagement. Reuse the handle's two **M3 × 14 screws and M3 nuts**.
+
+![Before and after hardware](renderings/mission1_wide_hardware_comparison.png)
+
+![Installed wide hardware](renderings/mission1_wide_hardware_installed.png)
+
+![Raised handle clearance](renderings/mission1_wide_hardware_clearance.png)
+
+Regenerate these views with `render_mission1_wide_hardware.py` in background
+Blender. Run `check_mission1_wide_hardware.py` for width, interior preservation,
+compact compatibility and collision-rejection checks, together with the existing
+latch and handle regression scripts.
 
 ## Checks
 

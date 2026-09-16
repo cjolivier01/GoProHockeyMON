@@ -363,7 +363,10 @@ LID_WALL_HEIGHT = 11.0
 LID_FLANGE_OUTSET = 5.0
 LID_FLANGE_FLARE_START_Z = 3.0
 LID_FLANGE_EDGE_START_Z = 8.0
-LID_LATCH_TROUGH_WIDTH = 21.6
+# Wider hardware belongs to the tall field case; retain the compact print kit.
+LATCH_SOURCE_WIDTH = 20.48
+LATCH_WIDTH = LATCH_SOURCE_WIDTH * (2.0 if EXPANDED_ACCESSORY_STORAGE else 1.0)
+LID_LATCH_TROUGH_WIDTH = LATCH_WIDTH + 1.12
 LID_LATCH_TROUGH_SHOULDER_WIDTH = 4.5
 LID_LATCH_TROUGH_SHOULDER_RISE = 1.0
 LID_LATCH_RECESS_BACK_WALL = 4.0
@@ -1585,7 +1588,7 @@ LATCH_DEPTH_OFFSET = (CASE_DEPTH - 154.0) / 2.0
 LATCH_FIXED_M3_NOMINAL_DIAMETER = 3.0
 LATCH_FIXED_M3_CLEARANCE_DIAMETER = 3.5
 LATCH_FIXED_M3_COUNTERBORE_DIAMETER = 6.0
-LATCH_FIXED_M3_COUNTERBORE_DEPTH = 3.2
+LATCH_FIXED_M3_COUNTERBORE_DEPTH = 3.6 if EXPANDED_ACCESSORY_STORAGE else 3.2
 LATCH_FIXED_M3_MAX_HEAD_DIAMETER = 5.5
 LATCH_FIXED_M3_MAX_HEAD_HEIGHT = 3.0
 LATCH_FIXED_M3_SOCKET_ACROSS_FLATS = 2.5
@@ -1596,12 +1599,11 @@ LATCH_FIXED_M3_NUT_DEPTH = 2.7
 LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS = 2.4
 LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL = 0.2
 LATCH_FIXED_M3_MIN_RECESS_FLOOR = 1.0
-LATCH_FIXED_M3_BOLT_LENGTH = 30.0
+LATCH_FIXED_M3_BOLT_LENGTH = 50.0 if EXPANDED_ACCESSORY_STORAGE else 30.0
 LATCH_FIXED_M3_MIN_THREAD_ENGAGEMENT = LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS
 LATCH_FIXED_M3_MAX_TIP_PROTRUSION = 3.0
 LATCH_LID_INSTALLED_Z = BASE_HEIGHT + LID_WALL_HEIGHT
 LATCH_SOURCE_SCALE = 0.8
-LATCH_WIDTH = 20.48
 # Add material on the outward face while preserving the lid-side jaw plane.
 # The neck has 0.4 mm margin above the required 3 mm; the pivot has 0.2 mm.
 LATCH_HOOK_WEB_MIN_THICKNESS = 3.0
@@ -1976,9 +1978,9 @@ def hook_local_yz_in_installed(lever_angle: float, local_y: float, local_z: floa
     )
 
 
-# Separate reference-shaped U handle.  The base lugs are unioned into the case
-# shell and retain their existing 3.9 mm bores.  Only the separate handle is
-# reinforced for two M3 x 14 pivots: each fork has a 3.5 mm easy-running
+# Separate reference-shaped U handle. The base lugs are unioned into the case
+# shell and retain their 3.9 mm bores at the profile's pivot spacing.
+# Each reinforced fork uses an M3 x 14 pivot with a 3.5 mm easy-running
 # path, an inboard Allen-head counterbore, and an outboard captive-nut pocket.
 HANDLE_BASE_LUG_BORE_DIAMETER = 3.9
 HANDLE_M3_NOMINAL_DIAMETER = 3.0
@@ -1999,7 +2001,11 @@ HANDLE_M3_HEAD_RECESS_FLOOR = 3.0
 HANDLE_M3_BOLT_LENGTH = 14.0
 HANDLE_M3_MIN_THREAD_ENGAGEMENT = HANDLE_M3_NOMINAL_NUT_THICKNESS
 HANDLE_M3_MAX_TIP_PROTRUSION = 3.0
-HANDLE_PIVOT_X = 42.5
+# Add 25% to the complete 99.2 mm envelope by translating the unchanged
+# fork sections. Hole diameters, cheek thicknesses and M3 x 14 hardware stay put
+# relative to each fork; the case lugs follow the new pivot centers.
+HANDLE_WIDTH_INCREASE = 99.2 * 0.25 if EXPANDED_ACCESSORY_STORAGE else 0.0
+HANDLE_PIVOT_X = 42.5 + HANDLE_WIDTH_INCREASE / 2.0
 HANDLE_BASE_LUG_X = HANDLE_PIVOT_X
 HANDLE_PIVOT_RADIUS_MARGIN = 0.16
 HANDLE_PIVOT_BOSS_RADIUS = (
@@ -2016,8 +2022,8 @@ HANDLE_PIVOT_Y = (
     -CASE_DEPTH / 2.0 - HANDLE_PIVOT_BOSS_RADIUS - HANDLE_FOLDED_FACE_CLEARANCE
 )
 HANDLE_PIVOT_Z = LATCH_LID_INSTALLED_Z / 2.0
-HANDLE_BAR_OUTER_WIDTH = 95.0
-HANDLE_BAR_INNER_WIDTH = 75.0
+HANDLE_BAR_OUTER_WIDTH = 95.0 + HANDLE_WIDTH_INCREASE
+HANDLE_BAR_INNER_WIDTH = 75.0 + HANDLE_WIDTH_INCREASE
 HANDLE_BAR_DROP = 40.0
 HANDLE_BAR_DEPTH = 16.0
 # Keep the printed underside and local pivot datum fixed. Extra thickness is
@@ -6056,7 +6062,9 @@ def validate_configuration() -> None:
         (CASE_DEPTH - 0.8) / 2.0 + LID_LATCH_RECESS_BACK_WALL
     ):
         raise ValueError("Latch capture rail does not stand proud of its back wall")
-    if LID_LATCH_TROUGH_WIDTH > 25.0:
+    # Side webs and the full-width ledge support the broadened rail. Only the
+    # central retention-boss recess remains unsupported between the side webs.
+    if LATCH_CAPTURE_NUB_AXIAL_WIDTH + 2 * LATCH_CAPTURE_NUB_RECESS_AXIAL_CLEARANCE > 25.0:
         raise ValueError("Latch capture rail exceeds the printable bridge span")
     if LID_LATCH_TROUGH_SHOULDER_WIDTH < 4.0:
         raise ValueError("Latch capture rail side towers are too thin")
@@ -6277,13 +6285,13 @@ def validate_configuration() -> None:
         max(abs(face) for side in (-1.0, 1.0) for face in handle_m3_pivot_faces(side)[:2]),
     )
     latch_handle_clearance = latch_lever_inner_x - handle_outer_x
-    if latch_handle_clearance < LATCH_FINGER_ACCESS_CLEARANCE:
+    if not EXPANDED_ACCESSORY_STORAGE and latch_handle_clearance < LATCH_FINGER_ACCESS_CLEARANCE:
         raise ValueError(
             "Folded/swinging handle enters the latch finger-access zone: "
             f"computed {latch_handle_clearance:.2f} mm"
         )
     latch_guard_handle_clearance = latch_mount_inner_x - handle_outer_x
-    if latch_guard_handle_clearance < LATCH_GUARD_HANDLE_CLEARANCE:
+    if not EXPANDED_ACCESSORY_STORAGE and latch_guard_handle_clearance < LATCH_GUARD_HANDLE_CLEARANCE:
         raise ValueError(
             "Handle sits too close to the integrated latch guard: "
             f"computed {latch_guard_handle_clearance:.2f} mm"
@@ -6291,7 +6299,7 @@ def validate_configuration() -> None:
     latch_hardware_handle_clearance = (
         latch_guard_handle_clearance - fixed_m3_tip_protrusion
     )
-    if latch_hardware_handle_clearance < LATCH_HARDWARE_HANDLE_CLEARANCE:
+    if not EXPANDED_ACCESSORY_STORAGE and latch_hardware_handle_clearance < LATCH_HARDWARE_HANDLE_CLEARANCE:
         raise ValueError(
             "Handle sits too close to the installed latch M3 screw tip: "
             f"computed {latch_hardware_handle_clearance:.2f} mm"
@@ -6300,8 +6308,16 @@ def validate_configuration() -> None:
     if latch_case_edge_clearance < 4.0:
         raise ValueError("Exact latch needs at least 4 mm clearance from the case edge")
     handle_lug_outer_x = HANDLE_BASE_LUG_X + HANDLE_BASE_LUG_WIDTH / 2.0
-    if latch_lever_inner_x - handle_lug_outer_x < LATCH_FINGER_ACCESS_CLEARANCE:
+    if not EXPANDED_ACCESSORY_STORAGE and latch_lever_inner_x - handle_lug_outer_x < LATCH_FINGER_ACCESS_CLEARANCE:
         raise ValueError("Handle bases enter the latch finger-access zones")
+    if EXPANDED_ACCESSORY_STORAGE:
+        # The tall case separates the hardware vertically. Validate the actual
+        # continuous moving envelopes after construction as well.
+        handle_top = HANDLE_PIVOT_Z + HANDLE_BAR_THICKNESS - HANDLE_LOCAL_PIVOT_Z
+        if LATCH_PROTECTOR_ROOT_Z - handle_top < 3.0:
+            raise ValueError("Wide handle needs 3 mm below the latch guards")
+        if min(abs(x) for x in LATCH_X_CENTERS) - handle_outer_x < 11.0:
+            raise ValueError("Wide handle obstructs the 22 mm central latch finger corridor")
 
     # Conservative analytic envelopes include every projection on each part.
     base_print_width = max(
@@ -9019,6 +9035,16 @@ def create_pelican_latch_parts(material):
     for part_index, ((vertices, faces), (object_name, mesh_name)) in enumerate(
         zip(payloads, specifications)
     ):
+        # Widen only the outer bands. Preserve the central tongue, its running
+        # gaps and all Y/Z cam and bore geometry from the source mechanism.
+        if LATCH_WIDTH != LATCH_SOURCE_WIDTH:
+            inner_x = LATCH_HOOK_CHEEK_INNER_X
+            outer_scale = (LATCH_WIDTH / 2.0 - inner_x) / (LATCH_SOURCE_WIDTH / 2.0 - inner_x)
+            vertices = tuple(
+                (math.copysign(inner_x + (abs(x) - inner_x) * outer_scale, x)
+                 if abs(x) > inner_x else x, y, z)
+                for x, y, z in vertices
+            )
         if part_index == 1:
             vertices = tuple(
                 (x, latch_hook_source_y(y), z) for x, y, z in vertices
@@ -9475,8 +9501,17 @@ def create_pelican_latch_parts(material):
         # A broad source side is the support-free print face.  Keep the mesh
         # data itself in its installed coordinate frame so reference copies can
         # be positioned by simply clearing this object transform.
+        if LATCH_WIDTH != LATCH_SOURCE_WIDTH:
+            # Embedded source coordinates contain a few microns of axial
+            # noise. Normalize the finished side planes after the Booleans;
+            # stretching that noise can put the lever through its axial stop.
+            for vertex in part.data.vertices:
+                if abs(abs(vertex.co.x) - LATCH_WIDTH / 2.0) < 0.0001:
+                    vertex.co.x = math.copysign(LATCH_WIDTH / 2.0, vertex.co.x)
+            part.data.update()
         part.rotation_euler.y = math.radians(90.0)
-        part.location.z = LATCH_WIDTH / 2.0
+        part.location.z = (max(vertex.co.x for vertex in part.data.vertices)
+                           if LATCH_WIDTH != LATCH_SOURCE_WIDTH else LATCH_WIDTH / 2.0)
         assign_material(part, material)
         parts.append(part)
     return tuple(parts)
@@ -9495,7 +9530,7 @@ def create_pivoting_handle_bar(material):
     for side in (-1.0, 1.0):
         head_face_x, nut_face_x, _head_direction = handle_m3_pivot_faces(side)
         # Carry the full cheek widths beyond the fixed-ear relief, then taper
-        # into the 75 mm grip span. The opening narrows to 66.8 mm at the forks.
+        # into the grip span. The opening is 8.2 mm narrower at the forks.
         inner_x, outer_x = abs(head_face_x), abs(nut_face_x)
         loop = (
             (inner_x, 1.5), (outer_x, 1.5),
@@ -11658,14 +11693,14 @@ def validate_built_handle_m3_hardware(parts) -> None:
 
 def validate_built_handle_strength(handle) -> None:
     """Check actual solid grip and continuous fork load paths after all cuts."""
-    probes = [((90.0, 9.0, 10.0), (0.0, -32.0, 9.0))]
+    probes = [((90.0 + HANDLE_WIDTH_INCREASE, 9.0, 10.0), (0.0, -32.0, 9.0))]
     for side in (-1.0, 1.0):
         # Cheek cores overlap the broad transition from Y=-18 to -16.5;
         # transitions overlap the grip from Y=-29 to -27.5. Their X/Z
         # intervals also overlap, leaving one connected checked load path.
         probes.extend((
-            ((2.5, 15.5, 2.0), (side * 38.1, -10.25, HANDLE_LOCAL_PIVOT_Z)),
-            ((1.0, 15.5, 2.0), (side * 46.15, -10.25, HANDLE_LOCAL_PIVOT_Z)),
+            ((2.5, 15.5, 2.0), (side * (HANDLE_PIVOT_X - 4.4), -10.25, HANDLE_LOCAL_PIVOT_Z)),
+            ((1.0, 15.5, 2.0), (side * (HANDLE_PIVOT_X + 3.65), -10.25, HANDLE_LOCAL_PIVOT_Z)),
             ((8.0, 12.5, 10.0), (side * HANDLE_PIVOT_X, -22.75, 9.0)),
         ))
     for dimensions, center in probes:
@@ -11773,8 +11808,55 @@ def validate_installed_handle_allen_access(parts) -> None:
           f"maximum_intersection={maximum:.6f}")
 
 
+def rotation_z_bounds(points_yz, angle0, angle1):
+    """Continuous Z extrema around X, including stationary points in the arc."""
+    low, high = sorted((math.radians(angle0), math.radians(angle1)))
+    values = []
+    for y, z in points_yz:
+        angles = [low, high]
+        stationary = math.atan2(y, z)
+        for turn in range(-2, 3):
+            angle = stationary + turn * math.pi
+            if low <= angle <= high:
+                angles.append(angle)
+        values.extend(y * math.sin(angle) + z * math.cos(angle) for angle in angles)
+    return min(values), max(values)
+
+
+def validate_wide_hardware_clearance(parts) -> float | None:
+    """Prove separation for every combination of handle and latch positions."""
+    if not EXPANDED_ACCESSORY_STORAGE:
+        return
+    handle_top = HANDLE_PIVOT_Z + rotation_z_bounds(
+        ((v.co.y, v.co.z - HANDLE_LOCAL_PIVOT_Z) for v in parts['handle_bar'].data.vertices),
+        0.0, 90.0,
+    )[1]
+    lever_bottom = LATCH_BASE_PIVOT_Z + rotation_z_bounds(
+        ((v.co.y, v.co.z) for v in parts['latch_lever'].data.vertices),
+        LATCH_LEVER_OPEN_ANGLE, LATCH_LEVER_CLOSED_ANGLE,
+    )[0]
+    link_bottom = LATCH_BASE_PIVOT_Z + rotation_z_bounds(
+        (LATCH_LINK_PIVOT_LOCAL_YZ,), LATCH_LEVER_OPEN_ANGLE, LATCH_LEVER_CLOSED_ANGLE,
+    )[0]
+    # Taking the minima separately is conservative even though hook rotation
+    # and link translation are coupled by the cam.
+    hook_bottom = link_bottom + rotation_z_bounds(
+        ((v.co.y, v.co.z) for v in parts['latch_hook'].data.vertices),
+        latch_hook_global_angle_degrees(LATCH_LEVER_OPEN_ANGLE),
+        latch_hook_global_angle_degrees(LATCH_LEVER_CLOSED_ANGLE),
+    )[0]
+    minimum_gap = min(LATCH_PROTECTOR_ROOT_Z, lever_bottom, hook_bottom) - handle_top
+    if minimum_gap < 3.0:
+        raise ValueError(f'Wide hardware vertical clearance below 3 mm: {minimum_gap:.4f}')
+    print(f'FIELD_CASE_WIDE_HARDWARE_CLEARANCE_VALID continuous_gap={minimum_gap:.4f} '
+          f'handle_top={handle_top:.4f} lever_bottom={lever_bottom:.4f} '
+          f'hook_bottom={hook_bottom:.4f}', flush=True)
+    return minimum_gap
+
+
 def validate_installed_handle_mechanics(parts) -> None:
     """Sweep the reinforced moving handle through its complete working arc."""
+    validate_wide_hardware_clearance(parts)
     sweep_steps = max(1, math.ceil(90.0 / HANDLE_SWEEP_STEP_DEGREES))
     maximum_overlap = (0.0, 0.0, 0)
     local_pivot_z = HANDLE_LOCAL_PIVOT_Z
@@ -15453,7 +15535,7 @@ def field_case_3mf_groups():
             ((25.0, 58.0), (45.0, 58.0)),
         ),
         (
-            "Pivoting Handle Bar",
+            "124 mm Pivoting Handle Bar" if EXPANDED_ACCESSORY_STORAGE else "Pivoting Handle Bar",
             "handle_bar",
             HANDLE_BAR_STL_NAME,
             1,

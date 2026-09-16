@@ -31,13 +31,14 @@ COMPACT_FIXED_PART_BASELINES = {
 }
 
 
-# The expanded case dimensions were explicitly authorized for accessory storage.
+# Expanded hardware revision: broaden the exterior latch mounts and handle
+# lugs while preserving the authorized shell interior and storage dimensions.
 EXPANDED_FIXED_PART_BASELINES = {
-    "base": (3708, 2543,
-             "015bd5ff7d8d9a21a36f034ec10ec8032b83ceab30babbad5720b51383a11e88"),
+    "base": (3721, 2546,
+             "357dae79ecd8a1107770576ff5521b29f549c548c1296fe67ad3fd3d845ba158"),
     "lid": (
-        4041, 2724,
-        "3b705e1a2bc8eee2e631dfdb48d47319b96b346cf69c31a5ae7c4a7ab927c6df",
+        4037, 2727,
+        "b15ced883ae860bf18037d1abf43bf5ab54c7749cd4a3b9f5c6c2cd7119f8f80",
     ),
 }
 FIXED_PART_BASELINES = (EXPANDED_FIXED_PART_BASELINES if case.EXPANDED_ACCESSORY_STORAGE
