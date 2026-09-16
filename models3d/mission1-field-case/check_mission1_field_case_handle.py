@@ -41,9 +41,9 @@ def main():
 
     # Reject both a weak cheek and a weak transition between the former probes.
     for dimensions, center in (
-        ((3, 2, 3), (38.1, -11.5, 6.1)),
-        ((20, 0.5, 17.5), (42.5, -18.5, 8.5)),
-        ((20, 0.5, 17.5), (42.5, -26.5, 8.5)),
+        ((3, 2, 3), (case.HANDLE_PIVOT_X - 4.4, -11.5, 6.1)),
+        ((20, 0.5, 17.5), (case.HANDLE_PIVOT_X, -18.5, 8.5)),
+        ((20, 0.5, 17.5), (case.HANDLE_PIVOT_X, -26.5, 8.5)),
     ):
         weak = handle.copy()
         weak.data = handle.data.copy()
@@ -56,7 +56,8 @@ def main():
 
     # Put an obstruction in the long-leg turning path, away from the socket.
     obstruction = case.add_rounded_box('TEMPORARY_Blocked_Allen_Turn', (6, 6, 6),
-                                       (8.4, case.HANDLE_PIVOT_Y - 30, case.HANDLE_PIVOT_Z), bevel=0)
+                                       (abs(case.handle_m3_pivot_faces(1)[0]) - case.HANDLE_ALLEN_SHORT_LEG,
+                                        case.HANDLE_PIVOT_Y - 30, case.HANDLE_PIVOT_Z), bevel=0)
     case.select_only(obstruction)
     case.bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
     must_reject(lambda: case.validate_installed_handle_allen_access({**parts, 'base': obstruction}),
