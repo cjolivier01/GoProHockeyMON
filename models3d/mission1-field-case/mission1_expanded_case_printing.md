@@ -317,13 +317,24 @@ uses 85A TPU.
 
 The expanded case has **40.96 mm-wide latches**, twice the previous 20.48 mm,
 and a **124.0 mm overall handle envelope**, 25% wider than 99.2 mm. The handle's
-solid grip is 119.8 mm wide with a 99.8 mm opening; the original fork sections
-move outward 12.4 mm per side without changing their wall thickness or bores.
+solid grip is 119.8 mm wide with a 99.8 mm opening; the fork sections
+move outward 12.4 mm per side with the same bores and reinforced cheek cores.
+Their outboard corners taper earlier to clear the closed latches during a full turn.
 Latch centers remain at ±82 mm. The taller case separates the handle from the
 latches vertically, including while either mechanism moves. Validation checks
 continuous motion envelopes, the full handle sweep, latch release, and Allen access.
-The conservative minimum vertical gap through all combinations of motion is
+The conservative minimum vertical gap through the normal 0–90° handle travel
+and all latch positions is
 **3.31 mm**; the enlarged guards remain 8.22 mm inside the case sides.
+
+A separate **hard no-contact check covers continuous 360° handle rotation**
+against both closed latch levers, hooks, and moving link rods, including ±0.2 mm
+latch and ±0.4 mm handle axial play. It compares conservative swept radial bounds in the axial
+regions shared by the meshes, so contact between sampled angles cannot escape
+the check. Protection walls are excluded from this constraint: it must pass
+without relying on a guard to stop the handle. The full project build runs
+this check before export. `check_mission1_closed_latch_handle.py` also verifies
+that the previous fork shape and deliberately colliding moving parts are rejected.
 
 Reprint the **base, chosen lid, both latch levers, both hooks, and handle** as a
 matching set. The wider mounts are incompatible with the previous narrow

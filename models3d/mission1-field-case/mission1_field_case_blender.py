@@ -2111,7 +2111,12 @@ HANDLE_M3_PIVOT_BOSS_SPAN = (
     + HANDLE_M3_NUT_CHEEK_THICKNESS
 )
 HANDLE_FORK_REINFORCEMENT_LENGTH = 18.0
+# Start only the outboard taper earlier on the wide handle. The pivot boss and
+# checked cheek cores stay intact, but its outer corner cannot swing into a
+# closed latch even if the handle rotates past the normal carrying arc.
+HANDLE_OUTER_FORK_TAPER_START = 4.0 if EXPANDED_ACCESSORY_STORAGE else 18.0
 HANDLE_FORK_TAPER_END = 24.0
+HANDLE_OUTER_FORK_TAPER_END = 18.0 if EXPANDED_ACCESSORY_STORAGE else HANDLE_FORK_TAPER_END
 HANDLE_ALLEN_SHORT_LEG = 25.0
 HANDLE_ALLEN_LONG_LEG = 70.0
 HANDLE_ALLEN_BEND_RADIUS = 4.0
@@ -10107,8 +10112,8 @@ def create_pivoting_handle_bar(material):
         inner_x, outer_x = abs(head_face_x), abs(nut_face_x)
         loop = (
             (inner_x, 1.5), (outer_x, 1.5),
-            (outer_x, -HANDLE_FORK_REINFORCEMENT_LENGTH),
-            (HANDLE_BAR_OUTER_WIDTH / 2.0, -HANDLE_FORK_TAPER_END),
+            (outer_x, -HANDLE_OUTER_FORK_TAPER_START),
+            (HANDLE_BAR_OUTER_WIDTH / 2.0, -HANDLE_OUTER_FORK_TAPER_END),
             (HANDLE_BAR_OUTER_WIDTH / 2.0, -arm_length + 1.5),
             (HANDLE_BAR_INNER_WIDTH / 2.0, -arm_length + 1.5),
             (HANDLE_BAR_INNER_WIDTH / 2.0, -HANDLE_FORK_TAPER_END),
@@ -12396,6 +12401,113 @@ def rotation_z_bounds(points_yz, angle0, angle1):
     return min(values), max(values)
 
 
+def mesh_axial_triangles(obj, location=(0.0, 0.0, 0.0), angle=0.0):
+    """Express mesh triangles in a frame whose X axis is the handle pivot."""
+    cosine, sine = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+    coordinates = [
+        (v.co.x + location[0],
+         cosine * v.co.y - sine * v.co.z + location[1],
+         sine * v.co.y + cosine * v.co.z + location[2])
+        for v in obj.data.vertices
+    ]
+    obj.data.calc_loop_triangles()
+    return [tuple(coordinates[i] for i in triangle.vertices)
+            for triangle in obj.data.loop_triangles]
+
+
+def mesh_radial_bounds_in_slab(triangles, x0, x1):
+    """Surface radius bounds in an inclusive X slab.
+
+    Clip triangles, rather than selecting vertices: a face can cross the slab
+    with every original vertex outside it. Radius is convex, so its maximum is
+    at a clipped vertex. Distance to each projected convex polygon includes
+    edge/face interiors when computing the minimum. For solid containment,
+    use the minimum only over the complete mesh projection: clipping away
+    end caps can otherwise hide material enclosed inside the slab.
+    """
+    from shapely.geometry import MultiPoint, Point
+
+    def clip(points, value, direction):
+        result = []
+        for a, b in zip(points, points[1:] + points[:1]):
+            da, db = direction * (a[0] - value), direction * (b[0] - value)
+            if da >= 0.0:
+                result.append(a)
+            if (da < 0.0) != (db < 0.0):
+                fraction = da / (da - db)
+                result.append(tuple(a[i] + fraction * (b[i] - a[i]) for i in range(3)))
+        return result
+
+    minimum, maximum = math.inf, -math.inf
+    origin = Point(0.0, 0.0)
+    for triangle in triangles:
+        if min(v[0] for v in triangle) > x1 or max(v[0] for v in triangle) < x0:
+            continue
+        polygon = clip(clip(list(triangle), x0, 1), x1, -1)
+        if not polygon:
+            continue
+        yz = [(v[1], v[2]) for v in polygon]
+        maximum = max(maximum, *(math.hypot(*point) for point in yz))
+        minimum = min(minimum, MultiPoint(yz).convex_hull.distance(origin))
+    return minimum, maximum
+
+
+def validate_handle_closed_latch_full_rotation(parts):
+    """Hard no-contact proof for a full turn against both closed latches.
+
+    Rotation around X preserves X and radius. Disjoint radial intervals in
+    every shared axial region therefore prove separation for all angles,
+    including angles between samples and beyond the normal carrying arc.
+    Protective walls are intentionally absent: their contact cannot excuse
+    contact with a lever, hook or moving link rod. Include both axial plays.
+    """
+    epsilon = 0.0001
+    handle = mesh_axial_triangles(
+        parts['handle_bar'], (0.0, 0.0, -HANDLE_LOCAL_PIVOT_Z))
+    handle_x0 = min(v[0] for triangle in handle for v in triangle)
+    handle_x1 = max(v[0] for triangle in handle for v in triangle)
+    hook_y, hook_z = latch_hook_origin_yz(LATCH_LEVER_CLOSED_ANGLE)
+    # Circumscribe the round metal rod so faceting cannot understate its size.
+    rod = add_cylinder_x('TEMPORARY_Closed_Latch_Moving_Link_Rod',
+                         LATCH_LINK_ROD_DIAMETER / (2.0 * math.cos(math.pi / 64)), LATCH_LINK_ROD_LENGTH,
+                         (0.0, 0.0, 0.0), vertices=64)
+    gaps = []
+    try:
+        for latch_x in LATCH_X_CENTERS:
+            for name, obj, y, z, angle in (
+                ('lever', parts['latch_lever'], LATCH_BASE_PIVOT_Y,
+                 LATCH_BASE_PIVOT_Z, LATCH_LEVER_CLOSED_ANGLE),
+                ('hook', parts['latch_hook'], hook_y, hook_z,
+                 latch_hook_global_angle_degrees(LATCH_LEVER_CLOSED_ANGLE)),
+                ('link rod', rod, hook_y, hook_z, 0.0),
+            ):
+                latch = mesh_axial_triangles(
+                    obj, (latch_x, y - HANDLE_PIVOT_Y, z - HANDLE_PIVOT_Z), angle)
+                play = LATCH_BASE_EAR_AXIAL_CLEARANCE + HANDLE_AXIAL_CLEARANCE + epsilon
+                x0 = max(handle_x0, min(v[0] for t in latch for v in t) - play)
+                x1 = min(handle_x1, max(v[0] for t in latch for v in t) + play)
+                if x0 > x1:
+                    continue
+                _, handle_radius = mesh_radial_bounds_in_slab(handle, x0, x1)
+                # Project the entire closed solid, including its end caps.
+                # This remains conservative when the pivot axis is enclosed
+                # in solid material rather than intersecting a surface here.
+                latch_radius, _ = mesh_radial_bounds_in_slab(latch, -math.inf, math.inf)
+                gap = latch_radius - handle_radius
+                if not math.isfinite(gap) or gap <= epsilon:
+                    raise ValueError(
+                        'Handle full rotation cannot clear closed latch moving part: '
+                        f'latch_x={latch_x:.2f} part={name} radial_gap={gap:.6f}')
+                gaps.append(gap)
+    finally:
+        bpy.data.objects.remove(rod, do_unlink=True)
+    radial_gap = f'{min(gaps):.4f}' if gaps else 'axially_separated'
+    print('FIELD_CASE_HANDLE_CLOSED_LATCH_FULL_ROTATION_VALID '
+          f'rotation=0-360deg moving_parts=6 latch_axial_play=+/-{LATCH_BASE_EAR_AXIAL_CLEARANCE:.2f} '
+          f'handle_axial_play=+/-{HANDLE_AXIAL_CLEARANCE:.2f} '
+          f'radial_gap_bound={radial_gap} guards=excluded', flush=True)
+
+
 def validate_wide_hardware_clearance(parts) -> float | None:
     """Prove separation for every combination of handle and latch positions."""
     if not EXPANDED_ACCESSORY_STORAGE:
@@ -12429,6 +12541,7 @@ def validate_wide_hardware_clearance(parts) -> float | None:
 
 def validate_installed_handle_mechanics(parts) -> None:
     """Sweep the reinforced moving handle through its complete working arc."""
+    validate_handle_closed_latch_full_rotation(parts)
     validate_wide_hardware_clearance(parts)
     sweep_steps = max(1, math.ceil(90.0 / HANDLE_SWEEP_STEP_DEGREES))
     maximum_overlap = (0.0, 0.0, 0)

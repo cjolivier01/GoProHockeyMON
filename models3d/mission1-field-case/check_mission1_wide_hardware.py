@@ -117,6 +117,9 @@ def main():
         assert canonical_faces(old_part) == canonical_faces(new_part)
         assert tuple(old_part.location) == tuple(new_part.location)
         assert tuple(old_part.rotation_euler) == tuple(new_part.rotation_euler)
+    compact['validate_handle_closed_latch_full_rotation']({
+        'latch_lever': new_hardware[0], 'latch_hook': new_hardware[1],
+        'handle_bar': new_hardware[2]})
     print('FIELD_CASE_WIDE_HARDWARE_REGRESSION_PASS compact_shells_and_hardware=unchanged', flush=True)
 
 
