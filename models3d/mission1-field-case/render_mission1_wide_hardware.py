@@ -27,7 +27,7 @@ def main():
     handle = case.create_pivoting_handle_bar(orange)
     minimum_gap = case.validate_wide_hardware_clearance(
         {'latch_lever': lever, 'latch_hook': hook, 'handle_bar': handle})
-    case.validate_handle_closed_latch_full_rotation(
+    full_turn_gap = case.validate_handle_closed_latch_full_rotation(
         {'latch_lever': lever, 'latch_hook': hook, 'handle_bar': handle})
     source = subprocess.check_output(
         ['git', 'show', '438c924:models3d/mission1-field-case/mission1_field_case_blender.py'],
@@ -90,7 +90,7 @@ def main():
            [('BEFORE / 20.48 mm latches', -153, 94, 5),
             ('AFTER / 40.96 mm latches', 14, 94, 5),
             ('99.2 mm handle envelope', -153, -91, 4.6),
-            ('124.0 mm handle envelope (+25%)', 14, -91, 4.6)])
+            ('119.8 mm handle envelope (+20.8%)', 14, -91, 4.6)])
     for obj in old_parts:
         obj.hide_render = True
     base = case.create_base(shell)
@@ -116,14 +116,14 @@ def main():
     handle.location = (0, case.HANDLE_PIVOT_Y + case.HANDLE_LOCAL_PIVOT_Z, case.HANDLE_PIVOT_Z)
     handle.rotation_euler = (math.pi / 2, 0, 0)
     render('mission1_wide_hardware_installed.png', (270, -420, 285), (0, -8, 88), 350,
-           [('DOUBLE-WIDTH LATCHES / 25% WIDER HANDLE', -161, 103, 5.2),
+           [('DOUBLE-WIDTH LATCHES / FULL-THICKNESS HANDLE', -161, 103, 5.2),
             ('Same case interior and inserts / new base, lid and hardware prints', -161, -103, 4)])
     handle.location = (0, case.HANDLE_PIVOT_Y, case.HANDLE_PIVOT_Z - case.HANDLE_LOCAL_PIVOT_Z)
     handle.rotation_euler = (0, 0, 0)
     render('mission1_wide_hardware_clearance.png', (0, -600, 105), (0, -95, 111), 270,
            [('HANDLE RAISED / FRONT CLEARANCE', -125, 80, 4.6),
             (f'Normal 0-90 degree travel: {minimum_gap:.2f} mm vertical separation', -125, -72, 3.8),
-            ('Closed moving latches: full 360 degree no-contact check passed', -125, -82, 3.8)])
+            (f'Full 360 degree rotation: {full_turn_gap:.2f} mm lateral gap including play', -125, -82, 3.8)])
     print('FIELD_CASE_WIDE_HARDWARE_RENDERINGS_PASS', flush=True)
 
 

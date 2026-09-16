@@ -177,25 +177,26 @@ on the printed material. The optional lid still uses 68D TPU; the separate
 ## Wider latches and handle
 
 The expanded case has **40.96 mm-wide latches**, twice the previous 20.48 mm,
-and a **124.0 mm overall handle envelope**, 25% wider than 99.2 mm. The handle's
-solid grip is 119.8 mm wide with a 99.8 mm opening; the fork sections
-move outward 12.4 mm per side with the same bores and reinforced cheek cores.
-Their outboard corners taper earlier to clear the closed latches during a full turn.
-Latch centers remain at ±82 mm. The taller case separates the handle from the
-latches vertically, including while either mechanism moves. Validation checks
-continuous motion envelopes, the full handle sweep, latch release, and Allen access.
-The conservative minimum vertical gap through the normal 0–90° handle travel
-and all latch positions is
-**3.31 mm**; the enlarged guards remain 8.22 mm inside the case sides.
+and a **119.8 mm overall handle envelope**, about 20.8% wider than 99.2 mm.
+The handle's solid grip is 115.6 mm wide with a 95.6 mm opening. Each complete
+fork moves outward 10.3 mm; its original mount shape, wall thickness, bores,
+and 18-to-24 mm transition are preserved. Latch centers remain at ±82 mm.
+The enlarged guards remain 8.22 mm inside the case sides.
 
-A separate **hard no-contact check covers continuous 360° handle rotation**
-against both closed latch levers, hooks, and moving link rods, including ±0.2 mm
-latch and ±0.4 mm handle axial play. It compares conservative swept radial bounds in the axial
-regions shared by the meshes, so contact between sampled angles cannot escape
-the check. Protection walls are excluded from this constraint: it must pass
-without relying on a guard to stop the handle. The full project build runs
-this check before export. `check_mission1_closed_latch_handle.py` also verifies
-that the previous fork shape and deliberately colliding moving parts are rejected.
+A **hard 1 mm minimum-clearance check covers continuous 360° handle rotation**
+against both closed latch levers, hooks, and moving link rods. The generated
+meshes have **1.02 mm minimum axial separation**, after including ±0.2 mm latch
+and ±0.4 mm handle axial play. Rotation about the handle's pivot preserves
+this lateral separation at every angle. Protection walls are excluded from
+this constraint; the check does not rely on a guard stopping rotation.
+
+The full project build runs this check before export.
+`check_mission1_closed_latch_handle.py` rejects the colliding 124 mm handle,
+a positive gap below 1 mm, interference due to axial play, and deliberately
+colliding moving parts. The original fork geometry is also compared against
+the widened forks. Normal 0–90° handle travel retains **3.31 mm vertical
+separation** through all latch positions, with latch release, handle strength,
+and Allen access independently checked.
 
 Reprint the **base, chosen lid, both latch levers, both hooks, and handle** as a
 matching set. The wider mounts are incompatible with the previous narrow

@@ -23,19 +23,22 @@ def main():
     case.validate_built_part('handle_bar', handle)
     case.validate_built_handle_strength(handle)
     assert math.isclose(max(v.co.x for v in handle.data.vertices)
-                        - min(v.co.x for v in handle.data.vertices), 124.0, abs_tol=.0001)
+                        - min(v.co.x for v in handle.data.vertices), 119.8, abs_tol=.0001)
+    assert math.isclose(case.validate_handle_closed_latch_full_rotation(parts),
+                        1.02, abs_tol=.0001)
 
-    # The former fork passed the normal 0-90 degree check but physically
-    # intersected the closed lever when rotated upward through -45 degrees.
-    taper = case.HANDLE_OUTER_FORK_TAPER_START
-    taper_end = case.HANDLE_OUTER_FORK_TAPER_END
-    try:
-        case.HANDLE_OUTER_FORK_TAPER_START = 18.0
-        case.HANDLE_OUTER_FORK_TAPER_END = 24.0
-        old = case.create_pivoting_handle_bar(material)
-    finally:
-        case.HANDLE_OUTER_FORK_TAPER_START = taper
-        case.HANDLE_OUTER_FORK_TAPER_END = taper_end
+    def wider_handle(extra_width):
+        obj = handle.copy()
+        obj.data = handle.data.copy()
+        case.bpy.context.collection.objects.link(obj)
+        for vertex in obj.data.vertices:
+            vertex.co.x += math.copysign(extra_width / 2.0, vertex.co.x)
+        obj.data.update()
+        return obj
+
+    # Full-thickness forks at the originally requested +25% width physically
+    # intersect the closed lever when rotated upward through -45 degrees.
+    old = wider_handle(124.0 - 119.8)
     try:
         old_parts = {**parts, 'handle_bar': old}
         case.validate_wide_hardware_clearance(old_parts)
@@ -51,26 +54,32 @@ def main():
                              case.HANDLE_PIVOT_Z - math.cos(angle) * case.HANDLE_LOCAL_PIVOT_Z),
             second_rotation=(angle, 0, 0))
         assert overlap > 1.0, overlap
-        print(f'CLOSED_LATCH_PREVIOUS_FORK_REJECTED intersection={overlap:.6f}', flush=True)
+        print(f'CLOSED_LATCH_25_PERCENT_WIDTH_REJECTED intersection={overlap:.6f}', flush=True)
     finally:
         case.bpy.data.objects.remove(old, do_unlink=True)
 
-    # This intermediate shape clears at centered handle X, but loses the
-    # guarantee at the permitted end of its 0.4 mm axial travel.
+    # Positive clearance is insufficient: 0.98 mm must fail the 1 mm rule.
+    marginal = wider_handle(.08)
     try:
-        case.HANDLE_OUTER_FORK_TAPER_END = 24.0
-        marginal = case.create_pivoting_handle_bar(material)
+        must_reject(lambda: case.validate_handle_closed_latch_full_rotation(
+            {**parts, 'handle_bar': marginal}), 'required=1.00')
     finally:
-        case.HANDLE_OUTER_FORK_TAPER_END = taper_end
-    axial_play = case.HANDLE_AXIAL_CLEARANCE
+        case.bpy.data.objects.remove(marginal, do_unlink=True)
+
+    # A 120.1 mm handle passes if either axial play is ignored, but fails when
+    # both allowed movements toward the latch are included.
+    marginal = wider_handle(.3)
+    for attribute in ('HANDLE_AXIAL_CLEARANCE', 'LATCH_BASE_EAR_AXIAL_CLEARANCE'):
+        play = getattr(case, attribute)
+        try:
+            setattr(case, attribute, 0.0)
+            case.validate_handle_closed_latch_full_rotation({**parts, 'handle_bar': marginal})
+        finally:
+            setattr(case, attribute, play)
     try:
-        case.HANDLE_AXIAL_CLEARANCE = 0.0
-        case.validate_handle_closed_latch_full_rotation({**parts, 'handle_bar': marginal})
-        case.HANDLE_AXIAL_CLEARANCE = axial_play
         must_reject(lambda: case.validate_handle_closed_latch_full_rotation(
             {**parts, 'handle_bar': marginal}), 'closed latch moving part')
     finally:
-        case.HANDLE_AXIAL_CLEARANCE = axial_play
         case.bpy.data.objects.remove(marginal, do_unlink=True)
 
     # A thin moving part at an arbitrary angle must fail for each latch side
@@ -78,7 +87,7 @@ def main():
     angle = math.radians(-44.37)
     local_y, local_z = -7.0, 9.0 - case.HANDLE_LOCAL_PIVOT_Z
     for latch_x in case.LATCH_X_CENTERS:
-        global_x = math.copysign(61.0, latch_x)
+        global_x = math.copysign(58.9, latch_x)
         global_y = case.HANDLE_PIVOT_Y + math.cos(angle) * local_y - math.sin(angle) * local_z
         global_z = case.HANDLE_PIVOT_Z + math.sin(angle) * local_y + math.cos(angle) * local_z
         for key in ('latch_lever', 'latch_hook'):
@@ -108,8 +117,8 @@ def main():
             finally:
                 case.bpy.data.objects.remove(obstruction, do_unlink=True)
 
-    # A solid enclosing the pivot must fail even if its side faces are far
-    # from the handle: the minimum-radius proof must include its end caps.
+    # An enclosing moving solid cannot pass just because its surface is far
+    # from the handle. Complete axial bounds include the enclosed volume.
     enclosing = case.add_rounded_box('Regression_Enclosing_Latch', (600, 200, 200),
         (0, case.HANDLE_PIVOT_Y - case.LATCH_BASE_PIVOT_Y,
          case.HANDLE_PIVOT_Z - case.LATCH_BASE_PIVOT_Z), bevel=0)
@@ -121,42 +130,13 @@ def main():
     finally:
         case.bpy.data.objects.remove(enclosing, do_unlink=True)
 
-    # Exact tangency has zero intersection volume, but must still fail. A
-    # rotating square reaches sqrt(2) radius and touches the middle of a flat
-    # latch face; testing only polygon vertices would miss this contact.
-    square = case.add_rounded_box('Regression_Rotating_Square', (2, 2, 2),
-                                   (82, 0, case.HANDLE_LOCAL_PIVOT_Z), bevel=0)
-    case.select_only(square)
-    case.bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
-    radians = math.radians(case.LATCH_LEVER_CLOSED_ANGLE)
+    # Check the moving metal linkage as well as the printed latch bodies.
+    length = case.LATCH_LINK_ROD_LENGTH
     try:
-        for gap in (0.0, 0.02):
-            dy = case.HANDLE_PIVOT_Y + math.sqrt(2) + 1 + gap - case.LATCH_BASE_PIVOT_Y
-            dz = case.HANDLE_PIVOT_Z - case.LATCH_BASE_PIVOT_Z
-            face = case.add_rounded_box('Regression_Tangent_Latch_Face', (2, 2, 2),
-                (0, math.cos(radians) * dy + math.sin(radians) * dz,
-                 -math.sin(radians) * dy + math.cos(radians) * dz), bevel=0)
-            face.rotation_euler.x = -radians
-            case.select_only(face)
-            case.bpy.ops.object.transform_apply(location=True, rotation=True, scale=False)
-            fixture = {**parts, 'handle_bar': square, 'latch_lever': face}
-            try:
-                if gap == 0.0:
-                    must_reject(lambda: case.validate_handle_closed_latch_full_rotation(fixture),
-                                'closed latch moving part')
-                else:
-                    case.validate_handle_closed_latch_full_rotation(fixture)
-            finally:
-                case.bpy.data.objects.remove(face, do_unlink=True)
-    finally:
-        case.bpy.data.objects.remove(square, do_unlink=True)
-
-    diameter = case.LATCH_LINK_ROD_DIAMETER
-    try:
-        case.LATCH_LINK_ROD_DIAMETER = 100.0
+        case.LATCH_LINK_ROD_LENGTH += 4.0
         must_reject(lambda: case.validate_handle_closed_latch_full_rotation(parts), 'part=link rod')
     finally:
-        case.LATCH_LINK_ROD_DIAMETER = diameter
+        case.LATCH_LINK_ROD_LENGTH = length
 
     # This constraint expressly excludes protection walls, even a deliberately
     # overlarge one. Independent case-fit checks still validate the usable arc.
@@ -167,8 +147,9 @@ def main():
     finally:
         case.bpy.data.objects.remove(guard, do_unlink=True)
     print('FIELD_CASE_CLOSED_LATCH_FULL_ROTATION_REGRESSION_PASS '
-          'old_fork=reject thin_parts=reject enclosed_solid=reject tangency=reject '
-          'clear_gap=pass axial_play=covered link_rod=reject guards=excluded', flush=True)
+          '25_percent_width=reject thin_parts=reject enclosed_solid=reject '
+          'submillimeter_gap=reject minimum_1mm=pass both_axial_plays=covered '
+          'long_link_rod=reject guards=excluded', flush=True)
 
 
 if __name__ == '__main__':
