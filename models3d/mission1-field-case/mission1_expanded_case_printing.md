@@ -80,7 +80,8 @@ looser bundle larger than Ø154 × 42 mm needs recoiling.
 
 The entire organizer is now **one piece of TPU-85A**, including five integral
 remote slots. Its outer envelope remains **223 × 169 × 46.3 mm**, with the
-original 3 mm floor, rear key notch and stack bearings. The right-hand strip
+3 mm main floor, rear key notch and stack bearings. Local air passages
+under the front/rear edges leave at least 2 mm of floor above their roofs. The right-hand strip
 contains a continuous molded pocket block, bonded to the floor, cord divider
 and outside wall. Only this organizer needs reprinting for the remote-slot
 change. The shell, flat lid, lid pad, mount tray and lower inserts keep their
@@ -137,6 +138,36 @@ Only the ten designated nub contacts may overlap the remote bodies.
 
 ![OEM button air and closed-pad clearance](renderings/mission1_remote_button_clearance.png)
 
+### Air channels for lifting the tray
+
+Four **5 mm-wide × 1 mm-deep outside grooves** run down the organizer: two on
+the front wall and two on the rear wall, at X = ±80 mm. They let air reach the
+space beneath the tray as it is lifted, including while the organizer is still
+resting on the lower mount tray's rim. Their positions avoid the remote
+pockets, grip notches, locating key and established stack-bearing locations.
+
+Each groove feeds two underside passages extending 5 mm inward across that
+rim. Each passage is **2 mm wide × 1 mm high**, with a **45° pitched roof**.
+The pair leaves a 1 mm central bearing rib. At least **2 mm of wall and floor**
+remains around the channels. The storage compartments stay closed at the
+bottom, and the outside tray dimensions remain 223 × 169 × 46.3 mm.
+
+Solid air probes check all eight continuous routes against the organizer,
+case wall and lower mount tray in their seated positions. Separate material
+probes check the remaining wall, floor and central ribs. These prove an open
+geometric route; suction reduction and deformation of printed TPU remain
+physical tests. Cyan arrows in the renderings illustrate the air paths.
+
+![Front air channels](renderings/mission1_air_channels_overview.png)
+
+![Rear air channels](renderings/mission1_air_channels_rear.png)
+
+![Underside air passages](renderings/mission1_air_channels_underside.png)
+
+![Air path through the seated tray stack](renderings/mission1_air_channels_seated_section.png)
+
+![Pitched underside passages](renderings/mission1_air_channels_underside_detail.png)
+
 ## Packing and retained storage
 
 Pack from the bottom upward:
@@ -161,8 +192,9 @@ inward at the front and rear so the cords never run in the 1 mm gap between
 tray and shell. Lift the front and rear together to keep the loaded tray level.
 Tuck the loops entirely below the mount-tray rim, in the front and rear gaps
 around the mount, before installing the organizer. Finger scallops provide
-access after lifting a tray clear of the case. Both accessory trays have flat
-3 mm floors and 3 mm outer walls.
+access after lifting a tray clear of the case. Both accessory trays have
+3 mm main floors and outer walls; the organizer's local air-channel relief
+leaves at least 2 mm of floor and wall around each passage.
 
 | Height above outside case bottom | Nominal height |
 | --- | ---: |
@@ -201,11 +233,12 @@ bottom layers to make its 3 mm floor solid.
 
 Print the entire **upper organizer**
 (`mission1_field_case_accessory_organizer.stl`) floor down in **TPU-85A**, using
-0.20 mm layers, four walls and a solid 3 mm floor. Its dedicated plate is
+0.20 mm layers, four walls and a solid 3 mm main floor. Its dedicated plate is
 labeled `Coil and Five Remote Slots - TPU 85A` and assigned to TPU filament 3.
 Choose an actual TPU-85A profile; the generic project TPU preset does not encode
 Shore hardness. The upward-open slots have no roofs and the small retention
-nubs have rounded edges. No support structures are intended. A diagnostic
+nubs have rounded edges. The underside air passages use 45° roofs.
+No support structures are intended. A diagnostic
 0.20 mm slice checks support-free toolpaths; it is not calibrated printer G-code.
 The organizer is the only replacement part for this revision. There is no
 separate retainer STL or extra retainer plate; the complete project contains
@@ -245,7 +278,7 @@ on the printed material. The optional lid still uses 68D TPU; the separate
 ![Generated print plates](renderings/mission1_field_case_all_print_plates.png)
 
 Generation validates the actual lower camera/fan/cable/hardware loadout, tray
-bearings, cavity containment, accessory dimensions, button clearance, loaded
+bearings, continuous air passages, cavity containment, accessory dimensions, button clearance, loaded
 tray removal, both lid variants' closing paths, latch/handle mechanics, mesh
 integrity and the complete 3MF. Reference envelopes are excluded from exports.
 
@@ -267,6 +300,17 @@ button headroom below the lid pad:
 blender --background --factory-startup --threads 8 --python-exit-code 1 \
   --python models3d/mission1-field-case/check_mission1_remote_slots.py
 ```
+
+The air-channel regression rejects a blocked outside groove, a filled underside
+passage, insufficient floor or wall material, and a missing central bearing rib:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_air_channels.py
+```
+
+Render the channels from five angles using `render_mission1_air_channels.py`
+with `-- --scene /path/to/validated-field-case.blend`.
 
 These are geometry checks against the stated body/button assumptions, not a
 substitute for confirming the physical OEM button positions and printed fit.

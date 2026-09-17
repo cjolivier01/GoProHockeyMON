@@ -342,6 +342,12 @@ ACCESSORY_REMOTE_GRIP_INTERFERENCE = 0.20  # local nubs, not the whole pocket
 ACCESSORY_REMOTE_FACE_CLEARANCE = 3.0
 ACCESSORY_REMOTE_TOP_CLEARANCE = 2.0
 ACCESSORY_OEM_PLAIN_END_BAND = 6.0  # front casing guides at both short ends
+# Outside vents continue across the lower tray's rim through pitched passages.
+ACCESSORY_AIR_CHANNEL_X = (-80.0, 80.0)
+ACCESSORY_AIR_CHANNEL_WIDTH = 5.0
+ACCESSORY_AIR_CHANNEL_DEPTH = 1.0
+ACCESSORY_AIR_CHANNEL_UNDERCUT_LENGTH = 5.0
+ACCESSORY_AIR_CHANNEL_BRANCH_OFFSETS = (-1.5, 1.5)
 CASE_CORNER_RADIUS = 12.0
 WALL_THICKNESS = 4.5
 BASE_FLOOR_THICKNESS = 3.2
@@ -7821,6 +7827,43 @@ def create_accessory_remote_nub(spec, nub):
                            nub["size"], nub["center"], bevel=0.30)
 
 
+def accessory_air_channel_specs():
+    """Two front and two rear channels, clear of grips, pockets and bearings."""
+    bounds = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"]
+    for x in ACCESSORY_AIR_CHANNEL_X:
+        for side in (-1, 1):
+            yield x, side, bounds[2] if side < 0 else bounds[3]
+
+
+def create_accessory_air_passage(name, x, y0, y1, bottom):
+    # Two 2 mm-wide, 1 mm-high passages fit under the 5 mm outside groove.
+    # Their 45-degree roofs leave 2 mm of floor and a 1 mm central bearing rib.
+    loop = [(x - 1, bottom - .2), (x + 1, bottom - .2),
+            (x + 1, bottom), (x, bottom + 1), (x - 1, bottom)]
+    count = len(loop)
+    vertices = [(a, y0, z) for a, z in loop] + [(a, y1, z) for a, z in loop]
+    faces = [list(reversed(range(count))), list(range(count, 2 * count))]
+    faces += [(i, (i + 1) % count, (i + 1) % count + count, i + count)
+              for i in range(count)]
+    return create_mesh_object(name, vertices, faces)
+
+
+def cut_accessory_air_channels(tray):
+    """Vent the space under a seated tray without opening the storage floor."""
+    bottom, top = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"][4:]
+    for x, side, edge in accessory_air_channel_specs():
+        cutter = add_rounded_box('Organizer_Outside_Air_Channel',
+            (ACCESSORY_AIR_CHANNEL_WIDTH, ACCESSORY_AIR_CHANNEL_DEPTH + .2, top - bottom + .6),
+            (x, edge - side * (ACCESSORY_AIR_CHANNEL_DEPTH - .2) / 2, (bottom + top) / 2), bevel=0)
+        difference_from(tray, cutter)
+        ends = sorted((edge + side * .2, edge - side * ACCESSORY_AIR_CHANNEL_UNDERCUT_LENGTH))
+        for offset in ACCESSORY_AIR_CHANNEL_BRANCH_OFFSETS:
+            cutter = create_accessory_air_passage('Organizer_Pitched_Underedge_Air_Passage',
+                x + offset, *ends, bottom)
+            difference_from(tray, cutter)
+    return tray
+
+
 def create_accessory_organizer(material):
     """One TPU-85A tray with five deep molded slots and the original cord bay."""
     tray = create_fan_case_pair_standalone_tray(
@@ -7869,6 +7912,7 @@ def create_accessory_organizer(material):
             (80.25, y, floor + ACCESSORY_REMOTE_SLOT_DEPTH - 0.4),
             0.6, outline_offset=0.10)
         difference_from(tray, legend)
+    cut_accessory_air_channels(tray)
     tray["material_shore"] = "85A"
     assign_material(tray, material)
     return tray
@@ -8038,6 +8082,60 @@ def validate_accessory_remote_slots(parts, refs, volume):
           f"top_clearance={ACCESSORY_REMOTE_TOP_CLEARANCE:.1f} extraction=continuous_vertical", flush=True)
 
 
+def validate_accessory_air_channels(parts, volume):
+    """Check continuous air paths plus the material around each bottom turn."""
+    tray = parts['accessory_organizer']
+    bottom, top = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"][4:]
+    obstacles = [parts[k] for k in ('base', 'fan_case_pair_carrier', 'accessory_organizer')]
+    for x, side, edge in accessory_air_channel_specs():
+        for offset in ACCESSORY_AIR_CHANNEL_BRANCH_OFFSETS:
+            # These three overlapping air volumes form one continuous path:
+            # down the outside, over the lower tray's bearing rim, then below
+            # the upper tray floor inside the lower tray's cavity.
+            probes = [
+                ((.4, .4, top - bottom + 1),
+                 (x + offset, edge - side * .5, (bottom + top) / 2 + .7)),
+                ((.4, 4.3, .3),
+                 (x + offset, edge - side * 2.55, bottom + .3)),
+                ((.4, .4, 1.0),
+                 (x + offset, edge - side * 4.3, bottom)),
+            ]
+            for size, center in probes:
+                probe = add_rounded_box('CHECK_Continuous_Air_Path', size, center, bevel=0)
+                try:
+                    for obstacle in obstacles:
+                        if volume(probe, obstacle) > 1e-5:
+                            raise ValueError('Organizer air path blocked: ' + obstacle.name)
+                finally:
+                    bpy.data.objects.remove(probe, do_unlink=True)
+            floor = add_rounded_box('CHECK_Two_mm_Remaining_Floor',
+                (1.6, 2, 1.9), (x + offset, edge - side * 3, bottom + 2), bevel=0)
+            try:
+                if volume(floor, tray) < 1.6 * 2 * 1.9 * .995:
+                    raise ValueError("Organizer air passage lacks its 2 mm floor")
+            finally:
+                bpy.data.objects.remove(floor, do_unlink=True)
+        wall = add_rounded_box('CHECK_Two_mm_Remaining_Wall',
+            (4, 1.9, 25), (x, edge - side * 2, bottom + 20), bevel=0)
+        try:
+            if volume(wall, tray) < 4 * 1.9 * 25 * .995:
+                raise ValueError("Organizer air channel lacks its 2 mm wall")
+        finally:
+            bpy.data.objects.remove(wall, do_unlink=True)
+        rib = add_rounded_box("CHECK_Air_Passage_Central_Bearing_Rib",
+            (.8, 2, .8), (x, edge - side * 3, bottom + .4), bevel=0)
+        try:
+            if volume(rib, tray) < .8 * 2 * .8 * .995:
+                raise ValueError("Organizer air passage central bearing rib is missing")
+        finally:
+            bpy.data.objects.remove(rib, do_unlink=True)
+    if any(abs(a - b) > 1e-4 for a, b in zip(object_world_dimensions(tray), (223, 169, 46.3))):
+        raise ValueError("Air channels change the organizer outer dimensions")
+    print('FIELD_CASE_AIR_CHANNELS_VALID channels=4 outside=5x1mm branches=2x2x1mm '
+          'roof=45deg wall_min=2mm floor_min=2mm continuous_paths=8', flush=True)
+
+
+
 def validate_accessory_storage(parts, reference_objects):
     """Prove accessory clearances, stack support and loaded removal order."""
     refs = [obj for obj in reference_objects
@@ -8134,6 +8232,7 @@ def validate_accessory_storage(parts, reference_objects):
                 bearing_min = min(bearing_min, solid_fill(parts[key], (2.0, 12.0, 0.4),
                     (x, y, ACCESSORY_ORGANIZER_BOTTOM_Z)))
     validate_accessory_remote_slots(parts, refs, volume)
+    validate_accessory_air_channels(parts, volume)
     # Remove the upper tray, then the mount tray, then the lower front bin.
     # Each loaded tray must clear the fully open lid as well as the shell.
     for lid_key in ("lid", "tpu_snap_lid"):
