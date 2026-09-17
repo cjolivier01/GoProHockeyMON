@@ -2,7 +2,7 @@
 
 The expanded case carries the existing two complete fan-case camera assemblies,
 small fan cables, batteries and battery doors, plus the assembled goalpost mount,
-two remotes, and a large rolled cord. It replaces the compact case and inserts.
+three custom remotes, two OEM backup remotes, and a large rolled cord. It replaces the compact case and inserts.
 The stronger latch, handle hardware, and 3.8 mm hinge-rod fit remain in use.
 
 Both lids carry **Sports AI** in the same embedded Neuropol font style, with
@@ -17,7 +17,7 @@ make -C models3d mission1-field-case
 make -C models3d mission1-field-case-plate-overview
 ```
 
-The project contains **15 unique STLs on 10 plates**, including rigid and 68D TPU
+The project contains **16 unique STLs on 11 plates**, including rigid and 68D TPU
 lid alternatives. Select one lid. The compact dual-fan inserts are a separate
 profile, available with `make -C models3d mission1-field-case-compact`; they are
 not part of this expanded packing arrangement. Their separate exports go into
@@ -70,19 +70,67 @@ unions cannot close the plug channels.
 | --- | --- | --- |
 | Assembled mount | Photo suggests approximately 205 × 140 mm; maximum depth 35 mm | 210 × 146 × 37 mm |
 | Rolled cord | Approximately Ø150 × 40 mm | Ø154 × 42 mm |
-| Each of two remotes | 37.5 × 14.5 × 45.5 mm, plus 1.5 mm side buttons | 42 × 48 × 17 mm, lying flat |
+| Three custom remotes | 37.5 × 45.5 × 14.5 mm body, plus 1.5 mm side buttons | Upright: 14.5 × 45.5 × 39 mm, button edge up |
+| Two OEM GoPro remotes | 66 × 40 × 19 mm | Upright: 19 × 66 × 40 mm, assuming measurements include buttons |
 
 The mount dimensions are estimates from the photographed ruler, not a precision
 scan. It fits assembled as shown within the reserved envelope; tuck the tether
 inside that envelope. The cord allowance accepts modest winding variation; a
 looser bundle larger than Ø154 × 42 mm needs recoiling.
 
-The remote buttons project from a 14.5 × 45.5 mm face, so they increase the
-37.5 mm body axis to 39 mm. The 42 mm pocket envelope adds 3 mm beyond this total.
-Its reference dimensions derive from the body and button parameters. Keep the
-button sides clear; the dividers do not depend on pressing a button for retention.
+The organizer retains its **223 × 169 × 46.3 mm** outer envelope, 3 mm floor,
+outer walls, finger scallops, rear key notch and stack bearings. The two old
+cross-dividers are replaced by low stops for a separate **56 × 139.9 × 17 mm
+TPU retainer**, including its locating nubs. Only the rigid organizer and this
+new soft retainer need printing for this change. The shell, flat lid, lid pad,
+mount tray and lower inserts remain unchanged. The full Ø154 × 42 mm cord bay
+is retained; the former spare cell is used by the additional remotes.
 
-![Organizer and accessory allowances](renderings/mission1_expanded_organizer.png)
+### Remote retention and button clearance
+
+The three custom remotes stand with their 37.5 mm body axis vertical and their
+1.5 mm side-button projection pointing upward. The two OEM controls stand with
+the 40 mm axis vertical and the 66 mm axis along the tray. **All screen/front
+faces point toward +X, the right-hand outside wall, away from the cord bay.**
+Load and remove each control straight up/down. The front faces stay open.
+Recessed `FACE >` and `BUTTON EDGE UP` legends mark the orientation.
+
+Two flexible end jaws grip each body with **0.25 mm nominal interference per
+end**. They contact only central patches on the two short ends, within the
+lower 16 mm of the body: 10.5 mm-wide patches for the custom controls and
+15 mm-wide patches for the OEM controls, inset 1 mm from the back and 3 mm
+from the front. The jaws have 45° entry flares and floor roots. Two plain back
+stops locate the OEM bodies with 0.35 mm clearance. The 1 mm retainer floor is
+fully supported by the original rigid tray floor. Four small soft nubs hold
+the retainer between the low end stops with 0.2 mm interference.
+
+**The OEM button layout has not yet been measured.** This design assumes the
+66 × 40 × 19 mm measurement includes the buttons, that any side buttons can
+face upward, and that the lower end-contact patches and bottom edge are plain
+casing. Verify those areas on the physical remotes before using the retainer;
+if a button lies there, the jaw/relief must be relocated. The renders use
+measured rectangular envelopes, not detailed button CAD. They cannot establish
+that assumption. Printed retention force and fit also need a physical check;
+the squeeze setting is intended for soft TPU, not rigid plastic.
+
+The geometry checks reserve **3 mm of air in front of every complete front
+face**, plus **2 mm above the button edge** and 2 mm around that upper edge in
+plan. They check these spaces against the retainer, tray, shell and every
+other accessory. Solid vertical sweeps check the entire straight extraction
+path. The closed-pad check includes the existing 0.6 mm stack allowance:
+actual overhead clearance is **3.4 mm for custom buttons and 2.4 mm for OEM
+envelopes** after that allowance (4 and 3 mm nominally). A 0.02 mm separation
+at the coincident seat plane avoids Boolean noise without reducing XY button
+clearance. Allowed soft contact is checked separately from button clearance;
+missing jaws and unintended body contact both fail generation.
+
+![Five remotes and the unchanged cord bay](renderings/mission1_remote_tray_loaded.png)
+
+![Removable five-slot retainer](renderings/mission1_remote_retainer.png)
+
+![Straight loading orientation](renderings/mission1_remote_loading.png)
+
+![OEM button air and closed-pad clearance](renderings/mission1_remote_button_clearance.png)
 
 ## Packing and retained storage
 
@@ -94,11 +142,11 @@ Pack from the bottom upward:
    24.7 mm** of usable storage beneath the mount tray.
 3. Fit the rigid mount tray and lay the assembled mount flat inside it. The
    tray rests on the rear cradle ledges and the front utility bin's side walls.
-4. Fit the rigid upper organizer. Put the rolled cord in the large left bay,
-   and place the two remotes flat in the right-hand cells. The remaining
-   **56.5 × 57 mm** cell provides spare storage, with 18 mm divider height and
-   approximately 43 mm overall headroom. Rounded corners slightly reduce its
-   rectangular volume.
+4. Fit the rigid upper organizer and seat the TPU retainer between its low
+   end stops. Put the rolled cord in the large left bay. Load three custom
+   remotes in the short front saddles and two OEM remotes in the longer rear
+   saddles, in the orientation described above. Keep straps tucked clear of
+   every button and within the available tray height.
 5. Fit the 2 mm 85A TPU lid pad and close the lid. Keep the normal gasket.
 
 To unpack, open the lid to 110°, lift out the loaded organizer, then the mount
@@ -120,6 +168,9 @@ access after lifting a tray clear of the case. Both accessory trays have flat
 | Top of conservative mount envelope | 115.97 mm |
 | Upper organizer underside | 118.00 mm |
 | Upper organizer inner floor | 121.00 mm |
+| Remote seat on the 1 mm TPU floor | 122.00 mm |
+| Top of custom button envelope | 161.00 mm |
+| Top of OEM remote envelope | 162.00 mm |
 | Top of conservative cord envelope | 163.00 mm |
 | Upper organizer rim | 164.30 mm |
 | Lid pad underside | 165.00 mm |
@@ -143,6 +194,15 @@ Use rigid PETG or another tough rigid filament for the shell, chosen rigid lid,
 (`mission1_field_case_accessory_organizer.stl`). The 3MF assigns both accessory
 trays to rigid filament 1; their broad floors should be solid. Use 0.20 mm layers,
 at least four walls, and enough top/bottom layers to make the 3 mm floors solid.
+
+Print `mission1_field_case_remote_retainer_tpu.stl` flat, floor down, in **soft
+85A–90A TPU**, using 0.20 mm layers, four walls and a solid 1 mm floor. It needs
+no supports: the jaw entrances and roots use 45° slopes and there are no roofs.
+It has its own labeled TPU plate in the complete project (16 unique STLs,
+11 plates). Filament 3 is a generic TPU assignment; choose the actual soft
+material profile for this plate. Do not use the hard 68D hinge material or
+rigid PETG for these interference jaws. The retainer lifts out for replacement;
+its base is a supported liner, not a handle for lifting the loaded tray.
 
 Use a suitable resilient TPU for the lower insert and front utility bin. The
 replacement flat lid pad uses **85A TPU**; select the actual filament profile for
@@ -190,8 +250,19 @@ blender --background --factory-startup --threads 8 --python-exit-code 1 \
 ```
 
 The accessory regression rejects a mount placed outside its assigned cavity,
-an oversized button envelope, and a blocked cable bay. The closure regression
-rejects the unnotched top tray, overly thick lid pads and a reversed pad notch.
+an oversized button envelope, and a blocked cable bay. The dedicated retainer
+check rejects a missing jaw, a rib in the button air, contact outside the end
+patches, tray growth, a missing spare slot, a shifted control, zero grip
+interference, and insufficient button headroom below the pad:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_remote_retainer.py
+```
+
+These are geometry checks against the stated body/button assumptions, not a
+substitute for confirming the physical OEM button positions and printed fit.
+The closure regression rejects the unnotched top tray, overly thick lid pads and a reversed pad notch.
 Cached-scene runs may use `-- --scene /path/to/validated-field-case.blend`.
 
 The focused lid regression checks both lip thicknesses, latch motion and hinge

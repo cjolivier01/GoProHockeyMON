@@ -36,6 +36,7 @@ PART_OBJECT_NAMES = {
 
 if case.EXPANDED_ACCESSORY_STORAGE:
     PART_OBJECT_NAMES["accessory_organizer"] = "Field_Case_Coil_And_Remote_Organizer"
+    PART_OBJECT_NAMES["remote_retainer"] = "Field_Case_Five_Remote_TPU_Retainer"
 
 
 def arguments():
@@ -74,7 +75,11 @@ def load_or_build_loadout(scene_path):
             names = json.loads(case.bpy.context.scene["cached_field_case_parts"])
         else:
             names = PART_OBJECT_NAMES
-        parts = {key: case.bpy.data.objects[names[key]] for key in PART_OBJECT_NAMES}
+        # Older lower-loadout caches predate the removable remote retainer;
+        # callers that need the upper rack rebuild it from current source.
+        parts = {key: case.bpy.data.objects[names[key]] for key in PART_OBJECT_NAMES
+                 if key != "remote_retainer" or
+                 (key in names and names[key] in case.bpy.data.objects)}
         references = [
             obj for obj in case.bpy.context.scene.objects
             if obj.name.startswith("REFERENCE_ONLY_")
@@ -96,6 +101,7 @@ def load_or_build_loadout(scene_path):
         }
         if case.EXPANDED_ACCESSORY_STORAGE:
             parts["accessory_organizer"] = case.create_accessory_organizer(material)
+            parts["remote_retainer"] = case.create_accessory_remote_retainer(material)
         references = case.create_fan_case_pair_reference_mockups(*([material] * 7))
         if case.EXPANDED_ACCESSORY_STORAGE:
             references.extend(case.create_accessory_reference_mockups(material))

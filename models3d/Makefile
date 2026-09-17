@@ -79,6 +79,7 @@ MISSION1_FIELD_CASE_AUXILIARY_STLS := \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_lower_insert_tpu.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_lid_pad_tpu.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_accessory_organizer.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_remote_retainer_tpu.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_mount_tray.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_fan_case_pair_fan_side_storage_bin_tpu.stl
 MISSION1_FIELD_CASE_3MF := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_ams_project.3mf

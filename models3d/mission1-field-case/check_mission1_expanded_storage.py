@@ -26,6 +26,7 @@ def main():
         ('fan_case_pair_carrier', case.create_fan_case_pair_overhead_carrier),
         ('fan_case_pair_storage_bin', case.create_fan_case_pair_storage_bin),
         ('accessory_organizer', case.create_accessory_organizer),
+        ('remote_retainer', case.create_accessory_remote_retainer),
         ('fan_case_pair_lid_pad', case.create_fan_case_pair_lid_pad),
     ):
         parts[key] = constructor(material)

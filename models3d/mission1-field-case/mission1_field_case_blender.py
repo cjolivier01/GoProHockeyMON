@@ -3,7 +3,7 @@
 The generator creates every printable component without loading an STL or font
 from disk. The default expanded alternate kit holds two complete upright
 fan-case camera assemblies, their batteries/doors/cables/PWM plugs, an assembled
-approximately 205 x 140 x 35 mm mount, two remotes, and a rolled 150 x 40 mm cord.
+approximately 205 x 140 x 35 mm mount, five remotes, and a rolled 150 x 40 mm cord.
 A lower front utility bin, rigid mount tray and rigid upper organizer preserve
 additional storage. The shell is 234 x 180 x 160 mm and all parts fit a 250 mm bed.
 
@@ -308,9 +308,10 @@ AUXILIARY_STL_NAMES = (
     FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME,
     FAN_CASE_PAIR_STORAGE_BIN_STL_NAME,
     "mission1_field_case_accessory_organizer.stl",
+    "mission1_field_case_remote_retainer_tpu.stl",
 )
 if not EXPANDED_ACCESSORY_STORAGE:
-    AUXILIARY_STL_NAMES = AUXILIARY_STL_NAMES[:-1]
+    AUXILIARY_STL_NAMES = AUXILIARY_STL_NAMES[:-2]
 
 
 
@@ -334,6 +335,16 @@ ACCESSORY_REMOTE_BODY = (37.5, 45.5, 14.5)
 ACCESSORY_REMOTE_BUTTON_PROJECTION = 1.5
 ACCESSORY_ORGANIZER_BOTTOM_Z = 118.0
 ACCESSORY_ORGANIZER_STL_NAME = "mission1_field_case_accessory_organizer.stl"
+ACCESSORY_REMOTE_RETAINER_STL_NAME = "mission1_field_case_remote_retainer_tpu.stl"
+ACCESSORY_OEM_REMOTE_BODY = (66.0, 40.0, 19.0)
+# All five stand on their non-button long edge. OEM measurements are treated
+# as the complete envelope including buttons; verify the two plain end patches
+# against the physical remote before printing (see the packing guide).
+ACCESSORY_REMOTE_RETAINER_FLOOR = 1.0
+ACCESSORY_REMOTE_GRIP_INTERFERENCE = 0.25  # each opposing soft end jaw
+ACCESSORY_REMOTE_FACE_CLEARANCE = 3.0
+ACCESSORY_REMOTE_TOP_CLEARANCE = 2.0
+ACCESSORY_REMOTE_RETAINER_BOUNDS = (52.25, 108.25, -75.0, 64.0)
 CASE_CORNER_RADIUS = 12.0
 WALL_THICKNESS = 4.5
 BASE_FLOOR_THICKNESS = 3.2
@@ -7768,18 +7779,29 @@ def create_fan_case_pair_storage_bin(material):
         material, "bin_bounds", "Field_Case_Fan_Case_Pair_Front_Deep_Tray")
 
 
+def accessory_remote_specs():
+    """Installed body axes: thickness X, long axis Y, button edge upward Z."""
+    floor = ACCESSORY_ORGANIZER_BOTTOM_Z + FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+    seat = floor + ACCESSORY_REMOTE_RETAINER_FLOOR
+    custom = (ACCESSORY_REMOTE_BODY[2], ACCESSORY_REMOTE_BODY[1],
+              ACCESSORY_REMOTE_BODY[0] + ACCESSORY_REMOTE_BUTTON_PROJECTION)
+    oem = (ACCESSORY_OEM_REMOTE_BODY[2], ACCESSORY_OEM_REMOTE_BODY[0],
+           ACCESSORY_OEM_REMOTE_BODY[1])
+    return tuple({"id": f"{kind}_{index}", "kind": kind, "size": size,
+                  "center": (x, y, seat + size[2] / 2), "seat": seat}
+                 for kind, size, xs, y in (
+                     ("Custom", custom, (61.75, 79.75, 97.75), -47.0),
+                     ("OEM", oem, (66.0, 93.0), 25.0))
+                 for index, x in enumerate(xs, 1))
+
+
 def accessory_storage_geometry():
-    """Conservative accessory envelopes; photo dimensions are not precision CAD."""
+    """Keep the original mount, cord and organizer envelope unchanged."""
     bounds = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"]
     floor_z = bounds[4] + FAN_CASE_PAIR_STORAGE_BIN_FLOOR
-    remote_size = (ACCESSORY_REMOTE_BODY[0] + ACCESSORY_REMOTE_BUTTON_PROJECTION + 3.0,
-                   ACCESSORY_REMOTE_BODY[1] + 2.5, ACCESSORY_REMOTE_BODY[2] + 2.5)
     return {
         "coil_center": (-29.5, 0.0, floor_z + ACCESSORY_COIL_ENVELOPE[1] / 2.0),
-        "remote_centers": ((80.25, -56.5, floor_z + remote_size[2] / 2.0),
-                           (80.25, -3.5, floor_z + remote_size[2] / 2.0)),
-        "remote_clearance": remote_size,
-        "spare_bounds": (52.0, 108.5, 24.5, 81.5, floor_z, bounds[5]),
+        "remotes": accessory_remote_specs(),
         "mount_center": (0.0, 0.0,
             FAN_CASE_PAIR_OVERHEAD_STORAGE["carrier_bounds"][4]
             + FAN_CASE_PAIR_STORAGE_BIN_FLOOR + ACCESSORY_MOUNT_ENVELOPE[2] / 2.0),
@@ -7787,23 +7809,21 @@ def accessory_storage_geometry():
 
 
 def create_accessory_organizer(material):
-    """Full-depth coil bay, two button-clear remote cells, and a spare bin."""
+    """Original outer tray and cord divider, with a removable soft remote rack."""
     tray = create_fan_case_pair_standalone_tray(
         material, "organizer_bounds", "Field_Case_Coil_And_Remote_Organizer")
     x0, x1, y0, y1, z0, z1 = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"]
     floor = z0 + FAN_CASE_PAIR_STORAGE_BIN_FLOOR
-    # The coil has a broad 154 mm diameter bay. The right strip provides two
-    # 50 mm long remote cells and a separate 56.5 x 57 mm general storage cell.
     divider = add_rounded_box("Organizer_Coil_Remote_Divider",
         (3.0, y1 - y0 - 4.0, z1 - floor + 0.5),
         (50.5, 0.0, (z1 + floor - 0.5) / 2.0), bevel=0.0)
     union_into(tray, divider)
-    for y in (-30.0, 23.0):
-        divider = add_rounded_box("Organizer_Remote_Cell_Divider",
-            (x1 - 51.0, 3.0, 18.5),
-            ((x1 + 51.0) / 2.0, y, floor + 8.75), bevel=0.0)
-        union_into(tray, divider)
-    # Expose each remote edge after lifting the organizer out of the shell.
+    # Low stops locate the removable rack without bridging over any buttons.
+    for y in (-76.25, 65.25):
+        stop = add_rounded_box("Organizer_Remote_Rack_End_Stop",
+            (x1 - 51.0, 2.0, 3.5), ((x1 + 51.0) / 2.0, y, floor + 1.25), bevel=0.0)
+        union_into(tray, stop)
+    # Preserve the previously printed tray's outer finger scallops.
     for y in (-56.5, -3.5):
         scallop = add_rounded_prism("Organizer_Remote_Finger_Access",
             8.0, 22.0, floor + 8.0, z1 + 0.3, 2.0, (x1 - 1.0, y))
@@ -7812,8 +7832,69 @@ def create_accessory_organizer(material):
     return tray
 
 
+def accessory_remote_grip_specs(spec):
+    """Only the lower, central patches on the two short ends may grip."""
+    x, y, _ = spec["center"]
+    width, length, _ = spec["size"]
+    for side in (-1, 1):
+        yield (side, x - width / 2 + 1.0, x + width / 2 - 3.0,
+               y + side * length / 2, spec["seat"])
+
+
+def create_accessory_remote_jaw(spec, grip):
+    side, x0, x1, edge, seat = grip
+    # A soft end wall with a 45-degree entry and a broad floor root.
+    # No roof or enclosed pocket: print the rack flat with no supports.
+    inner = -ACCESSORY_REMOTE_GRIP_INTERFERENCE
+    profile = ((1.0, -0.25), (2.6, -0.25), (2.6, 16.0),
+               (0.65, 16.0), (inner, 16.0 - (0.65 - inner)),
+               (inner, 3.0), (1.0, 1.75))
+    loop = tuple((edge + side * outward, seat + z) for outward, z in profile)
+    if side < 0:
+        loop = tuple(reversed(loop))
+    return extrude_loop_x("Remote_" + spec["id"] + "_Soft_End_Jaw", loop, x0, x1)
+
+
+def create_accessory_remote_retainer(material):
+    """Five open TPU saddles; friction acts on body ends, never button faces."""
+    x0, x1, y0, y1 = ACCESSORY_REMOTE_RETAINER_BOUNDS
+    floor = ACCESSORY_ORGANIZER_BOTTOM_Z + FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+    retainer = add_rounded_prism("Field_Case_Five_Remote_TPU_Retainer",
+        x1 - x0, y1 - y0, floor, floor + ACCESSORY_REMOTE_RETAINER_FLOOR,
+        1.5, ((x0 + x1) / 2, (y0 + y1) / 2))
+    for spec in accessory_remote_specs():
+        for grip in accessory_remote_grip_specs(spec):
+            union_into(retainer, create_accessory_remote_jaw(spec, grip))
+        x, y, _ = spec["center"]
+        width, _, _ = spec["size"]
+        # Plain back stop: front/screen faces remain completely open. Its
+        # 0.35 mm body clearance allows insertion without rubbing the back.
+        if spec["kind"] == "OEM":
+            back = add_rounded_box("Remote_" + spec["id"] + "_Back_Stop",
+                (1.4, 18.0, 12.25),
+                (x - width / 2 - 1.05, y, spec["seat"] + 5.875), bevel=0.0)
+            union_into(retainer, back)
+    # Four short soft nubs hold the rack against its rigid end stops. These
+    # lie outside every remote footprint and stay below the button regions.
+    for y in (y0 - 0.05, y1 + 0.05):
+        for x in (59.0, 100.0):
+            nub = add_rounded_box("Remote_Rack_Soft_Locating_Nub",
+                (4.0, 0.8, ACCESSORY_REMOTE_RETAINER_FLOOR),
+                (x, y, floor + ACCESSORY_REMOTE_RETAINER_FLOOR / 2), bevel=0)
+            union_into(retainer, nub)
+    # Printed instructions keep front faces away from the cord and buttons up.
+    # Engraving leaves a 0.6 mm floor and avoids adding button obstructions.
+    for text, y in (("FACE >", -13.5), ("BUTTON EDGE UP", -18.0)):
+        legend = add_text_mesh("Remote_Rack_Orientation", text, 3.6, 45.0,
+            (80.25, y, floor + ACCESSORY_REMOTE_RETAINER_FLOOR - 0.4),
+            0.6, outline_offset=0.10)
+        difference_from(retainer, legend)
+    assign_material(retainer, material)
+    return retainer
+
+
 def create_accessory_reference_mockups(material):
-    """Envelopes include clearance for the photo mount and loosely wound coil."""
+    """Mount/cord envelopes and measured remote envelopes, including buttons."""
     geometry = accessory_storage_geometry()
     refs = [add_rounded_box("REFERENCE_ONLY_Field_Accessory_Mount_Envelope",
                            ACCESSORY_MOUNT_ENVELOPE, geometry["mount_center"], bevel=0.0)]
@@ -7825,22 +7906,118 @@ def create_accessory_reference_mockups(material):
     select_only(coil)
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     refs.append(coil)
-    for index, center in enumerate(geometry["remote_centers"], 1):
-        obj = add_rounded_box(f"REFERENCE_ONLY_Field_Accessory_Remote_{index}_Envelope",
-                             geometry["remote_clearance"], center, bevel=0.0)
+    for spec in geometry["remotes"]:
+        obj = add_rounded_box("REFERENCE_ONLY_Field_Accessory_Remote_" + spec["id"],
+                             spec["size"], spec["center"], bevel=0.0)
+        obj["remote_slot"] = spec["id"]
         refs.append(obj)
     for obj in refs:
         assign_material(obj, material)
-        obj["dimension_basis"] = "Clearance envelope; mount from photo, coil and remotes from user measurements"
+        obj["dimension_basis"] = "User dimensions; OEM envelope includes buttons; verify plain end contact patches"
     return refs
+
+
+def create_accessory_remote_keepouts(spec, sweep=False):
+    """Full front face and upper button edge; continuous vertical extraction."""
+    x, y, z = spec["center"]
+    width, length, height = spec["size"]
+    top = z + height / 2
+    high = BASE_HEIGHT + 70 if sweep else top
+    # Separate the coincident body-seat plane only; do not shrink XY air.
+    front_bottom = spec["seat"] + 0.02
+    front = add_rounded_box("TEMPORARY_Remote_Front_Button_Clearance",
+        (ACCESSORY_REMOTE_FACE_CLEARANCE, length, high - front_bottom),
+        (x + width / 2 + ACCESSORY_REMOTE_FACE_CLEARANCE / 2, y,
+         (front_bottom + high) / 2), bevel=0)
+    high = BASE_HEIGHT + 70 if sweep else top + ACCESSORY_REMOTE_TOP_CLEARANCE
+    upper = add_rounded_box("TEMPORARY_Remote_Upper_Button_Clearance",
+        (width + 4.0, length + 4.0, high - top),
+        (x, y, (top + high) / 2), bevel=0)
+    return (front, upper)
+
+
+def validate_accessory_remote_retainer(parts, refs, volume):
+    """Verify measured fit, soft contact zones, button air and upward removal."""
+    retainer = parts["remote_retainer"]
+    remotes = [obj for obj in refs if "remote_slot" in obj]
+    specs = {spec["id"]: spec for spec in accessory_remote_specs()}
+    if sorted(obj["remote_slot"] for obj in remotes) != sorted(specs):
+        raise ValueError("Remote retainer requires three custom and two OEM remotes")
+    # Preserve all three dimensions of both the organizer and the shell cavity.
+    if any(abs(a - b) > 1e-4 for a, b in zip(
+            object_world_dimensions(parts["accessory_organizer"]), (223.0, 169.0, 46.3))):
+        raise ValueError("Remote organizer outer dimensions changed")
+    if (CASE_WIDTH - 2 * WALL_THICKNESS, CASE_DEPTH - 2 * WALL_THICKNESS,
+            BASE_HEIGHT - BASE_FLOOR_THICKNESS) != (225.0, 171.0, 156.8):
+        raise ValueError("Remote rack changes the case interior")
+    rack_overlap = volume(retainer, parts["accessory_organizer"])
+    if abs(rack_overlap - 3.2) > 0.02:
+        raise ValueError(f"Remote rack locator fit changed: {rack_overlap:.5f}")
+    for other in refs:
+        if other not in remotes and volume(retainer, other) > 1e-5:
+            raise ValueError("Remote rack obstructs another accessory")
+    contacts = []
+    for obj in remotes:
+        spec = specs[obj["remote_slot"]]
+        low, high = object_world_bounds(obj)
+        if any(abs((low[i] + high[i]) / 2 - spec["center"][i]) > 1e-4
+               for i in range(3)):
+            raise ValueError("Remote shifted away from its assigned saddle")
+        allowed = 0.0
+        for grip in accessory_remote_grip_specs(spec):
+            jaw = create_accessory_remote_jaw(spec, grip)
+            try:
+                contact = volume(jaw, obj)
+                if contact < 5.0:
+                    raise ValueError("Remote has no snug body retention: " + spec["id"])
+                if volume(retainer, jaw) < mesh_object_volume(jaw) * 0.995:
+                    raise ValueError("Remote body retention jaw missing: " + spec["id"])
+                allowed += contact
+                contacts.append(contact)
+            finally:
+                bpy.data.objects.remove(jaw, do_unlink=True)
+        actual = volume(retainer, obj)
+        # Boolean volumes accumulate float32 error at installed Z=122 mm.
+        if abs(actual - allowed) > 0.05:
+            raise ValueError(f"Remote contact outside designated plain body patches: {spec['id']} actual={actual:.6f} allowed={allowed:.6f}")
+        # Use solid sweeps, not a handful of sampled insertion positions.
+        for swept in (False, True):
+            probes = create_accessory_remote_keepouts(spec, sweep=swept)
+            try:
+                obstacles = [parts[k] for k in ("base", "accessory_organizer", "remote_retainer")]
+                obstacles += [other for other in refs if other != obj]
+                for probe in probes:
+                    for obstacle in obstacles:
+                        overlap = volume(probe, obstacle)
+                        if overlap > 1e-5:
+                            raise ValueError(f"Remote button clearance obstructed: {spec['id']}/{obstacle.name}/{probe.name} swept={swept} volume={overlap:.8f}")
+                    if not swept:
+                        pad = parts["fan_case_pair_lid_pad"]
+                        pose = (pad.location.copy(), pad.rotation_euler.copy())
+                        try:
+                            pad.location, pad.rotation_euler = installed_flat_lid_pad_pose(0)
+                            pad.location.z -= FAN_CASE_PAIR_LID_STACK_TOLERANCE
+                            bpy.context.view_layer.update()
+                            if volume(probe, pad) > 1e-5:
+                                raise ValueError("Remote button clearance below lid pad is insufficient")
+                        finally:
+                            pad.location, pad.rotation_euler = pose
+                            bpy.context.view_layer.update()
+            finally:
+                for probe in probes:
+                    bpy.data.objects.remove(probe, do_unlink=True)
+    print("FIELD_CASE_REMOTE_RETAINER_VALID slots=3_custom+2_OEM "
+          f"jaw_contacts={contacts} face_clearance={ACCESSORY_REMOTE_FACE_CLEARANCE:.1f} "
+          f"top_clearance={ACCESSORY_REMOTE_TOP_CLEARANCE:.1f} extraction=continuous_vertical "
+          "OEM_basis=complete_envelope_and_plain_lower_end_patches", flush=True)
 
 
 def validate_accessory_storage(parts, reference_objects):
     """Prove accessory clearances, support, residual storage and removal order."""
     refs = [obj for obj in reference_objects
             if obj.name.startswith("REFERENCE_ONLY_Field_Accessory_")]
-    if len(refs) != 4:
-        raise ValueError("Accessory storage requires mount, coil and two remote envelopes")
+    if len(refs) != 7:
+        raise ValueError("Accessory storage requires mount, coil and five remote envelopes")
     tray_keys = ("fan_case_pair_storage_bin", "fan_case_pair_carrier", "accessory_organizer")
     bpy.context.view_layer.update()
 
@@ -7862,7 +8039,8 @@ def validate_accessory_storage(parts, reference_objects):
         minimum, maximum = object_world_bounds(obj)
         expected_size = (ACCESSORY_MOUNT_ENVELOPE if "Mount" in obj.name else
                          (ACCESSORY_COIL_ENVELOPE[0], ACCESSORY_COIL_ENVELOPE[0], ACCESSORY_COIL_ENVELOPE[1])
-                         if "Coil" in obj.name else accessory_storage_geometry()["remote_clearance"])
+                         if "Coil" in obj.name else next(spec["size"] for spec in accessory_remote_specs()
+                                                       if spec["id"] == obj["remote_slot"]))
         if any(abs(maximum[axis] - minimum[axis] - expected_size[axis]) > 1e-4
                for axis in range(3)):
             raise ValueError(f"Accessory envelope dimension mismatch: {obj.name}")
@@ -7876,10 +8054,9 @@ def validate_accessory_storage(parts, reference_objects):
             cavity = (tray_bounds[0] + 3.0, 49.0, tray_bounds[2] + 3.0,
                       tray_bounds[3] - 3.0, tray_bounds[4] + 3.0, tray_bounds[5])
         else:
-            index = 0 if "Remote_1" in obj.name else 1
-            center = accessory_storage_geometry()["remote_centers"][index]
-            cavity = (52.0, 108.5, center[1] - 25.0, center[1] + 25.0,
-                      ACCESSORY_ORGANIZER_BOTTOM_Z + 3.0, ACCESSORY_ORGANIZER_BOTTOM_Z + 21.0)
+            cavity = (52.0, 108.5, -81.5, 81.5,
+                      ACCESSORY_ORGANIZER_BOTTOM_Z + 3.0,
+                      FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"][5])
         minimum, maximum = object_world_bounds(obj)
         if any(minimum[axis] < cavity[2 * axis] - 2e-5
                or maximum[axis] > cavity[2 * axis + 1] + 2e-5 for axis in range(3)):
@@ -7928,18 +8105,7 @@ def validate_accessory_storage(parts, reference_objects):
             for key in ("fan_case_pair_carrier", "accessory_organizer"):
                 bearing_min = min(bearing_min, solid_fill(parts[key], (2.0, 12.0, 0.4),
                     (x, y, ACCESSORY_ORGANIZER_BOTTOM_Z)))
-    # Verify a useful free storage cell after reserving coil and remotes.
-    spare = accessory_storage_geometry()["spare_bounds"]
-    spare_size = (spare[1] - spare[0] - 0.4, spare[3] - spare[2] - 0.4,
-                  spare[5] - spare[4] - 0.4)
-    probe = add_rounded_prism("TEMPORARY_Organizer_Spare_Storage", spare_size[0], spare_size[1],
-        spare[4] + 0.2, spare[5] - 0.2, 3.5,
-        ((spare[0] + spare[1]) / 2, (spare[2] + spare[3]) / 2))
-    try:
-        if volume(probe, parts["accessory_organizer"]) > 1e-5:
-            raise ValueError("Organizer loses its reserved general-storage cell")
-    finally:
-        bpy.data.objects.remove(probe, do_unlink=True)
+    validate_accessory_remote_retainer(parts, refs, volume)
     # Remove the upper tray, then the mount tray, then the lower front bin.
     # Each loaded tray must clear the fully open lid as well as the shell.
     for lid_key in ("lid", "tpu_snap_lid"):
@@ -7953,6 +8119,8 @@ def validate_accessory_storage(parts, reference_objects):
                 contents = [o for o in refs if ("Mount" in o.name) == (key == "fan_case_pair_carrier")]
                 if key == "fan_case_pair_storage_bin":
                     contents = []
+                if key == "accessory_organizer":
+                    contents.append(parts["remote_retainer"])
                 for moving in (parts[key], *contents):
                     for lift in (0.5, *range(2, math.ceil(BASE_HEIGHT) + 10, 4)):
                         for obstacle in (parts["base"], lid, *(parts[k] for k in lower_keys)):
@@ -7964,8 +8132,8 @@ def validate_accessory_storage(parts, reference_objects):
             bpy.context.view_layer.update()
     print("FIELD_CASE_ACCESSORY_STORAGE_VALID "
           f"mount_envelope={ACCESSORY_MOUNT_ENVELOPE} coil_envelope={ACCESSORY_COIL_ENVELOPE} "
-          f"remotes=2 button_projection={ACCESSORY_REMOTE_BUTTON_PROJECTION:.1f} "
-          f"spare_cell={spare_size} bearing_min={bearing_min:.6f} "
+          f"remotes=5 button_projection={ACCESSORY_REMOTE_BUTTON_PROJECTION:.1f} "
+          f"bearing_min={bearing_min:.6f} "
           "removal=organizer,mount,front_bin", flush=True)
 
 
@@ -13552,6 +13720,8 @@ def validate_alternate_lid_closure(parts, reference_objects=()) -> None:
     if EXPANDED_ACCESSORY_STORAGE:
         tray_keys += ("accessory_organizer",)
     loadout = [parts[key] for key in ("fan_case_pair_insert", *tray_keys)]
+    if EXPANDED_ACCESSORY_STORAGE:
+        loadout.append(parts["remote_retainer"])
     loadout.extend(reference_objects)
     pad = parts["fan_case_pair_lid_pad"]
     pad_pose = installed_flat_lid_pad_pose(0.0)
@@ -15412,6 +15582,12 @@ def field_case_3mf_groups():
             ACCESSORY_ORGANIZER_STL_NAME,
         ),
         (
+            "Alternate Fan-Case - Five Remote Retainer - Soft TPU",
+            "Alternate TPU Five Remote Retainer",
+            "remote_retainer",
+            ACCESSORY_REMOTE_RETAINER_STL_NAME,
+        ),
+        (
             "Alternate Fan-Case - 2 mm Lid Pad",
             "Alternate TPU Fan-Case 2 mm Lid Pad",
             "fan_case_pair_lid_pad",
@@ -15419,7 +15595,7 @@ def field_case_3mf_groups():
         ),
     ):
         if ((EXPANDED_ACCESSORY_STORAGE and key in ("fan_cradle", "equipment_tray", "lid_retainer"))
-                or (not EXPANDED_ACCESSORY_STORAGE and key == "accessory_organizer")):
+                or (not EXPANDED_ACCESSORY_STORAGE and key in ("accessory_organizer", "remote_retainer"))):
             continue
         add_group(
             name,
@@ -15468,7 +15644,7 @@ def field_case_3mf_groups():
         ),
     ):
         if ((EXPANDED_ACCESSORY_STORAGE and key in ("fan_cradle", "equipment_tray", "lid_retainer"))
-                or (not EXPANDED_ACCESSORY_STORAGE and key == "accessory_organizer")):
+                or (not EXPANDED_ACCESSORY_STORAGE and key in ("accessory_organizer", "remote_retainer"))):
             continue
         add_group(
             name,
@@ -16861,6 +17037,7 @@ def configure_assembled_scene_visibility(parts, reference_objects):
             "fan_case_pair_carrier",
             "fan_case_pair_storage_bin",
             "accessory_organizer",
+            "remote_retainer",
         }
         visible_reference_prefixes = common_reference_prefixes + (
             "REFERENCE_ONLY_Fan_Case_Assembly_",
@@ -17069,6 +17246,7 @@ def build_mission1_field_case():
     parts["fan_case_pair_lid_pad"] = create_fan_case_pair_lid_pad(tpu_material)
     if EXPANDED_ACCESSORY_STORAGE:
         parts["accessory_organizer"] = create_accessory_organizer(hardware_material)
+        parts["remote_retainer"] = create_accessory_remote_retainer(tpu_material)
     lid_variant_reference_objects = []
     if GENERATE_ALL_CASE_ASSEMBLIES or ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD:
         tpu_logo.name = TPU_LID_LOGO_REFERENCE_PREFIX
@@ -17227,6 +17405,7 @@ def build_mission1_field_case():
         exports = (
             (BASE_STL_NAME, parts.get("base")),
             (ACCESSORY_ORGANIZER_STL_NAME, parts.get("accessory_organizer")),
+            (ACCESSORY_REMOTE_RETAINER_STL_NAME, parts.get("remote_retainer")),
             (LID_STL_NAME, parts.get("lid")),
             (FAN_CRADLE_STL_NAME, parts.get("fan_cradle")),
             (EQUIPMENT_TRAY_STL_NAME, parts.get("equipment_tray")),
@@ -17261,6 +17440,8 @@ def build_mission1_field_case():
             expected_minimum_z = 0.0
             if obj is parts.get("accessory_organizer"):
                 print_origin = Vector((0.0, 0.0, ACCESSORY_ORGANIZER_BOTTOM_Z))
+            elif obj is parts.get("remote_retainer"):
+                print_origin = Vector((80.25, -5.5, ACCESSORY_ORGANIZER_BOTTOM_Z + FAN_CASE_PAIR_STORAGE_BIN_FLOOR))
             elif obj is parts.get("fan_cradle"):
                 print_origin = Vector((0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
             elif obj is parts.get("equipment_tray"):
