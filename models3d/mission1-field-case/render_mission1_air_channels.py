@@ -1,4 +1,4 @@
-"""Render validated tray air channels from front, rear, underside and sections.
+"""Render both trays' air channels from front, rear, underside and sections.
 
 blender --background --factory-startup --threads 4 --python-exit-code 1 \
   --python models3d/mission1-field-case/render_mission1_air_channels.py \
@@ -165,7 +165,77 @@ def render_previews(parts):
         [('UNDERSIDE TURN / TWO PITCHED PASSAGES', -9.8, 7.3, .43),
          ('Each passage: 2 mm wide x 1 mm high / 45-degree roof', -9.8, 6.3, .30),
          ('1 mm central rib / at least 2 mm of floor above', -9.8, -6.8, .34)])
-    print('FIELD_CASE_AIR_CHANNEL_RENDERINGS_COMPLETE', flush=True)
+    clear()
+
+    bottom, top = case.FAN_CASE_PAIR_OVERHEAD_STORAGE['carrier_bounds'][4:]
+    middle = (bottom + top) / 2
+
+    def mount_air_lines():
+        for x, side, edge in case.accessory_air_channel_specs('carrier_bounds'):
+            air_line(((x, edge - side * .4, top + .7),
+                      (x, edge - side * .4, bottom + .3)), .22)
+            arrow((x, edge - side * .4, top - 3),
+                  (x, edge - side * .4, top - 14), .9)
+
+    show(parts['fan_case_pair_carrier'], orange)
+    mount_air_lines()
+    render('mission1_mount_air_channels_overview.png', (240, -360, middle + 251), (0, 0, middle), 330,
+        [('GOALPOST MOUNT TRAY / FOUR AIR CHANNELS', -153, 114, 5.0),
+         ('Same 5 mm-wide x 1 mm-deep grooves / rigid material retained', -153, 103, 3.7),
+         ('Mount cavity and pull-cord eyes unchanged', -153, -104, 4.0),
+         (f'Tray remains 223 x 169 x {top - bottom:.2f} mm', -153, -114, 3.7)])
+    clear()
+
+    show(parts['fan_case_pair_carrier'], orange)
+    mount_air_lines()
+    render('mission1_mount_air_channels_rear.png', (-240, 360, middle + 251), (0, 0, middle), 330,
+        [('GOALPOST TRAY / REAR AIR CHANNELS', -153, 114, 5.0),
+         ('Two grooves on each long wall / cyan shows airflow', -153, 103, 3.8),
+         ('Existing mount clearance and stack supports retained', -153, -110, 3.8)])
+    clear()
+
+    show(parts['fan_case_pair_carrier'], orange)
+    for x, side, edge in case.accessory_air_channel_specs('carrier_bounds'):
+        for offset in case.ACCESSORY_AIR_CHANNEL_BRANCH_OFFSETS:
+            air_line(((x + offset, edge - side * .5, bottom + .3),
+                      (x + offset, edge - side * 4.3, bottom + .3),
+                      (x + offset, edge - side * 4.3, bottom - 1.2)), .13)
+    render('mission1_mount_air_channels_underside.png', (190, -270, bottom - 288), (0, 0, bottom + 2), 325,
+        [('GOALPOST TRAY / EIGHT UNDERSIDE PASSAGES', -150, 112, 4.9),
+         ('Pitched roofs leave at least 2 mm above each passage', -150, 102, 3.7),
+         ('Air routes checked against the lower insert and utility bin', -150, -110, 3.6)])
+    clear()
+
+    branch_x = 80 + case.ACCESSORY_AIR_CHANNEL_BRANCH_OFFSETS[0]
+    section = ((.5, 23, 18), (branch_x, -80, bottom + 2))
+    for key, color in (('base', gray), ('fan_case_pair_insert', green),
+                       ('fan_case_pair_storage_bin', (.57, .38, .82)),
+                       ('fan_case_pair_carrier', orange)):
+        show(parts[key], color, section)
+    path_x = branch_x + .35
+    air_line(((path_x, -84, bottom + 10), (path_x, -84, bottom + .3),
+              (path_x, -80.2, bottom + .3), (path_x, -80.2, bottom - 2)), .11)
+    arrow((path_x, -84, bottom + 9), (path_x, -84, bottom + 6), .4)
+    arrow((path_x, -83.7, bottom + .3), (path_x, -80.2, bottom + .3), .22)
+    arrow((path_x, -80.2, bottom - .2), (path_x, -80.2, bottom - 1.9), .28)
+    render('mission1_mount_air_channels_seated_section.png', (350, -81, bottom + 2),
+        (branch_x, -81, bottom + 2), 34,
+        [('AIR BELOW THE SEATED GOALPOST TRAY', -15.8, 11.7, .66),
+         ('Actual section / no separation added between trays', -15.8, 10.2, .45),
+         ('Case wall', -15.5, 6.5, .48), ('Mount tray', 2, 6.5, .55),
+         ('Air crosses the utility-bin rim', -3.8, -4, .5),
+         ('Lower utility bin', -15.5, -8.9, .5),
+         ('Cyan = airflow / storage floor stays closed', -15.8, -11.4, .45)])
+    clear()
+
+    section = ((13, 11, 9), (80, -81.5, bottom + 2.5))
+    show(parts['fan_case_pair_carrier'], orange, section)
+    render('mission1_mount_air_channels_underside_detail.png', (97, -113, bottom - 15),
+        (80, -82, bottom + 2), 21,
+        [('GOALPOST TRAY / PITCHED UNDERSIDE PASSAGES', -9.8, 7.3, .40),
+         ('Each passage: 2 mm wide x 1 mm high / 45-degree roof', -9.8, 6.3, .30),
+         ('1 mm central rib / at least 2 mm of floor above', -9.8, -6.8, .34)])
+    print('FIELD_CASE_AIR_CHANNEL_RENDERINGS_COMPLETE trays=2 views=10', flush=True)
 
 
 def main():

@@ -7771,9 +7771,12 @@ def create_fan_case_pair_standalone_tray(material, key, name):
 
 def create_fan_case_pair_overhead_carrier(material):
     """Create the full-footprint mount tray (legacy carrier export key)."""
-    return create_fan_case_pair_standalone_tray(
+    tray = create_fan_case_pair_standalone_tray(
         material, "carrier_bounds", "Field_Case_Fan_Case_Pair_Mount_Tray" if EXPANDED_ACCESSORY_STORAGE
         else "Field_Case_Fan_Case_Pair_Rear_Shallow_Tray")
+    if EXPANDED_ACCESSORY_STORAGE:
+        cut_accessory_air_channels(tray, "carrier_bounds")
+    return tray
 
 
 def create_fan_case_pair_storage_bin(material):
@@ -7827,9 +7830,9 @@ def create_accessory_remote_nub(spec, nub):
                            nub["size"], nub["center"], bevel=0.30)
 
 
-def accessory_air_channel_specs():
+def accessory_air_channel_specs(bounds_key="organizer_bounds"):
     """Two front and two rear channels, clear of grips, pockets and bearings."""
-    bounds = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"]
+    bounds = FAN_CASE_PAIR_OVERHEAD_STORAGE[bounds_key]
     for x in ACCESSORY_AIR_CHANNEL_X:
         for side in (-1, 1):
             yield x, side, bounds[2] if side < 0 else bounds[3]
@@ -7848,10 +7851,10 @@ def create_accessory_air_passage(name, x, y0, y1, bottom):
     return create_mesh_object(name, vertices, faces)
 
 
-def cut_accessory_air_channels(tray):
+def cut_accessory_air_channels(tray, bounds_key="organizer_bounds"):
     """Vent the space under a seated tray without opening the storage floor."""
-    bottom, top = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"][4:]
-    for x, side, edge in accessory_air_channel_specs():
+    bottom, top = FAN_CASE_PAIR_OVERHEAD_STORAGE[bounds_key][4:]
+    for x, side, edge in accessory_air_channel_specs(bounds_key):
         cutter = add_rounded_box('Organizer_Outside_Air_Channel',
             (ACCESSORY_AIR_CHANNEL_WIDTH, ACCESSORY_AIR_CHANNEL_DEPTH + .2, top - bottom + .6),
             (x, edge - side * (ACCESSORY_AIR_CHANNEL_DEPTH - .2) / 2, (bottom + top) / 2), bevel=0)
@@ -8082,12 +8085,14 @@ def validate_accessory_remote_slots(parts, refs, volume):
           f"top_clearance={ACCESSORY_REMOTE_TOP_CLEARANCE:.1f} extraction=continuous_vertical", flush=True)
 
 
-def validate_accessory_air_channels(parts, volume):
+def validate_tray_air_channels(parts, volume, part_key, bounds_key, obstacle_keys):
     """Check continuous air paths plus the material around each bottom turn."""
-    tray = parts['accessory_organizer']
-    bottom, top = FAN_CASE_PAIR_OVERHEAD_STORAGE["organizer_bounds"][4:]
-    obstacles = [parts[k] for k in ('base', 'fan_case_pair_carrier', 'accessory_organizer')]
-    for x, side, edge in accessory_air_channel_specs():
+    tray = parts[part_key]
+    bounds = FAN_CASE_PAIR_OVERHEAD_STORAGE[bounds_key]
+    bottom, top = bounds[4:]
+    label = "Organizer" if part_key == "accessory_organizer" else "Mount tray"
+    obstacles = [parts[k] for k in obstacle_keys]
+    for x, side, edge in accessory_air_channel_specs(bounds_key):
         for offset in ACCESSORY_AIR_CHANNEL_BRANCH_OFFSETS:
             # These three overlapping air volumes form one continuous path:
             # down the outside, over the lower tray's bearing rim, then below
@@ -8105,34 +8110,45 @@ def validate_accessory_air_channels(parts, volume):
                 try:
                     for obstacle in obstacles:
                         if volume(probe, obstacle) > 1e-5:
-                            raise ValueError('Organizer air path blocked: ' + obstacle.name)
+                            raise ValueError(label + ' air path blocked: ' + obstacle.name)
                 finally:
                     bpy.data.objects.remove(probe, do_unlink=True)
             floor = add_rounded_box('CHECK_Two_mm_Remaining_Floor',
                 (1.6, 2, 1.9), (x + offset, edge - side * 3, bottom + 2), bevel=0)
             try:
                 if volume(floor, tray) < 1.6 * 2 * 1.9 * .995:
-                    raise ValueError("Organizer air passage lacks its 2 mm floor")
+                    raise ValueError(label + " air passage lacks its 2 mm floor")
             finally:
                 bpy.data.objects.remove(floor, do_unlink=True)
         wall = add_rounded_box('CHECK_Two_mm_Remaining_Wall',
             (4, 1.9, 25), (x, edge - side * 2, bottom + 20), bevel=0)
         try:
             if volume(wall, tray) < 4 * 1.9 * 25 * .995:
-                raise ValueError("Organizer air channel lacks its 2 mm wall")
+                raise ValueError(label + " air channel lacks its 2 mm wall")
         finally:
             bpy.data.objects.remove(wall, do_unlink=True)
         rib = add_rounded_box("CHECK_Air_Passage_Central_Bearing_Rib",
             (.8, 2, .8), (x, edge - side * 3, bottom + .4), bevel=0)
         try:
             if volume(rib, tray) < .8 * 2 * .8 * .995:
-                raise ValueError("Organizer air passage central bearing rib is missing")
+                raise ValueError(label + " air passage central bearing rib is missing")
         finally:
             bpy.data.objects.remove(rib, do_unlink=True)
-    if any(abs(a - b) > 1e-4 for a, b in zip(object_world_dimensions(tray), (223, 169, 46.3))):
-        raise ValueError("Air channels change the organizer outer dimensions")
-    print('FIELD_CASE_AIR_CHANNELS_VALID channels=4 outside=5x1mm branches=2x2x1mm '
+    expected = (223, 169, top - bottom)
+    if any(abs(a - b) > 1e-4 for a, b in zip(object_world_dimensions(tray), expected)):
+        raise ValueError("Air channels change the " + label.lower() + " outer dimensions")
+    print(f'FIELD_CASE_AIR_CHANNELS_VALID tray={part_key} channels=4 outside=5x1mm branches=2x2x1mm '
           'roof=45deg wall_min=2mm floor_min=2mm continuous_paths=8', flush=True)
+
+
+def validate_accessory_air_channels(parts, volume):
+    validate_tray_air_channels(parts, volume, 'accessory_organizer', 'organizer_bounds',
+        ('base', 'fan_case_pair_carrier', 'accessory_organizer'))
+
+
+def validate_mount_tray_air_channels(parts, volume):
+    validate_tray_air_channels(parts, volume, 'fan_case_pair_carrier', 'carrier_bounds',
+        ('base', 'fan_case_pair_carrier', 'fan_case_pair_storage_bin', 'fan_case_pair_insert'))
 
 
 
@@ -8233,6 +8249,7 @@ def validate_accessory_storage(parts, reference_objects):
                     (x, y, ACCESSORY_ORGANIZER_BOTTOM_Z)))
     validate_accessory_remote_slots(parts, refs, volume)
     validate_accessory_air_channels(parts, volume)
+    validate_mount_tray_air_channels(parts, volume)
     # Remove the upper tray, then the mount tray, then the lower front bin.
     # Each loaded tray must clear the fully open lid as well as the shell.
     for lid_key in ("lid", "tpu_snap_lid"):

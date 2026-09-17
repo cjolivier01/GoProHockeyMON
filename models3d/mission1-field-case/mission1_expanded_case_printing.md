@@ -83,9 +83,10 @@ remote slots. Its outer envelope remains **223 × 169 × 46.3 mm**, with the
 3 mm main floor, rear key notch and stack bearings. Local air passages
 under the front/rear edges leave at least 2 mm of floor above their roofs. The right-hand strip
 contains a continuous molded pocket block, bonded to the floor, cord divider
-and outside wall. Only this organizer needs reprinting for the remote-slot
-change. The shell, flat lid, lid pad, mount tray and lower inserts keep their
-existing geometry. The full Ø154 × 42 mm cord bay remains available.
+and outside wall. Reprint this organizer for the remote slots and channels,
+and the mount tray for its matching air channels. The shell, flat lid, lid pad
+and lower inserts keep their existing geometry. The full Ø154 × 42 mm cord bay
+remains available.
 
 ### Remote slots and button clearance
 
@@ -140,23 +141,29 @@ Only the ten designated nub contacts may overlap the remote bodies.
 
 ### Air channels for lifting the tray
 
-Four **5 mm-wide × 1 mm-deep outside grooves** run down the organizer: two on
-the front wall and two on the rear wall, at X = ±80 mm. They let air reach the
-space beneath the tray as it is lifted, including while the organizer is still
-resting on the lower mount tray's rim. Their positions avoid the remote
-pockets, grip notches, locating key and established stack-bearing locations.
+Both the **TPU organizer** and the **rigid goalpost mount tray** have four
+**5 mm-wide × 1 mm-deep outside grooves**: two on the front wall and two on the
+rear wall, at X = ±80 mm. They let air reach beneath each tray as it is lifted,
+including while it is fully seated on the supporting parts. Their positions
+avoid the remote pockets, pull-cord eyes, grip notches, locating key and
+established stack-bearing locations.
 
 Each groove feeds two underside passages extending 5 mm inward across that
 rim. Each passage is **2 mm wide × 1 mm high**, with a **45° pitched roof**.
 The pair leaves a 1 mm central bearing rib. At least **2 mm of wall and floor**
 remains around the channels. The storage compartments stay closed at the
-bottom, and the outside tray dimensions remain 223 × 169 × 46.3 mm.
+bottom. The organizer remains **223 × 169 × 46.3 mm**; the goalpost tray remains
+**223 × 169 × 42.03 mm**, with its original **217 × 163 mm** inner footprint and
+the same **210 × 146 × 37 mm** mount clearance envelope. The mount tray remains
+rigid material; the organizer remains TPU-85A.
 
-Solid air probes check all eight continuous routes against the organizer,
-case wall and lower mount tray in their seated positions. Separate material
-probes check the remaining wall, floor and central ribs. These prove an open
-geometric route; suction reduction and deformation of printed TPU remain
-physical tests. Cyan arrows in the renderings illustrate the air paths.
+Solid air probes check **eight continuous routes per tray**, against the case
+and the actual supporting parts: the mount tray beneath the organizer, and
+the lower insert and utility bin beneath the mount tray. Separate material
+probes check the remaining wall, floor and central ribs. Existing stack-bearing
+checks still apply. These prove open geometric routes; suction reduction and
+deformation of printed material remain physical tests. Cyan arrows illustrate
+the air paths.
 
 ![Front air channels](renderings/mission1_air_channels_overview.png)
 
@@ -167,6 +174,16 @@ physical tests. Cyan arrows in the renderings illustrate the air paths.
 ![Air path through the seated tray stack](renderings/mission1_air_channels_seated_section.png)
 
 ![Pitched underside passages](renderings/mission1_air_channels_underside_detail.png)
+
+![Goalpost tray front channels](renderings/mission1_mount_air_channels_overview.png)
+
+![Goalpost tray rear channels](renderings/mission1_mount_air_channels_rear.png)
+
+![Goalpost tray underside](renderings/mission1_mount_air_channels_underside.png)
+
+![Air below the seated goalpost tray](renderings/mission1_mount_air_channels_seated_section.png)
+
+![Goalpost tray pitched passages](renderings/mission1_mount_air_channels_underside_detail.png)
 
 ## Packing and retained storage
 
@@ -193,7 +210,7 @@ tray and shell. Lift the front and rear together to keep the loaded tray level.
 Tuck the loops entirely below the mount-tray rim, in the front and rear gaps
 around the mount, before installing the organizer. Finger scallops provide
 access after lifting a tray clear of the case. Both accessory trays have
-3 mm main floors and outer walls; the organizer's local air-channel relief
+3 mm main floors and outer walls; each tray's local air-channel relief
 leaves at least 2 mm of floor and wall around each passage.
 
 | Height above outside case bottom | Nominal height |
@@ -229,7 +246,8 @@ any particular printer's dimensional error.
 Use rigid PETG or another tough rigid filament for the shell, chosen rigid lid
 and **mount tray** (`mission1_field_case_mount_tray.stl`). The mount tray stays
 on rigid filament 1. Use 0.20 mm layers, at least four walls, and enough
-bottom layers to make its 3 mm floor solid.
+bottom layers to make its 3 mm main floor solid. Its air passages have 45°
+roofs and leave at least 2 mm of floor above them.
 
 Print the entire **upper organizer**
 (`mission1_field_case_accessory_organizer.stl`) floor down in **TPU-85A**, using
@@ -240,7 +258,7 @@ Shore hardness. The upward-open slots have no roofs and the small retention
 nubs have rounded edges. The underside air passages use 45° roofs.
 No support structures are intended. A diagnostic
 0.20 mm slice checks support-free toolpaths; it is not calibrated printer G-code.
-The organizer is the only replacement part for this revision. There is no
+Reprint both the organizer and the mount tray for this revision. There is no
 separate retainer STL or extra retainer plate; the complete project contains
 15 unique STLs on 10 plates.
 
@@ -302,14 +320,18 @@ blender --background --factory-startup --threads 8 --python-exit-code 1 \
 ```
 
 The air-channel regression rejects a blocked outside groove, a filled underside
-passage, insufficient floor or wall material, and a missing central bearing rib:
+passage, insufficient floor or wall material, and a missing central bearing rib
+on either tray. It also rejects a utility-bin obstruction beneath the mount
+tray. Supply a validated scene to reuse the unchanged lower insert; the case
+and both vented trays are rebuilt from current source:
 
 ```sh
 blender --background --factory-startup --threads 8 --python-exit-code 1 \
-  --python models3d/mission1-field-case/check_mission1_air_channels.py
+  --python models3d/mission1-field-case/check_mission1_air_channels.py \
+  -- --scene /path/to/validated-field-case.blend
 ```
 
-Render the channels from five angles using `render_mission1_air_channels.py`
+Render each tray's channels from five angles using `render_mission1_air_channels.py`
 with `-- --scene /path/to/validated-field-case.blend`.
 
 These are geometry checks against the stated body/button assumptions, not a
