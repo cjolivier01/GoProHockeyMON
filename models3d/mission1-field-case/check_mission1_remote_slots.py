@@ -1,9 +1,9 @@
-"""Reject missing grip, misplaced remotes, button contact and tray resizing.
+"""Reject missing slot walls, tipping, lost squeeze, button contact and tray resizing.
 
 blender --background --factory-startup --threads 8 --python-exit-code 1 \
-  --python models3d/mission1-field-case/check_mission1_remote_retainer.py
+  --python models3d/mission1-field-case/check_mission1_remote_slots.py
 
-The four affected assembly parts are built fresh; no lower camera cache needed.
+The three affected assembly parts are built fresh; no lower camera cache needed.
 """
 from pathlib import Path
 import sys
@@ -27,18 +27,17 @@ def overlap(a, b):
 def main():
     case.clear_scene()
     case.set_units()
-    material = case.make_material('Retainer_Check', (.4, .4, .4))
+    material = case.make_material('Integral_Slots_Check', (.4, .4, .4))
     parts = {key: constructor(material) for key, constructor in (
         ('base', case.create_base),
         ('accessory_organizer', case.create_accessory_organizer),
-        ('remote_retainer', case.create_accessory_remote_retainer),
         ('fan_case_pair_lid_pad', case.create_fan_case_pair_lid_pad))}
     refs = case.create_accessory_reference_mockups(material)
     for key, obj in parts.items():
         case.validate_built_part(key, obj)
 
     def check(changed=None, references=None):
-        case.validate_accessory_remote_retainer(
+        case.validate_accessory_remote_slots(
             {**parts, **(changed or {})}, refs if references is None else references, overlap)
 
     def mutate(key, name, size, center, operation, message):
@@ -53,15 +52,33 @@ def main():
             case.bpy.data.objects.remove(obj, do_unlink=True)
 
     check()
-    # Delete a real jaw while leaving the floor and all five remote envelopes.
-    mutate('remote_retainer', 'REGRESSION_Missing_End_Jaw', (12, 5, 17),
-           (60.75, -70.5, 131.5), 'DIFFERENCE', 'retention jaw missing')
-    # A connected rib in the front air does not intersect the remote body.
-    mutate('remote_retainer', 'REGRESSION_Front_Button_Rib', (1, 8, 12.4),
-           (104, 25, 128), 'UNION', 'button clearance obstructed')
-    # Contact at the middle of the back is outside the allowed end patches.
-    mutate('remote_retainer', 'REGRESSION_Unauthorized_Body_Contact', (2, 8, 12.4),
-           (84, 25, 128), 'UNION', 'outside designated plain body patches')
+    # Remove one actual nub while preserving the surrounding deep slot walls.
+    mutate('accessory_organizer', 'REGRESSION_Missing_Nub', (8.2, 1.2, 3.2),
+           (60.75, -70.05, 139), 'DIFFERENCE', 'retention nub missing')
+    # Four-corner probes must reject absent or shallow side walls.
+    mutate('accessory_organizer', 'REGRESSION_Missing_Side_Wall', (1.5, 3, 22),
+           (69.85, -66.75, 134), 'DIFFERENCE', 'full-depth side support')
+    mutate('accessory_organizer', 'REGRESSION_Shallow_Side_Wall', (1.5, 3, 6),
+           (69.85, -66.75, 143), 'DIFFERENCE', 'full-depth side support')
+    # Cut the lengthwise guide strips, keeping all squeeze nubs and the four
+    # side-support probes intact: the separate tipping check must catch it.
+    tipping = parts['accessory_organizer'].copy()
+    tipping.data = parts['accessory_organizer'].data.copy()
+    case.bpy.context.collection.objects.link(tipping)
+    for x in (55.5, 68.0):
+        tool = case.add_rounded_box('REGRESSION_End_Guide_Tunnel',
+            (0.9, 52, 24), (x, -47, 134.5), bevel=0)
+        case.difference_from(tipping, tool)
+    try:
+        must_reject(lambda: check({'accessory_organizer': tipping}),
+                    'tip without engaging slot walls')
+    finally:
+        case.bpy.data.objects.remove(tipping, do_unlink=True)
+    # A rib in the recessed button air clears the reference remote body.
+    mutate('accessory_organizer', 'REGRESSION_Front_Button_Rib', (1, 8, 20),
+           (104, 25, 131), 'UNION', 'button clearance obstructed')
+    mutate('accessory_organizer', 'REGRESSION_Unauthorized_Body_Contact', (2, 8, 20),
+           (84, 25, 131), 'UNION', 'outside designated plain body patches')
     mutate('accessory_organizer', 'REGRESSION_Tray_Growth', (2, 8, 12),
            (111.5, 0, 128), 'UNION', 'outer dimensions changed')
 
@@ -71,16 +88,16 @@ def main():
     original = custom.location.copy()
     try:
         custom.location.x += .5
-        must_reject(check, 'shifted away from its assigned saddle')
+        must_reject(check, 'differs from its measured slot envelope')
     finally:
         custom.location = original
 
     original = case.ACCESSORY_REMOTE_GRIP_INTERFERENCE
     try:
         case.ACCESSORY_REMOTE_GRIP_INTERFERENCE = 0.0
-        loose = case.create_accessory_remote_retainer(material)
+        loose = case.create_accessory_organizer(material)
         try:
-            must_reject(lambda: check({'remote_retainer': loose}), 'no snug body retention')
+            must_reject(lambda: check({'accessory_organizer': loose}), 'lacks local squeeze retention')
         finally:
             case.bpy.data.objects.remove(loose, do_unlink=True)
     finally:
@@ -88,7 +105,7 @@ def main():
 
     original = case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
     try:
-        case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = 3.0
+        case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = 5.0
         thick = case.create_fan_case_pair_lid_pad(material)
     finally:
         case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = original
@@ -98,7 +115,7 @@ def main():
     finally:
         case.bpy.data.objects.remove(thick, do_unlink=True)
     check()
-    print('FIELD_CASE_REMOTE_RETAINER_REGRESSION_PASS mutations=8', flush=True)
+    print('FIELD_CASE_REMOTE_SLOTS_REGRESSION_PASS mutations=11', flush=True)
 
 
 if __name__ == '__main__':

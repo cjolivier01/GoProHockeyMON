@@ -36,7 +36,6 @@ def main():
         parts['fan_case_pair_lid_pad'] = case.create_fan_case_pair_lid_pad(material)
         if case.EXPANDED_ACCESSORY_STORAGE:
             parts['accessory_organizer'] = case.create_accessory_organizer(material)
-            parts['remote_retainer'] = case.create_accessory_remote_retainer(material)
             references = [obj for obj in references if not obj.name.startswith('REFERENCE_ONLY_Field_Accessory_')]
             references.extend(case.create_accessory_reference_mockups(material))
     for key, profile in (('lid', case.HINGE_PROFILE_RIGID_SLIDE),

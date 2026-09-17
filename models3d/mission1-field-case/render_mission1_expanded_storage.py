@@ -96,8 +96,8 @@ def main():
         obj.data.materials.clear()
         obj.data.materials.append(material)
         if source == parts['accessory_organizer'] and section is None:
-            top = case.make_material('Preview_Organizer_Rim_And_Dividers', (.42, .15, .035))
-            top.diffuse_color = (.42, .15, .035, 1)
+            top = case.make_material('Preview_Organizer_Rim_And_Dividers', (.12, .40, .26))
+            top.diffuse_color = (.12, .40, .26, 1)
             obj.data.materials.append(top)
             for polygon in obj.data.polygons:
                 if polygon.normal.z > .9 and polygon.center.z > 122:
@@ -130,8 +130,7 @@ def main():
         for obj in labels:
             bpy.data.objects.remove(obj, do_unlink=True)
 
-    copy(parts['accessory_organizer'], tray)
-    copy(parts['remote_retainer'], pad)
+    copy(parts['accessory_organizer'], pad)
     for obj in accessory_refs:
         if 'Mount' not in obj.name:
             copy(obj, coil if 'Coil' in obj.name else remote)
@@ -140,13 +139,13 @@ def main():
             ('154 mm coil allowance', -98, 5, 3.9),
             ('42 mm deep', -77, -3, 3.6),
             ('2 OEM', 58, 71, 3.1), ('3 custom', 55, -78, 3.1),
-            ('Open TPU saddles / original 223 x 169 x 46.3 mm tray', -124, -98, 3.5)])
+            ('Integral TPU-85A slots / original 223 x 169 x 46.3 mm tray', -124, -98, 3.5)])
     clear()
 
     section = ((-52, 0, 90), (3, 250, 182))
     for key, color in (('base', shell), ('fan_case_pair_insert', tray),
                        ('fan_case_pair_storage_bin', tray), ('fan_case_pair_carrier', tray),
-                       ('accessory_organizer', tray), ('remote_retainer', pad)):
+                       ('accessory_organizer', pad)):
         copy(parts[key], color, section=section)
     copy(parts['lid'], shell, section=section, pose=case.installed_lid_pose(0))
     copy(parts['fan_case_pair_lid_pad'], pad, section=section, pose=case.installed_flat_lid_pad_pose(0))
@@ -174,8 +173,7 @@ def main():
         if obj not in accessory_refs:
             copy(obj, (.40, .52, .62, 1))
     copy(parts['fan_case_pair_carrier'], tray, (0, 0, 45))
-    copy(parts['accessory_organizer'], tray, (0, 0, 125))
-    copy(parts['remote_retainer'], pad, (0, 0, 125))
+    copy(parts['accessory_organizer'], pad, (0, 0, 125))
     for obj in accessory_refs:
         copy(obj, mount if 'Mount' in obj.name else coil if 'Coil' in obj.name else remote,
              (0, 0, 45 if 'Mount' in obj.name else 125))
