@@ -38,7 +38,8 @@ def check(path):
         delta = values.get('E', extrusion if absolute_e else 0) - (extrusion if absolute_e else 0)
         if 'E' in values:
             extrusion = values['E'] if absolute_e else extrusion + values['E']
-        if delta <= 0 or not ('X' in values or 'Y' in values):
+        arc_move = command.startswith(('G2 ', 'G3 ')) and ('I' in values or 'J' in values)
+        if delta <= 0 or not ('X' in values or 'Y' in values or arc_move):
             continue
         if not role.startswith('Support'):
             if role != 'Custom':
@@ -52,6 +53,8 @@ def check(path):
             end = math.atan2(position['Y'] - cy, position['X'] - cx)
             direction = -1 if command.startswith('G2 ') else 1
             sweep = ((end - start) * direction) % math.tau
+            if math.isclose(start, end, abs_tol=1e-10):
+                sweep = math.tau  # A closed G2/G3 move is a full circle.
             radius = math.hypot(previous['X'] - cx, previous['Y'] - cy)
             for angle in (0, math.pi / 2, math.pi, 3 * math.pi / 2):
                 if ((angle - start) * direction) % math.tau <= sweep + 1e-6:
