@@ -8,7 +8,14 @@ The stronger latch, handle hardware, and 3.8 mm hinge-rod fit remain in use.
 Both lids carry **Sports AI** in the same embedded Neuropol font style, with
 the orange inlay and hockey artwork.
 
-![Sports AI lid artwork](renderings/mission1_sports_ai_lid.png)
+The raised lid puts its crown **24 mm above the previous roof**, with the
+latches and hinges below the sloped shoulders. It reuses the current wide-hardware
+base, all lower inserts and trays, gasket and hinge rod. Only the selected lid
+and topmost TPU pad need replacement for this dome revision.
+
+![Domed lid and retained hardware](renderings/mission1_domed_lid_front.png)
+
+![Previous and raised lid comparison](renderings/mission1_domed_lid_comparison.png)
 
 The default generator produces this kit:
 
@@ -30,8 +37,9 @@ not part of this expanded packing arrangement. Their separate exports go into
 | Main shell width × depth × bottom-to-rim height | 234 × 180 × 160 mm |
 | Internal width × depth × floor-to-rim height | 225 × 171 × 156.8 mm |
 | Base printed envelope, including projections | approximately 241.6 × 209.8 × 165 mm |
-| Lid printed envelope | approximately 244 × 207.8 × 16 mm |
-| Closed case height, bottom to lid top | 171 mm |
+| Lid printed envelope | approximately 244 × 207.8 × 40 mm |
+| Closed case height, bottom to lid top | 195 mm |
+| Flat crown width × depth | 206 × 152 mm |
 
 Every printed part fits within 250 × 250 mm and below 250 mm tall. The 3MF turns
 both shell and compound lid plates by 90° in plan so they also clear the
@@ -99,7 +107,8 @@ Pack from the bottom upward:
    **56.5 × 57 mm** cell provides spare storage, with 18 mm divider height and
    approximately 43 mm overall headroom. Rounded corners slightly reduce its
    rectangular volume.
-5. Fit the 2 mm 85A TPU lid pad and close the lid. Keep the normal gasket.
+5. Fit the replacement 85A TPU lid pad, with its open spacer against the raised
+   roof and its 2 mm contact plate facing the loadout. Keep the normal gasket.
 
 To unpack, open the lid to 110°, lift out the loaded organizer, then the mount
 tray, then the front bin. The trays are stacked; the front bin cannot lift out
@@ -123,7 +132,8 @@ access after lifting a tray clear of the case. Both accessory trays have flat
 | Top of conservative cord envelope | 163.00 mm |
 | Upper organizer rim | 164.30 mm |
 | Lid pad underside | 165.00 mm |
-| Rigid lid inner face | 167.00 mm |
+| Top of pad contact plate | 167.00 mm |
+| Raised roof inner face / spacer contact | 191.00 mm |
 
 The lid pad has **0.7 mm clearance above the organizer rim**, with no intended
 tray compression. The previous key clearance correction is carried into the
@@ -132,7 +142,18 @@ Y = +82 mm; the notch is 14 × 8 mm and 3 mm deep. A 0.6 mm stack allowance stil
 leaves 0.1 mm pad clearance. This is a geometric allowance, not a prediction of
 any particular printer's dimensional error.
 
-![Closed stack section](renderings/mission1_expanded_closed_stack.png)
+The contact plate remains **224 × 170 × 2 mm**. Its integral **188 × 134 mm**
+open spacer has 3 mm walls and two crossing ribs, raising the overall pad height
+to **26 mm**. The ribs reduce the soft pad's unsupported spans to roughly
+89.5 × 62.5 mm and print upright without support.
+Secure the spacer rim and ribs to the inside of the crown with a TPU-compatible adhesive;
+keep adhesive clear of the gasket and locating key. The keyed notch faces the
+rear lid boss. The packing surface stays at **165 mm**, including its original
+0.7 mm nominal tray clearance. This spacer preserves storage height rather than
+adding another compartment.
+
+The older exploded view below documents the retained lower stack; its flat lid
+and flat pad have been superseded by this dome and spacer pad.
 
 ![Exploded packing arrangement](renderings/mission1_expanded_loadout_exploded.png)
 
@@ -145,15 +166,16 @@ trays to rigid filament 1; their broad floors should be solid. Use 0.20 mm layer
 at least four walls, and enough top/bottom layers to make the 3 mm floors solid.
 
 Use a suitable resilient TPU for the lower insert and front utility bin. The
-replacement flat lid pad uses **85A TPU**; select the actual filament profile for
-its separate plate. The optional snap lid and calibration coupon require the
+replacement lid pad and integral spacer use **85A TPU**; select the actual filament
+profile for its separate plate. The optional snap lid and calibration coupon require the
 specified 68D material, not the 85A pad filament. The project uses a generic TPU
 preset, which does not itself encode Shore hardness.
 
-The enlarged base, lid, gasket, pad and insert set require new prints. The
-latest exterior hardware revision also requires the matching wide latch parts
-and handle described below. The 151 mm-long 3.8 mm hinge rod and hinge coupon
-retain their prior dimensions.
+Moving from the compact case requires the expanded base and insert set. Moving
+from the current expanded wide-hardware case to this domed revision requires
+only the chosen lid and spacer pad. The exterior hardware revision requires the
+matching wide latch parts and handle described below. The 151 mm-long 3.8 mm hinge
+rod and hinge coupon retain their prior dimensions.
 The hinge openings remain 4.325 mm in the base, 4.55 mm at the lid receiver and
 4.4 mm at the rigid slot. The optional snap throat is now 3.5 mm, giving 0.3 mm diametral interference
 with the 3.8 mm rod (previously 0.2 mm). Its straight section is 1.55 mm long,
@@ -168,11 +190,54 @@ rail position, case dimensions and storage clearances are unchanged by the lip
 refinement. Use the matching wide base, lid and latch set for the hardware revision.
 The hinge change tightens nominal snap interference; retention force depends
 on the printed material. The optional lid still uses 68D TPU; the separate
-2 mm lid pad remains 85A TPU.
+2 mm pad contact plate and its open spacer remain 85A TPU.
 
 ![Lid lip thickness comparison](renderings/mission1_lid_lip_thickness.png)
 
 ![TPU hinge snap comparison](renderings/mission1_tpu_hinge_snap_comparison.png)
+
+## Raised lid print orientation and supports
+
+Print the lid **crown down**, with the orange inlay flush on the bed. Its hollow
+roof remains open during printing. The shoulders grow 14 mm per side across
+24 mm of height; their slopes, including the rounded corners, remain within
+45 degrees from vertical. The roof is 4 mm thick. The pad prints contact face
+down with the open spacer pointing up and needs no supports.
+
+The projecting latch guards, bearing ledges and hinge details need local
+supports. The 3MF enables automatic tree supports, build-plate-only, with a
+45-degree threshold **on the two lid objects only**. Automatic support-foot
+expansion is disabled, and the lid plates have a 1.5 mm placement offset to keep
+the supports within the 250 mm bed. Preserve that placement and the supplied
+90-degree bed rotation. Check the sliced support footprint and brim against
+the printer's excluded corner before printing. Use the intended rigid or 68D TPU
+profile for the chosen lid; TPU support removal and hinge fit require a trial
+print with the actual material.
+
+The geometric check limits downward overhang projection to **1,500 mm²**,
+confined to the front/rear hardware strips. Current maxima are **1,338.51 mm²**
+(about 4.3% of the crown footprint). This is an area bound, not a prediction of
+support volume or print time.
+
+Bambu Studio 02.05.01.52 slices both lids at 0.20 mm with a 0.4 mm nozzle and
+four walls using resolved P1S/PETG/TPU presets, textured PEI, no model brim and
+no prime tower. The sliced supports use **19.57 cm³ rigid / 20.74 cm³ TPU**,
+about **10%** of deposited material. The full support extrusion footprints,
+including arc extrema and line widths, fit the 250 mm bed and clear its excluded
+corner. `check_mission1_support_gcode.py` checks those bounds and rejects support
+volume above 30 cm³. Recheck after changing support or adhesion settings:
+
+```sh
+python3 models3d/mission1-field-case/check_mission1_support_gcode.py \
+  /path/to/plate_2.gcode /path/to/plate_3.gcode
+```
+
+These are geometry/footprint slicing checks, not tested printer-ready G-code.
+Physical print-fit and the actual filament profiles remain to be calibrated.
+
+![Hinge line below the crown](renderings/mission1_domed_lid_rear.png)
+
+![Lid and pad print orientation](renderings/mission1_domed_lid_printing.png)
 
 ## Wider latches and handle
 
@@ -248,4 +313,16 @@ closure, then rejects a lip cut back to 2.4 mm and a TPU opening widened to
 ```sh
 blender --background --factory-startup --threads 8 --python-exit-code 1 \
   --python models3d/mission1-field-case/check_mission1_lid_lip_hinge.py
+```
+
+The domed-lid regression checks the unchanged base, original packing plane,
+spacer bearing and both lid meshes. It rejects broad unsupported shelves,
+excessive local support area, shortened or incomplete spacers, and a lowered
+packing face:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_domed_lid.py
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/render_mission1_domed_lid.py
 ```

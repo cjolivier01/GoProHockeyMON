@@ -73,9 +73,24 @@ def main():
             case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = thickness
         try:
             must_reject(lambda: case.validate_alternate_lid_closure(
-                {**parts, 'fan_case_pair_lid_pad': invalid_pad}, references), 'pad presses')
+                {**parts, 'fan_case_pair_lid_pad': invalid_pad}, references),
+                'pad does not fit its lid' if case.LID_DOME_RISE else 'pad presses')
         finally:
             case.bpy.data.objects.remove(invalid_pad, do_unlink=True)
+
+    if case.LID_DOME_RISE:
+        # A thicker contact plate can preserve roof fit yet consume the stack
+        # allowance. Grow only its packing face down by 0.2 mm.
+        low_pad = case.create_fan_case_pair_lid_pad(material)
+        for vertex in low_pad.data.vertices:
+            if abs(vertex.co.z) < 1e-5:
+                vertex.co.z -= .2
+        low_pad.data.update()
+        try:
+            must_reject(lambda: case.validate_alternate_lid_closure(
+                {**parts, 'fan_case_pair_lid_pad': low_pad}, references), 'pad presses')
+        finally:
+            case.bpy.data.objects.remove(low_pad, do_unlink=True)
 
     wrong_pad = case.create_fan_case_pair_lid_pad(material)
     for vertex in wrong_pad.data.vertices:

@@ -34,12 +34,13 @@ COMPACT_FIXED_PART_BASELINES = {
 # Expanded hardware revision: broaden the exterior latch mounts and handle
 # lugs while preserving the authorized shell interior and storage dimensions.
 # The full-thickness 119.8 mm handle places its fixed lugs at +/-52.8 mm.
+# Only the expanded lid baseline changes for the raised hollow roof.
 EXPANDED_FIXED_PART_BASELINES = {
     "base": (3719, 2546,
              "ff1cd59f17132bfc88df871d4f31b4c84c95a5338b71de6aa7de5e967c88f7a7"),
     "lid": (
-        4037, 2727,
-        "b15ced883ae860bf18037d1abf43bf5ab54c7749cd4a3b9f5c6c2cd7119f8f80",
+        4676, 3358,
+        "d12dd37f5399bc4ed21117e1e465149c1cc0c2137f1c649258fa9675668c952d",
     ),
 }
 FIXED_PART_BASELINES = (EXPANDED_FIXED_PART_BASELINES if case.EXPANDED_ACCESSORY_STORAGE
