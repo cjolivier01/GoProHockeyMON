@@ -59,19 +59,25 @@ def main():
         return obj
 
     for key in ('lid', 'tpu_snap_lid'):
-        for center_y, size, expected in (
-            (0, (40, 40, 2), 'support away from its local hardware'),
-            (90, (220, 20, 2), 'local support area budget'),
-        ):
-            invalid = copy_part(key)
-            block = case.add_rounded_box('REGRESSION_Broad_Unsupported_Shelf', size,
-                (case.LID_DISPLAY_OFFSET_X, center_y, case.LID_DOME_RISE - 7), bevel=0)
-            case.union_into(invalid, block)
-            try:
-                must_reject(lambda: case.validate_built_domed_lid(
-                    {**parts, key: invalid}), expected)
-            finally:
-                case.bpy.data.objects.remove(invalid, do_unlink=True)
+        invalid = copy_part(key)
+        for vertex in invalid.data.vertices:
+            if vertex.co.z < 0:
+                vertex.co.z = 0
+        invalid.data.update()
+        try:
+            must_reject(lambda: case.validate_built_domed_lid(
+                {**parts, key: invalid}), 'flat or incorrectly curved crown')
+        finally:
+            case.bpy.data.objects.remove(invalid, do_unlink=True)
+        invalid = copy_part(key)
+        block = case.add_rounded_box('REGRESSION_Unsupported_Wide_Fin', (2,180,30),
+            (case.LID_DISPLAY_OFFSET_X+130,0,15), bevel=0)
+        case.union_into(invalid, block)
+        try:
+            must_reject(lambda: case.validate_built_domed_lid(
+                {**parts, key: invalid}), 'tilted support area budget')
+        finally:
+            case.bpy.data.objects.remove(invalid, do_unlink=True)
 
     pad_key = 'fan_case_pair_lid_pad'
     for low_face, expected in ((True, 'original packing height'),
@@ -95,7 +101,7 @@ def main():
     case.difference_from(invalid, cutter)
     try:
         must_reject(lambda: case.validate_built_domed_lid(
-            {**parts, pad_key: invalid}), 'complete spacer rim')
+            {**parts, pad_key: invalid}), 'does not follow the curved roof')
     finally:
         case.bpy.data.objects.remove(invalid, do_unlink=True)
     invalid = copy_part(pad_key)
@@ -104,7 +110,7 @@ def main():
     case.difference_from(invalid, cutter)
     try:
         must_reject(lambda: case.validate_built_domed_lid(
-            {**parts, pad_key: invalid}), 'roof support rib')
+            {**parts, pad_key: invalid}), 'does not reach the roof clearance')
     finally:
         case.bpy.data.objects.remove(invalid, do_unlink=True)
 
@@ -129,6 +135,21 @@ def main():
                             if name == 'Metadata/model_settings.config' else payload)
                 must_reject(lambda: case.validate_3mf_project(invalid_project),
                             'incorrect local lid support settings')
+        # An angled compound must retain its curved material interfaces.
+        # Translate one complete component without damaging its topology.
+        object_path = '3D/Objects/object_2.model'
+        for part_index, expected in ((1, 'inlay island lacks shell bonding'),
+                                     (2, 'gasket has an incorrect Z alignment')):
+            model = ET.fromstring(members[object_path])
+            meshes = model.findall(f'./{case.three_mf_tag("resources")}/{case.three_mf_tag("object")}')
+            for vertex in meshes[part_index].iter(case.three_mf_tag('vertex')):
+                vertex.set('z', str(float(vertex.get('z')) + .5))
+            with tempfile.TemporaryDirectory() as temporary:
+                invalid_project = Path(temporary) / 'misregistered-lid.3mf'
+                with zipfile.ZipFile(invalid_project, 'w') as archive:
+                    for name, payload in members.items():
+                        archive.writestr(name, ET.tostring(model) if name == object_path else payload)
+                must_reject(lambda: case.validate_3mf_project(invalid_project), expected)
     print('FIELD_CASE_DOMED_LID_REGRESSION_PASS', flush=True)
 
 

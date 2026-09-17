@@ -1,10 +1,11 @@
 """Render the raised lid, unchanged hardware datums, and printable roof/pad."""
 from pathlib import Path
+import math
 import subprocess
 import sys
 
 import bpy
-from mathutils import Vector
+from mathutils import Vector, Euler
 
 DIRECTORY = Path(__file__).resolve().parent
 sys.path.insert(0, str(DIRECTORY))
@@ -110,22 +111,39 @@ def main():
         obj.location.x -= 148
         obj.hide_render = True
 
-    # Print views use the exact production orientation, revealing the open
-    # cavity and separate spacer pad without a broad unsupported bridge.
-    lid.location = (0, 0, case.LID_DOME_RISE)
-    lid.rotation_euler = (0, 0, 0)
+    # Print views use the actual mesh contact and production bed rotation.
+    rotation = (0, math.radians(case.LID_DOME_PRINT_ANGLE), 0)
+    transform = Euler(rotation).to_matrix()
+    points = [transform @ v.co for v in lid.data.vertices]
+    minimum = Vector(tuple(min(p[a] for p in points) for a in range(3)))
+    maximum = Vector(tuple(max(p[a] for p in points) for a in range(3)))
+    lid.location = (-135-(minimum.x+maximum.x)/2, -(minimum.y+maximum.y)/2, -minimum.z)
+    lid.rotation_euler = rotation
     logo.location = lid.location.copy()
-    logo.rotation_euler = (0, 0, 0)
-    pad.location = (case.LID_DISPLAY_OFFSET_X + 275, 0, 0)
+    logo.rotation_euler = rotation
+    pad.location = (120, 0, 0)
     pad.rotation_euler = (0, 0, 0)
     for obj in (lid, logo, pad):
         obj.hide_render = False
-    render('mission1_domed_lid_printing.png', (case.LID_DISPLAY_OFFSET_X + 137, -700, 550),
-           (case.LID_DISPLAY_OFFSET_X + 137, 0, 15), 590,
-           [('LID / CROWN ON THE BED', -272, 172, 7),
-            ('PAD / OPEN SPACER UP', 6, 172, 7),
-            ('Roof slopes <=45 deg / local supports only under hardware', -272, -168, 6),
-            ('Spacer preserves the original 165 mm packing face', -272, -181, 6)])
+    render('mission1_domed_lid_printing.png', (330,-700,500), (0,0,90), 590,
+           [('LID / 60 DEGREE TILT', -272,172,7),
+            ('PAD / CURVED SPACER UP', 6,172,7),
+            ('Snug supports required on lid; pad prints without supports', -272,-168,5.5),
+            ('Spacer preserves the original 165 mm packing face', -272,-181,5.5)])
+    for obj in (lid,logo,pad):
+        obj.hide_render = True
+    tray = case.create_fan_case_pair_overhead_carrier(shell)
+    tray.location.z = -case.FAN_CASE_PAIR_OVERHEAD_STORAGE['carrier_bounds'][4]
+    tray.color = shell.diffuse_color
+    render('mission1_goalpost_shaped_tray.png', (270,-380,420), (0,0,15), 365,
+           [('GOALPOST MOUNT / LOOSE SHAPED POCKET',-166,111,4.8),
+            ('10 mm contour / finger access / unchanged tray stack',-166,-111,4.1)])
+    shape = case.extrude_planar_region('Nominal_Photo_Mount_Silhouette',
+        case.goalpost_mount_profile(), 3.1, 4.1)
+    shape.color = orange.diffuse_color
+    render('mission1_goalpost_loading_direction.png', (0,-180,600), (0,0,15), 335,
+           [('FACE-UP LOADING DIRECTION',-145,99,5),
+            ('Approximate photo outline / 2.5-3 mm loose clearance',-145,-99,3.9)])
     print('FIELD_CASE_DOMED_LID_RENDERINGS_PASS', flush=True)
 
 

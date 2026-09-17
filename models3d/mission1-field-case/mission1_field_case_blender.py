@@ -3,7 +3,8 @@
 The generator creates every printable component without loading an STL or font
 from disk. The default expanded alternate kit holds two complete upright
 fan-case camera assemblies, their batteries/doors/cables/PWM plugs, an assembled
-approximately 205 x 140 x 35 mm mount, two remotes, and a rolled 150 x 40 mm cord.
+approximately 205 x 140 mm mount (35 mm assumed thickness), two remotes, and
+a rolled 150 x 40 mm cord.
 A lower front utility bin, rigid mount tray and rigid upper organizer preserve
 additional storage. The shell is 234 x 180 x 160 mm and all parts fit a 250 mm bed.
 
@@ -329,6 +330,10 @@ CASE_DEPTH = 180.0 if EXPANDED_ACCESSORY_STORAGE else 158.0
 FAN_CASE_STORAGE_LAYOUT_DEPTH = 158.0
 ACCESSORY_CASE_BASE_HEIGHT = 160.0
 ACCESSORY_MOUNT_ENVELOPE = (210.0, 146.0, 37.0)
+GOALPOST_MOUNT_NOMINAL_XY = (205.0, 140.0)
+GOALPOST_MOUNT_CLEARANCE_XY = (2.5, 3.0)
+GOALPOST_LOCATOR_HEIGHT = 10.0
+GOALPOST_LOCATOR_WALL = 3.0
 ACCESSORY_COIL_ENVELOPE = (154.0, 42.0)
 ACCESSORY_REMOTE_BODY = (37.5, 45.5, 14.5)
 ACCESSORY_REMOTE_BUTTON_PROJECTION = 1.5
@@ -361,15 +366,15 @@ LEGACY_EQUIPMENT_TRAY_INSTALLED_Z = BASE_FLOOR_THICKNESS
 LID_PLATE_THICKNESS = 4.0
 LID_WALL_HEIGHT = 11.0
 # Keep the existing rim, hinge, latch and packing datums. The raised roof is
-# built above them (negative local Z), then shifted onto the bed for printing.
+# built above them (negative local Z), then tilted onto its true mesh contact
+# for printing. Canonical model poses retain the previous display offset.
 LID_DOME_RISE = 24.0 if EXPANDED_ACCESSORY_STORAGE else 0.0
-LID_DOME_INSET = 14.0 if EXPANDED_ACCESSORY_STORAGE else 0.0
-LID_DOME_CROWN_SIZE = (CASE_WIDTH - 2 * LID_DOME_INSET,
-                       CASE_DEPTH - 2 * LID_DOME_INSET)
 LID_DOME_PAD_FRAME_SIZE = (188.0, 134.0)
 LID_DOME_PAD_FRAME_WALL = 3.0
+LID_DOME_PAD_ROOF_CLEARANCE = 0.10
+LID_DOME_PRINT_ANGLE = 60.0
 LID_DOME_SUPPORT_SETTINGS = {
-    "enable_support": "1", "support_type": "tree(auto)",
+    "enable_support": "1", "support_type": "normal(auto)", "support_style": "snug",
     "support_on_build_plate_only": "1", "support_threshold_angle": "45",
     "raft_first_layer_expansion": "0",
 }
@@ -7788,9 +7793,85 @@ def create_fan_case_pair_standalone_tray(material, key, name):
 
 def create_fan_case_pair_overhead_carrier(material):
     """Create the full-footprint mount tray (legacy carrier export key)."""
-    return create_fan_case_pair_standalone_tray(
+    tray = create_fan_case_pair_standalone_tray(
         material, "carrier_bounds", "Field_Case_Fan_Case_Pair_Mount_Tray" if EXPANDED_ACCESSORY_STORAGE
         else "Field_Case_Fan_Case_Pair_Rear_Shallow_Tray")
+    if EXPANDED_ACCESSORY_STORAGE:
+        from shapely.geometry import box
+        floor = FAN_CASE_PAIR_OVERHEAD_STORAGE['carrier_bounds'][4] + FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+        pocket = goalpost_mount_profile(clearance=True).buffer(.05, quad_segs=12)
+        # A low contour, attached to the existing floor, locates the asymmetric
+        # bracket without gripping its knobs. All recesses open vertically.
+        wall = pocket.buffer(GOALPOST_LOCATOR_WALL, quad_segs=12).difference(pocket)
+        locator = extrude_planar_region('Goalpost_Mount_Loose_Contour', wall,
+                                       floor - .2, floor + GOALPOST_LOCATOR_HEIGHT)
+        # Two low sections expose the arms to fingertips. Keep the central
+        # camera-mount lobe intact so the loading direction remains obvious.
+        for x in (-57.0, 57.0):
+            scallop = extrude_planar_region('Goalpost_Arm_Finger_Access',
+                box(x-12, -5, x+12, 50), floor+3, floor+GOALPOST_LOCATOR_HEIGHT+.2)
+            difference_from(locator, scallop)
+        union_into(tray, locator)
+        assign_material(tray, material)
+    return tray
+
+
+def goalpost_mount_profile(clearance=False):
+    """Loose planar mold from the ruler photograph, not a precision 3D scan.
+
+    The traced silhouette is normalized to the estimated 205 x 140 mm size.
+    Small holes, serrations and the flexible tether are deliberately omitted.
+    The 35 mm physical thickness remains an assumption; the tray reserves 37.
+    """
+    from shapely.geometry import Polygon
+    from shapely import affinity
+    # Digitized outline in the photograph's coordinate frame: the open U is
+    # to the right and the asymmetric camera attachment projects to the left.
+    outline = (
+        (710,245),(730,215),(798,212),(823,244),(826,279),(810,307),
+        (801,429),(835,447),(839,379),(850,366),(908,364),(916,395),
+        (912,489),(932,496),(932,523),(917,526),(916,644),(897,655),
+        (846,651),(825,593),(800,589),(790,610),(757,611),(720,574),
+        (672,582),(544,580),(532,565),(472,561),(453,591),(425,592),
+        (416,557),(393,557),(385,755),(458,755),(463,944),(396,960),
+        (378,1100),(391,1150),(420,1149),(422,1123),(439,1122),(449,1155),
+        (530,1155),(543,1130),(670,1131),(688,1156),(722,1151),
+        (734,1110),(752,1097),(780,1100),(797,1126),(820,1129),
+        (825,1075),(843,1058),(901,1057),(916,1085),(911,1180),
+        (930,1187),(930,1210),(915,1215),(916,1321),(901,1347),
+        (844,1346),(825,1323),(822,1259),(800,1271),(801,1411),
+        (822,1440),(823,1478),(807,1495),(735,1502),(708,1483),
+        (706,1445),(727,1415),(738,1274),(720,1270),(688,1281),
+        (671,1280),(658,1301),(538,1301),(528,1275),(482,1274),
+        (478,1317),(497,1348),(498,1388),(479,1410),(411,1415),
+        (383,1393),(377,1359),(397,1320),(410,1270),(344,1260),
+        (330,990),(292,984),(286,949),(144,951),(104,950),(68,924),
+        (50,862),(60,800),(83,763),(115,748),(146,753),(180,789),
+        (211,800),(212,675),(189,638),(186,589),(209,569),(275,563),
+        (303,583),(309,632),(289,670),(280,804),(327,807),(345,464),
+        (363,445),(410,445),(404,401),(386,366),(384,324),(407,302),
+        (474,299),(496,321),(500,369),(475,403),(467,447),(530,449),
+        (542,433),(670,434),(682,448),(735,452),(744,308),(717,287),
+    )
+    profile = Polygon([(y, x) for x, y in outline])
+    # Round traced corners without cutting into the source silhouette.
+    profile = profile.buffer(4, quad_segs=8).buffer(-4, quad_segs=8)
+    x0,y0,x1,y1 = profile.bounds
+    profile = affinity.translate(profile, -(x0+x1)/2, -(y0+y1)/2)
+    profile = affinity.scale(profile, GOALPOST_MOUNT_NOMINAL_XY[0]/(x1-x0),
+                             GOALPOST_MOUNT_NOMINAL_XY[1]/(y1-y0), origin=(0,0))
+    if clearance:
+        cx,cy = GOALPOST_MOUNT_CLEARANCE_XY
+        profile = affinity.scale(profile, 1, cx/cy, origin=(0,0))
+        profile = profile.buffer(cx, quad_segs=12)
+        profile = affinity.scale(profile, 1, cy/cx, origin=(0,0))
+        # Polygonal arcs can miss a theoretical cardinal extremum by microns.
+        # Expand to the exact reserved bounding dimensions, never shrink.
+        x0,y0,x1,y1 = profile.bounds
+        profile = affinity.translate(profile, -(x0+x1)/2, -(y0+y1)/2)
+        profile = affinity.scale(profile, ACCESSORY_MOUNT_ENVELOPE[0]/(x1-x0),
+                                 ACCESSORY_MOUNT_ENVELOPE[1]/(y1-y0), origin=(0,0))
+    return profile
 
 
 def create_fan_case_pair_storage_bin(material):
@@ -7846,8 +7927,10 @@ def create_accessory_organizer(material):
 def create_accessory_reference_mockups(material):
     """Envelopes include clearance for the photo mount and loosely wound coil."""
     geometry = accessory_storage_geometry()
-    refs = [add_rounded_box("REFERENCE_ONLY_Field_Accessory_Mount_Envelope",
-                           ACCESSORY_MOUNT_ENVELOPE, geometry["mount_center"], bevel=0.0)]
+    mount_floor = geometry['mount_center'][2] - ACCESSORY_MOUNT_ENVELOPE[2]/2
+    refs = [extrude_planar_region("REFERENCE_ONLY_Field_Accessory_Mount_Envelope",
+        goalpost_mount_profile(clearance=True), mount_floor,
+        mount_floor + ACCESSORY_MOUNT_ENVELOPE[2])]
     bpy.ops.mesh.primitive_cylinder_add(vertices=128,
         radius=ACCESSORY_COIL_ENVELOPE[0] / 2.0,
         depth=ACCESSORY_COIL_ENVELOPE[1], location=geometry["coil_center"])
@@ -8000,6 +8083,53 @@ def validate_accessory_storage(parts, reference_objects):
           "removal=organizer,mount,front_bin", flush=True)
 
 
+def validate_goalpost_mount_pocket(parts):
+    """Check the actual tray's loose fit and keyed loading direction."""
+    if not EXPANDED_ACCESSORY_STORAGE:
+        return
+    from shapely import affinity
+    tray = parts['fan_case_pair_carrier']
+    floor = FAN_CASE_PAIR_OVERHEAD_STORAGE['carrier_bounds'][4] + FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+    profile = goalpost_mount_profile(clearance=True)
+    if not profile.is_valid or profile.geom_type != 'Polygon':
+        raise ValueError('Goalpost pocket must have one continuous valid outline')
+    overlaps = []
+    for flipped in (False, True):
+        for angle in (0,90,180,270):
+            intended = not flipped and angle == 0
+            # Require full clearance in the intended pose; reject wrong poses
+            # using the smaller nominal mount, not its allowance envelope.
+            shape = profile if intended else goalpost_mount_profile()
+            if flipped:
+                shape = affinity.scale(shape, 1, -1, origin=(0,0))
+            shape = affinity.rotate(shape, angle, origin=(0,0))
+            probe = extrude_planar_region('TEMPORARY_Goalpost_Orientation', shape,
+                                         floor+.02, floor+ACCESSORY_MOUNT_ENVELOPE[2])
+            try:
+                overlap = exact_transformed_intersection(tray, probe)[1]
+            finally:
+                bpy.data.objects.remove(probe, do_unlink=True)
+            if intended and overlap > 1e-4:
+                raise ValueError(f'Goalpost clearance outline is obstructed: {overlap:.6f}')
+            if not intended and overlap < 100:
+                raise ValueError(f'Goalpost locator accepts incorrect {angle}-degree orientation flipped={flipped}')
+            overlaps.append(overlap)
+    # The contour must extend ten millimeters from the preserved floor; a
+    # rectangular bay or a cosmetic engraving must not satisfy the fit check.
+    rim = profile.buffer(2).difference(profile.buffer(1))
+    probe = extrude_planar_region('TEMPORARY_Goalpost_Contour_Bearing', rim,
+                                 floor+8, floor+9)
+    try:
+        fill = exact_transformed_intersection(tray, probe)[1]
+    finally:
+        bpy.data.objects.remove(probe, do_unlink=True)
+    if fill < rim.area*.60:
+        raise ValueError('Goalpost tray lacks its raised locating contour')
+    print('FIELD_CASE_GOALPOST_POCKET_VALID '
+          f'clearance_xy={GOALPOST_MOUNT_CLEARANCE_XY} locator_height={GOALPOST_LOCATOR_HEIGHT} '
+          f'orientation_overlaps={overlaps} contour_fill={fill:.2f}', flush=True)
+
+
 def create_fan_case_pair_lid_pad(material):
     """Keep the packing face and support it against the raised roof."""
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
@@ -8043,6 +8173,16 @@ def create_fan_case_pair_lid_pad(material):
                 (0, 0, FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS + LID_DOME_RISE / 2 - .1),
                 bevel=0)
             union_into(pad, rib)
+    if LID_DOME_RISE:
+        refine_curved_mesh(pad, minimum_z=25.99)
+        for vertex in pad.data.vertices:
+            if vertex.co.z > FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS:
+                top = (LID_PLATE_THICKNESS + FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
+                       - dome_roof_z(vertex.co.x, vertex.co.y, inner=True)
+                       - LID_DOME_PAD_ROOF_CLEARANCE)
+                fraction = (vertex.co.z - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS) / LID_DOME_RISE
+                vertex.co.z = FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS + fraction * (top - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS)
+        pad.data.update()
     translate_object(
         pad,
         (LID_DISPLAY_OFFSET_X, FAN_CASE_PAIR_LID_PAD_DISPLAY_Y, 0.0),
@@ -8276,52 +8416,90 @@ def create_equipment_tray(material):
     return tray
 
 
-def dome_shoulder_growth(height):
-    """A 0.7:1 slope, easing to vertical across the last 8 mm.
+def rounded_dome_radius(x, y, width=CASE_WIDTH, depth=CASE_DEPTH, radius=CASE_CORNER_RADIUS):
+    """Minkowski radius of a homothetic rounded rectangle (0 center, 1 rim)."""
+    x, y = abs(x), abs(y)
+    a, b = width / 2 - radius, depth / 2 - radius
+    scale = max(x / (a + radius), y / (b + radius))
+    if x <= a * scale or y <= b * scale:
+        return scale
+    dot = x * a + y * b
+    quadratic = a * a + b * b - radius * radius
+    return (dot - math.sqrt(max(0, dot * dot - quadratic * (x*x + y*y)))) / quadratic
 
-    Even the rounded rectangle's diagonal corner advances less than one
-    layer width per layer height, so the whole shoulder prints below 45°.
-    """
-    height = min(LID_DOME_RISE, max(0.0, height))
-    if height <= 16.0:
-        return 0.7 * height
-    t = height - 16.0
-    return 11.2 + 0.7 * (t - t * t / 16.0)
+
+def dome_roof_z(x, y, inner=False):
+    inset = WALL_THICKNESS if inner else 0.0
+    rise = LID_DOME_RISE - (LID_PLATE_THICKNESS if inner else 0.0)
+    radial = rounded_dome_radius(x, y, CASE_WIDTH - 2*inset,
+                                CASE_DEPTH - 2*inset, CASE_CORNER_RADIUS - inset)
+    if inner:
+        # Match the actual piecewise-linear cavity mesh, including its polygonal
+        # corner arcs. The pad then leaves a controlled thin adhesive clearance.
+        outline = rounded_rectangle_loop(CASE_WIDTH-2*inset, CASE_DEPTH-2*inset,
+                                        CASE_CORNER_RADIUS-inset)
+        radial = max(((q[1]-p[1])*x - (q[0]-p[0])*y) /
+                     ((q[1]-p[1])*p[0] - (q[0]-p[0])*p[1])
+                     for p,q in zip(outline, outline[1:]+outline[:1]))
+        radial = min(1.0, max(0.0, radial))
+        step = min(63, int(math.asin(radial) * 128 / math.pi))
+        a, b = step*math.pi/128, (step+1)*math.pi/128
+        t = (radial-math.sin(a))/(math.sin(b)-math.sin(a))
+        return -rise * ((1-t)*math.cos(a)+t*math.cos(b))
+    return -rise * math.sqrt(max(0.0, 1 - radial*radial))
+
+
+def refine_curved_mesh(obj, maximum_edge=3.0, minimum_z=-math.inf):
+    """Tessellate before deformation so long straight edges also follow the roof."""
+    bm = bmesh.new()
+    try:
+        bm.from_mesh(obj.data)
+        bmesh.ops.triangulate(bm, faces=list(bm.faces))
+        for _ in range(9):
+            edges = [edge for edge in bm.edges if edge.calc_length() > maximum_edge
+                     and all(vertex.co.z >= minimum_z for vertex in edge.verts)]
+            if not edges:
+                break
+            bmesh.ops.subdivide_edges(bm, edges=edges, cuts=1, use_grid_fill=True)
+            bmesh.ops.triangulate(bm, faces=list(bm.faces))
+        bm.to_mesh(obj.data)
+    finally:
+        bm.free()
+    obj.data.update()
 
 
 def create_domed_lid_shell(name, center):
-    """Open hollow roof, printed crown-down; no trapped or bridged cavity."""
-    outer_heights = (0.0, 4.0, 8.0, 12.0, 16.0, 18.0, 20.0, 22.0, 24.0, 28.0)
-    inner_heights = outer_heights[1:]
-    loops = []
-    for heights, inset in ((outer_heights, 0.0), (inner_heights, WALL_THICKNESS)):
-        for height in heights:
-            growth = dome_shoulder_growth(height)
-            outline = rounded_rectangle_loop(
-                LID_DOME_CROWN_SIZE[0] + 2 * (growth - inset),
-                LID_DOME_CROWN_SIZE[1] + 2 * (growth - inset),
-                CASE_CORNER_RADIUS - inset)
-            loops.append([(center[0] + x, center[1] + y, height - LID_DOME_RISE)
-                          for x, y in outline])
-    count = len(loops[0])
-    vertices = [point for loop in loops for point in loop]
-    inner_start = len(outer_heights)
-    faces = [tuple(reversed(range(count))),
-             tuple(range(inner_start * count, (inner_start + 1) * count))]
-    for first, levels, reverse in ((0, len(outer_heights), False),
-                                   (inner_start, len(inner_heights), True)):
-        for level in range(first, first + levels - 1):
+    """Hollow elliptical cap: the complete crown and shoulders are curved."""
+    solids = []
+    for inner in (False, True):
+        vertices, faces = [], []
+        inset = WALL_THICKNESS if inner else 0.0
+        rise = LID_DOME_RISE - (LID_PLATE_THICKNESS if inner else 0.0)
+        outline = rounded_rectangle_loop(CASE_WIDTH - 2*inset,
+                                        CASE_DEPTH - 2*inset, CASE_CORNER_RADIUS - inset)
+        count = len(outline)
+        vertices.append((center[0], center[1], -rise))
+        previous = None
+        for step in range(1, 65):
+            angle = math.pi * step / 128
+            radial, z = math.sin(angle), -rise * math.cos(angle)
+            start = len(vertices)
+            vertices.extend((center[0]+radial*x, center[1]+radial*y, z) for x,y in outline)
             for i in range(count):
-                j = (i + 1) % count
-                face = (level * count + i, level * count + j,
-                        (level + 1) * count + j, (level + 1) * count + i)
-                faces.append(tuple(reversed(face)) if reverse else face)
-    outer_top, inner_top = len(outer_heights) - 1, len(loops) - 1
-    for i in range(count):
-        j = (i + 1) % count
-        faces.append((outer_top * count + i, outer_top * count + j,
-                      inner_top * count + j, inner_top * count + i))
-    return create_mesh_object(name, vertices, faces)
+                j = (i+1) % count
+                faces.append((0, start+j, start+i) if previous is None else
+                             (previous+i, previous+j, start+j, start+i))
+            previous = start
+        start = len(vertices)
+        top = LID_PLATE_THICKNESS + (.2 if inner else 0)
+        vertices.extend((center[0]+x, center[1]+y, top) for x,y in outline)
+        for i in range(count):
+            j = (i+1) % count
+            faces.append((previous+i, previous+j, start+j, start+i))
+        faces.append(tuple(range(start, start+count)))
+        solids.append(create_mesh_object(name + ('_Cavity' if inner else ''), vertices, faces))
+    difference_from(solids[0], solids[1])
+    return solids[0]
 
 
 def create_lid(
@@ -8854,15 +9032,16 @@ def create_lid(
     bpy.ops.object.join()
     logo_orange.name = "Lid_Sports_AI_Hockey_Artwork_Orange_Inlay"
 
-    # Bake the joined islands, duplicate them as one Boolean tool, and extend
-    # only the tool's bottom through the lid's build-facing plane.  The orange
-    # body itself remains at Z=0..0.8 while the matching black pockets occupy
-    # that same depth.  Black and orange therefore share the complete first
-    # layer instead of suspending the full black lid 0.8 mm over isolated text.
+    # Tessellate the expanded inlay before bending it to the crown. Extend
+    # only the pocket cutter's outward surface through the shell. The inlay
+    # retains its 0.8 mm depth on either the curved or compact planar roof.
     select_only(logo_orange)
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    if LID_DOME_RISE:
+        refine_curved_mesh(logo_orange)
     for vertex in logo_orange.data.vertices:
-        vertex.co.z -= LID_DOME_RISE
+        vertex.co.z += (dome_roof_z(vertex.co.x-dx, vertex.co.y)
+                        if LID_DOME_RISE else 0)
     logo_orange.data.update()
     inlay_pocket_cutter = logo_orange.copy()
     inlay_pocket_cutter.data = logo_orange.data.copy()
@@ -8873,7 +9052,9 @@ def create_lid(
         cutter_mesh.from_mesh(inlay_pocket_cutter.data)
         minimum_cutter_z = min(vertex.co.z for vertex in cutter_mesh.verts)
         for vertex in cutter_mesh.verts:
-            if math.isclose(vertex.co.z, minimum_cutter_z, abs_tol=1e-6):
+            surface = (dome_roof_z(vertex.co.x-dx, vertex.co.y)
+                       if LID_DOME_RISE else minimum_cutter_z)
+            if math.isclose(vertex.co.z, surface, abs_tol=1e-5):
                 vertex.co.z -= LID_INLAY_CUTTER_OVERTRAVEL
         cutter_mesh.to_mesh(inlay_pocket_cutter.data)
     finally:
@@ -14214,9 +14395,13 @@ def validate_fan_case_pair_loadout(
         air_depth = (ACCESSORY_MOUNT_ENVELOPE[1] + 0.4
                      if EXPANDED_ACCESSORY_STORAGE and part_key == "fan_case_pair_carrier"
                      else inner[1] - 0.4)
-        air = add_rounded_prism("TEMPORARY_Standalone_Tray_Usable_Air",
-            inner[0] - 0.4, air_depth, z0 + floor + 0.2, z1 + 0.2,
-            3.5, (cx, cy))
+        if EXPANDED_ACCESSORY_STORAGE and part_key == 'fan_case_pair_carrier':
+            air = extrude_planar_region('TEMPORARY_Goalpost_Usable_Air',
+                goalpost_mount_profile(clearance=True), z0+floor+.2, z1+.2)
+        else:
+            air = add_rounded_prism("TEMPORARY_Standalone_Tray_Usable_Air",
+                inner[0] - 0.4, air_depth, z0 + floor + 0.2, z1 + 0.2,
+                3.5, (cx, cy))
         try:
             air_overlap = probe_fill_volume(parts[part_key], air)
         finally:
@@ -14289,6 +14474,7 @@ def validate_fan_case_pair_loadout(
     overhead_unwanted_overlap = max(overhead_unwanted_overlap, tray_pair_overlap)
     if EXPANDED_ACCESSORY_STORAGE:
         validate_accessory_storage(parts, reference_objects)
+    validate_goalpost_mount_pocket(parts)
     validate_alternate_lid_closure(parts, reference_objects)
     for obj in (obj for group in assembly_groups for obj in group):
         _faces, volume = exact_transformed_intersection(
@@ -14762,6 +14948,22 @@ def export_path(name: str) -> Path:
     return directory / name
 
 
+def compound_lid_print_origin(parts):
+    """One bed origin keeps the curved inlay and gasket registered in STLs."""
+    from mathutils import Euler
+    transform = Euler((0, math.radians(LID_DOME_PRINT_ANGLE), 0)).to_matrix()
+    keys = ('lid', 'logo_orange_inlay') + (('gasket',) if PRINT_TPU_GASKET_WITH_LID else ())
+    def coordinates(part_keys):
+        return [tuple(sum(float(transform[a][b])*float(v.co[b]) for b in range(3))
+                      for a in range(3)) for key in part_keys for v in parts[key].data.vertices]
+    points = coordinates(keys)
+    origin = tuple(min(v[axis] for v in points) for axis in range(3))
+    alternate = coordinates(('tpu_snap_lid', *keys[1:]))
+    if any(abs(min(v[axis] for v in alternate)-origin[axis]) > 1e-5 for axis in range(3)):
+        raise ValueError('Both lid alternatives must share the registered STL origin')
+    return origin
+
+
 def export_stl(
     path: Path,
     obj,
@@ -15071,6 +15273,17 @@ def horizontal_payload_area(payload, plane_z) -> float:
 
 
 def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
+    if LID_DOME_RISE:
+        # Curved artwork is registered with the tilted shell, above its bed
+        # contact. It no longer forms a broad flat first layer.
+        minimum = min(vertex[2] for vertex in lid_payload[0])
+        if abs(minimum) > 1e-5:
+            raise ValueError('Tilted lid does not meet the print bed')
+        if any(min(vertex[2] for vertex in payload[0]) < minimum - 1e-5
+               for payload in inlay_payloads):
+            raise ValueError('Curved inlay extends below the tilted lid bed contact')
+        return (0.0, 0.0, 0.0)
+
     """Prove black and orange jointly cover one support-free first layer."""
 
     def polygon_area_xy(points):
@@ -15166,7 +15379,7 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
         )
 
     lid_first_layer_area = horizontal_payload_area(lid_payload, 0.0)
-    outline = rounded_rectangle_loop(*LID_DOME_CROWN_SIZE, CASE_CORNER_RADIUS)
+    outline = rounded_rectangle_loop(CASE_WIDTH, CASE_DEPTH, CASE_CORNER_RADIUS)
     expected_first_layer_area = polygon_area_xy(outline)
     plate_root_y = CASE_DEPTH / 2.0 - LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP
     plate_front_y = CASE_DEPTH / 2.0 + LID_LATCH_PROTECTOR_PLATE_PROJECTION
@@ -15209,6 +15422,29 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
 
 
 def validate_lid_bonding_payloads(lid_payload, inlay_payloads) -> int:
+    if LID_DOME_RISE:
+        from mathutils.bvhtree import BVHTree
+        lid_vertices, lid_triangles = lid_payload
+        tree = BVHTree.FromPolygons(lid_vertices, lid_triangles, all_triangles=True)
+        islands = 0
+        for vertices, triangles in inlay_payloads:
+            for component in triangle_components(triangles):
+                area = bonded = 0.0
+                for index in component:
+                    points = [Vector(vertices[i]) for i in triangles[index]]
+                    cross = (points[1]-points[0]).cross(points[2]-points[0])
+                    face_area = cross.length / 2
+                    area += face_area
+                    if face_area < 1e-10:
+                        continue
+                    hit, normal, _, distance = tree.find_nearest(sum(points, Vector()) / 3, .001)
+                    if hit is not None and normal.dot(cross.normalized()) < -.8:
+                        bonded += face_area
+                if bonded < .45 * area:
+                    raise ValueError(f'Curved inlay island lacks shell bonding: {bonded:.4f}/{area:.4f}')
+                islands += 1
+        return islands
+
     lid_vertices, lid_triangles = lid_payload
     inlay_tops = [
         max(vertex[2] for vertex in vertices) for vertices, _triangles in inlay_payloads
@@ -15394,8 +15630,8 @@ def add_model_settings_object(config, group) -> None:
     add_config_metadata(object_node, "name", group["name"])
     add_config_metadata(object_node, "extruder", str(group["extruders"][0]))
     if LID_DOME_RISE and any(key in group["keys"] for key in ("lid", "tpu_snap_lid")):
-        # Only the narrow projecting latch/hinge features need support. The
-        # broad crown is on the bed and the shoulder stays within 45 degrees.
+        # Tilt the fully curved crown 60 degrees; snug support follows the
+        # downward roof and hardware without filling the entire lid cavity.
         for key, value in LID_DOME_SUPPORT_SETTINGS.items():
             add_config_metadata(object_node, key, value)
     ET.SubElement(
@@ -15571,7 +15807,7 @@ def field_case_3mf_groups():
         rigid_lid_extruders,
         new_plate("02 - Rigid AMS Lid (Choose This or Plate 03)"),
         role="rigid_lid",
-        print_rotations={key: (0.0, 0.0, math.pi / 2.0) for key in rigid_lid_keys} if EXPANDED_ACCESSORY_STORAGE else {},
+        print_rotations={key: (0.0, math.radians(LID_DOME_PRINT_ANGLE), 0.0) for key in rigid_lid_keys} if LID_DOME_RISE else {},
     )
     add_group(
         "Optional 68D TPU Snap Lid - Shell, Orange Inlay, and TPU Gasket"
@@ -15582,7 +15818,7 @@ def field_case_3mf_groups():
         tpu_lid_extruders,
         new_plate("03 - Optional 68D TPU Lid (Choose This or Plate 02)"),
         role="tpu_lid",
-        print_rotations={key: (0.0, 0.0, math.pi / 2.0) for key in tpu_lid_keys} if EXPANDED_ACCESSORY_STORAGE else {},
+        print_rotations={key: (0.0, math.radians(LID_DOME_PRINT_ANGLE), 0.0) for key in tpu_lid_keys} if LID_DOME_RISE else {},
     )
     if not PRINT_TPU_GASKET_WITH_LID:
         add_group(
@@ -15760,11 +15996,13 @@ def export_3mf_project(path: Path, parts) -> Path:
             export_objects.append(export_object)
             temporary_objects.append(export_object)
         bpy.context.view_layer.update()
-        group_minimums = [object_world_bounds(obj)[0] for obj in export_objects]
-        origin = Vector(tuple(
-            min(minimum[axis] for minimum in group_minimums)
-            for axis in range(3)
-        ))
+        # A rotated bounding-box corner need not be on the curved mesh. Use
+        # actual vertices so angled lids meet the bed, retaining float64 math
+        # used by the mesh serializer and the registered standalone STLs.
+        points = [tuple(sum(float(obj.matrix_world[a][b])*float(v.co[b]) for b in range(3))
+                        + float(obj.matrix_world[a][3]) for a in range(3))
+                  for obj in export_objects for v in obj.data.vertices]
+        origin = tuple(min(v[axis] for v in points) for axis in range(3))
         group["mesh_ids"] = []
         group["face_counts"] = []
         group["part_names"] = []
@@ -16241,13 +16479,19 @@ def validate_3mf_project(path: Path) -> None:
         ):
             expected_parts[mesh_id] = (source_file, str(extruder))
             if key == "gasket":
-                gasket_mesh_ids.append(mesh_id)
+                gasket_mesh_ids.append((mesh_id, mesh_ids[0]))
 
     expected_source_files = set(PRINTABLE_STL_NAMES + AUXILIARY_STL_NAMES)
     if {value[0] for value in expected_parts.values()} != expected_source_files:
         raise ValueError("3MF project does not cover every printable STL")
-    for gasket_mesh_id in gasket_mesh_ids:
+    for gasket_mesh_id, shell_mesh_id in gasket_mesh_ids:
         gasket_vertices, gasket_triangles = mesh_payloads[gasket_mesh_id]
+        if LID_DOME_RISE and PRINT_TPU_GASKET_WITH_LID:
+            from mathutils import Euler
+            inverse = Euler((0, math.radians(LID_DOME_PRINT_ANGLE), 0)).to_matrix().transposed()
+            shell_floor = min((inverse @ Vector(v)).z for v in mesh_payloads[shell_mesh_id][0])
+            gasket_vertices = [tuple((inverse @ Vector(v)) - Vector((0,0,shell_floor)))
+                               for v in gasket_vertices]
         expected_gasket_z0 = (
             GASKET_INSTALLED_Z + LID_DOME_RISE if PRINT_TPU_GASKET_WITH_LID else 0.0
         )
@@ -16256,13 +16500,13 @@ def validate_3mf_project(path: Path) -> None:
         if not math.isclose(
             gasket_minimum_z,
             expected_gasket_z0,
-            abs_tol=1e-6,
+            abs_tol=1e-4,
         ) or not math.isclose(
             gasket_maximum_z,
             expected_gasket_z0 + GASKET_HEIGHT,
-            abs_tol=1e-6,
+            abs_tol=1e-4,
         ):
-            raise ValueError("3MF hollow TPU gasket has an incorrect Z alignment")
+            raise ValueError(f"3MF hollow TPU gasket has an incorrect Z alignment: {gasket_minimum_z:.6f}-{gasket_maximum_z:.6f}, expected {expected_gasket_z0:.6f}")
         if len(triangle_components(gasket_triangles)) != 2:
             raise ValueError(
                 "3MF hollow TPU gasket must have exterior and air-channel shells"
@@ -16634,84 +16878,82 @@ def validate_built_hollow_gasket(parts) -> None:
 
 
 def validate_built_domed_lid(parts):
-    """Bound support demand and preserve the original usable packing height."""
+    """Check actual curvature, tilted overhangs and the fitted spacer surface."""
     if not LID_DOME_RISE:
         return
-    areas = []
+    from mathutils import Euler
+    from mathutils.bvhtree import BVHTree
+    rotation = Euler((0, math.radians(LID_DOME_PRINT_ANGLE), 0)).to_matrix()
+    trees, areas = {}, []
     for key in ('lid', 'tpu_snap_lid'):
         lid = parts[key]
         lid.data.calc_loop_triangles()
+        triangles = [tuple(t.vertices) for t in lid.data.loop_triangles]
+        tree = BVHTree.FromPolygons([v.co for v in lid.data.vertices], triangles, all_triangles=True)
+        trees[key] = tree
+        for x,y in ([(x,0) for x in (-90,-60,-30,0,30,60,90)] +
+                    [(0,y) for y in (-75,-60,-40,-20,20,40,60,75)]):
+            hit, _, _, _ = tree.ray_cast(Vector((LID_DISPLAY_OFFSET_X+x,y,-40)), Vector((0,0,1)))
+            # A sample inside an engraved glyph meets its pocket floor, 0.8 mm
+            # deeper than the outside surface. Flat crowns still fail clearly.
+            if hit is None or not -.05 <= hit.z-dome_roof_z(x,y) <= LID_INLAY_DEPTH+.10:
+                raise ValueError('Domed roof has a flat or incorrectly curved crown')
         support_area = 0.0
         for triangle in lid.data.loop_triangles:
             points = [lid.data.vertices[i].co for i in triangle.vertices]
-            cross = (points[1] - points[0]).cross(points[2] - points[0])
-            if cross.length < 1e-8 or cross.z / cross.length >= -math.sin(math.radians(45.1)):
-                continue
-            # The crown sits on the bed; the flush inlay supports its pocket.
-            if any(all(abs(p.z - plane) < 1e-5 for p in points)
-                   for plane in (-LID_DOME_RISE, -LID_DOME_RISE + LID_INLAY_DEPTH)):
-                continue
-            area = abs(cross.z) / 2.0
-            center_y = sum(p.y for p in points) / 3.0
-            if area > .01 and abs(center_y) < CASE_DEPTH / 2 - 13:
-                raise ValueError('Domed roof needs support away from its local hardware')
-            support_area += area
-        if support_area > 1500.0:
-            raise ValueError(f'Domed lid exceeds local support area budget: {support_area:.3f}')
+            cross = rotation @ (points[1]-points[0]).cross(points[2]-points[0])
+            if cross.length > 1e-8 and cross.z/cross.length < -math.sin(math.radians(45.1)):
+                support_area += abs(cross.z)/2
+        if support_area > 10000:
+            raise ValueError(f'Rounded lid exceeds tilted support area budget: {support_area:.3f}')
         areas.append(support_area)
     pad = parts['fan_case_pair_lid_pad']
     location, rotation = installed_flat_lid_pad_pose(0)
-    from mathutils import Euler
     matrix = Matrix.LocRotScale(Vector(location), Euler(rotation).to_quaternion(), pad.scale)
     installed_z = [(matrix @ vertex.co).z for vertex in pad.data.vertices]
-    expected_bottom = BASE_HEIGHT + LID_WALL_HEIGHT - LID_PLATE_THICKNESS - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
-    if abs(min(installed_z) - expected_bottom) > 1e-4:
+    expected_bottom = BASE_HEIGHT+LID_WALL_HEIGHT-LID_PLATE_THICKNESS-FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
+    if abs(min(installed_z)-expected_bottom) > 1e-4:
         raise ValueError('Domed lid pad changes the original packing height')
-    expected_top = BASE_HEIGHT + LID_WALL_HEIGHT + LID_DOME_RISE - LID_PLATE_THICKNESS
-    if abs(max(installed_z) - expected_top) > 1e-4:
-        raise ValueError('Domed lid spacer does not reach the roof')
-    # Check actual contact around the complete spacer rim, not just its height.
-    probe = rounded_ring('TEMPORARY_Domed_Pad_Roof_Contact',
-        LID_DOME_PAD_FRAME_SIZE,
-        tuple(size - 2 * LID_DOME_PAD_FRAME_WALL for size in LID_DOME_PAD_FRAME_SIZE),
-        expected_top - .02, expected_top + .02, 10.0, 10.0 - LID_DOME_PAD_FRAME_WALL)
-    try:
-        for key in ('lid', 'tpu_snap_lid'):
-            overlap = exact_transformed_intersection(parts[key], probe,
-                first_location=installed_lid_pose(0)[0],
-                first_rotation=installed_lid_pose(0)[1])[1]
-            if overlap < 30:
-                raise ValueError('Domed lid spacer lacks roof bearing area')
-        overlap = exact_transformed_intersection(pad, probe,
-            first_location=location, first_rotation=rotation)[1]
-        if overlap < 30:
-            raise ValueError('Domed lid pad lacks its complete spacer rim')
-    finally:
-        bpy.data.objects.remove(probe, do_unlink=True)
-    for axis, length in enumerate(LID_DOME_PAD_FRAME_SIZE):
-        size = [LID_DOME_PAD_FRAME_WALL, LID_DOME_PAD_FRAME_WALL, .04]
-        size[axis] = length - 2 * LID_DOME_PAD_FRAME_WALL
-        probe = add_rounded_box('TEMPORARY_Domed_Pad_Rib_Contact', size,
-            (0, 0, expected_top), bevel=0)
-        try:
-            expected_contact = size[0] * size[1] * .02
-            for key in ('lid', 'tpu_snap_lid', 'fan_case_pair_lid_pad'):
-                pose = ((location, rotation) if key == 'fan_case_pair_lid_pad'
-                        else installed_lid_pose(0))
-                overlap = exact_transformed_intersection(parts[key], probe,
-                    first_location=pose[0], first_rotation=pose[1],
-                    second_location=probe.location.copy())[1]
-                if overlap < expected_contact * .95:
-                    raise ValueError('Domed lid pad lacks a roof support rib')
-        finally:
-            bpy.data.objects.remove(probe, do_unlink=True)
+    expected_top = BASE_HEIGHT+LID_WALL_HEIGHT+LID_DOME_RISE-LID_PLATE_THICKNESS-LID_DOME_PAD_ROOF_CLEARANCE
+    if abs(max(installed_z)-expected_top) > 1e-4:
+        raise ValueError('Domed lid spacer does not reach the roof clearance')
+    pad.data.calc_loop_triangles()
+    contact_area, gaps = 0.0, []
+    for triangle in pad.data.loop_triangles:
+        points = [pad.data.vertices[i].co for i in triangle.vertices]
+        cross = (points[1]-points[0]).cross(points[2]-points[0])
+        if min(point.z for point in points) < 3 or cross.z < 1e-8:
+            continue
+        point = sum(points, Vector())/3
+        for tree in trees.values():
+            hit, _, _, _ = tree.ray_cast(Vector((LID_DISPLAY_OFFSET_X+point.x,-point.y,2)), Vector((0,0,-1)))
+            if hit is None:
+                raise ValueError('Domed pad spacer has no roof above it')
+            gap = LID_PLATE_THICKNESS+FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS-point.z-hit.z
+            if not .04 <= gap <= .20:
+                raise ValueError(f'Domed pad spacer does not follow the curved roof: gap={gap:.4f}')
+            gaps.append(gap)
+        contact_area += cross.z/2
+    if contact_area < 2700:
+        raise ValueError('Domed lid pad lacks its complete spacer rim or support ribs')
     print('FIELD_CASE_DOMED_LID_VALID '
-          f'roof_rise={LID_DOME_RISE:.1f} closed_height={BASE_HEIGHT + LID_WALL_HEIGHT + LID_DOME_RISE:.1f} '
-          f'packing_face={min(installed_z):.2f} roof_contact={max(installed_z):.2f} '
-          f'local_overhang_projection={max(areas):.2f}mm2 budget=1500mm2', flush=True)
+          f'roof_rise={LID_DOME_RISE:.1f} closed_height={BASE_HEIGHT+LID_WALL_HEIGHT+LID_DOME_RISE:.1f} '
+          f'packing_face={min(installed_z):.2f} pad_peak={max(installed_z):.2f} '
+          f'roof_gap={min(gaps):.4f}-{max(gaps):.4f} bearing_projection={contact_area:.2f} '
+          f'tilted_overhang_projection={max(areas):.2f}mm2 budget=10000mm2', flush=True)
 
 
 def validate_built_flush_lid_inlay(parts) -> None:
+    if LID_DOME_RISE:
+        logo = parts['logo_orange_inlay']
+        depths = [v.co.z-dome_roof_z(v.co.x-LID_DISPLAY_OFFSET_X,v.co.y) for v in logo.data.vertices]
+        if min(depths) < -2e-5 or max(depths) > LID_INLAY_DEPTH+2e-5:
+            raise ValueError('Curved inlay does not follow the crown')
+        overlap = exact_transformed_intersection(parts['lid'], logo)[1]
+        if overlap > .001:
+            raise ValueError(f'Curved lid and inlay overlap: {overlap:.6f}')
+        print(f'FIELD_CASE_CURVED_INLAY_VALID depth={min(depths):.5f}-{max(depths):.5f} overlap={overlap:.6f}', flush=True)
+        return
     lid_minimum, _lid_maximum = object_world_bounds(parts["lid"])
     inlay_minimum, inlay_maximum = object_world_bounds(parts["logo_orange_inlay"])
     if not math.isclose(lid_minimum.z, 0.0, abs_tol=1e-6):
@@ -16738,6 +16980,21 @@ def validate_built_flush_lid_inlay(parts) -> None:
 
 
 def validate_built_lid_hockey_inlay(parts) -> None:
+    if not LID_DOME_RISE:
+        return validate_flat_lid_hockey_inlay(parts)
+    logo = parts['logo_orange_inlay'].copy()
+    logo.data = parts['logo_orange_inlay'].data.copy()
+    bpy.context.collection.objects.link(logo)
+    try:
+        for vertex in logo.data.vertices:
+            vertex.co.z -= dome_roof_z(vertex.co.x-LID_DISPLAY_OFFSET_X,vertex.co.y)+LID_DOME_RISE
+        logo.data.update()
+        validate_flat_lid_hockey_inlay({**parts, 'logo_orange_inlay': logo})
+    finally:
+        bpy.data.objects.remove(logo, do_unlink=True)
+
+
+def validate_flat_lid_hockey_inlay(parts) -> None:
     """Prove both crossed sticks and the puck have printable solid cores."""
 
     logo = parts["logo_orange_inlay"]
@@ -17532,14 +17789,14 @@ def build_mission1_field_case():
         lid_payload,
         (logo_orange_payload,),
     )
-    bonding_z = max(vertex[2] for vertex in logo_orange_payload[0])
-    print(
-        "FIELD_CASE_LID_BONDED "
-        f"islands={lid_islands} plane_z={bonding_z:.2f} "
-        f"first_layer_black={first_layer_areas[0]:.3f} "
-        f"first_layer_orange={first_layer_areas[1]:.3f} "
-        f"first_layer_total={first_layer_areas[2]:.3f}"
-    )
+    if LID_DOME_RISE:
+        print(f'FIELD_CASE_LID_CURVED_BOND_VALID islands={lid_islands}', flush=True)
+    else:
+        print('FIELD_CASE_LID_BONDED '
+              f'islands={lid_islands} plane_z={LID_INLAY_DEPTH:.2f} '
+              f'first_layer_black={first_layer_areas[0]:.3f} '
+              f'first_layer_orange={first_layer_areas[1]:.3f} '
+              f'first_layer_total={first_layer_areas[2]:.3f}', flush=True)
 
     if EXPORT_STL:
         exports = (
@@ -17616,6 +17873,15 @@ def build_mission1_field_case():
                 )
             elif obj is parts["gasket"] and PRINT_TPU_GASKET_WITH_LID:
                 expected_minimum_z = GASKET_INSTALLED_Z + LID_DOME_RISE
+            if LID_DOME_RISE and any(obj is parts[k] for k in
+                    ('lid', 'tpu_snap_lid', 'logo_orange_inlay') +
+                    (('gasket',) if PRINT_TPU_GASKET_WITH_LID else ())):
+                from mathutils import Euler
+                print_rotation = (0, math.radians(LID_DOME_PRINT_ANGLE), 0)
+                transform = Euler(print_rotation).to_matrix()
+                print_origin = compound_lid_print_origin(parts)
+                expected_minimum_z = min(sum(float(transform[2][b])*float(v.co[b]) for b in range(3))
+                                         for v in obj.data.vertices) - print_origin[2]
             export_stl(
                 export_path(filename),
                 obj,

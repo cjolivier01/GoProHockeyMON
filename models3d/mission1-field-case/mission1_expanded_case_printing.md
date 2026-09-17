@@ -9,9 +9,11 @@ Both lids carry **Sports AI** in the same embedded Neuropol font style, with
 the orange inlay and hockey artwork.
 
 The raised lid puts its crown **24 mm above the previous roof**, with the
-latches and hinges below the sloped shoulders. It reuses the current wide-hardware
-base, all lower inserts and trays, gasket and hinge rod. Only the selected lid
-and topmost TPU pad need replacement for this dome revision.
+latches and hinges below a continuously rounded crown and shoulders. It reuses
+the current wide-hardware base, lower camera insert, front bin, upper organizer,
+gasket interface and hinge rod. Replace the selected lid and topmost TPU pad.
+The goalpost mount tray also gains a loose, asymmetric locating contour; its
+outer dimensions, floor and stacking heights remain unchanged.
 
 ![Domed lid and retained hardware](renderings/mission1_domed_lid_front.png)
 
@@ -37,15 +39,17 @@ not part of this expanded packing arrangement. Their separate exports go into
 | Main shell width × depth × bottom-to-rim height | 234 × 180 × 160 mm |
 | Internal width × depth × floor-to-rim height | 225 × 171 × 156.8 mm |
 | Base printed envelope, including projections | approximately 241.6 × 209.8 × 165 mm |
-| Lid printed envelope | approximately 244 × 207.8 × 40 mm |
+| Lid envelope before print rotation | 244 × 207.8 × 40 mm |
+| Lid printed envelope at 60° | 132.61 × 207.8 × 213.19 mm |
 | Closed case height, bottom to lid top | 195 mm |
-| Flat crown width × depth | 206 × 152 mm |
 
 Every printed part fits within 250 × 250 mm and below 250 mm tall. The 3MF turns
-both shell and compound lid plates by 90° in plan so they also clear the
-printer's 18 × 28 mm excluded corner. Keep this placement when slicing. The
-standalone shell/lid STLs may need the same rotation on a printer with that
-corner exclusion. Check any brim or skirt against the remaining bed margin.
+the base by 90° in plan and tilts both compound lids 60° about Y. These placements
+clear the printer's 18 × 28 mm excluded corner. Keep them when slicing. The
+standalone lid, inlay and gasket STLs share the same tilted coordinates: import
+them together as one multipart object, preserving their registration. Do not
+drop each component onto the bed separately. The base STL may need the 90°
+plan rotation on a printer with that excluded corner.
 
 Case depth and height were increased with explicit authorization for this
 loadout. Camera and fan locations, outward fan angles, cable routes, and the
@@ -76,19 +80,31 @@ unions cannot close the plug channels.
 
 | Item | Supplied measurement | Reserved envelope |
 | --- | --- | --- |
-| Assembled mount | Photo suggests approximately 205 × 140 mm; maximum depth 35 mm | 210 × 146 × 37 mm |
+| Assembled mount | Photo suggests approximately 205 × 140 mm; depth assumed 35 mm | 210 × 146 × 37 mm |
 | Rolled cord | Approximately Ø150 × 40 mm | Ø154 × 42 mm |
 | Each of two remotes | 37.5 × 14.5 × 45.5 mm, plus 1.5 mm side buttons | 42 × 48 × 17 mm, lying flat |
 
-The mount dimensions are estimates from the photographed ruler, not a precision
-scan. It fits assembled as shown within the reserved envelope; tuck the tether
-inside that envelope. The cord allowance accepts modest winding variation; a
+The mount footprint is estimated from the photographed ruler, not a precision
+scan. The overhead photo does **not establish thickness**; 35 mm remains an
+assumption within the 37 mm height allowance. The new pocket follows the
+assembled outline, including its knob lobes and asymmetric camera attachment.
+It provides **2.5 mm X / 3 mm Y clearance** around the estimated outline, with
+10 mm high locating walls and two finger-access openings. The contour opens
+straight upward and needs no print supports. Its shape makes the face-up
+loading direction obvious; mesh checks reject sideways, reversed and flipped
+nominal silhouettes.
+Tuck the flexible tether inside the pocket. Physical fit remains to be checked
+against the actual mount. The cord allowance accepts modest winding variation; a
 looser bundle larger than Ø154 × 42 mm needs recoiling.
 
 The remote buttons project from a 14.5 × 45.5 mm face, so they increase the
 37.5 mm body axis to 39 mm. The 42 mm pocket envelope adds 3 mm beyond this total.
 Its reference dimensions derive from the body and button parameters. Keep the
 button sides clear; the dividers do not depend on pressing a button for retention.
+
+![Shaped goalpost mount tray](renderings/mission1_goalpost_shaped_tray.png)
+
+![Mount loading direction](renderings/mission1_goalpost_loading_direction.png)
 
 ![Organizer and accessory allowances](renderings/mission1_expanded_organizer.png)
 
@@ -100,8 +116,8 @@ Pack from the bottom upward:
    small cables, batteries, doors, and PWM plugs.
 2. Fit the lower front utility bin. It retains approximately **217 × 37.5 ×
    24.7 mm** of usable storage beneath the mount tray.
-3. Fit the rigid mount tray and lay the assembled mount flat inside it. The
-   tray rests on the rear cradle ledges and the front utility bin's side walls.
+3. Fit the rigid mount tray and lower the assembled mount into its shaped
+   pocket, with the camera attachment in the large front lobe. The tray rests on the rear cradle ledges and the front utility bin's side walls.
 4. Fit the rigid upper organizer. Put the rolled cord in the large left bay,
    and place the two remotes flat in the right-hand cells. The remaining
    **56.5 × 57 mm** cell provides spare storage, with 18 mm divider height and
@@ -133,7 +149,7 @@ access after lifting a tray clear of the case. Both accessory trays have flat
 | Upper organizer rim | 164.30 mm |
 | Lid pad underside | 165.00 mm |
 | Top of pad contact plate | 167.00 mm |
-| Raised roof inner face / spacer contact | 191.00 mm |
+| Raised roof inner peak / spacer peak | 191.00 / 190.90 mm |
 
 The lid pad has **0.7 mm clearance above the organizer rim**, with no intended
 tray compression. The previous key clearance correction is carried into the
@@ -144,8 +160,10 @@ any particular printer's dimensional error.
 
 The contact plate remains **224 × 170 × 2 mm**. Its integral **188 × 134 mm**
 open spacer has 3 mm walls and two crossing ribs, raising the overall pad height
-to **26 mm**. The ribs reduce the soft pad's unsupported spans to roughly
-89.5 × 62.5 mm and print upright without support.
+to **25.9 mm at the center**. The spacer rim and ribs follow the curved inner
+roof with approximately 0.1 mm adhesive clearance. The ribs reduce the soft
+pad's unsupported spans to roughly 89.5 × 62.5 mm and print upright without
+support.
 Secure the spacer rim and ribs to the inside of the crown with a TPU-compatible adhesive;
 keep adhesive clear of the gasket and locating key. The keyed notch faces the
 rear lid boss. The packing surface stays at **165 mm**, including its original
@@ -173,7 +191,7 @@ preset, which does not itself encode Shore hardness.
 
 Moving from the compact case requires the expanded base and insert set. Moving
 from the current expanded wide-hardware case to this domed revision requires
-only the chosen lid and spacer pad. The exterior hardware revision requires the
+the chosen lid, spacer pad and shaped mount tray. The exterior hardware revision requires the
 matching wide latch parts and handle described below. The 151 mm-long 3.8 mm hinge
 rod and hinge coupon retain their prior dimensions.
 The hinge openings remain 4.325 mm in the base, 4.55 mm at the lid receiver and
@@ -198,34 +216,43 @@ on the printed material. The optional lid still uses 68D TPU; the separate
 
 ## Raised lid print orientation and supports
 
-Print the lid **crown down**, with the orange inlay flush on the bed. Its hollow
-roof remains open during printing. The shoulders grow 14 mm per side across
-24 mm of height; their slopes, including the rounded corners, remain within
-45 degrees from vertical. The roof is 4 mm thick. The pad prints contact face
-down with the open spacer pointing up and needs no supports.
+The lid has a hollow elliptical cap with a continuously curved crown. The
+orange artwork follows that curvature, with 0.8 mm pockets. The roof is 4 mm
+thick at its peak, transitioning into the retained rim and hardware.
 
-The projecting latch guards, bearing ledges and hinge details need local
-supports. The 3MF enables automatic tree supports, build-plate-only, with a
-45-degree threshold **on the two lid objects only**. Automatic support-foot
-expansion is disabled, and the lid plates have a 1.5 mm placement offset to keep
-the supports within the 250 mm bed. Preserve that placement and the supplied
-90-degree bed rotation. Check the sliced support footprint and brim against
-the printer's excluded corner before printing. Use the intended rigid or 68D TPU
-profile for the chosen lid; TPU support removal and hinge fit require a trial
-print with the actual material.
+The project prints both lids at **60° about Y**, using snug automatic supports
+from the build plate at a 45° overhang threshold. Supports are enabled only
+for the two lid objects. Support-foot expansion is disabled. The actual mesh
+contact, rather than a rotated bounding-box corner, defines the bed origin.
+Preserve the project placement; check any added brim against the bed margins.
+The pad prints contact face down, curved spacer up. The mount tray prints flat.
+Both slice without supports.
 
-The geometric check limits downward overhang projection to **1,500 mm²**,
-confined to the front/rear hardware strips. Current maxima are **1,338.51 mm²**
-(about 4.3% of the crown footprint). This is an area bound, not a prediction of
-support volume or print time.
+The geometric check limits steep downward overhang projection at the supplied
+angle to **10,000 mm²**; the measured maximum is **9,366.94 mm²**. This is a
+geometry regression bound, not a support-volume prediction. Curvature checks
+reject a flattened crown, and the spacer is checked against the actual inner
+roof mesh with a 0.079–0.138 mm gap at the sampled bearing triangles.
 
 Bambu Studio 02.05.01.52 slices both lids at 0.20 mm with a 0.4 mm nozzle and
 four walls using resolved P1S/PETG/TPU presets, textured PEI, no model brim and
-no prime tower. The sliced supports use **19.57 cm³ rigid / 20.74 cm³ TPU**,
-about **10%** of deposited material. The full support extrusion footprints,
+no prime tower. Supports use **26.43 cm³ rigid / 27.57 cm³ TPU**, approximately
+**12%** of deposited model/support material. The full support extrusion paths,
 including arc extrema and line widths, fit the 250 mm bed and clear its excluded
-corner. `check_mission1_support_gcode.py` checks those bounds and rejects support
-volume above 30 cm³. Recheck after changing support or adhesion settings:
+corner. `check_mission1_support_gcode.py` retains the **30 cm³** support cap.
+Crown-down and crown-up flat orientations required 88.62 and 163.90 cm³ of
+support in the same rigid-lid comparison, so the angled layout avoids a large
+support bed beneath the roof.
+
+Tilting the embedded inlay and gasket increases material changes substantially:
+the rigid-lid diagnostic slice has 1,532 changes. The 12% support figure excludes
+purge waste. Keep this cost in mind when configuring the actual printer; the
+existing `PRINT_TPU_GASKET_WITH_LID` option can generate a separately printed
+gasket instead. These checks preserve the current integrated-gasket default.
+Use the intended rigid or 68D TPU profile for the chosen lid; verify support
+removal, material bonding and hinge fit with the actual filament.
+
+Recheck the supplied project after changing support or adhesion settings:
 
 ```sh
 python3 models3d/mission1-field-case/check_mission1_support_gcode.py \
@@ -266,8 +293,9 @@ and Allen access independently checked.
 Reprint the **base, chosen lid, both latch levers, both hooks, and handle** as a
 matching set. The wider mounts are incompatible with the previous narrow
 latches and handle. The case interior remains **225 × 171 mm**, with the same
-156.8 mm floor-to-rim depth, so existing inserts, gasket, inlay and hinge parts
-remain usable. The compact profile retains its original hardware and dimensions.
+156.8 mm floor-to-rim depth, so the retained lower inserts and hinge parts
+remain usable. This rounded
+lid needs its matching curved inlay, shaped mount tray and spacer pad. The compact profile retains its original hardware and dimensions.
 
 Each wide latch needs one **M3 × 50 socket-head screw**, one M3 hex nut, and a
 **4 mm-diameter rod cut to 40.96 mm**. The 3.6 mm-deep head recess leaves a
@@ -316,13 +344,15 @@ blender --background --factory-startup --threads 8 --python-exit-code 1 \
 ```
 
 The domed-lid regression checks the unchanged base, original packing plane,
-spacer bearing and both lid meshes. It rejects broad unsupported shelves,
-excessive local support area, shortened or incomplete spacers, and a lowered
-packing face:
+spacer bearing and both lid meshes. It rejects flattened crowns, excessive tilted overhang area, shortened or
+incomplete spacers, a lowered packing face, and missing/misplaced supports.
+The mount-pocket regression rejects an unshaped tray and blocked loading lobe:
 
 ```sh
 blender --background --factory-startup --threads 8 --python-exit-code 1 \
   --python models3d/mission1-field-case/check_mission1_domed_lid.py
 blender --background --factory-startup --threads 8 --python-exit-code 1 \
   --python models3d/mission1-field-case/render_mission1_domed_lid.py
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_goalpost_pocket.py
 ```
