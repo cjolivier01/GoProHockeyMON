@@ -2,7 +2,7 @@
 
 The expanded case carries the existing two complete fan-case camera assemblies,
 small fan cables, batteries and battery doors, plus the assembled goalpost mount,
-two remotes, and a large rolled cord. It replaces the compact case and inserts.
+three custom remotes, two OEM backup remotes, and a large rolled cord. It replaces the compact case and inserts.
 The stronger latch, handle hardware, and 3.8 mm hinge-rod fit remain in use.
 
 Both lids carry **Sports AI** in the same embedded Neuropol font style, with
@@ -70,19 +70,120 @@ unions cannot close the plug channels.
 | --- | --- | --- |
 | Assembled mount | Photo suggests approximately 205 × 140 mm; maximum depth 35 mm | 210 × 146 × 37 mm |
 | Rolled cord | Approximately Ø150 × 40 mm | Ø154 × 42 mm |
-| Each of two remotes | 37.5 × 14.5 × 45.5 mm, plus 1.5 mm side buttons | 42 × 48 × 17 mm, lying flat |
+| Three custom remotes | 37.5 × 45.5 × 14.5 mm body, plus 1.5 mm side buttons | Upright: 14.5 × 45.5 × 39 mm, button edge up |
+| Two OEM GoPro remotes | 66 × 40 × 19 mm | Upright: 19 × 66 × 40 mm, assuming measurements include buttons |
 
 The mount dimensions are estimates from the photographed ruler, not a precision
 scan. It fits assembled as shown within the reserved envelope; tuck the tether
 inside that envelope. The cord allowance accepts modest winding variation; a
 looser bundle larger than Ø154 × 42 mm needs recoiling.
 
-The remote buttons project from a 14.5 × 45.5 mm face, so they increase the
-37.5 mm body axis to 39 mm. The 42 mm pocket envelope adds 3 mm beyond this total.
-Its reference dimensions derive from the body and button parameters. Keep the
-button sides clear; the dividers do not depend on pressing a button for retention.
+The entire organizer is now **one piece of TPU-85A**, including five integral
+remote slots. Its outer envelope remains **223 × 169 × 46.3 mm**, with the
+3 mm main floor, rear key notch and stack bearings. Local air passages
+under the front/rear edges leave at least 2 mm of floor above their roofs. The right-hand strip
+contains a continuous molded pocket block, bonded to the floor, cord divider
+and outside wall. Reprint this organizer for the remote slots and channels,
+and the mount tray for its matching air channels. The shell, flat lid, lid pad
+and lower inserts keep their existing geometry. The full Ø154 × 42 mm cord bay
+remains available.
 
-![Organizer and accessory allowances](renderings/mission1_expanded_organizer.png)
+### Remote slots and button clearance
+
+Each pocket is **26 mm deep**, with **0.30 mm clearance per side** around the
+body and two small squeeze nubs on the plain short ends. Each nub projects
+**0.20 mm into the nominal body envelope** over an 8 × 3 mm patch. These local
+nubs provide soft friction; the surrounding deep walls provide side support,
+as with the battery pockets in the lower fan-case insert. All five pockets
+have continuous guides along both sides. The outside finger scallops stop at
+the pocket rims so they do not remove the support below them.
+
+The three custom remotes stand with their 37.5 mm body axis vertical and their
+1.5 mm side-button projection pointing upward, entirely above the pocket rims.
+The two OEM controls stand with the 40 mm axis vertical and the 66 mm axis
+along the tray. **All screen/front faces point toward +X, the right-hand
+outside wall, away from the cord bay.** Load and remove each remote vertically.
+Recessed `FACE >` and `BUTTON EDGE UP` legends mark the orientation.
+
+Each OEM pocket has an upward-open **3 mm front-button clearance zone over the
+central 54 mm** of its 66 mm length. The remaining **6 mm band at each short
+end of the front face** acts as a full-depth casing guide, providing support
+against sideways tipping without filling the central button area.
+
+**The OEM button layout has not yet been measured.** This design assumes the
+66 × 40 × 19 mm measurement includes the buttons, that side buttons face
+upward, and that the bottom, short-end grip patches and 6 mm front-edge casing
+bands are plain. Confirm those areas on the physical controls; button relief
+must be extended or moved if necessary. The renderings show measured envelopes,
+not detailed button CAD. Retention force and TPU deflection need a printed fit
+check. The modeled pocket clearance is not a prediction of printed tolerance.
+
+Checks reserve **2 mm above and around the upward button edge**, plus the OEM
+front clearance described above. Seated and continuous vertical button sweeps
+must clear the tray, shell and other accessories. With the existing 0.6 mm
+stack allowance, actual closed-pad headroom is **4.4 mm above the custom button
+envelopes and 3.4 mm above the OEM envelopes** (5 and 4 mm nominally).
+
+The validation also requires 22 mm of uninterrupted side-guide material at
+four casing corners per pocket. The body clears these guides when upright,
+but contacts them when tilted **±2° about either horizontal axis**, excluding
+the floor and grip nubs from that calculation. This checks geometric restraint;
+soft-material stiffness and transport loads still require physical testing.
+Only the ten designated nub contacts may overlap the remote bodies.
+
+![One-piece tray with five deep slots](renderings/mission1_remote_slots.png)
+
+![Five remotes and the unchanged cord bay](renderings/mission1_remote_tray_loaded.png)
+
+![Straight loading orientation](renderings/mission1_remote_loading.png)
+
+![OEM button air and closed-pad clearance](renderings/mission1_remote_button_clearance.png)
+
+### Air channels for lifting the tray
+
+Both the **TPU organizer** and the **rigid goalpost mount tray** have four
+**5 mm-wide × 1 mm-deep outside grooves**: two on the front wall and two on the
+rear wall, at X = ±80 mm. They let air reach beneath each tray as it is lifted,
+including while it is fully seated on the supporting parts. Their positions
+avoid the remote pockets, pull-cord eyes, grip notches, locating key and
+established stack-bearing locations.
+
+Each groove feeds two underside passages extending 5 mm inward across that
+rim. Each passage is **2 mm wide × 1 mm high**, with a **45° pitched roof**.
+The pair leaves a 1 mm central bearing rib. At least **2 mm of wall and floor**
+remains around the channels. The storage compartments stay closed at the
+bottom. The organizer remains **223 × 169 × 46.3 mm**; the goalpost tray remains
+**223 × 169 × 42.03 mm**, with its original **217 × 163 mm** inner footprint and
+the same **210 × 146 × 37 mm** mount clearance envelope. The mount tray remains
+rigid material; the organizer remains TPU-85A.
+
+Solid air probes check **eight continuous routes per tray**, against the case
+and the actual supporting parts: the mount tray beneath the organizer, and
+the lower insert and utility bin beneath the mount tray. Separate material
+probes check the remaining wall, floor and central ribs. Existing stack-bearing
+checks still apply. These prove open geometric routes; suction reduction and
+deformation of printed material remain physical tests. Cyan arrows illustrate
+the air paths.
+
+![Front air channels](renderings/mission1_air_channels_overview.png)
+
+![Rear air channels](renderings/mission1_air_channels_rear.png)
+
+![Underside air passages](renderings/mission1_air_channels_underside.png)
+
+![Air path through the seated tray stack](renderings/mission1_air_channels_seated_section.png)
+
+![Pitched underside passages](renderings/mission1_air_channels_underside_detail.png)
+
+![Goalpost tray front channels](renderings/mission1_mount_air_channels_overview.png)
+
+![Goalpost tray rear channels](renderings/mission1_mount_air_channels_rear.png)
+
+![Goalpost tray underside](renderings/mission1_mount_air_channels_underside.png)
+
+![Air below the seated goalpost tray](renderings/mission1_mount_air_channels_seated_section.png)
+
+![Goalpost tray pitched passages](renderings/mission1_mount_air_channels_underside_detail.png)
 
 ## Packing and retained storage
 
@@ -94,11 +195,10 @@ Pack from the bottom upward:
    24.7 mm** of usable storage beneath the mount tray.
 3. Fit the rigid mount tray and lay the assembled mount flat inside it. The
    tray rests on the rear cradle ledges and the front utility bin's side walls.
-4. Fit the rigid upper organizer. Put the rolled cord in the large left bay,
-   and place the two remotes flat in the right-hand cells. The remaining
-   **56.5 × 57 mm** cell provides spare storage, with 18 mm divider height and
-   approximately 43 mm overall headroom. Rounded corners slightly reduce its
-   rectangular volume.
+4. Fit the one-piece TPU-85A upper organizer. Put the rolled cord in the large
+   left bay. Load three custom remotes in the short front pockets and two OEM
+   remotes in the longer rear pockets, in the orientation described above.
+   Keep straps tucked clear of every button and within the available tray height.
 5. Fit the 2 mm 85A TPU lid pad and close the lid. Keep the normal gasket.
 
 To unpack, open the lid to 110°, lift out the loaded organizer, then the mount
@@ -109,8 +209,9 @@ inward at the front and rear so the cords never run in the 1 mm gap between
 tray and shell. Lift the front and rear together to keep the loaded tray level.
 Tuck the loops entirely below the mount-tray rim, in the front and rear gaps
 around the mount, before installing the organizer. Finger scallops provide
-access after lifting a tray clear of the case. Both accessory trays have flat
-3 mm floors and 3 mm outer walls.
+access after lifting a tray clear of the case. Both accessory trays have
+3 mm main floors and outer walls; each tray's local air-channel relief
+leaves at least 2 mm of floor and wall around each passage.
 
 | Height above outside case bottom | Nominal height |
 | --- | ---: |
@@ -120,6 +221,10 @@ access after lifting a tray clear of the case. Both accessory trays have flat
 | Top of conservative mount envelope | 115.97 mm |
 | Upper organizer underside | 118.00 mm |
 | Upper organizer inner floor | 121.00 mm |
+| Remote seat on the organizer floor | 121.00 mm |
+| Integral remote pocket rims | 147.00 mm |
+| Top of custom button envelope | 160.00 mm |
+| Top of OEM remote envelope | 161.00 mm |
 | Top of conservative cord envelope | 163.00 mm |
 | Upper organizer rim | 164.30 mm |
 | Lid pad underside | 165.00 mm |
@@ -138,11 +243,24 @@ any particular printer's dimensional error.
 
 ## Printing and hardware
 
-Use rigid PETG or another tough rigid filament for the shell, chosen rigid lid,
-**mount tray** (`mission1_field_case_mount_tray.stl`), and **upper organizer**
-(`mission1_field_case_accessory_organizer.stl`). The 3MF assigns both accessory
-trays to rigid filament 1; their broad floors should be solid. Use 0.20 mm layers,
-at least four walls, and enough top/bottom layers to make the 3 mm floors solid.
+Use rigid PETG or another tough rigid filament for the shell, chosen rigid lid
+and **mount tray** (`mission1_field_case_mount_tray.stl`). The mount tray stays
+on rigid filament 1. Use 0.20 mm layers, at least four walls, and enough
+bottom layers to make its 3 mm main floor solid. Its air passages have 45°
+roofs and leave at least 2 mm of floor above them.
+
+Print the entire **upper organizer**
+(`mission1_field_case_accessory_organizer.stl`) floor down in **TPU-85A**, using
+0.20 mm layers, four walls and a solid 3 mm main floor. Its dedicated plate is
+labeled `Coil and Five Remote Slots - TPU 85A` and assigned to TPU filament 3.
+Choose an actual TPU-85A profile; the generic project TPU preset does not encode
+Shore hardness. The upward-open slots have no roofs and the small retention
+nubs have rounded edges. The underside air passages use 45° roofs.
+No support structures are intended. A diagnostic
+0.20 mm slice checks support-free toolpaths; it is not calibrated printer G-code.
+Reprint both the organizer and the mount tray for this revision. There is no
+separate retainer STL or extra retainer plate; the complete project contains
+15 unique STLs on 10 plates.
 
 Use a suitable resilient TPU for the lower insert and front utility bin. The
 replacement flat lid pad uses **85A TPU**; select the actual filament profile for
@@ -178,7 +296,7 @@ on the printed material. The optional lid still uses 68D TPU; the separate
 ![Generated print plates](renderings/mission1_field_case_all_print_plates.png)
 
 Generation validates the actual lower camera/fan/cable/hardware loadout, tray
-bearings, cavity containment, accessory dimensions, button clearance, loaded
+bearings, continuous air passages, cavity containment, accessory dimensions, button clearance, loaded
 tray removal, both lid variants' closing paths, latch/handle mechanics, mesh
 integrity and the complete 3MF. Reference envelopes are excluded from exports.
 
@@ -190,8 +308,35 @@ blender --background --factory-startup --threads 8 --python-exit-code 1 \
 ```
 
 The accessory regression rejects a mount placed outside its assigned cavity,
-an oversized button envelope, and a blocked cable bay. The closure regression
-rejects the unnotched top tray, overly thick lid pads and a reversed pad notch.
+an oversized button envelope, and a blocked cable bay. The dedicated slot check
+rejects a missing nub, absent or shallow side walls, missing end guides that
+allow tipping, a rib in the button air, unintended body contact, tray growth,
+a missing spare envelope, a shifted remote, zero squeeze, and insufficient
+button headroom below the lid pad:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_remote_slots.py
+```
+
+The air-channel regression rejects a blocked outside groove, a filled underside
+passage, insufficient floor or wall material, and a missing central bearing rib
+on either tray. It also rejects a utility-bin obstruction beneath the mount
+tray. Supply a validated scene to reuse the unchanged lower insert; the case
+and both vented trays are rebuilt from current source:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_air_channels.py \
+  -- --scene /path/to/validated-field-case.blend
+```
+
+Render each tray's channels from five angles using `render_mission1_air_channels.py`
+with `-- --scene /path/to/validated-field-case.blend`.
+
+These are geometry checks against the stated body/button assumptions, not a
+substitute for confirming the physical OEM button positions and printed fit.
+The closure regression rejects the unnotched top tray, overly thick lid pads and a reversed pad notch.
 Cached-scene runs may use `-- --scene /path/to/validated-field-case.blend`.
 
 The focused lid regression checks both lip thicknesses, latch motion and hinge

@@ -87,6 +87,7 @@ MISSION1_FIELD_CASE_PLATE_RENDER := \
 MISSION1_FIELD_CASE_OUTPUTS := $(MISSION1_FIELD_CASE_STLS) \
 	$(MISSION1_FIELD_CASE_AUXILIARY_STLS) $(MISSION1_FIELD_CASE_3MF)
 MISSION1_FIELD_CASE_OBSOLETE_STL_NAMES := \
+	mission1_field_case_remote_retainer_tpu.stl \
 	mission1_field_case_lower_fan_cradle_tpu.stl \
 	mission1_field_case_upper_equipment_tray_tpu.stl \
 	mission1_field_case_lid_retainer_tpu.stl \
