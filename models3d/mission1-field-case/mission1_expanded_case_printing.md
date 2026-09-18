@@ -61,9 +61,10 @@ Bond the spacer rim and ribs to the inside roof with a suitable TPU-compatible
 adhesive. The asymmetrical key determines its orientation.
 
 **Reprint the base, selected lid with its gasket, lower insert, mount tray,
-front bin, remote organizer and lid pad.** Existing latch parts, handle and
-hinge rod can be reused. Reprint the TPU hinge coupon for its tilted entrance. The rounded inserts need the revised shell fit; retain
-the previous files if you want to reproduce the previous case.
+front bin, remote organizer, lid pad, both latch levers, both hooks and handle
+as a matching set.** The 151 mm hinge rod can be reused. Reprint the TPU hinge
+coupon for its tilted entrance. The rounded inserts need the revised shell fit;
+retain the previous files if you want to reproduce the previous case.
 
 Every part fits within 250 × 250 mm and below 250 mm tall. The project turns the
 base and compound lids 90° in plan to clear the printer's excluded corner.
@@ -283,8 +284,9 @@ specified 68D material, not the 85A pad filament. The project uses a generic TPU
 preset, which does not itself encode Shore hardness.
 
 The enlarged base, lid, gasket, pad and insert set require new prints. The
-separate latch parts, handle and 151 mm-long 3.8 mm hinge rod retain
-their prior dimensions. Reprint the updated hinge coupon with the optional TPU lid. Use the existing M3 latch and M3 × 14 handle hardware.
+latest exterior hardware revision also requires the matching wide latch parts
+and handle described below. The 151 mm-long 3.8 mm hinge rod retains its prior
+dimensions. Reprint the updated hinge coupon with the optional TPU lid.
 The hinge openings remain 4.325 mm in the base, 4.55 mm at the lid receiver and
 4.4 mm at the rigid slot. The optional snap throat is now 3.5 mm, giving 0.3 mm diametral interference
 with the 3.8 mm rod (previously 0.2 mm). Its straight section is 1.55 mm long,
@@ -301,14 +303,62 @@ The latch-bearing lip is now **3.2 mm thick on the rigid lid** and **4.0 mm on
 the 68D TPU lid**, increased from 2.4 mm. Added material sits below the existing
 bearing surface and continues into its back-wall reinforcement. Latch take-up,
 rail position and storage contacts are retained. The rounded shell and liner
-changes still require the reprints listed above. Snap force depends on the
-printed material; the optional lid uses 68D TPU, and the framed lid pad uses 85A TPU.
+changes still require the reprints listed above; use the matching wide base,
+lid, latch set and handle for the hardware revision. Snap force depends on the
+printed material; the optional lid uses 68D TPU, and the framed 24 mm roof spacer
+uses 85A TPU.
 
 ![Lid lip thickness comparison](renderings/mission1_lid_lip_thickness.png)
 
 ![Upward-facing TPU snap entrance](renderings/mission1_hardcase_tpu_hinge.png)
 
 ![Printable lower insert underside](renderings/mission1_hardcase_insert_underside.png)
+
+## Wider latches and handle
+
+The expanded case has **40.96 mm-wide latches**, twice the previous 20.48 mm,
+and a **119.8 mm overall handle envelope**, about 20.8% wider than 99.2 mm.
+The handle's solid grip is 115.6 mm wide with a 95.6 mm opening. Each complete
+fork moves outward 10.3 mm; its original mount shape, wall thickness, bores,
+and 18-to-24 mm transition are preserved. Latch centers remain at ±82 mm.
+The enlarged guards remain 8.22 mm inside the case sides.
+
+A **hard 1 mm minimum-clearance check covers continuous 360° handle rotation**
+against both closed latch levers, hooks, and moving link rods. The generated
+meshes have **1.02 mm minimum axial separation**, after including ±0.2 mm latch
+and ±0.4 mm handle axial play. Rotation about the handle's pivot preserves
+this lateral separation at every angle. Protection walls are excluded from
+this constraint; the check does not rely on a guard stopping rotation.
+
+The full project build runs this check before export.
+`check_mission1_closed_latch_handle.py` rejects the colliding 124 mm handle,
+a positive gap below 1 mm, interference due to axial play, and deliberately
+colliding moving parts. The original fork geometry is also compared against
+the widened forks. Normal 0–90° handle travel retains **3.31 mm vertical
+separation** through all latch positions, with latch release, handle strength,
+and Allen access independently checked.
+
+Reprint the **base, chosen lid, both latch levers, both hooks, and handle** as a
+matching set. The wider mounts are incompatible with the previous narrow
+latches and handle. The case interior remains **225 × 171 mm**, with the same
+156.8 mm floor-to-rim depth, so existing inserts, gasket, inlay and hinge parts
+remain usable. The compact profile retains its original hardware and dimensions.
+
+Each wide latch needs one **M3 × 50 socket-head screw**, one M3 hex nut, and a
+**4 mm-diameter rod cut to 40.96 mm**. The 3.6 mm-deep head recess leaves a
+2.4 mm guard floor and nominally 0.04 mm screw-tip projection with full nut
+engagement. Reuse the handle's two **M3 × 14 screws and M3 nuts**.
+
+![Before and after hardware](renderings/mission1_wide_hardware_comparison.png)
+
+![Installed wide hardware](renderings/mission1_wide_hardware_installed.png)
+
+![Raised handle clearance](renderings/mission1_wide_hardware_clearance.png)
+
+Regenerate these views with `render_mission1_wide_hardware.py` in background
+Blender. Run `check_mission1_wide_hardware.py` for width, interior preservation,
+compact compatibility and collision-rejection checks, together with the existing
+latch and handle regression scripts.
 
 ## Checks
 
