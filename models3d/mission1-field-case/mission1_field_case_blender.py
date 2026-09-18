@@ -1865,19 +1865,46 @@ LATCH_PROTECTOR_MOUNT_HALF_WIDTH = (
 )
 LATCH_FIXED_M3_GUARD_SPAN = 2.0 * LATCH_PROTECTOR_MOUNT_HALF_WIDTH
 LATCH_PROTECTOR_BODY_Y = -CASE_DEPTH / 2.0 + 0.3
+LATCH_PROTECTOR_SHELL_BOND_OVERLAP = 0.3
 LATCH_PROTECTOR_FRONT_Y = -CASE_DEPTH / 2.0 - LID_LATCH_PROTECTOR_PLATE_PROJECTION
 LATCH_PROTECTOR_ROOT_Z = 3.0 + LATCH_VERTICAL_OFFSET
-LATCH_PROTECTOR_FRONT_LOWER_Z = LATCH_PROTECTOR_ROOT_Z + abs(
-    LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y
-)
 LATCH_PROTECTOR_FRONT_UPPER_Z = BASE_HEIGHT - 0.4
 LATCH_PROTECTOR_TOP_Z = BASE_HEIGHT - 0.4
-LATCH_PROTECTOR_PROFILE_YZ = (
-    (LATCH_PROTECTOR_BODY_Y, LATCH_PROTECTOR_ROOT_Z),
-    (LATCH_PROTECTOR_FRONT_Y, LATCH_PROTECTOR_FRONT_LOWER_Z),
-    (LATCH_PROTECTOR_FRONT_Y, LATCH_PROTECTOR_FRONT_UPPER_Z),
-    (LATCH_PROTECTOR_BODY_Y, LATCH_PROTECTOR_TOP_Z),
-)
+
+
+def rounded_rectangle_front_y_at_x(width, depth, radius, x):
+    """Return the negative-Y boundary of a centered rounded rectangle."""
+    half_width = width / 2.0
+    half_depth = depth / 2.0
+    radius = min(max(radius, 0.0), half_width, half_depth)
+    corner_x = half_width - radius
+    offset = max(0.0, min(abs(x) - corner_x, radius))
+    return -half_depth + radius - math.sqrt(max(0.0, radius**2 - offset**2))
+
+
+def latch_protector_body_y(protector_center_x):
+    """Carry an outer latch cheek into the rounded front wall."""
+    outer_edge_x = abs(protector_center_x) + LATCH_PROTECTOR_BASE_WIDTH / 2.0
+    rounded_wall_y = rounded_rectangle_front_y_at_x(
+        CASE_WIDTH, CASE_DEPTH, CASE_CORNER_RADIUS, outer_edge_x
+    )
+    return max(
+        LATCH_PROTECTOR_BODY_Y,
+        rounded_wall_y + LATCH_PROTECTOR_SHELL_BOND_OVERLAP,
+    )
+
+
+def latch_protector_profile_yz(protector_center_x):
+    body_y = latch_protector_body_y(protector_center_x)
+    front_lower_z = LATCH_PROTECTOR_ROOT_Z + abs(
+        LATCH_PROTECTOR_FRONT_Y - body_y
+    )
+    return (
+        (body_y, LATCH_PROTECTOR_ROOT_Z),
+        (LATCH_PROTECTOR_FRONT_Y, front_lower_z),
+        (LATCH_PROTECTOR_FRONT_Y, LATCH_PROTECTOR_FRONT_UPPER_Z),
+        (body_y, LATCH_PROTECTOR_TOP_Z),
+    )
 
 # Each closed source hook nests in a deep molded bay cut through the lid skirt.
 # A 2.6 mm horizontal rail is embedded through the outer edge of a continuous
@@ -6215,10 +6242,34 @@ def validate_configuration() -> None:
         raise ValueError("Base latch protectors enter the moving latch envelope")
     if LATCH_PROTECTOR_BASE_WIDTH < 4.0:
         raise ValueError("Base latch protectors need at least 4 mm thickness")
-    protector_ramp_run = abs(LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y)
-    protector_ramp_rise = LATCH_PROTECTOR_FRONT_LOWER_Z - LATCH_PROTECTOR_ROOT_Z
-    if protector_ramp_rise + 1e-6 < protector_ramp_run:
-        raise ValueError("Base latch protector lower ramp exceeds a 45-degree overhang")
+    for latch_x in LATCH_X_CENTERS:
+        for side in (-1.0, 1.0):
+            protector_center_x = latch_x + side * (
+                LATCH_BASE_EAR_CENTER_OFFSET_X
+                + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+            )
+            body_y = latch_protector_body_y(protector_center_x)
+            profile = latch_protector_profile_yz(protector_center_x)
+            protector_ramp_run = abs(LATCH_PROTECTOR_FRONT_Y - body_y)
+            protector_ramp_rise = profile[1][1] - LATCH_PROTECTOR_ROOT_Z
+            if protector_ramp_rise + 1e-6 < protector_ramp_run:
+                raise ValueError(
+                    "Base latch protector lower ramp exceeds a 45-degree overhang"
+                )
+            inner_edge_x = max(
+                0.0,
+                abs(protector_center_x) - LATCH_PROTECTOR_BASE_WIDTH / 2.0,
+            )
+            cavity_front_y = rounded_rectangle_front_y_at_x(
+                CASE_WIDTH - 2.0 * WALL_THICKNESS,
+                CASE_DEPTH - 2.0 * WALL_THICKNESS,
+                CASE_CORNER_RADIUS - WALL_THICKNESS,
+                inner_edge_x,
+            )
+            if body_y > cavity_front_y - 0.2:
+                raise ValueError(
+                    "Rounded-shell latch protector enters the case interior"
+                )
     lever_front_y = LATCH_BASE_PIVOT_Y - LATCH_LEVER_PRINT_SIZE[1] / 2.0
     if LATCH_PROTECTOR_FRONT_Y > lever_front_y - 1.0:
         raise ValueError("Base latch protectors do not stand proud of the lever")
@@ -7130,7 +7181,7 @@ def create_base(material):
             protector_center_x = ear_x + side * LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
             protector = extrude_loop_x(
                 f"Base_Latch_{index}_Side_Impact_Protector",
-                LATCH_PROTECTOR_PROFILE_YZ,
+                latch_protector_profile_yz(protector_center_x),
                 protector_center_x - LATCH_PROTECTOR_BASE_WIDTH / 2.0,
                 protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0,
             )
@@ -11073,7 +11124,7 @@ def validate_built_latch_impact_protectors(parts) -> None:
                     f"TEMPORARY_Latch_{index}_Base_Protector_Bond_Probe",
                     (
                         protector_center_x,
-                        LATCH_PROTECTOR_BODY_Y,
+                        latch_protector_body_y(protector_center_x),
                         40.0 + LATCH_VERTICAL_OFFSET,
                     ),
                     base_probe_dimensions,
@@ -17264,6 +17315,30 @@ def validate_printable_lower_insert(insert):
 
 def validate_built_hardcase_exterior(parts):
     """Reject steep new shell surfaces outside the short hardware bridges."""
+    latch_bridge_half_width = (
+        LID_LATCH_TROUGH_WIDTH / 2.0
+        + LID_LATCH_LOAD_LEDGE_AXIAL_OVERLAP
+        + 0.6
+    )
+    source_trough_width = LATCH_SOURCE_WIDTH + 1.12
+    load_ledge_projection = (
+        LID_LATCH_CAPTURE_RAIL_CENTER_Y
+        + LID_LATCH_LOAD_LEDGE_RAIL_EMBED
+        - (
+            (CASE_DEPTH - 0.8) / 2.0
+            + LID_LATCH_RECESS_BACK_WALL
+            - LID_LATCH_LOAD_LEDGE_BACK_OVERLAP
+        )
+    )
+    # The horizontal latch ledges keep the same short radial bridge and gain
+    # only axial area when the expanded-profile latches widen. Preserve the
+    # original allowance per profile instead of treating that expected ledge
+    # area as a new unsupported shell shelf.
+    widened_latch_ledge_allowance = (
+        2.0
+        * max(0.0, LID_LATCH_TROUGH_WIDTH - source_trough_width)
+        * load_ledge_projection
+    )
     for z_pair, next_pair in pairwise(EXTERIOR_SOFT_EDGE):
         if z_pair[1] - next_pair[1] > next_pair[0] - z_pair[0] + 1e-6:
             raise ValueError("Soft outside edge exceeds 45 degrees")
@@ -17290,7 +17365,8 @@ def validate_built_hardcase_exterior(parts):
             if key != "base" and area > .01:
                 x, y, z = sum(points, Vector()) / 3
                 x -= LID_DISPLAY_OFFSET_X
-                latch_bridge = (any(abs(x - lx) < 12 for lx in LATCH_X_CENTERS)
+                latch_bridge = (any(abs(x - lx) < latch_bridge_half_width
+                                    for lx in LATCH_X_CENTERS)
                                 and CASE_DEPTH / 2 + 2 < y < CASE_DEPTH / 2 + 13
                                 and 8 < z < 15)
                 hinge_bridge = (abs(x) < 81
@@ -17299,12 +17375,17 @@ def validate_built_hardcase_exterior(parts):
                                 and 4 < z < 16)
                 if not (latch_bridge or hinge_bridge):
                     raise ValueError(f"Steep lid surface outside the hardware bridges: {key} {(x,y,z)}")
-        limit = 180.0 if key == "base" else 625.0
+        limit = (
+            180.0
+            if key == "base"
+            else 625.0 + widened_latch_ledge_allowance
+        )
         if steep_area > limit:
             raise ValueError(f"Unsupported shell area exceeds the hardware allowance: {key} {steep_area:.2f}")
         areas[key] = round(steep_area, 2)
     print(f"FIELD_CASE_EXTERIOR_VALID steep_projection_mm2={areas} "
-          "shell_ramps<=45deg hardware_bridge_span<=23.2mm", flush=True)
+          f"shell_ramps<=45deg latch_hardware_half_span="
+          f"{latch_bridge_half_width:.2f}mm", flush=True)
     for key in ("lid", "tpu_snap_lid", "tpu_hinge_coupon"):
         if key in parts:
             validate_print_layer_connectivity(parts[key])

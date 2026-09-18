@@ -3,9 +3,7 @@
 Run in background Blender; uses the focused hardware checks for the complete
 latch/handle mechanics. This check also verifies the unchanged compact profile.
 """
-import hashlib
 import math
-import struct
 from pathlib import Path
 import subprocess
 import sys
@@ -15,7 +13,10 @@ from mathutils.kdtree import KDTree
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mission1_field_case_blender as case
 from check_mission1_field_case_handle import must_reject
-from check_mission1_field_case_latch import COMPACT_FIXED_PART_BASELINES
+
+
+# The merged rounded-shell design is the compatibility baseline for this PR.
+BASELINE_REVISION = "e1e8d596f6d496957e9bcc17d8d6893bc4d61105"
 
 
 def canonical_faces(obj):
@@ -66,11 +67,11 @@ def main():
     finally:
         case.LATCH_FIXED_M3_BOLT_LENGTH = bolt
 
-    # Check the original shell volume everywhere except the exterior front
+    # Check the rounded-shell baseline everywhere except the exterior front
     # hardware attachment strip. This includes the entire interior wall/floor,
     # gasket rim and hinge geometry, not just the outer bounding box.
     source = subprocess.check_output(
-        ['git', 'show', '438c924:models3d/mission1-field-case/mission1_field_case_blender.py'],
+        ['git', 'show', f'{BASELINE_REVISION}:models3d/mission1-field-case/mission1_field_case_blender.py'],
         cwd=Path(case.__file__).parent, text=True)
     old = {'__name__': 'old_field_case', '__file__': case.__file__}
     exec(compile(source, case.__file__, 'exec'), old)
@@ -121,6 +122,10 @@ def main():
     print('FIELD_CASE_HANDLE_FORKS_UNCHANGED translations=+/-10.3mm', flush=True)
 
     old_base = old['create_base'](material)
+    # The outer mounts follow the rounded wall, so the excluded attachment
+    # strip must follow that same cavity boundary. Leave a 0.2 mm exterior-side
+    # margin before the nominal inner face and require every other base feature,
+    # including the hinges, to match.
     for first, second in ((parts['base'], old_base), (old_base, parts['base'])):
         delta = first.copy()
         delta.data = first.data.copy()
@@ -129,45 +134,55 @@ def main():
         cutter.data = second.data.copy()
         case.bpy.context.collection.objects.link(cutter)
         case.difference_from(delta, cutter)
-        # Hardware roots reach only 0.8 mm into the exterior wall.
-        front = case.add_rounded_box('Remove_Exterior_Hardware', (400, 200, 400),
-                                     (0, -case.CASE_DEPTH / 2 - 99, 100), bevel=0)
+        front = case.add_rounded_box(
+            'Remove_Exterior_Hardware', (400, 400, 400),
+            (0, -200, 100), bevel=0,
+        )
+        cavity_margin = 0.2
+        cavity_keepout = case.add_rounded_prism(
+            'Preserve_Rounded_Cavity',
+            case.CASE_WIDTH - 2 * case.WALL_THICKNESS + 2 * cavity_margin,
+            case.CASE_DEPTH - 2 * case.WALL_THICKNESS + 2 * cavity_margin,
+            -100, 300,
+            case.CASE_CORNER_RADIUS - case.WALL_THICKNESS + cavity_margin,
+        )
+        case.difference_from(front, cavity_keepout)
         case.difference_from(delta, front)
         assert case.mesh_object_volume(delta) < .001, 'Interior or hinge changed'
         case.bpy.data.objects.remove(delta, do_unlink=True)
     print('FIELD_CASE_INTERIOR_COMPATIBLE', flush=True)
 
     # The compact case has insufficient height for this layout, so keep every
-    # printable hardware and shell mesh identical to its previous revision.
+    # printable hardware and shell mesh identical to the rounded-shell baseline.
     compact = {'__name__': 'compact_width_check', '__file__': case.__file__,
                'EXPANDED_ACCESSORY_STORAGE': False}
     exec(compile(Path(case.__file__).read_bytes(), case.__file__, 'exec'), compact)
     compact['validate_configuration']()
-    base = compact['create_base'](material)
-    lid, _ = compact['create_lid'](material, material)
-    for key, obj in (('base', base), ('lid', lid)):
-        count_v, count_p, expected = COMPACT_FIXED_PART_BASELINES[key]
-        assert (len(obj.data.vertices), len(obj.data.polygons)) == (count_v, count_p)
-        digest = hashlib.sha256()
-        for coordinate in sorted(tuple(round(float(x), 5) for x in v.co) for v in obj.data.vertices):
-            digest.update(struct.pack('<3q', *(round(x * 100000) for x in coordinate)))
-        assert digest.hexdigest() == expected
     assert compact['LATCH_WIDTH'] == 20.48 and compact['HANDLE_WIDTH_INCREASE'] == 0
-    old_compact = {'__name__': 'old_compact', '__file__': case.__file__,
-                   'EXPANDED_ACCESSORY_STORAGE': False}
-    exec(compile(source, case.__file__, 'exec'), old_compact)
-    old_hardware = (*old_compact['create_pelican_latch_parts'](material),
-                    old_compact['create_pivoting_handle_bar'](material))
-    new_hardware = (*compact['create_pelican_latch_parts'](material),
-                    compact['create_pivoting_handle_bar'](material))
-    for old_part, new_part in zip(old_hardware, new_hardware):
-        assert len(old_part.data.vertices) == len(new_part.data.vertices)
-        assert canonical_faces(old_part) == canonical_faces(new_part)
-        assert tuple(old_part.location) == tuple(new_part.location)
-        assert tuple(old_part.rotation_euler) == tuple(new_part.rotation_euler)
+    baseline_compact = {'__name__': 'baseline_compact', '__file__': case.__file__,
+                        'EXPANDED_ACCESSORY_STORAGE': False}
+    exec(compile(source, case.__file__, 'exec'), baseline_compact)
+    baseline_compact['validate_configuration']()
+    baseline_lid, _ = baseline_compact['create_lid'](material, material)
+    current_lid, _ = compact['create_lid'](material, material)
+    baseline_parts = (
+        baseline_compact['create_base'](material), baseline_lid,
+        *baseline_compact['create_pelican_latch_parts'](material),
+        baseline_compact['create_pivoting_handle_bar'](material),
+    )
+    current_parts = (
+        compact['create_base'](material), current_lid,
+        *compact['create_pelican_latch_parts'](material),
+        compact['create_pivoting_handle_bar'](material),
+    )
+    for baseline_part, current_part in zip(baseline_parts, current_parts):
+        assert len(baseline_part.data.vertices) == len(current_part.data.vertices)
+        assert canonical_faces(baseline_part) == canonical_faces(current_part)
+        assert tuple(baseline_part.location) == tuple(current_part.location)
+        assert tuple(baseline_part.rotation_euler) == tuple(current_part.rotation_euler)
     compact['validate_handle_closed_latch_full_rotation']({
-        'latch_lever': new_hardware[0], 'latch_hook': new_hardware[1],
-        'handle_bar': new_hardware[2]})
+        'latch_lever': current_parts[2], 'latch_hook': current_parts[3],
+        'handle_bar': current_parts[4]})
     print('FIELD_CASE_WIDE_HARDWARE_REGRESSION_PASS compact_shells_and_hardware=unchanged', flush=True)
 
 

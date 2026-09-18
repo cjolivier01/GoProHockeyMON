@@ -17,6 +17,9 @@ import mission1_field_case_blender as case
 from render_mission1_latch_previews import aim, label
 
 
+BASELINE_REVISION = "e1e8d596f6d496957e9bcc17d8d6893bc4d61105"
+
+
 def main():
     case.clear_scene()
     case.set_units()
@@ -30,7 +33,7 @@ def main():
     full_turn_gap = case.validate_handle_closed_latch_full_rotation(
         {'latch_lever': lever, 'latch_hook': hook, 'handle_bar': handle})
     source = subprocess.check_output(
-        ['git', 'show', '438c924:models3d/mission1-field-case/mission1_field_case_blender.py'],
+        ['git', 'show', f'{BASELINE_REVISION}:models3d/mission1-field-case/mission1_field_case_blender.py'],
         cwd=DIRECTORY, text=True,
     )
     previous = {'__name__': 'previous_hardware', '__file__': case.__file__}
