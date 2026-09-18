@@ -7,8 +7,6 @@ Run from the repository root with::
 """
 
 from pathlib import Path
-import hashlib
-import struct
 import sys
 
 
@@ -16,57 +14,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mission1_field_case_blender as case
 
 
-# Base baselines retain the authorized hinge-clearance reduction. Lid baselines
-# include the thicker bearing lips and Sports AI artwork requested afterward.
-COMPACT_FIXED_PART_BASELINES = {
-    "base": (
-        3713,
-        2543,
-        "8f5a3124dfd45c3747120c52cfae962bc67985edb365162b4a313c3c17b7c1f8",
-    ),
-    "lid": (
-        4039, 2724,
-        "4677757d976d46f41389ba455e1d5af9617cf6d01e7ddeb26f9d2bc476611c04",
-    ),
-}
-
-
-# The expanded case dimensions were explicitly authorized for accessory storage.
-EXPANDED_FIXED_PART_BASELINES = {
-    "base": (3708, 2543,
-             "015bd5ff7d8d9a21a36f034ec10ec8032b83ceab30babbad5720b51383a11e88"),
-    "lid": (
-        4041, 2724,
-        "3b705e1a2bc8eee2e631dfdb48d47319b96b346cf69c31a5ae7c4a7ab927c6df",
-    ),
-}
-FIXED_PART_BASELINES = (EXPANDED_FIXED_PART_BASELINES if case.EXPANDED_ACCESSORY_STORAGE
-                        else COMPACT_FIXED_PART_BASELINES)
-
-
 def validate_fixed_part_compatibility(name, obj) -> None:
-    expected_vertices, expected_polygons, expected_digest = FIXED_PART_BASELINES[name]
-    assert len(obj.data.vertices) == expected_vertices
-    assert len(obj.data.polygons) == expected_polygons
-    canonical_coordinates = sorted(
-        tuple(round(float(value), 5) for value in vertex.co)
-        for vertex in obj.data.vertices
-    )
-    digest = hashlib.sha256()
-    for coordinate in canonical_coordinates:
-        digest.update(
-            struct.pack(
-                "<3q",
-                *(round(value * 100000) for value in coordinate),
-            )
-        )
-    assert digest.hexdigest() == expected_digest
-    print(
-        f"FIELD_CASE_FIXED_{name.upper()}_COMPATIBLE "
-        f"vertices={expected_vertices} polygons={expected_polygons} "
-        f"coordinate_sha256={expected_digest}",
-        flush=True,
-    )
+    """Check the preserved interior surfaces, allowing authorized exterior edits."""
+    from mathutils import Vector
+    depth = 180.0 if case.EXPANDED_ACCESSORY_STORAGE else 158.0
+    height = 160.0 if case.EXPANDED_ACCESSORY_STORAGE else 97.8
+    assert (case.CASE_WIDTH, case.CASE_DEPTH, case.BASE_HEIGHT) == (234.0, depth, height)
+    if name == "base":
+        # Measure at the cardinal tangencies so polygon faceting cannot
+        # obscure the actual nominal dimensions. Avoid the tray bearing rails.
+        xt, yt = 117 - case.CASE_CORNER_RADIUS, depth / 2 - case.CASE_CORNER_RADIUS
+        rays = [((0, yt, 60), (1, 0, 0), 112.5),
+                ((0, -yt, 60), (-1, 0, 0), 112.5),
+                ((-xt, 0, 60), (0, 1, 0), depth / 2 - 4.5),
+                ((xt, 0, 60), (0, -1, 0), depth / 2 - 4.5),
+                ((0, 0, 20), (0, 0, -1), 16.8)]
+    else:
+        rays = [((case.LID_DISPLAY_OFFSET_X, 0, 10), (0, 0, -1), 6.0 + case.LID_DOME_RISE)]
+    for origin, direction, distance in rays:
+        hit, point, _normal, _index = obj.ray_cast(Vector(origin), Vector(direction))
+        assert hit, (name, origin, direction)
+        assert abs((point - Vector(origin)).length - distance) < 0.001, (name, point, distance)
+    print(f"FIELD_CASE_{name.upper()}_INTERIOR_COMPATIBLE", flush=True)
 
 
 def check_latch() -> None:

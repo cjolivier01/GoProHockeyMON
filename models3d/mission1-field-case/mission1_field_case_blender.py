@@ -5,7 +5,8 @@ from disk. The default expanded alternate kit holds two complete upright
 fan-case camera assemblies, their batteries/doors/cables/PWM plugs, an assembled
 approximately 205 x 140 x 35 mm mount, five remotes, and a rolled 150 x 40 mm cord.
 A lower front utility bin, rigid mount tray and TPU-85A upper organizer preserve
-additional storage. The shell is 234 x 180 x 160 mm and all parts fit a 250 mm bed.
+additional storage. The rounded base is 234 x 180 x 160 mm, the closed
+case is 195 mm high, and all parts fit a 250 mm bed.
 
 Set EXPANDED_ACCESSORY_STORAGE=False before executing the module (or use the
 mission1-field-case-compact Make target) to regenerate the previous compact kit,
@@ -348,9 +349,47 @@ ACCESSORY_AIR_CHANNEL_WIDTH = 5.0
 ACCESSORY_AIR_CHANNEL_DEPTH = 1.0
 ACCESSORY_AIR_CHANNEL_UNDERCUT_LENGTH = 5.0
 ACCESSORY_AIR_CHANNEL_BRANCH_OFFSETS = (-1.5, 1.5)
-CASE_CORNER_RADIUS = 12.0
+CASE_CORNER_RADIUS = 25.0 if EXPANDED_ACCESSORY_STORAGE else 12.0
 WALL_THICKNESS = 4.5
 BASE_FLOOR_THICKNESS = 3.2
+
+# Exterior proportions follow build_hardcase.py, constrained by the existing
+# nominal cavity dimensions, mating hardware and 250 mm bed. The expanded
+# cavity follows the rounded floor and corners; its centerline dimensions stay fixed.
+EXTERIOR_RIB_WIDTH = 6.0
+EXTERIOR_RIB_OUTSET = 6.0
+EXTERIOR_RIB_ROOT_OVERLAP = 2.0 if EXPANDED_ACCESSORY_STORAGE else 0.4
+EXTERIOR_RIB_END_RAMP = EXTERIOR_RIB_OUTSET + EXTERIOR_RIB_ROOT_OVERLAP
+EXTERIOR_RIB_BOTTOM_Z = 20.0
+EXTERIOR_RIB_RIM_GAP = 7.0
+BASE_BUMPER_OUTSET = 5.0
+BASE_BUMPER_EDGE_HEIGHT = 3.0
+BASE_BUMPER_RAMP_HEIGHT = 5.0
+# A shallow version of the reference's soft outer edge. Keep the original
+# flat floor/ceiling and wall positions; only the outside corners are rounded.
+COMPACT_SOFT_EDGE = (
+    (0.0, 2.0), (0.5, 1.6), (1.0, 1.2), (1.5, 0.85),
+    (2.0, 0.5), (2.5, 0.2), (3.0, 0.0),
+)
+
+# Sampled normalized outer/inner blends from build_hardcase.py. The outside
+# reach is 14 mm over 30 mm, keeping every sampled outward slope below 45°.
+HARDCASE_EDGE_OUT = (
+    (0, 1), (.0417, .9387), (.0833, .8589), (.125, .7822),
+    (.1667, .7055), (.2083, .6166), (.25, .5399), (.2917, .4724),
+    (.3333, .411), (.4167, .3098), (.5, .227), (.5833, .1595),
+    (.6667, .1043), (.75, .0613), (.8333, .0307), (.9167, .0123), (1, 0),
+)
+HARDCASE_EDGE_IN = (
+    (0, 1), (.0233, .9201), (.0698, .7616), (.1628, .5478),
+    (.2558, .3969), (.3488, .2843), (.4419, .1975), (.5349, .1289),
+    (.6279, .0774), (.7209, .0396), (.814, .0151), (.907, .0031), (1, 0),
+)
+EXTERIOR_SOFT_EDGE = (tuple((30 * t, 14 * inset) for t, inset in HARDCASE_EDGE_OUT)
+                      if EXPANDED_ACCESSORY_STORAGE else COMPACT_SOFT_EDGE)
+BASE_INNER_BLEND_HEIGHT = 27.5
+BASE_INNER_BLEND_INSET = 13.6
+
 
 # Pack the dual-fan holder rear-grille-down, its support-conscious print
 # orientation.  The shallow TPU pocket locates that shared contact plane.  The
@@ -374,6 +413,13 @@ LEGACY_EQUIPMENT_TRAY_INSTALLED_Z = BASE_FLOOR_THICKNESS
 
 LID_PLATE_THICKNESS = 4.0
 LID_WALL_HEIGHT = 11.0
+# Authorized raised roof; retain the rim, hinge and equipment contact datums.
+LID_DOME_RISE = 24.0 if EXPANDED_ACCESSORY_STORAGE else 0.0
+LID_DOME_INSET = 14.0 if EXPANDED_ACCESSORY_STORAGE else 0.0
+LID_DOME_CROWN_SIZE = (CASE_WIDTH - 2 * LID_DOME_INSET,
+                       CASE_DEPTH - 2 * LID_DOME_INSET)
+LID_DOME_PAD_FRAME_SIZE = (188.0, 134.0)
+LID_DOME_PAD_FRAME_WALL = 3.0
 LID_FLANGE_OUTSET = 5.0
 LID_FLANGE_FLARE_START_Z = 3.0
 LID_FLANGE_EDGE_START_Z = 8.0
@@ -395,15 +441,13 @@ LID_LATCH_LOAD_LEDGE_RAIL_EMBED = 0.2
 LID_LATCH_LOAD_LEDGE_BACK_OVERLAP = 1.0
 LID_LATCH_LOAD_LEDGE_AXIAL_OVERLAP = 0.4
 LID_LATCH_CAPTURE_TOWER_OUTSET = 0.7
-# Continue each base latch protector straight through the lid as one broad
-# rectangular wall.  The lid wall uses the base protector's full 21 mm radial
-# projection and 6 mm axial footprint; only its exposed print-plane/front
-# corner receives a small radius.
+# The paired 6 mm guards meet at the parting rim, as in build_hardcase.py.
+# Their lid shoulders grow outward at 45 degrees in the face-down print pose;
+# they no longer extend 5 mm below the rim into the base half.
 LID_LATCH_PROTECTOR_PLATE_PROJECTION = 21.0
 LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP = 0.5
-LID_LATCH_PROTECTOR_PLATE_HEIGHT = 16.0
-LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS = 2.0
-LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS = 8
+LID_LATCH_PROTECTOR_PLATE_HEIGHT = LID_WALL_HEIGHT
+LID_LATCH_PROTECTOR_SHOULDER_RUN = 7.0
 LID_DISPLAY_OFFSET_X = 215.0
 
 # The lower cradle and lid pad retain their close locator fit.  The frequently
@@ -1816,13 +1860,12 @@ LATCH_PROTECTOR_ROOT_Z = 3.0 + LATCH_VERTICAL_OFFSET
 LATCH_PROTECTOR_FRONT_LOWER_Z = LATCH_PROTECTOR_ROOT_Z + abs(
     LATCH_PROTECTOR_FRONT_Y - LATCH_PROTECTOR_BODY_Y
 )
-LATCH_PROTECTOR_FRONT_UPPER_Z = 53.5 + LATCH_VERTICAL_OFFSET
-LATCH_PROTECTOR_TOP_Z = 56.5 + LATCH_VERTICAL_OFFSET
+LATCH_PROTECTOR_FRONT_UPPER_Z = BASE_HEIGHT - 0.4
+LATCH_PROTECTOR_TOP_Z = BASE_HEIGHT - 0.4
 LATCH_PROTECTOR_PROFILE_YZ = (
     (LATCH_PROTECTOR_BODY_Y, LATCH_PROTECTOR_ROOT_Z),
     (LATCH_PROTECTOR_FRONT_Y, LATCH_PROTECTOR_FRONT_LOWER_Z),
     (LATCH_PROTECTOR_FRONT_Y, LATCH_PROTECTOR_FRONT_UPPER_Z),
-    (LATCH_PROTECTOR_FRONT_Y + 1.5, LATCH_PROTECTOR_FRONT_UPPER_Z + 2.0),
     (LATCH_PROTECTOR_BODY_Y, LATCH_PROTECTOR_TOP_Z),
 )
 
@@ -3647,7 +3690,7 @@ NEUROPOL_LID_TEXT_OTF_GZIP_BASE64 = (
     "nIf4/wCAs0suYBAAAA=="
 )
 
-ROUNDED_RECT_SEGMENTS = 10
+ROUNDED_RECT_SEGMENTS = 16 if EXPANDED_ACCESSORY_STORAGE else 10
 BOOLEAN_SOLVER = "EXACT"
 BOOLEAN_CLEANUP_DISTANCE = 0.0001
 
@@ -3763,7 +3806,10 @@ def rounded_rectangle_loop(width: float, depth: float, radius: float):
         (width / 2.0 - radius, -depth / 2.0 + radius, 270.0, 360.0),
     )
     for center_x, center_y, angle0, angle1 in corners:
-        for step in range(ROUNDED_RECT_SEGMENTS):
+        # Include both tangencies on the rounded case: omitting an arc's
+        # end makes the following long wall slightly diagonal and narrows
+        # the liner's bearing surface. Retain the compact profile's sampling.
+        for step in range(ROUNDED_RECT_SEGMENTS + int(EXPANDED_ACCESSORY_STORAGE)):
             angle = math.radians(
                 angle0 + (angle1 - angle0) * step / ROUNDED_RECT_SEGMENTS
             )
@@ -5998,7 +6044,7 @@ def validate_configuration() -> None:
         CASE_DEPTH / 2.0 + LID_LATCH_PROTECTOR_PLATE_PROJECTION
     )
     if protector_plate_front_y <= protector_plate_root_y:
-        raise ValueError("Rectangular lid latch protector has no outward projection")
+        raise ValueError("Lid latch guard has no outward projection")
     if not math.isclose(
         protector_plate_front_y,
         -LATCH_PROTECTOR_FRONT_Y,
@@ -6015,17 +6061,8 @@ def validate_configuration() -> None:
         raise ValueError("Lid and base latch protectors have different radial spans")
     if not 0.2 <= LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP <= 1.0:
         raise ValueError("Lid latch protector needs a modest bonded root overlap")
-    if LID_LATCH_PROTECTOR_PLATE_HEIGHT < LID_WALL_HEIGHT:
-        raise ValueError("Rectangular lid latch protector is too short")
-    if not 0.5 <= LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS <= 2.5:
-        raise ValueError("Lid latch protector corner radius must remain modest")
-    if LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS >= min(
-        LID_LATCH_PROTECTOR_PLATE_PROJECTION,
-        LID_LATCH_PROTECTOR_PLATE_HEIGHT,
-    ):
-        raise ValueError("Lid latch protector corner radius exceeds its plate")
-    if LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS < 3:
-        raise ValueError("Lid latch protector corner is sampled too coarsely")
+    if LID_LATCH_PROTECTOR_PLATE_HEIGHT != LID_WALL_HEIGHT:
+        raise ValueError("Lid latch guards must end at the parting rim")
     if LID_LATCH_RECESS_BACK_WALL < 4.0:
         raise ValueError("Latch recess leaves too little skirt behind the lip")
     if LID_LATCH_RECESS_BACK_WALL >= skirt_radial_tip:
@@ -6319,7 +6356,7 @@ def validate_configuration() -> None:
 
     # Conservative analytic envelopes include every projection on each part.
     base_print_width = max(
-        CASE_WIDTH + 7.8,
+        CASE_WIDTH + 2 * max(EXTERIOR_RIB_OUTSET, BASE_BUMPER_OUTSET),
         2.0 * (HANDLE_BASE_LUG_X + HANDLE_BASE_LUG_WIDTH / 2.0),
     )
     mount_front = min(
@@ -6434,7 +6471,6 @@ def validate_configuration() -> None:
         f"lid_protector={LATCH_PROTECTOR_BASE_WIDTH:.2f}x"
         f"{LID_LATCH_PROTECTOR_PLATE_PROJECTION:.2f}x"
         f"{LID_LATCH_PROTECTOR_PLATE_HEIGHT:.2f} "
-        f"lid_protector_corner_r={LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS:.2f} "
         f"latch_handle_clearance={latch_handle_clearance:.2f} "
         f"latch_guard_handle_clearance={latch_guard_handle_clearance:.2f} "
         f"latch_hardware_handle_clearance={latch_hardware_handle_clearance:.2f} "
@@ -6859,49 +6895,99 @@ def lid_hinge_escape_global_yz(open_angle_degrees):
     return -math.cos(effective_angle), math.sin(effective_angle)
 
 
+def exterior_shell_blank(name, height, center=(0.0, 0.0)):
+    """Sweep the support-free soft outside edge without moving the cavity."""
+    profile = (*EXTERIOR_SOFT_EDGE, (height, 0.0))
+    return rounded_profile_prism(name, profile, center)
+
+
+def rounded_profile_prism(name, profile, center=(0.0, 0.0)):
+    """Sweep successive (height, inward offset) outlines into a closed solid."""
+    vertices = []
+    for z, inset in profile:
+        vertices.extend((center[0] + x, center[1] + y, z)
+                        for x, y in rounded_rectangle_loop(
+                            CASE_WIDTH - 2 * inset, CASE_DEPTH - 2 * inset,
+                            CASE_CORNER_RADIUS - inset))
+    count = len(vertices) // len(profile)
+    faces = [tuple(reversed(range(count))),
+             tuple(range(len(vertices) - count, len(vertices)))]
+    for ring in range(len(profile) - 1):
+        start = ring * count
+        for i in range(count):
+            j = (i + 1) % count
+            faces.append((start + i, start + j, start + count + j, start + count + i))
+    return create_mesh_object(name, vertices, faces)
+
+
+def base_interior_profile(clearance=0.0, z_offset=0.0):
+    """Curved floor-to-wall contour; positive clearance locates a removable liner."""
+    return (*((BASE_FLOOR_THICKNESS + BASE_INNER_BLEND_HEIGHT * t - z_offset,
+               WALL_THICKNESS + BASE_INNER_BLEND_INSET * inset + clearance)
+              for t, inset in HARDCASE_EDGE_IN),
+            (BASE_HEIGHT + .5 - z_offset, WALL_THICKNESS + clearance))
+
+
+def exterior_rib_profile(wall):
+    root = wall - EXTERIOR_RIB_ROOT_OVERLAP
+    tip = wall + EXTERIOR_RIB_OUTSET
+    bottom, top = EXTERIOR_RIB_BOTTOM_Z, BASE_HEIGHT - EXTERIOR_RIB_RIM_GAP
+    return ((root, bottom), (tip, bottom + EXTERIOR_RIB_END_RAMP),
+            (tip, top - EXTERIOR_RIB_END_RAMP), (root, top))
+
+
 def create_base(material):
-    base = add_rounded_prism(
-        "Field_Case_Base",
-        CASE_WIDTH,
-        CASE_DEPTH,
-        0.0,
-        BASE_HEIGHT,
-        CASE_CORNER_RADIUS,
-    )
-    inner = add_rounded_prism(
-        "Base_Interior_Cutter",
-        CASE_WIDTH - 2.0 * WALL_THICKNESS,
-        CASE_DEPTH - 2.0 * WALL_THICKNESS,
-        BASE_FLOOR_THICKNESS,
-        BASE_HEIGHT + 0.5,
-        CASE_CORNER_RADIUS - WALL_THICKNESS,
-    )
+    base = exterior_shell_blank("Field_Case_Base", BASE_HEIGHT)
+    inner = (rounded_profile_prism("Base_Interior_Cutter", base_interior_profile())
+             if EXPANDED_ACCESSORY_STORAGE else add_rounded_prism(
+                 "Base_Interior_Cutter", CASE_WIDTH - 2 * WALL_THICKNESS,
+                 CASE_DEPTH - 2 * WALL_THICKNESS, BASE_FLOOR_THICKNESS,
+                 BASE_HEIGHT + .5, CASE_CORNER_RADIUS - WALL_THICKNESS))
     difference_from(base, inner)
 
-    # Exterior impact ribs are deliberately below the sealing edge.  The
-    # front-center ribs are omitted because they would obstruct the measured
-    # 24 mm finger corridor between the carry handle and each moving latch.
-    # The integrated handle/latch mounts already reinforce that face.
-    rib_bottom_z = 3.0
-    rib_top_z = BASE_HEIGHT - 17.0
-    rib_center_z = (rib_bottom_z + rib_top_z) / 2.0
-    rib_height = rib_top_z - rib_bottom_z
-    rib_specs = []
+    # A matching bumper around the parting line grows from a 45-degree ramp.
+    # Cut the existing hinge/latch clearances after this union as usual.
+    bumper = rounded_ring_frustum(
+        "Base_Parting_Rim_Bumper_Ramp",
+        (CASE_WIDTH, CASE_DEPTH),
+        (CASE_WIDTH + 2 * BASE_BUMPER_OUTSET, CASE_DEPTH + 2 * BASE_BUMPER_OUTSET),
+        (CASE_WIDTH - 0.8, CASE_DEPTH - 0.8),
+        BASE_HEIGHT - BASE_BUMPER_EDGE_HEIGHT - BASE_BUMPER_RAMP_HEIGHT,
+        BASE_HEIGHT - BASE_BUMPER_EDGE_HEIGHT,
+        CASE_CORNER_RADIUS, CASE_CORNER_RADIUS + BASE_BUMPER_OUTSET,
+        CASE_CORNER_RADIUS - 0.4,
+    )
+    union_into(bumper, rounded_ring(
+        "Base_Parting_Rim_Bumper_Edge",
+        (CASE_WIDTH + 2 * BASE_BUMPER_OUTSET, CASE_DEPTH + 2 * BASE_BUMPER_OUTSET),
+        (CASE_WIDTH - 0.8, CASE_DEPTH - 0.8),
+        BASE_HEIGHT - BASE_BUMPER_EDGE_HEIGHT, BASE_HEIGHT,
+        CASE_CORNER_RADIUS + BASE_BUMPER_OUTSET, CASE_CORNER_RADIUS - 0.4,
+    ))
+
+    # Leave the original rear hinge bank envelope intact. A continuous bumper
+    # in this region would intersect the receiver's opening/release sweep.
+    difference_from(bumper, add_rounded_box(
+        "Base_Bumper_Rear_Hinge_Bank_Clearance", (CASE_WIDTH + 20.0, 20.0, 10.0),
+        (0.0, CASE_DEPTH / 2 + 9.5, BASE_HEIGHT - 4.0), bevel=0.0))
+    union_into(base, bumper)
+
+    # Narrow raised blades with tapered ends replace the broad rectangular
+    # side pads. Side spacing follows the reference's 47 / 190 depth ratio.
+    for side in (-1.0, 1.0):
+        for y in (-CASE_DEPTH * 47 / 190, CASE_DEPTH * 47 / 190):
+            rib = extrude_loop_x("Base_Side_Impact_Rib", exterior_rib_profile(
+                CASE_WIDTH / 2), y - EXTERIOR_RIB_WIDTH / 2,
+                y + EXTERIOR_RIB_WIDTH / 2)
+            # Local (X,Y) -> world (Y,X), mirrored onto each side.
+            for vertex in rib.data.vertices:
+                vertex.co.x, vertex.co.y = side * vertex.co.y, vertex.co.x
+            recalc_normals(rib)
+            union_into(base, rib)
     for x in (-42.0, 0.0, 42.0):
-        rib_specs.append(
-            ((x, CASE_DEPTH / 2.0 + 1.3, rib_center_z), (6.0, 4.8, rib_height))
-        )
-    for x in (-CASE_WIDTH / 2.0 - 1.3, CASE_WIDTH / 2.0 + 1.3):
-        for y in (-38.0, 38.0):
-            rib_specs.append(((x, y, rib_center_z), (5.0, 24.0, rib_height)))
-    for index, (location, dimensions) in enumerate(rib_specs, start=1):
-        rib = add_rounded_box(
-            f"Base_Impact_Rib_{index}",
-            dimensions,
-            location,
-            bevel=0.9,
-        )
-        union_into(base, rib)
+        union_into(base, extrude_loop_x("Base_Rear_Impact_Rib",
+            exterior_rib_profile(CASE_DEPTH / 2),
+            x - EXTERIOR_RIB_WIDTH / 2, x + EXTERIOR_RIB_WIDTH / 2))
 
     # Each lid knuckle needs a cylindrical swing pocket through the base's
     # otherwise continuous rear wall and rim.  Cut these before adding the
@@ -7012,6 +7098,20 @@ def create_base(material):
         )
         difference_from(base, nut_recess)
 
+    # The loaded lid ledge sits below the nominal rim. Leave a local pocket
+    # in the inner edge of each tall guard, retaining its full outer bumper.
+    pocket_bottom_z = LATCH_LID_INSTALLED_Z - (
+        LID_LATCH_LOAD_LEDGE_CONTACT_Z
+        + max(LID_LATCH_LOAD_LEDGE_THICKNESS, TPU_LID_LATCH_LOAD_LEDGE_THICKNESS)
+    ) - .4
+    pocket_top_z = BASE_HEIGHT + .5
+    for x in LATCH_X_CENTERS:
+        difference_from(base, add_rounded_box(
+            "Base_Guard_Lid_Load_Ledge_Clearance",
+            (LID_LATCH_TROUGH_WIDTH + 2 * (LID_LATCH_LOAD_LEDGE_AXIAL_OVERLAP + .4),
+             13.4, pocket_top_z - pocket_bottom_z),
+            (x, -CASE_DEPTH / 2 - 6.7, (pocket_top_z + pocket_bottom_z) / 2), bevel=0.0))
+
     # The suitcase-handle base is part of the shell: one reinforced, ramped lug
     # per side sits inside a relieved fork in the separate handle arm.  Its
     # upper edge curves back into the case body, and its horizontal bore has a
@@ -7063,7 +7163,29 @@ def create_base(material):
             ),
             bevel=0.6,
         )
+        # Bury clipped ends 0.2 mm inside the shell to avoid coincident
+        # outer faces when the rail intersects a rounded corner.
+        if EXPANDED_ACCESSORY_STORAGE:
+            boolean_apply(rail, add_rounded_prism("Rail_Rounded_Outer_Wall_Limit",
+                CASE_WIDTH - .4, CASE_DEPTH - .4, 0, BASE_HEIGHT, CASE_CORNER_RADIUS - .2), "INTERSECT")
         union_into(base, rail)
+        # Support the preserved bearing ledge with a 45-degree underside.
+        # It stays inside the existing insert's through-rail relief envelope.
+        inner_x = inner_width / 2 - EQUIPMENT_TRAY_LEDGE_SUPPORT_WIDTH
+        root_x = inner_width / 2 + rail_wall_overlap
+        rail_z = EQUIPMENT_TRAY_INSTALLED_Z - EQUIPMENT_TRAY_LEDGE_THICKNESS
+        support = extrude_loop_x("Base_Tray_Rail_Printable_Underside",
+            ((side * root_x, rail_z - (root_x - inner_x)),
+             (side * inner_x, rail_z + .6),
+             (side * root_x, rail_z + .6)),
+            -(tray_depth - 8.0) / 2 + .6, (tray_depth - 8.0) / 2 - .6)
+        for vertex in support.data.vertices:
+            vertex.co.x, vertex.co.y = vertex.co.y, vertex.co.x
+        recalc_normals(support)
+        if EXPANDED_ACCESSORY_STORAGE:
+            boolean_apply(support, add_rounded_prism("Rail_Support_Outer_Wall_Limit",
+                CASE_WIDTH - .4, CASE_DEPTH - .4, 0, BASE_HEIGHT, CASE_CORNER_RADIUS - .2), "INTERSECT")
+        union_into(base, support)
 
     assign_material(base, material)
     return base
@@ -7711,6 +7833,11 @@ def create_fan_case_pair_insert(
     for spec in fan_case_pair_shell_retention_specs():
         union_into(insert, create_fan_case_shell_retention_rib(spec, local=True))
 
+    if EXPANDED_ACCESSORY_STORAGE:
+        envelope = rounded_profile_prism("Insert_Rounded_Floor_Clearance",
+            base_interior_profile(clearance=INSERT_SIDE_CLEARANCE,
+                                  z_offset=FAN_CASE_PAIR_INSERT_INSTALLED_Z))
+        boolean_apply(insert, envelope, "INTERSECT")
     translate_object(insert, (0.0, 0.0, FAN_CASE_PAIR_INSERT_INSTALLED_Z))
     assign_material(insert, material)
     return insert
@@ -7726,6 +7853,13 @@ def create_fan_case_pair_standalone_tray(material, key, name):
         name + "_Usable_Storage", x1 - x0 - 2.0 * wall, y1 - y0 - 2.0 * wall,
         z0 + FAN_CASE_PAIR_STORAGE_BIN_FLOOR, z1 + 0.3, 3.5,
         ((x0 + x1) / 2.0, (y0 + y1) / 2.0))
+    if EXPANDED_ACCESSORY_STORAGE:
+        cavity_limit = add_rounded_prism("Tray_Inner_Rounded_Shell_Clearance",
+            CASE_WIDTH - 2 * (WALL_THICKNESS + EQUIPMENT_TRAY_SIDE_CLEARANCE + wall),
+            CASE_DEPTH - 2 * (WALL_THICKNESS + EQUIPMENT_TRAY_SIDE_CLEARANCE + wall),
+            z0 - .3, z1 + .4,
+            CASE_CORNER_RADIUS - WALL_THICKNESS - EQUIPMENT_TRAY_SIDE_CLEARANCE - wall)
+        boolean_apply(cavity, cavity_limit, "INTERSECT")
     difference_from(tray, cavity)
     # Low finger scallops at the facing rim let either tray lift independently.
     # They open upward, so neither needs a horizontal printed bridge.
@@ -7765,6 +7899,13 @@ def create_fan_case_pair_standalone_tray(material, key, name):
             (LID_PAD_KEY_CENTER[0], -LID_PAD_KEY_CENTER[1]),
         )
         difference_from(tray, notch)
+    if EXPANDED_ACCESSORY_STORAGE:
+        envelope = add_rounded_prism("Tray_Rounded_Shell_Clearance",
+            CASE_WIDTH - 2 * (WALL_THICKNESS + EQUIPMENT_TRAY_SIDE_CLEARANCE),
+            CASE_DEPTH - 2 * (WALL_THICKNESS + EQUIPMENT_TRAY_SIDE_CLEARANCE),
+            z0 - .2, z1 + .2,
+            CASE_CORNER_RADIUS - WALL_THICKNESS - EQUIPMENT_TRAY_SIDE_CLEARANCE)
+        boolean_apply(tray, envelope, "INTERSECT")
     assign_material(tray, material)
     return tray
 
@@ -7915,6 +8056,12 @@ def create_accessory_organizer(material):
             (80.25, y, floor + ACCESSORY_REMOTE_SLOT_DEPTH - 0.4),
             0.6, outline_offset=0.10)
         difference_from(tray, legend)
+    envelope = add_rounded_prism("Organizer_Rounded_Shell_Clearance",
+        CASE_WIDTH - 2 * (WALL_THICKNESS + EQUIPMENT_TRAY_SIDE_CLEARANCE),
+        CASE_DEPTH - 2 * (WALL_THICKNESS + EQUIPMENT_TRAY_SIDE_CLEARANCE),
+        z0 - .2, z1 + .2,
+        CASE_CORNER_RADIUS - WALL_THICKNESS - EQUIPMENT_TRAY_SIDE_CLEARANCE)
+    boolean_apply(tray, envelope, "INTERSECT")
     cut_accessory_air_channels(tray)
     tray["material_shore"] = "85A"
     assign_material(tray, material)
@@ -8280,7 +8427,7 @@ def validate_accessory_storage(parts, reference_objects):
 
 
 def create_fan_case_pair_lid_pad(material):
-    """Create the flat keyed pad with clearance above the organizer rim."""
+    """Keep the packing face and support it against the raised roof."""
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
     pad_width = inner_width - 2.0 * INSERT_SIDE_CLEARANCE
@@ -8301,9 +8448,27 @@ def create_fan_case_pair_lid_pad(material):
         -0.2,
         FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS + 0.3,
         1.4,
-        LID_PAD_KEY_CENTER,
+        (LID_PAD_KEY_CENTER[0], -LID_PAD_KEY_CENTER[1]) if LID_DOME_RISE else LID_PAD_KEY_CENTER,
     )
     difference_from(pad, key_notch)
+    if LID_DOME_RISE:
+        frame = rounded_ring(
+            "Lid_Pad_Open_Roof_Spacer", LID_DOME_PAD_FRAME_SIZE,
+            tuple(size - 2 * LID_DOME_PAD_FRAME_WALL for size in LID_DOME_PAD_FRAME_SIZE),
+            FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS - 0.2,
+            FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS + LID_DOME_RISE,
+            10.0, 10.0 - LID_DOME_PAD_FRAME_WALL)
+        union_into(pad, frame)
+        # Keep the soft contact plate from spanning the entire empty roof.
+        # Four open cells reduce its free span without introducing print bridges.
+        for axis, length in enumerate(LID_DOME_PAD_FRAME_SIZE):
+            size = [LID_DOME_PAD_FRAME_WALL, LID_DOME_PAD_FRAME_WALL,
+                    LID_DOME_RISE + .2]
+            size[axis] = length
+            rib = add_rounded_box(f"Lid_Pad_Roof_Spacer_Rib_{axis}", size,
+                (0, 0, FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS + LID_DOME_RISE / 2 - .1),
+                bevel=0)
+            union_into(pad, rib)
     translate_object(
         pad,
         (LID_DISPLAY_OFFSET_X, FAN_CASE_PAIR_LID_PAD_DISPLAY_Y, 0.0),
@@ -8537,6 +8702,47 @@ def create_equipment_tray(material):
     return tray
 
 
+def dome_shoulder_growth(height):
+    """A rounded shoulder with a maximum 0.934:1 outward print slope."""
+    t = min(1.0, max(0.0, height / LID_DOME_RISE))
+    return LID_DOME_INSET * (1 - (1 - t) ** 1.6)
+
+
+def create_domed_lid_shell(name, center):
+    """Open hollow roof, printed crown-down; no trapped or bridged cavity."""
+    outer_heights = (*range(0, 25, 2), 28.0)
+    inner_heights = tuple(h for h in outer_heights if h >= LID_PLATE_THICKNESS)
+    loops = []
+    for heights, inset in ((outer_heights, 0.0), (inner_heights, WALL_THICKNESS)):
+        for height in heights:
+            growth = dome_shoulder_growth(height)
+            outline = rounded_rectangle_loop(
+                LID_DOME_CROWN_SIZE[0] + 2 * (growth - inset),
+                LID_DOME_CROWN_SIZE[1] + 2 * (growth - inset),
+                CASE_CORNER_RADIUS - LID_DOME_INSET + growth - inset)
+            loops.append([(center[0] + x, center[1] + y, height - LID_DOME_RISE)
+                          for x, y in outline])
+    count = len(loops[0])
+    vertices = [point for loop in loops for point in loop]
+    inner_start = len(outer_heights)
+    faces = [tuple(reversed(range(count))),
+             tuple(range(inner_start * count, (inner_start + 1) * count))]
+    for first, levels, reverse in ((0, len(outer_heights), False),
+                                   (inner_start, len(inner_heights), True)):
+        for level in range(first, first + levels - 1):
+            for i in range(count):
+                j = (i + 1) % count
+                face = (level * count + i, level * count + j,
+                        (level + 1) * count + j, (level + 1) * count + i)
+                faces.append(tuple(reversed(face)) if reverse else face)
+    outer_top, inner_top = len(outer_heights) - 1, len(loops) - 1
+    for i in range(count):
+        j = (i + 1) % count
+        faces.append((outer_top * count + i, outer_top * count + j,
+                      inner_top * count + j, inner_top * count + i))
+    return create_mesh_object(name, vertices, faces)
+
+
 def create_lid(
     shell_material,
     logo_orange_material,
@@ -8546,15 +8752,9 @@ def create_lid(
                        if hinge_profile == HINGE_PROFILE_TPU_68D_SNAP
                        else LID_LATCH_LOAD_LEDGE_THICKNESS)
     dx = LID_DISPLAY_OFFSET_X
-    lid = add_rounded_prism(
-        "Field_Case_Lid",
-        CASE_WIDTH,
-        CASE_DEPTH,
-        0.0,
-        LID_PLATE_THICKNESS,
-        CASE_CORNER_RADIUS,
-        (dx, 0.0),
-    )
+    lid = (create_domed_lid_shell("Field_Case_Lid", (dx, 0.0))
+           if LID_DOME_RISE else exterior_shell_blank(
+               "Field_Case_Lid", LID_PLATE_THICKNESS, (dx, 0.0)))
     wall = rounded_ring(
         "Lid_Wall",
         (CASE_WIDTH, CASE_DEPTH),
@@ -8631,30 +8831,16 @@ def create_lid(
     tower_plate_front_y = (
         CASE_DEPTH / 2.0 + LID_LATCH_PROTECTOR_PLATE_PROJECTION
     )
-    corner_radius = LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS
-    corner_center_y = tower_plate_front_y - corner_radius
-    corner_center_z = corner_radius
-    rounded_plate_corner = tuple(
-        (
-            corner_center_y + corner_radius * math.cos(angle),
-            corner_center_z + corner_radius * math.sin(angle),
-        )
-        for angle in (
-            -math.pi / 2.0
-            + step
-            * math.pi
-            / 2.0
-            / LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS
-            for step in range(LID_LATCH_PROTECTOR_PLATE_CORNER_STEPS + 1)
-        )
-    )
     tower_profile_yz = (
-        (tower_plate_bond_root_y, 0.0),
-        *rounded_plate_corner,
+        (tower_plate_bond_root_y - LID_DOME_INSET, -LID_DOME_RISE),
+        (tower_plate_front_y - LID_LATCH_PROTECTOR_SHOULDER_RUN - LID_DOME_RISE,
+         -LID_DOME_RISE),
+        (tower_plate_front_y, LID_LATCH_PROTECTOR_SHOULDER_RUN),
         (tower_plate_front_y, LID_LATCH_PROTECTOR_PLATE_HEIGHT),
         (tower_plate_root_y, LID_LATCH_PROTECTOR_PLATE_HEIGHT),
         (tower_plate_root_y, LID_PLATE_THICKNESS),
         (tower_plate_bond_root_y, LID_PLATE_THICKNESS),
+        (tower_plate_bond_root_y - LID_DOME_INSET, LID_PLATE_THICKNESS - LID_DOME_RISE),
     )
     for index, x in enumerate(LATCH_X_CENTERS, start=1):
         bay = extrude_loop_x(
@@ -8780,12 +8966,25 @@ def create_lid(
                 + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
             )
             tower = extrude_loop_x(
-                f"Lid_Latch_{index}_Rectangular_Base_Matched_Protector",
+                f"Lid_Latch_{index}_Ramped_Base_Matched_Protector",
                 tower_profile_yz,
                 protector_center_x - LATCH_PROTECTOR_BASE_WIDTH / 2.0,
                 protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0,
             )
             union_into(lid, tower)
+
+    if LID_DOME_RISE:
+        # The original hinge roots used the flat plate as their first layer.
+        # Carry them down the new shoulder on permanent 45-degree webs, before
+        # cutting the mating-bank reliefs and the calibrated receiver slots.
+        for x0, x1 in (*lid_hinge_bank_bounds(),
+                       (HINGE_BASE_SEGMENTS[0][0] - 3.6, HINGE_BASE_SEGMENTS[0][0] - .6),
+                       (HINGE_BASE_SEGMENTS[-1][1] + .6, HINGE_BASE_SEGMENTS[-1][1] + 3.6)):
+            root_y = -CASE_DEPTH / 2 + LID_DOME_INSET + .5
+            outer_y = -HINGE_AXIS_Y - HINGE_LID_MOUTH_TIP_DISTANCE
+            union_into(lid, extrude_loop_x("Lid_Hinge_Shoulder_Web",
+                ((root_y, -LID_DOME_RISE), (outer_y, .4),
+                 (root_y, .4)), dx + x0, dx + x1))
 
     # The base knuckles swing through the continuous rear lid flange.  Matching
     # cylindrical pockets preserve the alternating-barrel hinge instead of
@@ -8847,8 +9046,8 @@ def create_lid(
     # receiver through its rear side with a 4.4 mm slot.  The installed escape
     # vector remains blocked by the unchanged base through 60 degrees.  At 70
     # degrees the lid slides diagonally up/forward off the already-installed 3.8
-    # mm base rod.  These full-width slots need removable print support; the
-    # extra 0.6 mm width leaves cleanup allowance around the physical rod.
+    # mm base rod. The narrow receiver roofs bridge across their short axial
+    # spans; the new shoulder webs carry their roots continuously from the bed.
     if hinge_profile == HINGE_PROFILE_TPU_68D_SNAP:
         # Both production banks use the exact same constructor as all four
         # coupon samples, including their independent clips and shared spines.
@@ -8931,6 +9130,16 @@ def create_lid(
     # The asymmetric interior boss mates with the TPU pad's open perimeter
     # notch.  A 180-degree-misrotated pad therefore cannot sit flat with its
     # two camera-button reliefs over the wrong ends of the cameras.
+    if LID_DOME_RISE:
+        key_support = extrude_loop_x(
+            "Lid_Pad_Key_Sloped_Wall_Root",
+            ((-CASE_DEPTH / 2 + 2.5, -5.0),
+             (-CASE_DEPTH / 2 + 11.0, 3.5),
+             (-CASE_DEPTH / 2 + 11.0, 7.5),
+             (-CASE_DEPTH / 2 + 2.5, 7.5)),
+            dx + LID_PAD_KEY_CENTER[0] - 6,
+            dx + LID_PAD_KEY_CENTER[0] + 6)
+        union_into(lid, key_support)
     key_boss = add_rounded_box(
         "Lid_Pad_One_Way_Orientation_Key",
         LID_PAD_KEY_BOSS_SIZE,
@@ -9069,6 +9278,9 @@ def create_lid(
     # layer instead of suspending the full black lid 0.8 mm over isolated text.
     select_only(logo_orange)
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    for vertex in logo_orange.data.vertices:
+        vertex.co.z -= LID_DOME_RISE
+    logo_orange.data.update()
     inlay_pocket_cutter = logo_orange.copy()
     inlay_pocket_cutter.data = logo_orange.data.copy()
     inlay_pocket_cutter.name = "Lid_Flush_Orange_Inlay_Pocket_Cutter"
@@ -9092,6 +9304,8 @@ def create_lid(
     lid["hinge_profile"] = hinge_profile
     assign_material(lid, shell_material)
     assign_material(logo_orange, logo_orange_material)
+    translate_object(lid, (0.0, 0.0, LID_DOME_RISE))
+    translate_object(logo_orange, (0.0, 0.0, LID_DOME_RISE))
     return lid, logo_orange
 
 
@@ -9191,6 +9405,8 @@ def create_gasket(material):
     difference_from(gasket, cavity)
     orient_hollow_gasket_cavity(gasket, gasket_z0)
     assign_material(gasket, material)
+    if PRINT_TPU_GASKET_WITH_LID:
+        translate_object(gasket, (0.0, 0.0, LID_DOME_RISE))
     return gasket
 
 
@@ -10731,7 +10947,7 @@ def validate_built_latch_impact_protectors(parts) -> None:
     base_bond_volumes = []
     access_air_volumes = []
     lid_guard_volumes = []
-    lid_rectangular_corner_volumes = []
+    lid_shoulder_volumes = []
     lid_probe_dimensions = (0.8, 0.4, 0.4)
     lid_minimum_fill = math.prod(lid_probe_dimensions) * 0.9
     lid_top_extension_probe_dimensions = (0.8, 0.3, 0.2)
@@ -10799,7 +11015,7 @@ def validate_built_latch_impact_protectors(parts) -> None:
                     (
                         lid_protector_center_x,
                         lid_plate_front_y - 0.5,
-                        LID_LATCH_PROTECTOR_PLATE_HEIGHT / 2.0,
+                        (LID_LATCH_PROTECTOR_SHOULDER_RUN + LID_LATCH_PROTECTOR_PLATE_HEIGHT) / 2.0,
                     ),
                     lid_probe_dimensions,
                 )
@@ -10810,16 +11026,16 @@ def validate_built_latch_impact_protectors(parts) -> None:
                     (lid_plate_root_y + 0.5, LID_LATCH_PROTECTOR_PLATE_HEIGHT - 0.5),
                     (
                         lid_plate_front_y - 0.5,
-                        LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS + 0.5,
+                        LID_LATCH_PROTECTOR_SHOULDER_RUN + 0.5,
                     ),
                     (lid_plate_front_y - 0.5, LID_LATCH_PROTECTOR_PLATE_HEIGHT - 0.5),
                 ),
                 start=1,
             ):
-                lid_rectangular_corner_volumes.append(
+                lid_shoulder_volumes.append(
                     overlap_at(
                         parts["lid"],
-                        f"TEMPORARY_Latch_{index}_Lid_Rectangular_Protector_"
+                        f"TEMPORARY_Latch_{index}_Lid_Shoulder_Protector_"
                         f"Corner_Probe_{probe_index}",
                         (lid_protector_center_x, probe_y, probe_z),
                         lid_top_extension_probe_dimensions,
@@ -10833,9 +11049,9 @@ def validate_built_latch_impact_protectors(parts) -> None:
         raise ValueError("Base latch protectors obstruct lever finger access")
     if min(lid_guard_volumes) < lid_minimum_fill:
         raise ValueError("A lid latch impact protector is hollow")
-    if min(lid_rectangular_corner_volumes) < lid_top_extension_minimum_fill:
+    if min(lid_shoulder_volumes) < lid_top_extension_minimum_fill:
         raise ValueError(
-            "A lid latch impact protector is not a solid rectangular wall"
+            "A lid latch impact protector has an unsupported or hollow shoulder"
         )
     print(
         "FIELD_CASE_LATCH_PROTECTORS_VALID "
@@ -10845,7 +11061,7 @@ def validate_built_latch_impact_protectors(parts) -> None:
         f"lid_thickness={LATCH_PROTECTOR_BASE_WIDTH:.2f} "
         f"lid_projection={LID_LATCH_PROTECTOR_PLATE_PROJECTION:.2f} "
         f"lid_solid_min={min(lid_guard_volumes):.6f} "
-        f"lid_rectangular_corner_min={min(lid_rectangular_corner_volumes):.6f} "
+        f"lid_shoulder_min={min(lid_shoulder_volumes):.6f} "
         f"finger_access_air_max={max(access_air_volumes):.9f}"
     )
 
@@ -12145,10 +12361,11 @@ def installed_flat_lid_pad_pose(open_angle_degrees):
     """Return the alternate flat pad pose while attached inside the lid."""
     lid_location, lid_rotation = installed_lid_pose(open_angle_degrees)
     rotation_x = lid_rotation[0]
-    # The separately modeled pad's local Z=0 face coincides with the lid
-    # plate's local Z=LID_PLATE_THICKNESS inner face.
+    # Keep the original packing plane. A domed pad prints contact-face down
+    # with its spacer up, so its installed orientation reverses the flat pad.
     local_y = 0.0
-    local_z = LID_PLATE_THICKNESS
+    local_z = LID_PLATE_THICKNESS + (FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS if LID_DOME_RISE else 0.0)
+    pad_rotation = (rotation_x - math.pi, 0.0, 0.0) if LID_DOME_RISE else lid_rotation
     return (
         (
             lid_location[0] + LID_DISPLAY_OFFSET_X,
@@ -12159,7 +12376,7 @@ def installed_flat_lid_pad_pose(open_angle_degrees):
             + math.sin(rotation_x) * local_y
             + math.cos(rotation_x) * local_z,
         ),
-        lid_rotation,
+        pad_rotation,
     )
 
 
@@ -12543,7 +12760,7 @@ def validate_lid_hinge_reinforcement(base, lid, profile):
         try:
             _faces, volume = exact_transformed_intersection(
                 lid, probe,
-                first_location=lid.location.copy(),
+                first_location=lid.location - Vector((0, 0, LID_DOME_RISE)),
                 first_rotation=lid.rotation_euler.copy(),
                 second_location=probe.location.copy(),
                 second_rotation=probe.rotation_euler.copy(),
@@ -13882,7 +14099,9 @@ def validate_alternate_lid_closure(parts, reference_objects=()) -> None:
         # frame. A 0.01 mm face separation avoids Boolean noise on the broad
         # coincident mounting planes; all key/side-wall geometry remains checked.
         volume = intersect(lid, pad, ((-LID_DISPLAY_OFFSET_X, 0, 0), (0, 0, 0)),
-                           ((0, 0, LID_PLATE_THICKNESS + 0.01), (0, 0, 0)))
+                           ((0, 0, LID_PLATE_THICKNESS + 0.01
+                             + (FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS if LID_DOME_RISE else 0)),
+                            (math.pi if LID_DOME_RISE else 0, 0, 0)))
         if volume > 1e-5:
             raise ValueError(f"Alternate pad does not fit its lid: {lid_key} {volume:.6f}")
         for angle in angles:
@@ -14307,6 +14526,15 @@ def validate_fan_case_pair_loadout(
         air = add_rounded_prism("TEMPORARY_Standalone_Tray_Usable_Air",
             inner[0] - 0.4, air_depth, z0 + floor + 0.2, z1 + 0.2,
             3.5, (cx, cy))
+        if EXPANDED_ACCESSORY_STORAGE:
+            # The usable bay follows the newly rounded shell corners. Keep
+            # 0.2 mm off its curved walls, matching the straight-wall probes;
+            # exact packed equipment envelopes are checked separately below.
+            inset = WALL_THICKNESS + EQUIPMENT_TRAY_SIDE_CLEARANCE + wall + .2
+            curved_air = add_rounded_prism("TEMPORARY_Rounded_Tray_Air_Limit",
+                CASE_WIDTH - 2 * inset, CASE_DEPTH - 2 * inset,
+                z0 + floor, z1 + .3, CASE_CORNER_RADIUS - inset)
+            boolean_apply(air, curved_air, "INTERSECT")
         try:
             air_overlap = probe_fill_volume(parts[part_key], air)
         finally:
@@ -14345,7 +14573,8 @@ def validate_fan_case_pair_loadout(
                 level_fills.append(fill)
         minimum, _maximum = object_world_bounds(parts[part_key])
         if abs(minimum.z - z0) > 1e-4 or air_overlap > 1e-5:
-            raise ValueError(f"Tray has feet below its flat floor or blocked storage: {part_key}")
+            raise ValueError(f"Tray has feet below its flat floor or blocked storage: {part_key} "
+                             f"floor_offset={minimum.z - z0:.6f} air_overlap={air_overlap:.6f}")
         tray_metrics[part_key] = {
             "inner": inner, "capacity_cm3": math.prod(inner) / 1000.0,
             "air": air_overlap, "solid_min": min(solid_fills), "level_min": min(level_fills),
@@ -14380,11 +14609,12 @@ def validate_fan_case_pair_loadout(
     if EXPANDED_ACCESSORY_STORAGE:
         validate_accessory_storage(parts, reference_objects)
     validate_alternate_lid_closure(parts, reference_objects)
+    closed_pad_location, closed_pad_rotation = installed_flat_lid_pad_pose(0)
     for obj in (obj for group in assembly_groups for obj in group):
         _faces, volume = exact_transformed_intersection(
             parts["fan_case_pair_lid_pad"], obj,
-            first_location=(0.0, 0.0, installed_lid_inner_face),
-            first_rotation=(math.pi, 0.0, 0.0),
+            first_location=closed_pad_location,
+            first_rotation=closed_pad_rotation,
             second_location=obj.location.copy(), second_rotation=obj.rotation_euler.copy())
         overhead_unwanted_overlap = max(overhead_unwanted_overlap, volume)
     if overhead_unwanted_overlap > 1e-5:
@@ -14611,7 +14841,7 @@ def validate_tpu_snap_lid(lid) -> None:
             _faces, overlap = exact_transformed_intersection(
                 lid,
                 bore_probe,
-                first_location=lid.location.copy(),
+                first_location=lid.location - Vector((0, 0, LID_DOME_RISE)),
                 first_rotation=lid.rotation_euler.copy(),
                 second_location=bore_probe.location.copy(),
                 second_rotation=bore_probe.rotation_euler.copy(),
@@ -14637,7 +14867,7 @@ def validate_tpu_snap_lid(lid) -> None:
                        LID_WALL_HEIGHT + opening_z * travel + opening_y * transverse), bevel=0.0)
             try:
                 _faces, fill = exact_transformed_intersection(lid, probe,
-                    first_location=lid.location.copy(), first_rotation=lid.rotation_euler.copy(),
+                    first_location=lid.location - Vector((0, 0, LID_DOME_RISE)), first_rotation=lid.rotation_euler.copy(),
                     second_location=probe.location.copy(), second_rotation=probe.rotation_euler.copy())
             finally:
                 bpy.data.objects.remove(probe, do_unlink=True)
@@ -15256,12 +15486,15 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
         )
 
     lid_first_layer_area = horizontal_payload_area(lid_payload, 0.0)
-    outline = rounded_rectangle_loop(CASE_WIDTH, CASE_DEPTH, CASE_CORNER_RADIUS)
+    outline = rounded_rectangle_loop(
+        *(LID_DOME_CROWN_SIZE if LID_DOME_RISE else
+          (CASE_WIDTH - 4.0, CASE_DEPTH - 4.0)),
+        CASE_CORNER_RADIUS - LID_DOME_INSET if LID_DOME_RISE else CASE_CORNER_RADIUS - 2.0)
     expected_first_layer_area = polygon_area_xy(outline)
-    plate_root_y = CASE_DEPTH / 2.0 - LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP
+    plate_root_y = CASE_DEPTH / 2.0 - LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP - LID_DOME_INSET
     plate_front_y = CASE_DEPTH / 2.0 + LID_LATCH_PROTECTOR_PLATE_PROJECTION
     plate_bottom_outer_y = (
-        plate_front_y - LID_LATCH_PROTECTOR_PLATE_CORNER_RADIUS
+        plate_front_y - LID_LATCH_PROTECTOR_SHOULDER_RUN - LID_DOME_RISE
     )
     for latch_x in LATCH_X_CENTERS:
         for side in (-1.0, 1.0):
@@ -15722,8 +15955,8 @@ def field_case_3mf_groups():
             ACCESSORY_ORGANIZER_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - 2 mm Lid Pad",
-            "Alternate TPU Fan-Case 2 mm Lid Pad",
+            "Alternate Fan-Case - Raised Roof Pad" if LID_DOME_RISE else "Alternate Fan-Case - 2 mm Lid Pad",
+            "TPU Lid Pad with Open Roof Spacer" if LID_DOME_RISE else "Alternate TPU Fan-Case 2 mm Lid Pad",
             "fan_case_pair_lid_pad",
             FAN_CASE_PAIR_LID_PAD_STL_NAME,
         ),
@@ -16330,7 +16563,7 @@ def validate_3mf_project(path: Path) -> None:
     for gasket_mesh_id in gasket_mesh_ids:
         gasket_vertices, gasket_triangles = mesh_payloads[gasket_mesh_id]
         expected_gasket_z0 = (
-            GASKET_INSTALLED_Z if PRINT_TPU_GASKET_WITH_LID else 0.0
+            GASKET_INSTALLED_Z + LID_DOME_RISE if PRINT_TPU_GASKET_WITH_LID else 0.0
         )
         gasket_minimum_z = min(vertex[2] for vertex in gasket_vertices)
         gasket_maximum_z = max(vertex[2] for vertex in gasket_vertices)
@@ -16623,7 +16856,7 @@ def mesh_object_volume(obj) -> float:
 def validate_built_hollow_gasket(parts) -> None:
     gasket = parts["gasket"]
     minimum, maximum = object_world_bounds(gasket)
-    expected_z0 = GASKET_INSTALLED_Z if PRINT_TPU_GASKET_WITH_LID else 0.0
+    expected_z0 = GASKET_INSTALLED_Z + LID_DOME_RISE if PRINT_TPU_GASKET_WITH_LID else 0.0
     expected_z1 = expected_z0 + GASKET_HEIGHT
     if not math.isclose(minimum.z, expected_z0, abs_tol=1e-6) or not math.isclose(
         maximum.z,
@@ -16643,7 +16876,7 @@ def validate_built_hollow_gasket(parts) -> None:
     cavity = create_gasket_hollow_cavity(
         "TEMPORARY_Hollow_TPU_Gasket_Air_Channel_Probe",
         center,
-        expected_z0,
+        GASKET_INSTALLED_Z if PRINT_TPU_GASKET_WITH_LID else 0.0,
     )
     try:
         cavity_volume = mesh_object_volume(cavity)
@@ -16705,6 +16938,105 @@ def validate_built_hollow_gasket(parts) -> None:
         f"interface_tpu={interface_gasket_volume:.3f} "
         f"seated_overlap={seated_overlap:.6f}"
     )
+
+
+def validate_built_hardcase_exterior(parts):
+    """Reject steep new shell surfaces outside the short hardware bridges."""
+    for z_pair, next_pair in pairwise(EXTERIOR_SOFT_EDGE):
+        if z_pair[1] - next_pair[1] > next_pair[0] - z_pair[0] + 1e-6:
+            raise ValueError("Soft outside edge exceeds 45 degrees")
+    if EXTERIOR_RIB_END_RAMP < EXTERIOR_RIB_OUTSET + EXTERIOR_RIB_ROOT_OVERLAP:
+        raise ValueError("Impact rib underside exceeds 45 degrees")
+    if BASE_BUMPER_OUTSET > BASE_BUMPER_RAMP_HEIGHT:
+        raise ValueError("Base bumper underside exceeds 45 degrees")
+    areas = {}
+    for key in ("base", "lid", "tpu_snap_lid"):
+        obj = parts[key]
+        obj.data.calc_loop_triangles()
+        steep_area = 0.0
+        for triangle in obj.data.loop_triangles:
+            points = [obj.data.vertices[i].co for i in triangle.vertices]
+            cross = (points[1] - points[0]).cross(points[2] - points[0])
+            if cross.length < 1e-8 or cross.z / cross.length >= -math.sin(math.radians(45.1)):
+                continue
+            bed = 0.0 if key == "base" else -LID_DOME_RISE
+            planes = (bed,) if key == "base" else (bed, bed + LID_INLAY_DEPTH)
+            if any(all(abs(p.z - plane) < 1e-5 for p in points) for plane in planes):
+                continue
+            area = abs(cross.z) / 2
+            steep_area += area
+            if key != "base" and area > .01:
+                x, y, z = sum(points, Vector()) / 3
+                x -= LID_DISPLAY_OFFSET_X
+                latch_bridge = (any(abs(x - lx) < 12 for lx in LATCH_X_CENTERS)
+                                and CASE_DEPTH / 2 + 2 < y < CASE_DEPTH / 2 + 13
+                                and 8 < z < 15)
+                hinge_bridge = (abs(x) < 81 and -CASE_DEPTH / 2 - 7 < y < -CASE_DEPTH / 2 + 3
+                                and 4 < z < 16)
+                if not (latch_bridge or hinge_bridge):
+                    raise ValueError(f"Steep lid surface outside the hardware bridges: {key} {(x,y,z)}")
+        limit = 180.0 if key == "base" else 625.0
+        if steep_area > limit:
+            raise ValueError(f"Unsupported shell area exceeds the hardware allowance: {key} {steep_area:.2f}")
+        areas[key] = round(steep_area, 2)
+    print(f"FIELD_CASE_EXTERIOR_VALID steep_projection_mm2={areas} "
+          "shell_ramps<=45deg hardware_bridge_span<=23.2mm", flush=True)
+
+
+def validate_raised_lid_pad(parts):
+    """Verify the unchanged packing face and every spacer-to-roof bearing."""
+    if not LID_DOME_RISE:
+        return
+    pad = parts['fan_case_pair_lid_pad']
+    location, rotation = installed_flat_lid_pad_pose(0)
+    from mathutils import Euler
+    matrix = Matrix.LocRotScale(Vector(location), Euler(rotation).to_quaternion(), pad.scale)
+    installed_z = [(matrix @ vertex.co).z for vertex in pad.data.vertices]
+    expected_bottom = BASE_HEIGHT + LID_WALL_HEIGHT - LID_PLATE_THICKNESS - FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
+    if abs(min(installed_z) - expected_bottom) > 1e-4:
+        raise ValueError('Domed lid pad changes the original packing height')
+    expected_top = BASE_HEIGHT + LID_WALL_HEIGHT + LID_DOME_RISE - LID_PLATE_THICKNESS
+    if abs(max(installed_z) - expected_top) > 1e-4:
+        raise ValueError('Domed lid spacer does not reach the roof')
+    # Check actual contact around the complete spacer rim, not just its height.
+    probe = rounded_ring('TEMPORARY_Domed_Pad_Roof_Contact',
+        LID_DOME_PAD_FRAME_SIZE,
+        tuple(size - 2 * LID_DOME_PAD_FRAME_WALL for size in LID_DOME_PAD_FRAME_SIZE),
+        expected_top - .02, expected_top + .02, 10.0, 10.0 - LID_DOME_PAD_FRAME_WALL)
+    try:
+        for key in ('lid', 'tpu_snap_lid'):
+            overlap = exact_transformed_intersection(parts[key], probe,
+                first_location=installed_lid_pose(0)[0],
+                first_rotation=installed_lid_pose(0)[1])[1]
+            if overlap < 30:
+                raise ValueError('Domed lid spacer lacks roof bearing area')
+        overlap = exact_transformed_intersection(pad, probe,
+            first_location=location, first_rotation=rotation)[1]
+        if overlap < 30:
+            raise ValueError('Domed lid pad lacks its complete spacer rim')
+    finally:
+        bpy.data.objects.remove(probe, do_unlink=True)
+    for axis, length in enumerate(LID_DOME_PAD_FRAME_SIZE):
+        size = [LID_DOME_PAD_FRAME_WALL, LID_DOME_PAD_FRAME_WALL, .04]
+        size[axis] = length - 2 * LID_DOME_PAD_FRAME_WALL
+        probe = add_rounded_box('TEMPORARY_Domed_Pad_Rib_Contact', size,
+            (0, 0, expected_top), bevel=0)
+        try:
+            expected_contact = size[0] * size[1] * .02
+            for key in ('lid', 'tpu_snap_lid', 'fan_case_pair_lid_pad'):
+                pose = ((location, rotation) if key == 'fan_case_pair_lid_pad'
+                        else installed_lid_pose(0))
+                overlap = exact_transformed_intersection(parts[key], probe,
+                    first_location=pose[0], first_rotation=pose[1],
+                    second_location=probe.location.copy())[1]
+                if overlap < expected_contact * .95:
+                    raise ValueError('Domed lid pad lacks a roof support rib')
+        finally:
+            bpy.data.objects.remove(probe, do_unlink=True)
+    print('FIELD_CASE_DOMED_LID_VALID '
+          f'roof_rise={LID_DOME_RISE:.1f} closed_height={BASE_HEIGHT + LID_WALL_HEIGHT + LID_DOME_RISE:.1f} '
+          f'packing_face={min(installed_z):.2f} roof_contact={max(installed_z):.2f} '
+          f'spacer_wall={LID_DOME_PAD_FRAME_WALL:.1f}mm', flush=True)
 
 
 def validate_built_flush_lid_inlay(parts) -> None:
@@ -16774,6 +17106,7 @@ def validate_built_lid_hockey_inlay(parts) -> None:
             _faces, shaft_volume = exact_transformed_intersection(
                 logo,
                 shaft_probe,
+                first_location=(0, 0, LID_DOME_RISE),
                 second_location=shaft_probe.location.copy(),
                 second_rotation=shaft_probe.rotation_euler.copy(),
             )
@@ -16798,6 +17131,7 @@ def validate_built_lid_hockey_inlay(parts) -> None:
             _faces, blade_volume = exact_transformed_intersection(
                 logo,
                 blade_probe,
+                first_location=(0, 0, LID_DOME_RISE),
                 second_location=blade_probe.location.copy(),
             )
         finally:
@@ -16823,6 +17157,7 @@ def validate_built_lid_hockey_inlay(parts) -> None:
         _faces, puck_volume = exact_transformed_intersection(
             logo,
             puck_probe,
+            first_location=(0, 0, LID_DOME_RISE),
             second_location=puck_probe.location.copy(),
         )
     finally:
@@ -17460,6 +17795,8 @@ def build_mission1_field_case():
 
     for name, obj in parts.items():
         validate_built_part(name, obj)
+    validate_built_hardcase_exterior(parts)
+    validate_raised_lid_pad(parts)
     validate_built_hollow_gasket(parts)
     validate_built_flush_lid_inlay(parts)
     validate_built_lid_hockey_inlay(parts)
@@ -17609,7 +17946,7 @@ def build_mission1_field_case():
                     )
                 )
             elif obj is parts["gasket"] and PRINT_TPU_GASKET_WITH_LID:
-                expected_minimum_z = GASKET_INSTALLED_Z
+                expected_minimum_z = GASKET_INSTALLED_Z + LID_DOME_RISE
             export_stl(
                 export_path(filename),
                 obj,

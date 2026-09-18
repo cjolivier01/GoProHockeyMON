@@ -13,7 +13,7 @@ batteries, and the assembled parametric dual-fan holder with two installed
 installed thickness. It reads no STL during generation, and every part fits
 within a 250 x 250 mm build area. The rigid shell is 234 x 158 x 97.8 mm;
 its largest print-bed footprints are the 244 x 185.8 mm lid and the
-241.6 x 187.8 mm base. The latch lever and moving hook are derived from the
+246 x 187.8 mm base. The latch lever and moving hook are derived from the
 mechanism in the user-supplied `pelican_case_blender_2.9.blend`; their processed
 mesh coordinates are embedded directly in the Python file, so generation does
 not load that `.blend` or any STL at runtime.
@@ -44,6 +44,11 @@ closed latch-protector PNG under
 the complete printable base protectors visible while looking down into the tray
 pass-through. The closed view shows the unsectioned base and lid protector walls
 with both installed latches.
+
+The current exterior revision adds narrow 6 mm impact ribs, a matching front/side
+rim bumper, tapered lid guards ending at the parting line, and supported tray
+rail undersides. Compact internal dimensions, corner radius and lid height are
+preserved. Reprint its base and selected lid to use those refinements.
 
 ## Stacked TPU storage tiers
 

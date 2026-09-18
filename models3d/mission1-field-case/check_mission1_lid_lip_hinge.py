@@ -60,7 +60,7 @@ def main():
         old_bottom = case.LID_LATCH_LOAD_LEDGE_CONTACT_Z + 2.4
         cutter = case.add_rounded_box('REGRESSION_Thin_Lid_Lip', (2.0, 10.0, 4.0),
             (case.LID_DISPLAY_OFFSET_X + case.LATCH_X_CENTERS[0],
-             case.LID_LATCH_CAPTURE_RAIL_CENTER_Y - 1.0, old_bottom + 2.0), bevel=0.0)
+             case.LID_LATCH_CAPTURE_RAIL_CENTER_Y - 1.0, old_bottom + 2.0 + case.LID_DOME_RISE), bevel=0.0)
         case.difference_from(weak, cutter)
         try:
             must_reject(lambda: case.validate_built_lid_capture_rails(weak), 'full')
@@ -76,6 +76,7 @@ def main():
             case.hinge_slot_loop_yz(-case.HINGE_AXIS_Y, case.LID_WALL_HEIGHT,
                 case.HINGE_PROFILE_TPU_68D_SNAP, throat_width=3.6),
             case.LID_DISPLAY_OFFSET_X + x0 - .01, case.LID_DISPLAY_OFFSET_X + x1 + .01)
+        cutter.location.z += case.LID_DOME_RISE
         case.difference_from(wide, cutter)
     try:
         must_reject(lambda: case.validate_tpu_snap_lid(wide), 'calibrated throat')
