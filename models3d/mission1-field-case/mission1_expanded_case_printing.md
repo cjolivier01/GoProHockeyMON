@@ -8,7 +8,9 @@ The stronger latch, handle hardware, and 3.8 mm hinge-rod fit remain in use.
 The shell exterior follows the supplied `build_hardcase.py`: **25 mm plan-view
 corners**, a rounded bottom blending over 30 mm with a 14 mm inset, narrower
 **6 × 6 mm impact ribs**, and a matching 5 mm bumper on the front and sides of
-the parting rim. The rear bumper is relieved for the existing hinge sweep.
+the parting rim. The rear bumper is relieved for the existing hinge sweep, and
+three full-width buttresses rise from 20 mm above the floor into the base hinge
+barrels, following the reference hardcase's long rear load paths.
 Both lids have a **24 mm raised, curved shoulder** above the original latch
 and hinge line. Their 6 mm-wide guards ramp into the shoulder and end at the
 parting rim; local pockets in the base guards clear the reinforced latch lips.
@@ -16,6 +18,8 @@ parting rim; local pockets in the base guards clear the reinforced latch lips.
 ![Rounded exterior](renderings/mission1_hardcase_front.png)
 
 ![Rear hinge and rounded base](renderings/mission1_hardcase_rear.png)
+
+![Full-width base hinge buttresses](renderings/mission1_hardcase_base_hinge_buttresses.png)
 
 ![Supplied hardcase reference](renderings/mission1_hardcase_reference.png)
 

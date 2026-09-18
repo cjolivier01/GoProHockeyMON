@@ -793,15 +793,17 @@ striking the base wall. The generated base and lid have been checked through a
 0-110 degree opening sweep without rigid intersection. Do not fill these rear
 reliefs when adding manual supports.
 
-Each of the three base knuckles now has a full-width tapered web beneath its
-barrel. The web begins 0.3 mm inside the rear case wall, rises outward at 45
-degrees, and joins the 10 mm barrel at its lower-outboard tangent. This removes
-the unsupported lower circular arc and gives the barrel a much larger load path
-into the shell without changing the hinge axis, alternating axial clearances,
-or internal case dimensions. The continuous bore is now 4.325 mm for the
-measured 3.8 mm steel rod.
-Print the base upright as exported; the hinge webs are designed not to require
-support.
+Each of the three base knuckles has a full-width molded buttress beneath its
+barrel, matching the reference hardcase's rear supports. Each buttress begins
+20 mm above the floor, grows outward at no more than 45 degrees, then widens
+gradually up the rear wall until it joins the 10 mm barrel at its
+lower-outboard tangent. This removes the unsupported lower circular arc and
+creates a continuous load path from near the rounded base into the hinge
+without changing the hinge axis, alternating axial clearances, or internal
+case dimensions. The continuous bore is 4.325 mm for the measured 3.8 mm steel
+rod.
+Print the base upright as exported; the hinge buttresses are designed not to
+require support.
 
 Both replacement lids use 9.6 mm barrel arcs inside the existing base's 10.8 mm
 swing pockets, increasing nominal radial clearance from 0.4 to 0.6 mm. Their

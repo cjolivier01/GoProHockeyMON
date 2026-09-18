@@ -1546,21 +1546,24 @@ HINGE_BORE_CUTTER_AXIAL_OVERTRAVEL = 0.6
 HINGE_BORE_VALIDATION_RADIAL_CLEARANCE = 0.005
 HINGE_ROD_RELEASE_AXIAL_VALIDATION_INSET = 0.05
 
-# Each base knuckle grows from a full-width 45-degree web rather than leaving
-# the lower half of its circular barrel unsupported.  The ramp meets the
-# barrel at its lower-outboard tangent, while a small overlap into the rear
-# wall makes the Boolean bond robust without entering the internal envelope.
-HINGE_BASE_GUSSET_WALL_OVERLAP = 0.3
+# Carry each base knuckle down the rear wall on the tall molded buttress used
+# by the reference hardcase. The foot starts above the rounded bottom, grows
+# outward at 45 degrees, then tapers gradually to the barrel's lower-outboard
+# tangent. Its caseward edge remains inside the exterior shell, so this adds a
+# broad load path without changing the protected internal envelope.
 HINGE_BASE_GUSSET_MAX_OVERHANG_DEGREES = 45.0
 HINGE_BASE_GUSSET_TANGENT_OFFSET = HINGE_OUTER_DIAMETER / 2.0 / math.sqrt(2.0)
 HINGE_BASE_GUSSET_TANGENT_Y = HINGE_AXIS_Y + HINGE_BASE_GUSSET_TANGENT_OFFSET
 HINGE_BASE_GUSSET_TANGENT_Z = BASE_HEIGHT - HINGE_BASE_GUSSET_TANGENT_OFFSET
-HINGE_BASE_GUSSET_ROOT_Y = CASE_DEPTH / 2.0 - HINGE_BASE_GUSSET_WALL_OVERLAP
-HINGE_BASE_GUSSET_ROOT_Z = HINGE_BASE_GUSSET_TANGENT_Z - (
-    HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y
+HINGE_BASE_GUSSET_ROOT_Y = CASE_DEPTH / 2.0 - EXTERIOR_RIB_ROOT_OVERLAP
+HINGE_BASE_GUSSET_ROOT_Z = EXTERIOR_RIB_BOTTOM_Z
+HINGE_BASE_GUSSET_LOWER_TIP_Y = CASE_DEPTH / 2.0 + 2.0
+HINGE_BASE_GUSSET_LOWER_TIP_Z = HINGE_BASE_GUSSET_ROOT_Z + (
+    HINGE_BASE_GUSSET_LOWER_TIP_Y - HINGE_BASE_GUSSET_ROOT_Y
 )
 HINGE_BASE_GUSSET_PROFILE_YZ = (
     (HINGE_BASE_GUSSET_ROOT_Y, HINGE_BASE_GUSSET_ROOT_Z),
+    (HINGE_BASE_GUSSET_LOWER_TIP_Y, HINGE_BASE_GUSSET_LOWER_TIP_Z),
     (HINGE_BASE_GUSSET_TANGENT_Y, HINGE_BASE_GUSSET_TANGENT_Z),
     (HINGE_BASE_GUSSET_ROOT_Y, HINGE_BASE_GUSSET_TANGENT_Z),
 )
@@ -5255,24 +5258,22 @@ def validate_configuration() -> None:
         raise ValueError("Lid hinge end stops sit too close to the base rear wall")
     if HINGE_ROD_PATH_AXIAL_CLEARANCE < HINGE_RIM_RELIEF_AXIAL_CLEARANCE:
         raise ValueError("Lid rim relief must cover the complete hinge rod path")
-    hinge_gusset_run = HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y
-    hinge_gusset_rise = HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z
-    hinge_gusset_overhang = math.degrees(
-        math.atan2(hinge_gusset_run, hinge_gusset_rise)
+    hinge_gusset_support_edge = HINGE_BASE_GUSSET_PROFILE_YZ[:3]
+    hinge_gusset_overhangs = tuple(
+        math.degrees(math.atan2(y1 - y0, z1 - z0))
+        for (y0, z0), (y1, z1) in pairwise(hinge_gusset_support_edge)
     )
-    if hinge_gusset_overhang > HINGE_BASE_GUSSET_MAX_OVERHANG_DEGREES + 1e-6:
-        raise ValueError("Base hinge gusset exceeds the configured printable overhang")
-    if not 0.1 <= HINGE_BASE_GUSSET_WALL_OVERLAP < WALL_THICKNESS:
-        raise ValueError("Base hinge gusset needs a bounded positive rear-wall overlap")
+    if max(hinge_gusset_overhangs) > HINGE_BASE_GUSSET_MAX_OVERHANG_DEGREES + 1e-6:
+        raise ValueError("Base hinge buttress exceeds the configured printable overhang")
     if HINGE_BASE_GUSSET_ROOT_Y < CASE_DEPTH / 2.0 - WALL_THICKNESS:
-        raise ValueError("Base hinge gusset intrudes into the locked internal depth")
+        raise ValueError("Base hinge buttress intrudes into the locked internal depth")
     if not BASE_FLOOR_THICKNESS < HINGE_BASE_GUSSET_ROOT_Z:
-        raise ValueError("Base hinge gusset root must remain above the case floor")
+        raise ValueError("Base hinge buttress root must remain above the case floor")
     if not (
         HINGE_BASE_GUSSET_TANGENT_Z
         < BASE_HEIGHT - HINGE_BASE_HOLE_DIAMETER / 2.0
     ):
-        raise ValueError("Base hinge gusset must remain below the rod bore")
+        raise ValueError("Base hinge buttress must remain below the rod bore")
 
     key_x, key_y = LID_PAD_KEY_CENTER
     notch_width, notch_depth = LID_PAD_KEY_NOTCH_SIZE
@@ -7024,11 +7025,6 @@ def create_base(material):
                 vertex.co.x, vertex.co.y = side * vertex.co.y, vertex.co.x
             recalc_normals(rib)
             union_into(base, rib)
-    for x in (-42.0, 0.0, 42.0):
-        union_into(base, extrude_loop_x("Base_Rear_Impact_Rib",
-            exterior_rib_profile(CASE_DEPTH / 2),
-            x - EXTERIOR_RIB_WIDTH / 2, x + EXTERIOR_RIB_WIDTH / 2))
-
     # Each lid knuckle needs a cylindrical swing pocket through the base's
     # otherwise continuous rear wall and rim.  Cut these before adding the
     # alternating base knuckles so the relief cannot weaken their barrels.
@@ -7043,9 +7039,10 @@ def create_base(material):
 
     # The base knuckles share one continuous 4.325 mm path for the user's 3.8 mm
     # rod. This bore reduction is the only base-side hinge change. A
-    # full-width lower web rises from the rear wall at 45 degrees and meets
-    # each barrel tangentially, eliminating its unsupported lower arc while
-    # adding substantially more bonded section at the shell.
+    # full-width buttress starts near the rounded base, grows outward at no
+    # more than 45 degrees, and meets each barrel tangentially. This follows
+    # the reference hardcase's long hinge load path while eliminating the
+    # barrel's unsupported lower arc.
     for index, (x0, x1) in enumerate(HINGE_BASE_SEGMENTS, start=1):
         gusset = extrude_loop_x(
             f"Base_Hinge_Knuckle_{index}_Support_Free_Gusset",
@@ -12681,51 +12678,55 @@ def validate_installed_case_closure(parts) -> None:
 
 
 def validate_built_base_hinge_gussets(base) -> None:
-    """Prove every support-free web is bonded and every rod bore stays open."""
-    ramp_mid_y = (HINGE_BASE_GUSSET_ROOT_Y + HINGE_BASE_GUSSET_TANGENT_Y) / 2.0
-    ramp_mid_z = (HINGE_BASE_GUSSET_ROOT_Z + HINGE_BASE_GUSSET_TANGENT_Z) / 2.0
+    """Prove every tall buttress is bonded and every rod bore stays open."""
     solid_probe_size_yz = 0.3
     solid_probe_inset_z = 0.6
     minimum_solid_fraction = 0.95
     minimum_solid_fill = None
     bore_overlap_maximum = 0.0
 
+    support_edge = HINGE_BASE_GUSSET_PROFILE_YZ[:3]
     for index, (x0, x1) in enumerate(HINGE_BASE_SEGMENTS, start=1):
-        solid_probe_dimensions = (
-            x1 - x0 - 1.0,
-            solid_probe_size_yz,
-            solid_probe_size_yz,
-        )
-        solid_probe = add_rounded_box(
-            f"TEMPORARY_Base_Hinge_Gusset_{index}_Solid_Probe",
-            solid_probe_dimensions,
-            (
-                (x0 + x1) / 2.0,
-                ramp_mid_y,
-                ramp_mid_z + solid_probe_inset_z,
-            ),
-            bevel=0.0,
-        )
-        try:
-            _faces, solid_fill = exact_transformed_intersection(
-                base,
-                solid_probe,
-                second_location=solid_probe.location.copy(),
+        for edge_index, ((y0, z0), (y1, z1)) in enumerate(
+            pairwise(support_edge), start=1
+        ):
+            ramp_y = (y0 + y1) / 2.0
+            ramp_z = (z0 + z1) / 2.0
+            solid_probe_dimensions = (
+                x1 - x0 - 1.0,
+                solid_probe_size_yz,
+                solid_probe_size_yz,
             )
-        finally:
-            bpy.data.objects.remove(solid_probe, do_unlink=True)
-        required_solid_fill = math.prod(solid_probe_dimensions) * minimum_solid_fraction
-        if solid_fill < required_solid_fill:
-            raise ValueError(
-                "Base hinge support web is not fully bonded: "
-                f"segment={index} volume={solid_fill:.6f} "
-                f"required={required_solid_fill:.6f}"
+            solid_probe = add_rounded_box(
+                f"TEMPORARY_Base_Hinge_Buttress_{index}_{edge_index}_Solid_Probe",
+                solid_probe_dimensions,
+                (
+                    (x0 + x1) / 2.0,
+                    ramp_y - solid_probe_size_yz,
+                    ramp_z + solid_probe_inset_z,
+                ),
+                bevel=0.0,
             )
-        minimum_solid_fill = (
-            solid_fill
-            if minimum_solid_fill is None
-            else min(minimum_solid_fill, solid_fill)
-        )
+            try:
+                _faces, solid_fill = exact_transformed_intersection(
+                    base,
+                    solid_probe,
+                    second_location=solid_probe.location.copy(),
+                )
+            finally:
+                bpy.data.objects.remove(solid_probe, do_unlink=True)
+            required_solid_fill = math.prod(solid_probe_dimensions) * minimum_solid_fraction
+            if solid_fill < required_solid_fill:
+                raise ValueError(
+                    "Base hinge buttress is not fully bonded: "
+                    f"segment={index} edge={edge_index} volume={solid_fill:.6f} "
+                    f"required={required_solid_fill:.6f}"
+                )
+            minimum_solid_fill = (
+                solid_fill
+                if minimum_solid_fill is None
+                else min(minimum_solid_fill, solid_fill)
+            )
 
         bore_probe = add_cylinder_x(
             f"TEMPORARY_Base_Hinge_{index}_Open_Bore_Probe",
@@ -12776,20 +12777,20 @@ def validate_built_base_hinge_gussets(base) -> None:
             f"faces={full_path_faces} volume={full_path_overlap:.6f}"
         )
 
-    hinge_gusset_overhang = math.degrees(
-        math.atan2(
-            HINGE_BASE_GUSSET_TANGENT_Y - HINGE_BASE_GUSSET_ROOT_Y,
-            HINGE_BASE_GUSSET_TANGENT_Z - HINGE_BASE_GUSSET_ROOT_Z,
-        )
+    hinge_gusset_overhang = max(
+        math.degrees(math.atan2(y1 - y0, z1 - z0))
+        for (y0, z0), (y1, z1) in pairwise(support_edge)
     )
     bore_probe_diameter = HINGE_BASE_HOLE_DIAMETER - 2.0 * (
         HINGE_BORE_VALIDATION_RADIAL_CLEARANCE
     )
     print(
-        "FIELD_CASE_BASE_HINGE_GUSSETS_VALID "
+        "FIELD_CASE_BASE_HINGE_BUTTRESSES_VALID "
         f"count={len(HINGE_BASE_SEGMENTS)} "
         f"overhang={hinge_gusset_overhang:.2f}deg "
         f"root_z={HINGE_BASE_GUSSET_ROOT_Z:.3f} "
+        f"lower_tip_yz={HINGE_BASE_GUSSET_LOWER_TIP_Y:.3f},"
+        f"{HINGE_BASE_GUSSET_LOWER_TIP_Z:.3f} "
         f"tangent_yz={HINGE_BASE_GUSSET_TANGENT_Y:.3f},"
         f"{HINGE_BASE_GUSSET_TANGENT_Z:.3f} "
         f"solid_probe_min={minimum_solid_fill:.6f} "

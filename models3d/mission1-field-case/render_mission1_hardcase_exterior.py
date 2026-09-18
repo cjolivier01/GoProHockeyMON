@@ -105,6 +105,8 @@ def main():
     for obj in bpy.data.objects:
         if obj.type == 'MESH': obj.hide_render = True
     base.hide_render = False
+    render(camera, 'mission1_hardcase_base_hinge_buttresses.png',
+           (-260, 360, 215), (0, 92, 88), 260)
     render(camera, 'mission1_hardcase_base_interior.png', (330, -440, 660), (0, 0, 80), 390)
     base.hide_render = True
     lid.hide_render = True

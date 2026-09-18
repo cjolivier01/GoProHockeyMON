@@ -38,6 +38,7 @@ def main():
     for key in ('base', 'lid'):
         validate_fixed_part_compatibility(key, parts[key])
     case.validate_built_hardcase_exterior(parts)
+    case.validate_built_base_hinge_gussets(parts['base'])
     case.validate_raised_lid_pad(parts)
     case.validate_tpu_hinge_attachment(parts)
 
