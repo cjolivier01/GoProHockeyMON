@@ -117,6 +117,20 @@ def main():
     render(camera, 'mission1_hardcase_lid_and_spacer.png', (420, -520, 490), (0, 0, 15), 620)
     for obj in bpy.data.objects:
         if obj.type == 'MESH': obj.hide_render = True
+    base.hide_render = False
+    tpu_lid, tpu_inlay = case.create_lid(case.make_material('TPU_Hinge_View', (.25, .70, .48)),
+        case.make_material('TPU_Inlay_View', (.95, .28, .04)), case.HINGE_PROFILE_TPU_68D_SNAP)
+    tpu_lid.color, tpu_inlay.color = (.25, .70, .48, 1), (.95, .28, .04, 1)
+    for obj in (tpu_lid, tpu_inlay):
+        obj.location, obj.rotation_euler = case.installed_lid_pose(case.TPU_HINGE_RELEASE_ANGLE_DEGREES)
+        reference.shade_auto_smooth(obj)
+    rod = case.add_cylinder_x('Preview_Installed_Hinge_Rod', case.HINGE_ROD_DIAMETER / 2,
+        case.HINGE_ROD_X1 - case.HINGE_ROD_X0,
+        (0, case.HINGE_AXIS_Y, case.BASE_HEIGHT), vertices=64)
+    rod.color = (.95, .62, .15, 1)
+    render(camera, 'mission1_hardcase_tpu_hinge.png', (90, 250, 90), (27, 92, 163), 105)
+    for obj in bpy.data.objects:
+        if obj.type == 'MESH': obj.hide_render = True
     source = subprocess.check_output(['git', 'show', 'a9d8807:models3d/mission1-field-case/mission1_field_case_blender.py'], cwd=DIRECTORY, text=True)
     baseline = types.ModuleType('exterior_baseline')
     baseline.__file__ = str(DIRECTORY / 'mission1_field_case_blender.py')

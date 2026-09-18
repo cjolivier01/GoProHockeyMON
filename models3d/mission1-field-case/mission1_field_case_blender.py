@@ -1466,7 +1466,8 @@ GASKET_INSTALLED_Z = LID_WALL_HEIGHT - GASKET_CHANNEL_DEPTH
 GASKET_SEPARATE_PRINT_CENTER = (0.0, 225.0)
 GASKET_INTERLOCK_BEAM_WIDTH = 0.8
 GASKET_INTERLOCK_BEAM_LAYER_COUNT = 2
-GASKET_INTERLOCK_REFERENCE_LAYER_HEIGHT = 0.2
+PROJECT_LAYER_HEIGHT = 0.2
+GASKET_INTERLOCK_REFERENCE_LAYER_HEIGHT = PROJECT_LAYER_HEIGHT
 GASKET_INTERLOCK_DEPTH = 2
 GASKET_INTERLOCK_ORIENTATION = 22.5
 GASKET_INTERLOCK_BOUNDARY_AVOIDANCE = 0
@@ -1505,6 +1506,10 @@ HINGE_LID_SLOT_WIDTH = (
     + (4.6 - HINGE_ROD_DIAMETER) * HINGE_RUNNING_CLEARANCE_SCALE
 )
 HINGE_LID_SLOT_TILT_DEGREES = 0.0
+# An upward-facing TPU entrance grows each jaw from existing layers.
+TPU_HINGE_SLOT_TILT_DEGREES = -45.0
+TPU_HINGE_ROOT_CASEWARD_OFFSET = 3.95
+TPU_HINGE_RELEASE_ANGLE_DEGREES = 25.0
 HINGE_PROFILE_RIGID_SLIDE = "RIGID_SLIDE"
 HINGE_PROFILE_TPU_68D_SNAP = "TPU_68D_SNAP"
 TPU_HINGE_SNAP_THROAT_WIDTH = 3.5
@@ -5136,6 +5141,11 @@ def validate_configuration() -> None:
     root_rise = LID_WALL_HEIGHT - tip_outer_height - HINGE_LID_ROOT_FLOOR_Z
     if root_rise < root_run:
         raise ValueError("Lid hinge plate-root ramp exceeds 45 degrees")
+    if (LID_WALL_HEIGHT - HINGE_LID_ROOT_FLOOR_Z - TPU_HINGE_ROOT_CASEWARD_OFFSET
+            < math.sqrt(2) * lid_radius):
+        raise ValueError("TPU hinge plate-root ramp exceeds 45 degrees")
+    if not math.isclose(TPU_HINGE_SLOT_TILT_DEGREES, -45.0, abs_tol=1e-6):
+        raise ValueError("TPU hinge entrance must retain its printable 45-degree orientation")
     if not (
         old_base_pocket_radius - lid_radius >= 0.6 - 1e-6
         and minimum_hinge_axial_gap >= 1.0 - 1e-6
@@ -6642,8 +6652,9 @@ def add_handle_m3_nut_recess(
     )
 
 
-def lid_hinge_slot_opening_local_yz():
-    radians = math.radians(HINGE_LID_SLOT_TILT_DEGREES)
+def lid_hinge_slot_opening_local_yz(profile=HINGE_PROFILE_RIGID_SLIDE):
+    radians = math.radians(TPU_HINGE_SLOT_TILT_DEGREES
+        if profile == HINGE_PROFILE_TPU_68D_SNAP else HINGE_LID_SLOT_TILT_DEGREES)
     return -math.cos(radians), -math.sin(radians)
 
 
@@ -6703,7 +6714,7 @@ def lid_hinge_relief_gaps(profile=HINGE_PROFILE_RIGID_SLIDE):
     return tuple(gaps)
 
 
-def lid_hinge_outer_profile_yz(axis_y, axis_z):
+def lid_hinge_outer_profile_yz(axis_y, axis_z, profile=HINGE_PROFILE_RIGID_SLIDE):
     """Blunt both jaw tips and spread the plate-side root into a full gusset."""
     radius = HINGE_LID_OUTER_DIAMETER / 2.0
     limit = math.acos(-HINGE_LID_MOUTH_TIP_DISTANCE / radius)
@@ -6714,8 +6725,13 @@ def lid_hinge_outer_profile_yz(axis_y, axis_z):
         )
         for index in range(81)
     ]
+    if profile == HINGE_PROFILE_TPU_68D_SNAP:
+        angle = math.radians(TPU_HINGE_SLOT_TILT_DEGREES)
+        points = [(y * math.cos(angle) - z * math.sin(angle),
+                   y * math.sin(angle) + z * math.cos(angle)) for y, z in points]
     points.append((
-        HINGE_LID_ROOT_CASEWARD_OFFSET,
+        TPU_HINGE_ROOT_CASEWARD_OFFSET if profile == HINGE_PROFILE_TPU_68D_SNAP
+        else HINGE_LID_ROOT_CASEWARD_OFFSET,
         HINGE_LID_ROOT_FLOOR_Z - LID_WALL_HEIGHT,
     ))
     # A convex outline joins the barrel tangentially to the wide plate root.
@@ -6739,9 +6755,9 @@ def lid_hinge_outer_profile_yz(axis_y, axis_z):
     return tuple((axis_y + y, axis_z + z) for y, z in hull)
 
 
-def create_lid_hinge_blank(name, x0, x1, axis_y, axis_z):
+def create_lid_hinge_blank(name, x0, x1, axis_y, axis_z, profile=HINGE_PROFILE_RIGID_SLIDE):
     return extrude_loop_x(
-        name, lid_hinge_outer_profile_yz(axis_y, axis_z), x0, x1
+        name, lid_hinge_outer_profile_yz(axis_y, axis_z, profile), x0, x1
     )
 
 
@@ -6752,7 +6768,7 @@ def hinge_slot_loop_yz(
     throat_width=None,
 ):
     """Return a straight rigid slot or smooth flared TPU snap entrance."""
-    opening_y, opening_z = lid_hinge_slot_opening_local_yz()
+    opening_y, opening_z = lid_hinge_slot_opening_local_yz(profile)
     perpendicular_y = -opening_z
     perpendicular_z = opening_y
     slot_t0 = -0.2
@@ -6825,6 +6841,7 @@ def create_tpu_hinge_bank(
         bank_x1,
         axis_y,
         axis_z,
+        HINGE_PROFILE_TPU_68D_SNAP,
     )
     union_into(target, bank_blank)
     # Remove the barrel/rim material between flexing clips, then restore only
@@ -6849,6 +6866,7 @@ def create_tpu_hinge_bank(
             gap_x1 + 0.2,
             axis_y,
             axis_z,
+            HINGE_PROFILE_TPU_68D_SNAP,
         )
         spine_cut = add_rounded_box(
             f"{name_prefix}_Root_Spine_Jaw_Clearance_{gap_index}",
@@ -6887,10 +6905,11 @@ def create_tpu_hinge_bank(
     return clips
 
 
-def lid_hinge_escape_global_yz(open_angle_degrees):
+def lid_hinge_escape_global_yz(open_angle_degrees, profile=HINGE_PROFILE_RIGID_SLIDE):
     """Return the installed lid's unit translation along its receiver slot."""
     effective_angle = math.radians(
-        open_angle_degrees - HINGE_LID_SLOT_TILT_DEGREES
+        open_angle_degrees - (TPU_HINGE_SLOT_TILT_DEGREES
+            if profile == HINGE_PROFILE_TPU_68D_SNAP else HINGE_LID_SLOT_TILT_DEGREES)
     )
     return -math.cos(effective_angle), math.sin(effective_angle)
 
@@ -6926,6 +6945,27 @@ def base_interior_profile(clearance=0.0, z_offset=0.0):
                WALL_THICKNESS + BASE_INNER_BLEND_INSET * inset + clearance)
               for t, inset in HARDCASE_EDGE_IN),
             (BASE_HEIGHT + .5 - z_offset, WALL_THICKNESS + clearance))
+
+
+def printable_insert_profile():
+    """Keep the removable liner inside the cavity with at most 45° growth."""
+    cavity = base_interior_profile(clearance=INSERT_SIDE_CLEARANCE,
+                                   z_offset=FAN_CASE_PAIR_INSERT_INSTALLED_Z)
+    start_z, start_inset = cavity[0]
+    profile = []
+    for first, second in pairwise(cavity):
+        z0, inset0 = first
+        z1, inset1 = second
+        profile.append((z0, max(inset0, start_inset - (z0 - start_z))))
+        # Include the exact crossing of the cavity curve and printable ramp.
+        d0 = inset0 - (start_inset - (z0 - start_z))
+        d1 = inset1 - (start_inset - (z1 - start_z))
+        if d0 * d1 < 0:
+            fraction = -d0 / (d1 - d0)
+            z = z0 + fraction * (z1 - z0)
+            profile.append((z, start_inset - (z - start_z)))
+    profile.append(cavity[-1])
+    return tuple(profile)
 
 
 def exterior_rib_profile(wall):
@@ -7835,8 +7875,7 @@ def create_fan_case_pair_insert(
 
     if EXPANDED_ACCESSORY_STORAGE:
         envelope = rounded_profile_prism("Insert_Rounded_Floor_Clearance",
-            base_interior_profile(clearance=INSERT_SIDE_CLEARANCE,
-                                  z_offset=FAN_CASE_PAIR_INSERT_INSTALLED_Z))
+            printable_insert_profile())
         boolean_apply(insert, envelope, "INTERSECT")
     translate_object(insert, (0.0, 0.0, FAN_CASE_PAIR_INSERT_INSTALLED_Z))
     assign_material(insert, material)
@@ -8985,6 +9024,17 @@ def create_lid(
             union_into(lid, extrude_loop_x("Lid_Hinge_Shoulder_Web",
                 ((root_y, -LID_DOME_RISE), (outer_y, .4),
                  (root_y, .4)), dx + x0, dx + x1))
+    else:
+        # The compact plate's rounded bed edge stops inboard of the receiver
+        # roots. Give each bank a bed-level foot so its Z=0.2 mm root cannot
+        # begin as a detached strip above that rounded edge.
+        inner_y = -CASE_DEPTH / 2 + COMPACT_SOFT_EDGE[0][1] + .3
+        outer_y = -HINGE_AXIS_Y + min(
+            HINGE_LID_ROOT_CASEWARD_OFFSET, TPU_HINGE_ROOT_CASEWARD_OFFSET) - .5
+        for x0, x1 in lid_hinge_bank_bounds():
+            union_into(lid, extrude_loop_x("Lid_Hinge_Bed_Foot",
+                ((outer_y, 0), (inner_y, 0), (inner_y, .5), (outer_y, .5)),
+                dx + x0, dx + x1))
 
     # The base knuckles swing through the continuous rear lid flange.  Matching
     # cylindrical pockets preserve the alternating-barrel hinge instead of
@@ -12755,8 +12805,9 @@ def validate_lid_hinge_reinforcement(base, lid, profile):
     root_fills = []
     spine_fills = []
 
-    def require_solid(name, size, center, results):
+    def require_solid(name, size, center, results, angle=0.0):
         probe = add_rounded_box(name, size, center, bevel=0.0)
+        probe.rotation_euler.x = angle
         try:
             _faces, volume = exact_transformed_intersection(
                 lid, probe,
@@ -12778,12 +12829,14 @@ def validate_lid_hinge_reinforcement(base, lid, profile):
         center_x = LID_DISPLAY_OFFSET_X + (x0 + x1) / 2.0
         width = x1 - x0 - 0.8
         for side in (-1.0, 1.0):
+            angle = math.radians(TPU_HINGE_SLOT_TILT_DEGREES) if is_tpu else 0.0
+            y = -2.3 * math.cos(angle) - side * lip_center_z * math.sin(angle)
+            z = -2.3 * math.sin(angle) + side * lip_center_z * math.cos(angle)
             require_solid(
                 f"TEMPORARY_{profile}_{index}_Blunt_Jaw_{side}",
                 (width, 0.12, lip_height),
-                (center_x, -HINGE_AXIS_Y - 2.3,
-                 LID_WALL_HEIGHT + side * lip_center_z),
-                fills,
+                (center_x, -HINGE_AXIS_Y + y, LID_WALL_HEIGHT + z),
+                fills, angle,
             )
         for root_name, offset_y, offset_z in (
             ("Barrel_Root", 3.45, 0.0),
@@ -14822,7 +14875,7 @@ def validate_tpu_snap_lid(lid) -> None:
     bore_overlap_maximum = 0.0
     throat_intersections = []
     mouth_overlap_maximum = 0.0
-    opening_y, opening_z = lid_hinge_slot_opening_local_yz()
+    opening_y, opening_z = lid_hinge_slot_opening_local_yz(HINGE_PROFILE_TPU_68D_SNAP)
     for index, (x0, x1) in enumerate(
         lid_hinge_segments(HINGE_PROFILE_TPU_68D_SNAP),
         start=1,
@@ -14865,6 +14918,7 @@ def validate_tpu_snap_lid(lid) -> None:
             probe = add_rounded_box(f"TEMPORARY_TPU_Clip_{index}_Flat_Throat_{side}",
                 size, (center_x, -HINGE_AXIS_Y + opening_y * travel - opening_z * transverse,
                        LID_WALL_HEIGHT + opening_z * travel + opening_y * transverse), bevel=0.0)
+            probe.rotation_euler.x = math.radians(TPU_HINGE_SLOT_TILT_DEGREES)
             try:
                 _faces, fill = exact_transformed_intersection(lid, probe,
                     first_location=lid.location - Vector((0, 0, LID_DOME_RISE)), first_rotation=lid.rotation_euler.copy(),
@@ -14925,10 +14979,60 @@ def validate_tpu_snap_lid(lid) -> None:
     )
 
 
+def validate_tpu_hinge_attachment(parts):
+    """Check the tilted entrance against the base and entire installed rod."""
+    angle = TPU_HINGE_RELEASE_ANGLE_DEGREES
+    position, rotation = installed_lid_pose(angle)
+    dy, dz = lid_hinge_escape_global_yz(angle, HINGE_PROFILE_TPU_68D_SNAP)
+    radius = HINGE_ROD_DIAMETER / 2
+    half_throat = TPU_HINGE_SNAP_THROAT_WIDTH / 2
+    # Maximum intentional snap contact is the two circular rod caps outside
+    # the calibrated throat, over the full axial width of all six clips.
+    cap_area = 2 * (radius * radius * math.acos(half_throat / radius)
+                    - half_throat * math.sqrt(radius * radius - half_throat * half_throat))
+    allowed_contact = cap_area * sum(x1 - x0 for x0, x1 in
+                                    lid_hinge_segments(HINGE_PROFILE_TPU_68D_SNAP))
+    rod = add_cylinder_x("TEMPORARY_TPU_Attachment_Full_Rod", radius,
+        HINGE_ROD_X1 - HINGE_ROD_X0,
+        ((HINGE_ROD_X0 + HINGE_ROD_X1) / 2, HINGE_AXIS_Y, BASE_HEIGHT), vertices=90)
+    peak = 0.0
+    try:
+        for step in range(25):
+            travel = step * .5
+            location = Vector(position) + Vector((0, dy * travel, dz * travel))
+            overlap = exact_transformed_intersection(parts['tpu_snap_lid'], parts['base'],
+                first_location=location, first_rotation=rotation,
+                second_location=parts['base'].location.copy(),
+                second_rotation=parts['base'].rotation_euler.copy())[1]
+            if overlap > 1e-5:
+                raise ValueError(f"TPU hinge attachment path strikes the base: {travel} {overlap}")
+            contact = exact_transformed_intersection(parts['tpu_snap_lid'], rod,
+                first_location=location, first_rotation=rotation,
+                second_location=rod.location.copy(),
+                second_rotation=rod.rotation_euler.copy())[1]
+            if contact > allowed_contact + 1e-4:
+                raise ValueError(f"TPU hinge attachment blocks the rod beyond its snap throat: {travel} {contact}")
+            if step == 24 and contact > 1e-6:
+                raise ValueError("TPU hinge cannot detach from the rod")
+            peak = max(peak, contact)
+        if peak < .02:
+            raise ValueError("TPU hinge attachment path lacks snap retention")
+    finally:
+        bpy.data.objects.remove(rod, do_unlink=True)
+    print(f"FIELD_CASE_TPU_ATTACHMENT_VALID open_angle={angle:.1f} samples=25 "
+          f"snap_peak={peak:.6f} allowable={allowed_contact:.6f}", flush=True)
+
+
 def validate_tpu_hinge_coupon(coupon) -> None:
     """Prove all coupon throats, flex gaps, and shared root spines in mesh."""
 
-    def coupon_overlap(probe):
+    def coupon_overlap(probe, rotate_throat=False):
+        if rotate_throat:
+            angle = math.radians(TPU_HINGE_SLOT_TILT_DEGREES)
+            y, z = probe.location.y, probe.location.z - LID_WALL_HEIGHT
+            probe.location.y = y * math.cos(angle) - z * math.sin(angle)
+            probe.location.z = LID_WALL_HEIGHT + y * math.sin(angle) + z * math.cos(angle)
+            probe.rotation_euler.x = angle
         try:
             _faces, volume = exact_transformed_intersection(
                 coupon,
@@ -14977,7 +15081,7 @@ def validate_tpu_hinge_coupon(coupon) -> None:
                 (probe_center_x, -throat_t, LID_WALL_HEIGHT),
                 bevel=0.0,
             )
-            throat_air = coupon_overlap(channel_probe)
+            throat_air = coupon_overlap(channel_probe, rotate_throat=True)
             throat_air_maximum = max(throat_air_maximum, throat_air)
             if throat_air > 1e-7:
                 raise ValueError(
@@ -14998,7 +15102,7 @@ def validate_tpu_hinge_coupon(coupon) -> None:
                     ),
                     bevel=0.0,
                 )
-                lip_fill = coupon_overlap(lip_probe)
+                lip_fill = coupon_overlap(lip_probe, rotate_throat=True)
                 throat_lip_fill_minimum = min(
                     throat_lip_fill_minimum,
                     lip_fill / math.prod(lip_probe_size),
@@ -15768,6 +15872,8 @@ def project_settings_bytes() -> bytes:
         # make preset-name conversion index beyond the filament arrays.
         "different_settings_to_system": [""] * (filament_count + 2),
         "enable_support": "0",
+        "layer_height": f"{PROJECT_LAYER_HEIGHT:g}",
+        "initial_layer_print_height": f"{PROJECT_LAYER_HEIGHT:g}",
         "extruder_clearance_dist_to_rod": "33",
         "extruder_clearance_height_to_lid": "90",
         "extruder_clearance_height_to_rod": "34",
@@ -16720,6 +16826,9 @@ def validate_3mf_project(path: Path) -> None:
                     raise ValueError(f"3MF plate {plate_index + 1} has colliding parts")
 
     expected_project_settings = {
+        "enable_support": "0",
+        "layer_height": f"{PROJECT_LAYER_HEIGHT:g}",
+        "initial_layer_print_height": f"{PROJECT_LAYER_HEIGHT:g}",
         "filament_colour": [
             "#161616",
             "#F23809",
@@ -16940,6 +17049,82 @@ def validate_built_hollow_gasket(parts) -> None:
     )
 
 
+def validate_print_layer_connectivity(obj):
+    """Reject islands that appear above the bed without a previous-layer anchor.
+
+    Section at the midplanes of the project's 0.2 mm layers. This catches snap jaws
+    that an overhang-area allowance would incorrectly classify as bridges.
+    """
+    import numpy as np
+    from shapely import union_all
+    from shapely.geometry import LineString
+    from shapely.ops import polygonize
+
+    obj.data.calc_loop_triangles()
+    vertices = np.array([tuple(vertex.co) for vertex in obj.data.vertices])
+    triangles = vertices[np.array([tuple(t.vertices) for t in obj.data.loop_triangles])]
+    starts, ends = triangles, triangles[:, (1, 2, 0), :]
+    bottom, top = vertices[:, 2].min(), vertices[:, 2].max()
+    previous = None
+    samples = 0
+    for z in np.arange(bottom + PROJECT_LAYER_HEIGHT / 2, top, PROJECT_LAYER_HEIGHT):
+        crossing = ((starts[:, :, 2] <= z) & (ends[:, :, 2] > z)
+                    | (ends[:, :, 2] <= z) & (starts[:, :, 2] > z))
+        valid = crossing.sum(axis=1) == 2
+        a, b = starts[valid][crossing[valid]], ends[valid][crossing[valid]]
+        cuts = a + ((z - a[:, 2]) / (b[:, 2] - a[:, 2]))[:, None] * (b - a)
+        segments = np.round(cuts[:, :2].reshape((-1, 2, 2)), 5)
+        lines = [LineString(segment) for segment in segments
+                 if not np.array_equal(segment[0], segment[1])]
+        filled = []
+        for polygon in polygonize(lines):
+            if polygon.area < 1e-7:
+                continue
+            point = polygon.representative_point()
+            # Polygonize also returns the interiors of holes. The first
+            # upward mesh crossing distinguishes solid from empty regions.
+            hit, _point, normal, _index = obj.ray_cast(
+                Vector((point.x, point.y, float(z))), Vector((0, 0, 1)))
+            if hit and normal.z > 0:
+                filled.append(polygon)
+        region = union_all(filled)
+        if region.is_empty:
+            raise ValueError(f"Print layer section is empty: {obj.name} Z={z-bottom:.3f}")
+        if previous is not None:
+            components = list(region.geoms) if hasattr(region, "geoms") else [region]
+            for component in components:
+                if (component.area > .02
+                        and component.intersection(previous.buffer(.005)).area < 1e-5):
+                    raise ValueError(f"Print layer has an unsupported island: {obj.name} "
+                                     f"Z={z-bottom:.3f} area={component.area:.4f} "
+                                     f"bounds={component.bounds}")
+        previous = region
+        samples += 1
+    print(f"FIELD_CASE_PRINT_LAYERS_VALID part={obj.name} samples={samples}", flush=True)
+
+
+def validate_printable_lower_insert(insert):
+    """Check the new liner perimeter rather than applying the shell allowance."""
+    if not EXPANDED_ACCESSORY_STORAGE:
+        return
+    profile = printable_insert_profile()
+    for (z0, inset0), (z1, inset1) in pairwise(profile):
+        if inset0 - inset1 > z1 - z0 + 1e-6:
+            raise ValueError("Lower insert perimeter exceeds 45 degrees")
+    insert.data.calc_loop_triangles()
+    # The altered transition ends below 10 mm. Check every actual downward
+    # face there, including the long straight edges and rounded corners.
+    for triangle in insert.data.loop_triangles:
+        points = [insert.data.vertices[i].co for i in triangle.vertices]
+        if max(point.z for point in points) > 10.5 or all(abs(point.z) < 1e-5 for point in points):
+            continue
+        cross = (points[1] - points[0]).cross(points[2] - points[0])
+        if (cross.length > .02
+                and cross.z / cross.length < -math.sin(math.radians(45.1))):
+            raise ValueError("Built lower insert has an unsupported underside")
+    print("FIELD_CASE_LOWER_INSERT_PRINTABLE perimeter<=45deg", flush=True)
+
+
 def validate_built_hardcase_exterior(parts):
     """Reject steep new shell surfaces outside the short hardware bridges."""
     for z_pair, next_pair in pairwise(EXTERIOR_SOFT_EDGE):
@@ -16971,7 +17156,9 @@ def validate_built_hardcase_exterior(parts):
                 latch_bridge = (any(abs(x - lx) < 12 for lx in LATCH_X_CENTERS)
                                 and CASE_DEPTH / 2 + 2 < y < CASE_DEPTH / 2 + 13
                                 and 8 < z < 15)
-                hinge_bridge = (abs(x) < 81 and -CASE_DEPTH / 2 - 7 < y < -CASE_DEPTH / 2 + 3
+                hinge_bridge = (abs(x) < 81
+                                and -HINGE_AXIS_Y - HINGE_LID_OUTER_DIAMETER / 2 - .2 < y
+                                < -HINGE_AXIS_Y + HINGE_LID_ROOT_CASEWARD_OFFSET + .2
                                 and 4 < z < 16)
                 if not (latch_bridge or hinge_bridge):
                     raise ValueError(f"Steep lid surface outside the hardware bridges: {key} {(x,y,z)}")
@@ -16981,6 +17168,11 @@ def validate_built_hardcase_exterior(parts):
         areas[key] = round(steep_area, 2)
     print(f"FIELD_CASE_EXTERIOR_VALID steep_projection_mm2={areas} "
           "shell_ramps<=45deg hardware_bridge_span<=23.2mm", flush=True)
+    for key in ("lid", "tpu_snap_lid", "tpu_hinge_coupon"):
+        if key in parts:
+            validate_print_layer_connectivity(parts[key])
+    if "fan_case_pair_insert" in parts:
+        validate_printable_lower_insert(parts["fan_case_pair_insert"])
 
 
 def validate_raised_lid_pad(parts):
@@ -17837,6 +18029,7 @@ def build_mission1_field_case():
     validate_built_handle_strength(parts["handle_bar"])
     validate_installed_handle_allen_access(parts)
     validate_tpu_snap_lid(parts["tpu_snap_lid"])
+    validate_tpu_hinge_attachment(parts)
     validate_tpu_hinge_coupon(parts["tpu_hinge_coupon"])
     validate_lid_hinge_reinforcement(
         parts["base"], parts["tpu_snap_lid"], HINGE_PROFILE_TPU_68D_SNAP

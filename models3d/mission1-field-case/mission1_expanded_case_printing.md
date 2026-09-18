@@ -42,12 +42,13 @@ height, with the narrower ribs, rim guards and supported tray rails.
 | Main shell width × depth × bottom-to-rim height | 234 × 180 × 160 mm |
 | Nominal internal width × depth × floor-to-rim height | 225 × 171 × 156.8 mm |
 | Base printed envelope, including projections | 246 × 209.8 × 165 mm |
-| Lid printed envelope | 244 × 207.8 × 39.8 mm |
+| Rigid lid printed envelope | 244 × 207.8 × 39.8 mm |
+| TPU lid printed envelope | 244 × 209.44 × 39.64 mm |
 | Closed case height, bottom to lid top | 195 mm |
 | Equipment contact face in closed lid | Z = 165 mm |
 
 The nominal cavity dimensions are preserved; the rounded floor and corners
-reduce space locally. The lower insert follows that curved floor, and the
+reduce space locally. The lower insert uses an inward 45° ramp inside that curved floor, and the
 mount tray, front bin and remote organizer have matching rounded corners.
 Camera, battery, door, cable, mount, cord and remote positions are retained.
 The 2 mm TPU lid contact plate gains a 24 mm open spacer with a perimeter frame
@@ -57,7 +58,7 @@ adhesive. The asymmetrical key determines its orientation.
 
 **Reprint the base, selected lid with its gasket, lower insert, mount tray,
 front bin, remote organizer and lid pad.** Existing latch parts, handle and
-hinge rod can be reused. The rounded inserts need the revised shell fit; retain
+hinge rod can be reused. Reprint the TPU hinge coupon for its tilted entrance. The rounded inserts need the revised shell fit; retain
 the previous files if you want to reproduce the previous case.
 
 Every part fits within 250 × 250 mm and below 250 mm tall. The project turns the
@@ -65,7 +66,7 @@ base and compound lids 90° in plan to clear the printer's excluded corner.
 Keep this placement and check any brim against the remaining bed margin.
 Print the base upright, the lid crown-down and the pad contact-face-down with
 its spacer upward. Exterior ramps stay within 45°; the latch bays and hinge
-receivers retain short bridges. The project has supports disabled. Bridge
+receivers retain short bridges. The project uses 0.20 mm layers with supports disabled. Bridge
 quality and physical fit still require a printed check with your material.
 
 ![Latch and rim detail](renderings/mission1_hardcase_rim.png)
@@ -272,33 +273,38 @@ separate retainer STL or extra retainer plate; the complete project contains
 15 unique STLs on 10 plates.
 
 Use a suitable resilient TPU for the lower insert and front utility bin. The
-replacement flat lid pad uses **85A TPU**; select the actual filament profile for
+raised-roof lid pad uses **85A TPU**; select the actual filament profile for
 its separate plate. The optional snap lid and calibration coupon require the
 specified 68D material, not the 85A pad filament. The project uses a generic TPU
 preset, which does not itself encode Shore hardness.
 
 The enlarged base, lid, gasket, pad and insert set require new prints. The
-separate latch parts, handle, 151 mm-long 3.8 mm hinge rod, and hinge coupon retain
-their prior dimensions. Use the existing M3 latch and M3 × 14 handle hardware.
+separate latch parts, handle and 151 mm-long 3.8 mm hinge rod retain
+their prior dimensions. Reprint the updated hinge coupon with the optional TPU lid. Use the existing M3 latch and M3 × 14 handle hardware.
 The hinge openings remain 4.325 mm in the base, 4.55 mm at the lid receiver and
 4.4 mm at the rigid slot. The optional snap throat is now 3.5 mm, giving 0.3 mm diametral interference
 with the 3.8 mm rod (previously 0.2 mm). Its straight section is 1.55 mm long,
 leaving approximately 0.096 mm of flat throat beyond the round receiver before
 the smooth 0.8 mm lead-in. The four coupon banks use this same updated entrance;
 one dot is the nominal 3.5 mm, followed by 3.6/3.7/3.8 mm.
+The TPU entrance and blunt jaws point upward at 45° in print orientation so
+the upper jaw grows from the receiver roof instead of starting in midair.
+Open the TPU lid about **25°** for progressive attachment/removal. The rigid
+lid retains its horizontal slot and **70°** removal position. Both retain
+the same rod axis and existing base. Check the coupon with the actual material.
 
 The latch-bearing lip is now **3.2 mm thick on the rigid lid** and **4.0 mm on
 the 68D TPU lid**, increased from 2.4 mm. Added material sits below the existing
 bearing surface and continues into its back-wall reinforcement. Latch take-up,
-rail position, case dimensions and storage clearances are unchanged. These are
-lid-only refinements; existing base, latch, handle and inserts remain compatible.
-The hinge change tightens nominal snap interference; retention force depends
-on the printed material. The optional lid still uses 68D TPU; the separate
-2 mm lid pad remains 85A TPU.
+rail position and storage contacts are retained. The rounded shell and liner
+changes still require the reprints listed above. Snap force depends on the
+printed material; the optional lid uses 68D TPU, and the framed lid pad uses 85A TPU.
 
 ![Lid lip thickness comparison](renderings/mission1_lid_lip_thickness.png)
 
-![TPU hinge snap comparison](renderings/mission1_tpu_hinge_snap_comparison.png)
+![Upward-facing TPU snap entrance](renderings/mission1_hardcase_tpu_hinge.png)
+
+![Printable lower insert underside](renderings/mission1_hardcase_insert_underside.png)
 
 ## Checks
 

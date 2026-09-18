@@ -27,6 +27,7 @@ def main():
     case.set_units()
     material = case.make_material('Exterior_Check', (.4, .4, .4))
     parts = {'base': case.create_base(material),
+             'tpu_hinge_coupon': case.create_tpu_hinge_coupon(material),
              'fan_case_pair_lid_pad': case.create_fan_case_pair_lid_pad(material)}
     for key, profile in (('lid', case.HINGE_PROFILE_RIGID_SLIDE),
                          ('tpu_snap_lid', case.HINGE_PROFILE_TPU_68D_SNAP)):
@@ -38,6 +39,34 @@ def main():
         validate_fixed_part_compatibility(key, parts[key])
     case.validate_built_hardcase_exterior(parts)
     case.validate_raised_lid_pad(parts)
+    case.validate_tpu_hinge_attachment(parts)
+
+    # The previous horizontal TPU jaws began as six detached printed islands.
+    tilt = case.TPU_HINGE_SLOT_TILT_DEGREES
+    try:
+        case.TPU_HINGE_SLOT_TILT_DEGREES = 0.0
+        floating, logo = case.create_lid(material, material, case.HINGE_PROFILE_TPU_68D_SNAP)
+    finally:
+        case.TPU_HINGE_SLOT_TILT_DEGREES = tilt
+    try:
+        must_reject(lambda: case.validate_print_layer_connectivity(floating), 'unsupported island')
+        must_reject(lambda: case.validate_tpu_hinge_attachment(
+            {**parts, 'tpu_snap_lid': floating}), 'beyond its snap throat')
+    finally:
+        case.bpy.data.objects.remove(floating, do_unlink=True)
+        case.bpy.data.objects.remove(logo, do_unlink=True)
+
+    if case.EXPANDED_ACCESSORY_STORAGE:
+        printable = case.rounded_profile_prism('Printable_Liner_Profile', case.printable_insert_profile())
+        old_profile = case.rounded_profile_prism('REGRESSION_Steep_Liner_Profile',
+            case.base_interior_profile(clearance=case.INSERT_SIDE_CLEARANCE,
+                                       z_offset=case.FAN_CASE_PAIR_INSERT_INSTALLED_Z))
+        try:
+            case.validate_printable_lower_insert(printable)
+            must_reject(lambda: case.validate_printable_lower_insert(old_profile), 'unsupported underside')
+        finally:
+            for obj in (printable, old_profile):
+                case.bpy.data.objects.remove(obj, do_unlink=True)
 
     # A broad shelf over a side shoulder must not become an accepted bridge.
     shelf_lid = parts['lid'].copy()

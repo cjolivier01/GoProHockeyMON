@@ -426,8 +426,9 @@ Open `models3d/mission1-field-case/compact/mission1_field_case_ams_project.3mf` 
 project to preserve plate assignments and multipart lid alignment. Select one
 lid plate and the desired loadout plates before slicing; the project includes
 both mutually exclusive choices. The printed-hardware plate already contains
-two levers and two hooks. Review filament profiles and localized hinge supports
-for the actual printer before printing. For the alternate pad, select your
+two levers and two hooks. Review filament profiles and bridge settings
+for the actual printer before printing. The project uses 0.20 mm layers with
+supports disabled. For the alternate pad, select your
 85A TPU profile on its separate plate; the shared generic TPU preset does not
 specify Shore hardness.
 
@@ -869,17 +870,19 @@ rod receiver, but narrows the snap throat to 3.5 mm and flares it to a smooth
 continuous spine joins their roots. The smooth lead reaches the full mouth
 width before the new blunt jaw ends. Its 1.55 mm straight throat extends past
 the round receiver before the 0.8 mm lead begins, preserving the configured
-3.5–3.8 mm coupon widths.
+3.5–3.8 mm coupon widths. The TPU entrance and blunt jaws now tilt upward
+45° in print orientation, avoiding detached upper-jaw layers. Reprint the
+TPU lid and its matching coupon for this change; the existing base and rod fit.
 
 With the 3.8 mm rod already centered in the three base knuckles, hold the TPU
-lid partly open, align both banks of mouths with the rod, and press the clips
+lid about 25 degrees open, align both banks of mouths with the rod, and press the clips
 onto it progressively. The hard TPU can flex past the 3.5 mm throat and recover
 around the 4.55 mm seat. To remove it, support one short clip bank at a time and
 peel it back off the rod; avoid sharply folding the lid plate or pulling one
 end of the full hinge at once.
 
 Print `mission1_field_case_tpu_68d_hinge_coupon.stl` before committing to the
-full TPU lid. The 91 x 14.7 x 15.8 mm coupon contains four breakaway, dot-coded
+full TPU lid. The 91 x 16.94 x 15.64 mm coupon contains four breakaway, dot-coded
 three-clip banks with 3.5, 3.6, 3.7, and 3.8 mm throats: one dot is the nominal 3.5 mm,
 two dots is 3.6 mm, three dots is 3.7 mm, and four dots is 3.8 mm.
 Test the actual 3.8 mm rod using the
@@ -888,9 +891,8 @@ the lid. Each coupon bank reproduces all three 6.53 mm clips, their 1.2 mm gaps,
 and the continuous shared root spine. The reinforced plate-to-barrel root,
 9.6 mm arc, blunt mouth, and exported print orientation match the lid through
 the same construction helper. Test progressive snapping, repeated opening, and
-removal on each complete bank. Use the same removable support-interface settings inside
-all twelve coupon receivers that will be used inside the TPU lid clips; a changed
-interface gap can distort the throat comparison. Choose the smallest throat
+removal on each complete bank. Print the lid and coupon at the project
+0.20 mm layer height with supports disabled. Choose the smallest throat
 that snaps repeatedly without whitening, cracking, or requiring excessive
 force, then set `TPU_HINGE_SNAP_THROAT_WIDTH` to that value if it differs from
 3.5 mm. The 3.8 mm bank is a clearance control for the nominal 3.8 mm rod; the
@@ -934,14 +936,12 @@ the selected lid is complete.
   separate Z = 0 print.
 - The case-side latch and handle mounts rise on 45-degree lower webs and do not
   require support. Do not place support inside their teardrop pivot bores.
-- The rigid lid has two 22 mm hinge slots in its broad-face-down orientation;
-  add removable support in both. The optional TPU lid instead has six 6.53 mm
-  clip slots, and the coupon has twelve matching receivers in four complete
-  three-clip banks. Use the same
-  removable support-interface settings for the TPU lid and coupon so support
-  removal does not bias throat calibration. Remove support completely and
-  verify the actual 3.8 mm bar moves through every selected receiver before
-  assembly.
+- The rigid lid has two 22 mm hinge bridges in its broad-face-down orientation.
+  The optional TPU lid has six tilted 6.53 mm clip slots, and the coupon has
+  twelve matching receivers in four complete three-clip banks. The compact
+  lids include bed-level feet under the receiver roots. Print without generated
+  supports at the project's 0.20 mm layer height; tune bridge settings using
+  the coupon and verify the actual 3.8 mm bar before committing to a full lid.
 - Print the optional headless 3.8 mm hinge pin on its D-shaped flat, or cut a
   3.8 mm metal bar to 151 mm. Verify the actual bar against a small bore test
   before printing the full base.
@@ -965,11 +965,12 @@ and can be regenerated without editing an STL.
    asymmetric notch over the matching rigid boss.
 3. Feed and center the 151 mm-long, 3.8 mm bar (or headless printed D-profile
    pin) through the three base knuckles, leaving both ends about 0.5 mm inset.
-   Hold the lid approximately 70 degrees open. Align both rearward-opening
+   For the rigid lid, hold it approximately 70 degrees open. Align both rearward-opening
    receivers with the installed bar and slide the lid diagonally down and rear
    along the slot direction, then rotate it closed. The base
    blocks that same removal path through 60 degrees, while the two solid lid
-   stops retain the bar axially.
+   stops retain the bar axially. Attach the optional TPU lid at about 25 degrees
+   using its tilted snap mouths as described above.
 4. Install each latch with one M3 x 30 ISO 4762 / DIN 912 Allen socket-head cap
    screw, one standard M3 nut, and a moving-link rod cut to
    `LATCH_LINK_ROD_LENGTH`. Install the separate handle bar with two M3 x 14

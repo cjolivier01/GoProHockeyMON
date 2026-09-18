@@ -182,6 +182,11 @@ def main():
            [('EXPANDED ALTERNATE LOADOUT / stacked removable trays', -250, 202, 6.0),
             ('Case wall cut away to show the cameras and lower bin', -250, -188, 4.7),
             ('Photo mount stays assembled; camera and fan poses retained', -250, -199, 4.7)])
+    clear()
+    copy(parts['fan_case_pair_insert'], tray)
+    render('mission1_hardcase_insert_underside.png', (330, -440, -360), (0, 0, 30), 340,
+           [('LOWER INSERT / printable 45-degree perimeter', -157, 124, 5.0),
+            ('Floor and upper tray bearings retain their original heights', -157, -126, 3.8)])
     print('FIELD_CASE_EXPANDED_PREVIEWS_COMPLETE', flush=True)
 
 
