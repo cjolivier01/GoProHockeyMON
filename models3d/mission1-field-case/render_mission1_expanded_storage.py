@@ -139,10 +139,10 @@ def main():
             ('154 mm coil allowance', -98, 5, 3.9),
             ('42 mm deep', -77, -3, 3.6),
             ('2 OEM', 58, 71, 3.1), ('3 custom', 55, -78, 3.1),
-            ('Integral TPU-85A slots / original 223 x 169 x 46.3 mm tray', -124, -98, 3.5)])
+            ('Integral TPU-85A slots / rounded 223 x 169 x 46.3 mm tray', -124, -98, 3.5)])
     clear()
 
-    section = ((-52, 0, 90), (3, 250, 182))
+    section = ((-52, 0, 100), (3, 250, 202))
     for key, color in (('base', shell), ('fan_case_pair_insert', tray),
                        ('fan_case_pair_storage_bin', tray), ('fan_case_pair_carrier', tray),
                        ('accessory_organizer', pad)):
@@ -158,12 +158,13 @@ def main():
             low, high = case.object_world_bounds(obj)
             if low.x <= -52 <= high.x:
                 copy(obj, (.44, .52, .62, 1), section=section)
-    render('mission1_expanded_closed_stack.png', (398, 0, 86), (-52, 0, 86), 275,
-           [('CLOSED STACK / 234 x 180 x 160 mm base', -128, 105, 4.6),
-            ('Coil: 154 mm diameter x 42 mm', -88, 66, 3.8),
+    render('mission1_expanded_closed_stack.png', (398, 0, 100), (-52, 0, 100), 295,
+           [('ROUNDED CASE / 195 mm closed height', -128, 105, 4.6),
+            ('24 mm roof spacer', -64, 80, 3.5),
+            ('Coil: 154 mm diameter x 42 mm', -78, 46, 3.8),
             ('Mount allowance: 210 x 146 x 37 mm', -106, 11, 3.4),
             ('Lower front bin retained', -115, -25, 3.0),
-            ('2 mm lid pad / 0.7 mm rim clearance', -128, -98, 3.7)])
+            ('Original equipment contact: Z = 165 mm', -128, -98, 3.7)])
     clear()
 
     copy(parts['base'], shell, section=((0, 0, 45), (300, 280, 90)))
@@ -181,6 +182,11 @@ def main():
            [('EXPANDED ALTERNATE LOADOUT / stacked removable trays', -250, 202, 6.0),
             ('Case wall cut away to show the cameras and lower bin', -250, -188, 4.7),
             ('Photo mount stays assembled; camera and fan poses retained', -250, -199, 4.7)])
+    clear()
+    copy(parts['fan_case_pair_insert'], tray)
+    render('mission1_hardcase_insert_underside.png', (330, -440, -360), (0, 0, 30), 340,
+           [('LOWER INSERT / printable 45-degree perimeter', -157, 124, 5.0),
+            ('Floor and upper tray bearings retain their original heights', -157, -126, 3.8)])
     print('FIELD_CASE_EXPANDED_PREVIEWS_COMPLETE', flush=True)
 
 

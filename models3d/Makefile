@@ -385,11 +385,15 @@ mission1-dummy: $(MISSION1_DUMMY_STLS)
 mission1-field-case: $(MISSION1_FIELD_CASE_OUTPUTS)
 mission1-field-case-plate-overview: $(MISSION1_FIELD_CASE_PLATE_RENDER)
 
+check-mission1-hardcase-exterior:
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 \
+		--python $(MISSION1_FIELD_CASE_DIR)/check_mission1_hardcase_exterior.py
+
 check-mission1-field-case-scene:
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 \
 		--python $(MISSION1_FIELD_CASE_SCENE_CHECK_SOURCE)
 
-.PHONY: mission1-field-case-compact
+.PHONY: mission1-field-case-compact check-mission1-hardcase-exterior
 mission1-field-case-compact:
 	mkdir -p $(MISSION1_FIELD_CASE_DIR)/compact
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python-expr \
