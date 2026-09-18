@@ -61,9 +61,10 @@ Bond the spacer rim and ribs to the inside roof with a suitable TPU-compatible
 adhesive. The asymmetrical key determines its orientation.
 
 **Reprint the base, selected lid with its gasket, lower insert, mount tray,
-front bin, remote organizer and lid pad.** Existing latch parts, handle and
-hinge rod can be reused. Reprint the TPU hinge coupon for its tilted entrance. The rounded inserts need the revised shell fit; retain
-the previous files if you want to reproduce the previous case.
+front bin, remote organizer, lid pad, both latch levers, both hooks and handle
+as a matching set.** The 151 mm hinge rod can be reused. Reprint the TPU hinge
+coupon for its tilted entrance. The rounded inserts need the revised shell fit;
+retain the previous files if you want to reproduce the previous case.
 
 Every part fits within 250 × 250 mm and below 250 mm tall. The project turns the
 base and compound lids 90° in plan to clear the printer's excluded corner.
