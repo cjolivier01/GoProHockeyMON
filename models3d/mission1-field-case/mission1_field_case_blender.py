@@ -15619,6 +15619,16 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
                 )
             )
             expected_first_layer_area += footprint_area - outline_overlap_area
+    if not LID_DOME_RISE:
+        # The compact hinge roots have bed-level feet beyond the rounded
+        # crown. Include only their exposed area, excluding the plate overlap.
+        inner_y = -CASE_DEPTH / 2 + COMPACT_SOFT_EDGE[0][1] + .3
+        outer_y = -HINGE_AXIS_Y + min(
+            HINGE_LID_ROOT_CASEWARD_OFFSET, TPU_HINGE_ROOT_CASEWARD_OFFSET) - .5
+        for x0, x1 in lid_hinge_bank_bounds():
+            expected_first_layer_area += (x1 - x0) * (inner_y - outer_y)
+            expected_first_layer_area -= polygon_area_xy(
+                clip_polygon_to_rectangle(outline, x0, x1, outer_y, inner_y))
     combined_first_layer_area = lid_first_layer_area + inlay_first_layer_area
     if not math.isclose(
         combined_first_layer_area,
