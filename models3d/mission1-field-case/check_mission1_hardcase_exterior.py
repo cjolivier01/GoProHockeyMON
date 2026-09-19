@@ -95,6 +95,33 @@ def main():
                 {**parts, 'fan_case_pair_lid_pad': short_pad}), 'does not reach the roof')
         finally:
             case.bpy.data.objects.remove(short_pad, do_unlink=True)
+
+        hollow_pad = pad.copy()
+        hollow_pad.data = pad.data.copy()
+        case.bpy.context.collection.objects.link(hollow_pad)
+        print_z = 16.0
+        width, depth, _radius = case.lid_pad_profile_at_print_z(print_z)
+        # Open the missing region through the outer side so the Boolean forms
+        # a printable regression mesh rather than a nested closed shell.
+        cutter_center = hollow_pad.matrix_world @ case.Vector(
+            (width * 0.22, depth * 0.38, print_z)
+        )
+        cutter = case.add_rounded_box(
+            'REGRESSION_Hollow_Form_Fitting_Pad',
+            (8.0, depth * 0.55, 4.0),
+            cutter_center,
+            bevel=0,
+        )
+        case.difference_from(hollow_pad, cutter)
+        try:
+            must_reject(
+                lambda: case.validate_raised_lid_pad(
+                    {**parts, 'fan_case_pair_lid_pad': hollow_pad}
+                ),
+                'not a solid form-fitting body',
+            )
+        finally:
+            case.bpy.data.objects.remove(hollow_pad, do_unlink=True)
     print('FIELD_CASE_HARDCASE_EXTERIOR_REGRESSION_PASS', flush=True)
 
 

@@ -26,15 +26,16 @@ parting rim; local pockets in the base guards clear the reinforced latch lips.
 The reference's shape is adapted to the existing 250 mm print bed and equipment
 stack. It retains the Sports AI inlay, two-piece latches, M3 latch/handle screws
 and existing 3.8 mm hinge rod. The reference uses interleaved knuckles and axial
-pins; this revision retains the calibrated removable rigid/68D hinge options.
+pins; this revision retains the calibrated removable rigid and TPU-for-AMS
+hinge options.
 
 ```sh
 make -C models3d mission1-field-case
 make -C models3d mission1-field-case-plate-overview
 ```
 
-The project contains **15 unique STLs on 10 plates**, including rigid and 68D TPU
-lid alternatives. Select one lid. The compact dual-fan kit remains separately
+The project contains **16 unique STLs on 11 plates**, including rigid PETG and
+TPU-for-AMS lid alternatives. Select one lid. The compact dual-fan kit remains separately
 available with `make -C models3d mission1-field-case-compact`; its exports go in
 `mission1-field-case/compact/`. It retains its original corner radius and lid
 height, with the narrower ribs, rim guards and supported tray rails.
@@ -55,26 +56,48 @@ The nominal cavity dimensions are preserved; the rounded floor and corners
 reduce space locally. The lower insert uses an inward 45° ramp inside that curved floor, and the
 mount tray, front bin and remote organizer have matching rounded corners.
 Camera, battery, door, cable, mount, cord and remote positions are retained.
-The 2 mm TPU lid contact plate gains a 24 mm open spacer with a perimeter frame
-and two crossing ribs. Its contact face remains at the existing packing plane.
-Bond the spacer rim and ribs to the inside roof with a suitable TPU-compatible
-adhesive. The asymmetrical key determines its orientation.
+The raised roof pad is one closed, form-fitting TPU body that follows the
+rounded lid interior. Its lower contact face remains at the existing packing
+plane, while the 2% gyroid slicer setting leaves the volume mostly hollow inside
+its two wall loops. Bond its broad roof face inside the lid with a suitable
+TPU-compatible adhesive. The asymmetrical key determines its orientation.
 
-**Reprint the base, selected lid with its gasket, lower insert, mount tray,
-front bin, remote organizer, lid pad, both latch levers, both hooks and handle
-as a matching set.** The 151 mm hinge rod can be reused. Reprint the TPU hinge
-coupon for its tilted entrance. The rounded inserts need the revised shell fit;
-retain the previous files if you want to reproduce the previous case.
+![Form-fitting raised roof pad and matching lid interior](renderings/mission1_hardcase_lid_and_spacer.png)
+
+**This update preserves the current rounded case and every insert/tray outer
+envelope.** An already-printed current case, lid, lower insert, mount tray,
+front bin, organizer, latches, handle, gasket, and hinge hardware remain usable.
+Reprint only the raised roof pad to replace the former frame-and-rib spacer.
+Re-slice another part only when you want the new material, infill, wall, or
+support settings for a future print.
 
 Every part fits within 250 × 250 mm and below 250 mm tall. The project turns the
 base and compound lids 90° in plan to clear the printer's excluded corner.
 Keep this placement and check any brim against the remaining bed margin.
 Print the base upright, the lid crown-down and the pad contact-face-down with
-its spacer upward. Exterior ramps stay within 45°; the latch bays and hinge
-receivers retain short bridges. The project uses 0.20 mm layers with supports disabled. Bridge
-quality and physical fit still require a printed check with your material.
+its shaped body upward. Exterior ramps stay within 45°; the latch bays and hinge
+receivers retain short bridges. The project uses 0.20 mm layers and keeps
+supports globally disabled. Per-object support is enabled only for both lid
+alternatives, the lid-latch coupon, and the latch levers and hooks. The lids and
+coupon use a 50-degree support threshold so the isolated outer latch-protector
+ramps receive support; the two inner protectors merge into the broad crown and
+are inherently better braced.
+Bridge quality and physical fit still require a printed check with your
+material.
 
 ![Latch and rim detail](renderings/mission1_hardcase_rim.png)
+
+Before reprinting a complete TPU lid, print
+`mission1_field_case_tpu_lid_latch_station_coupon.stl`. This **59.56 × 55 ×
+38.8 mm** exact crop of the production TPU lid contains one complete left
+latch station: its inner and outer protector, rounded crown-to-corner shoulder,
+deep molded bay, load ledge, capture rail, and side webs. It prints crown-down
+in TPU for AMS with **45% rectilinear infill** and the same **50-degree support
+threshold** as the complete lid. The existing latch hook seats on the coupon's
+unchanged production rail and ledge, so the small print checks protector surface
+quality, support removal, and latch fit before committing to the full lid.
+
+![TPU lid latch-station coupon, alone and with the production hook seated](renderings/mission1_tpu_lid_latch_coupon.png)
 
 The existing raised battery-door pockets, deeper rear fan-inlet reliefs, cable
 corridors and load-bearing insert webs remain in use inside the reshaped liner.
@@ -93,7 +116,7 @@ scan. It fits assembled as shown within the reserved envelope; tuck the tether
 inside that envelope. The cord allowance accepts modest winding variation; a
 looser bundle larger than Ø154 × 42 mm needs recoiling.
 
-The entire organizer is now **one piece of TPU-85A**, including five integral
+The entire organizer is now **one piece of TPU 95A**, including five integral
 remote slots. Its outer envelope remains **223 × 169 × 46.3 mm**, with the
 3 mm main floor, rear key notch and stack bearings. Local air passages
 under the front/rear edges leave at least 2 mm of floor above their roofs. The right-hand strip
@@ -156,7 +179,7 @@ Only the ten designated nub contacts may overlap the remote bodies.
 
 ### Air channels for lifting the tray
 
-Both the **TPU organizer** and the **rigid goalpost mount tray** have four
+Both the **TPU organizer** and the **TPU 95A goalpost mount tray** have four
 **5 mm-wide × 1 mm-deep outside grooves**: two on the front wall and two on the
 rear wall, at X = ±80 mm. They let air reach beneath each tray as it is lifted,
 including while it is fully seated on the supporting parts. Their positions
@@ -170,7 +193,7 @@ remains around the channels. The storage compartments stay closed at the
 bottom. The organizer remains **223 × 169 × 46.3 mm**; the goalpost tray remains
 **223 × 169 × 42.03 mm**, with its original **217 × 163 mm** inner footprint and
 the same **210 × 146 × 37 mm** mount clearance envelope. The mount tray remains
-rigid material; the organizer remains TPU-85A.
+dimensionally unchanged; both trays now use TPU 95A.
 
 Solid air probes check **eight continuous routes per tray**, against the case
 and the actual supporting parts: the mount tray beneath the organizer, and
@@ -208,13 +231,14 @@ Pack from the bottom upward:
    small cables, batteries, doors, and PWM plugs.
 2. Fit the lower front utility bin. It retains approximately **217 × 37.5 ×
    24.7 mm** of usable storage beneath the mount tray.
-3. Fit the rigid mount tray and lay the assembled mount flat inside it. The
+3. Fit the TPU 95A mount tray and lay the assembled mount flat inside it. The
    tray rests on the rear cradle ledges and the front utility bin's side walls.
-4. Fit the one-piece TPU-85A upper organizer. Put the rolled cord in the large
+4. Fit the one-piece TPU 95A upper organizer. Put the rolled cord in the large
    left bay. Load three custom remotes in the short front pockets and two OEM
    remotes in the longer rear pockets, in the orientation described above.
    Keep straps tucked clear of every button and within the available tray height.
-5. Fit the 2 mm 85A TPU lid pad and close the lid. Keep the normal gasket.
+5. Fit the keyed, form-fitting TPU 95A roof pad and close the lid. Keep the
+   normal gasket.
 
 To unpack, open the lid to 110°, lift out the loaded organizer, then the mount
 tray, then the front bin. The trays are stacked; the front bin cannot lift out
@@ -258,35 +282,40 @@ any particular printer's dimensional error.
 
 ## Printing and hardware
 
-Use rigid PETG or another tough rigid filament for the shell, chosen rigid lid
-and **mount tray** (`mission1_field_case_mount_tray.stl`). The mount tray stays
-on rigid filament 1. Use 0.20 mm layers, at least four walls, and enough
-bottom layers to make its 3 mm main floor solid. Its air passages have 45°
-roofs and leave at least 2 mm of floor above them.
+Use rigid PETG or another tough rigid filament for the shell and chosen rigid
+lid. Every internal tray—the lower insert, mount tray, front utility bin,
+remote organizer, and raised roof pad—is assigned to
+`Bambu TPU 95A @BBL X1C` with **2 wall loops and 2% gyroid infill**. Load this
+soft TPU from the external spool or another supported manual workflow instead
+of an unsupported AMS path. The trays print floor down; their air passages
+have 45° roofs and retain the required floor above them.
 
-Print the entire **upper organizer**
-(`mission1_field_case_accessory_organizer.stl`) floor down in **TPU-85A**, using
-0.20 mm layers, four walls and a solid 3 mm main floor. Its dedicated plate is
-labeled `Coil and Five Remote Slots - TPU 85A` and assigned to TPU filament 3.
-Choose an actual TPU-85A profile; the generic project TPU preset does not encode
-Shore hardness. The upward-open slots have no roofs and the small retention
-nubs have rounded edges. The underside air passages use 45° roofs.
-No support structures are intended. A diagnostic
+The entire **upper organizer**
+(`mission1_field_case_accessory_organizer.stl`) prints floor down in TPU 95A.
+Its upward-open slots have no roofs, the small retention nubs have rounded
+edges, and the underside air passages use 45° roofs. Supports remain disabled
+for this part and every other internal tray. A diagnostic
 0.20 mm slice checks support-free toolpaths; it is not calibrated printer G-code.
-Reprint both the organizer and the mount tray for this revision. There is no
+The earlier air-channel revision required reprinting both the organizer and
+mount tray. There is no
 separate retainer STL or extra retainer plate; the complete project contains
-15 unique STLs on 10 plates.
+16 unique STLs on 11 plates.
 
-Use a suitable resilient TPU for the lower insert and front utility bin. The
-raised-roof lid pad uses **85A TPU**; select the actual filament profile for
-its separate plate. The optional snap lid and calibration coupon require the
-specified 68D material, not the 85A pad filament. The project uses a generic TPU
-preset, which does not itself encode Shore hardness.
+The optional snap lid, hinge coupon, and lid-latch coupon use
+`Bambu TPU for AMS @BBL P1P` with **45% rectilinear infill**. Supports are
+enabled for the lid-latch coupon and complete lid, and disabled for the hinge
+coupon. The rigid lid alternative also has per-object supports enabled. Both
+lids and the latch coupon use a 50-degree support threshold to reach the
+isolated outer latch-protector ramps. The latch lever and hook objects are the
+only other support-enabled parts. The project selects the Textured PEI Plate and disables
+the prime tower because the lid occupies nearly the full 250 mm bed; filament
+changes still purge through the printer's normal chute workflow.
 
-The enlarged base, lid, gasket, pad and insert set require new prints. The
-latest exterior hardware revision also requires the matching wide latch parts
-and handle described below. The 151 mm-long 3.8 mm hinge rod retains its prior
-dimensions. Reprint the updated hinge coupon with the optional TPU lid.
+When upgrading from the earlier compact or narrow-hardware revision, the
+enlarged base, lid, gasket, pad and insert set require matching prints, along
+with the wide latch parts and handle described below. The 151 mm-long 3.8 mm
+hinge rod retains its prior dimensions. That hinge revision also requires its
+updated coupon with the optional TPU lid.
 The hinge openings remain 4.325 mm in the base, 4.55 mm at the lid receiver and
 4.4 mm at the rigid slot. The optional snap throat is now 3.5 mm, giving 0.3 mm diametral interference
 with the 3.8 mm rod (previously 0.2 mm). Its straight section is 1.55 mm long,
@@ -300,13 +329,12 @@ lid retains its horizontal slot and **70°** removal position. Both retain
 the same rod axis and existing base. Check the coupon with the actual material.
 
 The latch-bearing lip is now **3.2 mm thick on the rigid lid** and **4.0 mm on
-the 68D TPU lid**, increased from 2.4 mm. Added material sits below the existing
+the TPU-for-AMS lid**, increased from 2.4 mm. Added material sits below the existing
 bearing surface and continues into its back-wall reinforcement. Latch take-up,
-rail position and storage contacts are retained. The rounded shell and liner
-changes still require the reprints listed above; use the matching wide base,
-lid, latch set and handle for the hardware revision. Snap force depends on the
-printed material; the optional lid uses 68D TPU, and the framed 24 mm roof spacer
-uses 85A TPU.
+rail position and storage contacts are retained. When upgrading from the older
+shell revision, use the matching wide base, lid, latch set and handle. Snap force depends on the
+printed material; the optional lid uses TPU for AMS, and the closed,
+form-fitting roof pad uses TPU 95A with sparse gyroid infill.
 
 ![Lid lip thickness comparison](renderings/mission1_lid_lip_thickness.png)
 
@@ -338,9 +366,10 @@ the widened forks. Normal 0–90° handle travel retains **3.31 mm vertical
 separation** through all latch positions, with latch release, handle strength,
 and Allen access independently checked.
 
-Reprint the **base, chosen lid, both latch levers, both hooks, and handle** as a
-matching set. The wider mounts are incompatible with the previous narrow
-latches and handle. The case interior remains **225 × 171 mm**, with the same
+When upgrading from the narrow-hardware design, reprint the **base, chosen lid,
+both latch levers, both hooks, and handle** as a matching set. The wider mounts
+are incompatible with the previous narrow latches and handle. The case interior
+remains **225 × 171 mm**, with the same
 156.8 mm floor-to-rim depth, so existing inserts, gasket, inlay and hinge parts
 remain usable. The compact profile retains its original hardware and dimensions.
 
@@ -430,7 +459,8 @@ make -C models3d check-mission1-field-case-dim-pdf-sync
 The normal build checks both lid closures and hinge sweeps, latch and handle
 clearances, the complete packed loadout and removable trays, manifold meshes,
 and the generated 3MF. The focused exterior check also rejects an unsupported
-lid shelf and a spacer that cannot reach the roof. The new shell views come
+lid shelf, a pad that cannot reach the roof, and a hollow region modeled into
+the pad instead of being left to sparse slicer infill. The new shell views come
 from `render_mission1_hardcase_exterior.py`; pass `-- --review-round N` to label
 an updated review set. The before view is the source at `a9d8807`, and the
 reference view builds the supplied `build_hardcase.py` directly.

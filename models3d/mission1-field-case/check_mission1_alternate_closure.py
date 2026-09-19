@@ -64,15 +64,15 @@ def main():
     finally:
         case.bpy.data.objects.remove(old_tray, do_unlink=True)
 
-    # Reject both the former compressed pad and one that consumes the allowance
-    # for a shorter printed base, even though it clears the nominal tray rims.
-    thickness = case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
-    for invalid_thickness in (3.0, 2.2):
-        try:
-            case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = invalid_thickness
-            invalid_pad = case.create_fan_case_pair_lid_pad(material)
-        finally:
-            case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = thickness
+    # Reject a contact face moved down by the former 1 mm compression and one
+    # that consumes only the 0.2 mm allowance for a shorter printed base. The
+    # upper form-fitting surface remains unchanged and still fits the lid.
+    for invalid_drop in (1.0, 0.2):
+        invalid_pad = parts['fan_case_pair_lid_pad'].copy()
+        invalid_pad.data = parts['fan_case_pair_lid_pad'].data.copy()
+        case.bpy.context.collection.objects.link(invalid_pad)
+        for vertex in invalid_pad.data.vertices:
+            vertex.co.z -= invalid_drop
         try:
             must_reject(lambda: case.validate_alternate_lid_closure(
                 {**parts, 'fan_case_pair_lid_pad': invalid_pad}, references), 'pad presses')
