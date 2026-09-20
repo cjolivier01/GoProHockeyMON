@@ -9308,7 +9308,7 @@ def create_lid(
     # horizontal rail through its outer edge.  The latch's flat bearing pad
     # presses on this ledge to pull the lid down; its round boss sits above the
     # ledge and behind the exposed half of the rail only to prevent outward
-    # escape.  Robust side towers guide the 20.48 mm hook, prevent lateral
+    # escape.  Robust side towers guide the configured hook, prevent lateral
     # walk-off, and tie both ledge and rail ends into the lid rim.
     rim_front_y = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET
     rim_inner_front_y = (CASE_DEPTH - 0.8) / 2.0
