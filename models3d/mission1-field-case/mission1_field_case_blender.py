@@ -1537,15 +1537,55 @@ TPU_HINGE_ROOT_CASEWARD_OFFSET = 3.95
 TPU_HINGE_RELEASE_ANGLE_DEGREES = 25.0
 HINGE_PROFILE_RIGID_SLIDE = "RIGID_SLIDE"
 HINGE_PROFILE_TPU_68D_SNAP = "TPU_68D_SNAP"
-TPU_HINGE_SNAP_THROAT_WIDTH = 3.5
+
+
+def hinge_bore_throat_transition(throat_width, bore_diameter=None):
+    """Entrance depth at which the round receiver stops eating the throat.
+
+    Shallower than this the opening is the seated bore, not the calibrated
+    flat, so every throat measurement and probe has to start past it.
+    """
+    if bore_diameter is None:
+        bore_diameter = HINGE_LID_RECEIVER_DIAMETER
+    return math.sqrt((bore_diameter / 2.0) ** 2 - (throat_width / 2.0) ** 2)
+
+
+def tpu_hinge_snap_entrance(throat_width):
+    """Return ``(throat_length, lead_length)`` for one snap throat width.
+
+    Both follow from the width: the throat clears the receiver and then holds
+    the calibrated flat, and the lead spends whatever mouth depth is left.
+    Deriving them keeps every coupon bank production-identical apart from its
+    throat, and keeps a width change a one-line edit.
+    """
+    throat_length = (
+        hinge_bore_throat_transition(throat_width)
+        + TPU_HINGE_SNAP_CALIBRATED_FLAT
+    )
+    return throat_length, (
+        HINGE_LID_MOUTH_TIP_DISTANCE
+        - throat_length
+        - TPU_HINGE_SNAP_MOUTH_MARGIN
+    )
+
+
+# High-retention throat: 1.00 mm interference on the 3.8 mm rod, so each jaw
+# deflects 0.50 mm to admit it instead of 0.15 mm.  The ceiling below is an
+# empirical bound, not a strain model -- nothing in this file predicts jaw
+# stress, so qualify a width on the coupon before printing a lid.
+TPU_HINGE_SNAP_THROAT_WIDTH = 2.8
+TPU_HINGE_SNAP_MAX_INTERFERENCE = 1.05
 TPU_HINGE_SNAP_MOUTH_WIDTH = 5.0
-TPU_HINGE_SNAP_THROAT_LENGTH = 1.55
-TPU_HINGE_SNAP_LEAD_LENGTH = 0.8
-TPU_HINGE_SNAP_LEAD_RADIUS = 0.8
+# Flat the throat probes measure, and the mouth depth held back past the lead.
+TPU_HINGE_SNAP_CALIBRATED_FLAT = 0.097
+TPU_HINGE_SNAP_MOUTH_MARGIN = 0.03
+TPU_HINGE_SNAP_THROAT_LENGTH, TPU_HINGE_SNAP_LEAD_LENGTH = (
+    tpu_hinge_snap_entrance(TPU_HINGE_SNAP_THROAT_WIDTH)
+)
 TPU_HINGE_SNAP_LEAD_SAMPLES = 8
 TPU_HINGE_CLIPS_PER_SEGMENT = 3
 TPU_HINGE_CLIP_RELIEF_GAP = 1.2
-TPU_HINGE_COUPON_THROATS = (3.5, 3.6, 3.7, 3.8)
+TPU_HINGE_COUPON_THROATS = (2.7, 2.8, 2.9, 3.0)
 TPU_HINGE_COUPON_BLOCK_SIZE = 22.0
 TPU_HINGE_COUPON_BREAKAWAY_WIDTH = 0.4
 HINGE_LID_RELEASE_ANGLE_DEGREES = 70.0
@@ -5280,12 +5320,11 @@ def validate_configuration() -> None:
     if not (
         0.05
         <= HINGE_ROD_DIAMETER - TPU_HINGE_SNAP_THROAT_WIDTH
-        <= 0.35
+        <= TPU_HINGE_SNAP_MAX_INTERFERENCE
         and TPU_HINGE_SNAP_MOUTH_WIDTH >= HINGE_ROD_DIAMETER + 0.6
         and 0.8 <= TPU_HINGE_CLIP_RELIEF_GAP <= 1.5
         and min(tpu_clip_widths) >= 6.0
         and max(tpu_clip_widths) <= 8.0
-        and TPU_HINGE_SNAP_LEAD_RADIUS >= 0.6
         and TPU_HINGE_SNAP_LEAD_SAMPLES >= 6
     ):
         raise ValueError("TPU 68D snap-hinge geometry is outside its flex limits")
@@ -5294,12 +5333,15 @@ def validate_configuration() -> None:
         for throat in TPU_HINGE_COUPON_THROATS
     ):
         raise ValueError("TPU hinge coupon throat variants are invalid")
-    narrowest_throat = min(TPU_HINGE_COUPON_THROATS + (TPU_HINGE_SNAP_THROAT_WIDTH,))
-    bore_throat_transition = math.sqrt(
-        (HINGE_LID_RECEIVER_DIAMETER / 2.0) ** 2 - (narrowest_throat / 2.0) ** 2
-    )
-    if TPU_HINGE_SNAP_THROAT_LENGTH < bore_throat_transition + 0.02:
+    # Every bank, production included, derives its own entrance, so check each
+    # one keeps a measurable flat and still leaves the mouth a lead ramp.
+    if TPU_HINGE_SNAP_CALIBRATED_FLAT < 0.02:
         raise ValueError("Round receiver cuts away the calibrated flat TPU throat")
+    if any(
+        tpu_hinge_snap_entrance(throat)[1] <= 0.0
+        for throat in TPU_HINGE_COUPON_THROATS + (TPU_HINGE_SNAP_THROAT_WIDTH,)
+    ):
+        raise ValueError("TPU snap throat leaves the mouth no lead-in")
     if not math.isclose(HINGE_LID_SLOT_TILT_DEGREES, 0.0, abs_tol=1e-6):
         raise ValueError("Lid hinge slot must remain parallel to the lid plate")
     if not (
@@ -6947,8 +6989,12 @@ def hinge_slot_loop_yz(
         )
         throat_half = throat_width / 2.0
         mouth_half = TPU_HINGE_SNAP_MOUTH_WIDTH / 2.0
-        lead_t0 = TPU_HINGE_SNAP_THROAT_LENGTH
-        lead_t1 = lead_t0 + TPU_HINGE_SNAP_LEAD_LENGTH
+        # Derive the entrance from this bank's own throat.  Reading the
+        # production globals here would give a narrower coupon bank a longer
+        # flat and a steeper ramp than the part it is meant to calibrate.
+        throat_length, lead_length = tpu_hinge_snap_entrance(throat_width)
+        lead_t0 = throat_length
+        lead_t1 = lead_t0 + lead_length
         lower = [(slot_t0, -throat_half), (lead_t0, -throat_half)]
         upper = [(slot_t0, throat_half), (lead_t0, throat_half)]
         for sample in range(1, TPU_HINGE_SNAP_LEAD_SAMPLES + 1):
@@ -6982,7 +7028,7 @@ def create_tpu_hinge_bank(
     bank_x1,
     axis_y,
     axis_z,
-    throat_width=TPU_HINGE_SNAP_THROAT_WIDTH,
+    throat_width=None,
 ):
     """Add one production-faithful three-clip TPU bank to ``target``.
 
@@ -8861,7 +8907,9 @@ def create_tpu_hinge_coupon(material):
             )
             union_into(coupon, bridge)
             union_into(coupon, sample)
-    coupon.name = "Field_Case_TPU_68D_Hinge_Fit_Coupon_35_36_37_38"
+    coupon.name = "Field_Case_TPU_68D_Hinge_Fit_Coupon_" + "_".join(
+        f"{throat:g}".replace(".", "") for throat in TPU_HINGE_COUPON_THROATS
+    )
     assign_material(coupon, material)
     return coupon
 
@@ -15781,7 +15829,13 @@ def validate_tpu_snap_lid(lid) -> None:
             vertices=90,
         )
         try:
-            throat_travel = TPU_HINGE_SNAP_THROAT_LENGTH * 0.75
+            # Mid-flat, not a fraction of the whole throat: three quarters of
+            # the throat length still lands inside the round receiver, where
+            # the probe would measure bore shoulder rather than jaw grip.
+            throat_travel = (
+                hinge_bore_throat_transition(TPU_HINGE_SNAP_THROAT_WIDTH)
+                + TPU_HINGE_SNAP_CALIBRATED_FLAT / 2.0
+            )
             _faces, throat_overlap = exact_transformed_intersection(
                 lid,
                 rod_probe,
@@ -16044,10 +16098,20 @@ def validate_tpu_hinge_attachment(parts):
     rod = add_cylinder_x("TEMPORARY_TPU_Attachment_Full_Rod", radius,
         HINGE_ROD_X1 - HINGE_ROD_X0,
         ((HINGE_ROD_X0 + HINGE_ROD_X1) / 2, HINGE_AXIS_Y, BASE_HEIGHT), vertices=90)
+    # A bare 0.5 mm grid steps straight over the calibrated flat, which is
+    # under 0.1 mm long and sits wherever the throat width puts it, so the
+    # retention floor and interference ceiling below would only ever be
+    # evaluated against the round bore and the open jaw tip.  Sample the flat
+    # explicitly as well.
+    throat_entry = hinge_bore_throat_transition(TPU_HINGE_SNAP_THROAT_WIDTH)
+    travels = sorted(
+        {step * .5 for step in range(25)}
+        | {throat_entry + TPU_HINGE_SNAP_CALIBRATED_FLAT * fraction
+           for fraction in (0.0, .25, .5, .75, 1.0)}
+    )
     peak = 0.0
     try:
-        for step in range(25):
-            travel = step * .5
+        for travel in travels:
             location = Vector(position) + Vector((0, dy * travel, dz * travel))
             overlap = exact_transformed_intersection(parts['tpu_snap_lid'], parts['base'],
                 first_location=location, first_rotation=rotation,
@@ -16061,14 +16125,15 @@ def validate_tpu_hinge_attachment(parts):
                 second_rotation=rod.rotation_euler.copy())[1]
             if contact > allowed_contact + 1e-4:
                 raise ValueError(f"TPU hinge attachment blocks the rod beyond its snap throat: {travel} {contact}")
-            if step == 24 and contact > 1e-6:
+            if travel == travels[-1] and contact > 1e-6:
                 raise ValueError("TPU hinge cannot detach from the rod")
             peak = max(peak, contact)
         if peak < .02:
             raise ValueError("TPU hinge attachment path lacks snap retention")
     finally:
         bpy.data.objects.remove(rod, do_unlink=True)
-    print(f"FIELD_CASE_TPU_ATTACHMENT_VALID open_angle={angle:.1f} samples=25 "
+    print(f"FIELD_CASE_TPU_ATTACHMENT_VALID open_angle={angle:.1f} "
+          f"samples={len(travels)} "
           f"snap_peak={peak:.6f} allowable={allowed_contact:.6f}", flush=True)
 
 
@@ -16113,11 +16178,10 @@ def validate_tpu_hinge_coupon(coupon) -> None:
         clips = tpu_hinge_bank_segments(bank_x0, bank_x1)
         if len(clips) != TPU_HINGE_CLIPS_PER_SEGMENT:
             raise ValueError(f"TPU coupon bank {bank_index} lacks three clips")
-        bore_transition = math.sqrt(
-            (HINGE_LID_RECEIVER_DIAMETER / 2.0) ** 2
-            - (throat_width / 2.0) ** 2
-        )
-        flat_throat_run = TPU_HINGE_SNAP_THROAT_LENGTH - bore_transition
+        bore_transition = hinge_bore_throat_transition(throat_width)
+        # Each bank derives its own entrance, so every one holds the same
+        # calibrated flat rather than the production throat's leftover.
+        flat_throat_run = TPU_HINGE_SNAP_CALIBRATED_FLAT
         throat_t = bore_transition + flat_throat_run / 2.0
         probe_depth = min(0.01, flat_throat_run / 3.0)
         for clip_index, (clip_x0, clip_x1) in enumerate(clips, start=1):

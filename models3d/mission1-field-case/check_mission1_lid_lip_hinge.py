@@ -74,7 +74,8 @@ def main():
     for x0, x1 in case.lid_hinge_segments(case.HINGE_PROFILE_TPU_68D_SNAP):
         cutter = case.extrude_loop_x('REGRESSION_Wide_TPU_Throat',
             case.hinge_slot_loop_yz(-case.HINGE_AXIS_Y, case.LID_WALL_HEIGHT,
-                case.HINGE_PROFILE_TPU_68D_SNAP, throat_width=3.6),
+                case.HINGE_PROFILE_TPU_68D_SNAP,
+                throat_width=case.TPU_HINGE_SNAP_THROAT_WIDTH + 0.1),
             case.LID_DISPLAY_OFFSET_X + x0 - .01, case.LID_DISPLAY_OFFSET_X + x1 + .01)
         cutter.location.z += case.LID_DOME_RISE
         case.difference_from(wide, cutter)

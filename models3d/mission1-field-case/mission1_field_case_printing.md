@@ -837,7 +837,7 @@ The rod openings now reduce clearance around the measured **3.8 mm rod by
 The base bore has a support-free roof, so its total vertical rod travel differs
 from its nominal diametral gap. Rod play is separate from the tray obstruction;
 pad compression should not be used to mask it. The TPU snap throat is now
-3.5 mm, providing 0.3 mm interference with this rod. The 5 mm entry mouth and
+2.8 mm, providing 1.00 mm interference with this rod. The 5 mm entry mouth and
 hinge axis remain unchanged. Existing larger printed openings need new parts
 to obtain this tighter fit; the tray/pad correction works with existing shells.
 These geometry improvements still need a physical fit and repeated-opening
@@ -875,27 +875,30 @@ TPU-for-AMS with a Shore rating of 68D. It replaces
 `mission1_field_case_lid.stl`; never stack the two lids. The default rigid lid
 retains its deliberate 70-degree slide-off receiver. The TPU lid
 keeps the same case closure, latch protectors, gasket channel, and 4.55 mm seated
-rod receiver, but narrows the snap throat to 3.5 mm and flares it to a smooth
+rod receiver, but narrows the snap throat to 2.8 mm and flares it to a smooth
 5.0 mm mouth. Each of the two 22 mm lid receivers is divided into three
 6.53 mm clips with 1.2 mm axial relief gaps. Their jaws flex locally while a
 continuous spine joins their roots. The smooth lead reaches the full mouth
-width before the new blunt jaw ends. Its 1.55 mm straight throat extends past
-the round receiver before the 0.8 mm lead begins, preserving the configured
-3.5–3.8 mm coupon widths. The TPU entrance and blunt jaws now tilt upward
+width before the new blunt jaw ends. Its 1.89 mm straight throat extends past
+the round receiver before the 0.48 mm lead begins. Throat and lead length are
+derived from the throat width, so every 2.7–3.0 mm coupon bank holds the same
+0.097 mm calibrated flat as production and differs only in width. The TPU entrance and blunt jaws now tilt upward
 45° in print orientation, avoiding detached upper-jaw layers. Reprint the
 TPU lid and its matching coupon for this change; the existing base and rod fit.
 
 With the 3.8 mm rod already centered in the three base knuckles, hold the TPU
 lid about 25 degrees open, align both banks of mouths with the rod, and press the clips
-onto it progressively. The hard TPU can flex past the 3.5 mm throat and recover
-around the 4.55 mm seat. To remove it, support one short clip bank at a time and
+onto it progressively. The hard TPU can flex past the 2.8 mm throat and recover
+around the 4.55 mm seat. At 1.00 mm interference each jaw deflects 0.50 mm, so
+expect markedly higher insertion force than a 3.5 mm throat and qualify the
+width on the coupon first. To remove it, support one short clip bank at a time and
 peel it back off the rod; avoid sharply folding the lid plate or pulling one
 end of the full hinge at once.
 
 Print `mission1_field_case_tpu_68d_hinge_coupon.stl` before committing to the
 full TPU lid. The 91 x 16.94 x 15.64 mm coupon contains four breakaway, dot-coded
-three-clip banks with 3.5, 3.6, 3.7, and 3.8 mm throats: one dot is the nominal 3.5 mm,
-two dots is 3.6 mm, three dots is 3.7 mm, and four dots is 3.8 mm.
+three-clip banks with 2.7, 2.8, 2.9, and 3.0 mm throats: one dot is 2.7 mm,
+two dots is the nominal 2.8 mm, three dots is 2.9 mm, and four dots is 3.0 mm.
 Test the actual 3.8 mm rod using the
 same filament, layer height, wall count, orientation, and dry-filament state as
 the lid. Each coupon bank reproduces all three 6.53 mm clips, their 1.2 mm gaps,
@@ -908,8 +911,9 @@ height with **6 wall loops and 45% grid infill**. The hinge coupon retains
 the hinge coupon. Choose the smallest throat
 that snaps repeatedly without whitening, cracking, or requiring excessive
 force, then set `TPU_HINGE_SNAP_THROAT_WIDTH` to that value if it differs from
-3.5 mm. The 3.8 mm bank is a clearance control for the nominal 3.8 mm rod; the
-retaining snap-lid configuration requires positive throat interference.
+2.8 mm; throat length, lead length, and every coupon bank follow from it. The
+3.0 mm bank is the loosest control at 0.8 mm interference; the retaining
+snap-lid configuration requires positive throat interference.
 
 Print `mission1_field_case_tpu_lid_latch_station_coupon.stl` to check the lid's
 latch area before printing the complete TPU lid. The expanded coupon is
