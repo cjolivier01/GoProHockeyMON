@@ -17,7 +17,7 @@ import mission1_field_case_blender as case
 from render_mission1_latch_previews import aim, label
 
 
-BASELINE_REVISION = "e1e8d596f6d496957e9bcc17d8d6893bc4d61105"
+BASELINE_REVISION = "b93c7d6f7bd9984781f4c418cdcd283853ee9ddd"
 
 
 def main():
@@ -90,10 +90,10 @@ def main():
             obj.rotation_euler = (0, 0, 0)
         parts[0].rotation_euler.x = math.pi / 2
     render('mission1_wide_hardware_comparison.png', (0, -40, 500), (0, -6, 0), 340,
-           [('BEFORE / 20.48 mm latches', -153, 94, 5),
-            ('AFTER / 40.96 mm latches', 14, 94, 5),
-            ('99.2 mm handle envelope', -153, -91, 4.6),
-            ('119.8 mm handle envelope (+20.8%)', 14, -91, 4.6)])
+           [('BEFORE / 40.96 mm / M3 x 50', -153, 94, 5),
+            ('CURRENT / 30.96 mm / M3 x 40', 14, 94, 5),
+            ('119.8 mm handle unchanged', -153, -91, 4.6),
+            ('10 mm narrower fixed-pivot stack', 14, -91, 4.6)])
     for obj in old_parts:
         obj.hide_render = True
     base = case.create_base(shell)
@@ -119,14 +119,98 @@ def main():
     handle.location = (0, case.HANDLE_PIVOT_Y + case.HANDLE_LOCAL_PIVOT_Z, case.HANDLE_PIVOT_Z)
     handle.rotation_euler = (math.pi / 2, 0, 0)
     render('mission1_wide_hardware_installed.png', (270, -420, 285), (0, -8, 88), 350,
-           [('DOUBLE-WIDTH LATCHES / FULL-THICKNESS HANDLE', -161, 103, 5.2),
-            ('Same case interior and inserts / new base, lid and hardware prints', -161, -103, 4)])
+           [('30.96 mm LATCHES / M3 x 40 FIXED PIVOTS', -161, 103, 5.2),
+            ('Same case, lid, tray, insert and coupon envelopes', -161, -103, 4)])
     handle.location = (0, case.HANDLE_PIVOT_Y, case.HANDLE_PIVOT_Z - case.HANDLE_LOCAL_PIVOT_Z)
     handle.rotation_euler = (0, 0, 0)
     render('mission1_wide_hardware_clearance.png', (0, -600, 105), (0, -95, 111), 270,
            [('HANDLE RAISED / FRONT CLEARANCE', -125, 80, 4.6),
             (f'Normal 0-90 degree travel: {minimum_gap:.2f} mm vertical separation', -125, -72, 3.8),
             (f'Full 360 degree rotation: {full_turn_gap:.2f} mm lateral gap including play', -125, -82, 3.8)])
+
+    # Show the actual side-profile linkage just before and after its pressure
+    # peak. The two poses use copies of the production latch meshes; the pivot
+    # dots are visualization markers placed just in front of their side faces.
+    for obj in tuple(bpy.context.scene.objects):
+        if obj != camera:
+            obj.hide_render = True
+    peak_material = case.make_material('Peak_Load_Pose', (.98, .62, .08))
+    closed_material = case.make_material('Fully_Closed_Pose', (.95, .30, .06))
+    pivot_material = case.make_material('Pivot_Markers', (.76, .84, .94))
+
+    def add_pose(angle, y_shift, material, prefix):
+        pose_lever = lever.copy()
+        pose_lever.data = lever.data.copy()
+        pose_lever.name = prefix + '_Lever'
+        bpy.context.collection.objects.link(pose_lever)
+        pose_lever.location = (
+            0.0,
+            case.LATCH_BASE_PIVOT_Y + y_shift,
+            case.LATCH_BASE_PIVOT_Z,
+        )
+        pose_lever.rotation_euler = (math.radians(angle), 0.0, 0.0)
+        pose_lever.hide_render = False
+        pose_lever.color = material.diffuse_color
+        case.assign_material(pose_lever, material)
+
+        hook_y, hook_z = case.latch_hook_origin_yz(angle)
+        pose_hook = hook.copy()
+        pose_hook.data = hook.data.copy()
+        pose_hook.name = prefix + '_Hook'
+        bpy.context.collection.objects.link(pose_hook)
+        pose_hook.location = (0.0, hook_y + y_shift, hook_z)
+        pose_hook.rotation_euler = (
+            math.radians(case.latch_hook_global_angle_degrees(angle)),
+            0.0,
+            0.0,
+        )
+        pose_hook.hide_render = False
+        pose_hook.color = material.diffuse_color
+        case.assign_material(pose_hook, material)
+
+        radians = math.radians(angle)
+        local_y, local_z = case.LATCH_LINK_PIVOT_LOCAL_YZ
+        moving_y = (
+            case.LATCH_BASE_PIVOT_Y
+            + math.cos(radians) * local_y
+            - math.sin(radians) * local_z
+            + y_shift
+        )
+        moving_z = (
+            case.LATCH_BASE_PIVOT_Z
+            + math.sin(radians) * local_y
+            + math.cos(radians) * local_z
+        )
+        marker_x = case.LATCH_WIDTH / 2.0 + 1.5
+        for marker_name, marker_y, marker_z in (
+            ('Fixed', case.LATCH_BASE_PIVOT_Y + y_shift, case.LATCH_BASE_PIVOT_Z),
+            ('Moving', moving_y, moving_z),
+        ):
+            marker = case.add_uv_sphere(
+                prefix + '_' + marker_name + '_Pivot',
+                1.35,
+                (marker_x, marker_y, marker_z),
+                segments=32,
+                ring_count=16,
+            )
+            marker.hide_render = False
+            marker.color = pivot_material.diffuse_color
+            case.assign_material(marker, pivot_material)
+
+    peak_angle = -7.35
+    add_pose(peak_angle, -37.0, peak_material, 'Peak_Load')
+    add_pose(case.LATCH_LEVER_CLOSED_ANGLE, 37.0, closed_material, 'Fully_Closed')
+    render(
+        'mission1_latch_over_center.png',
+        (400, case.LATCH_BASE_PIVOT_Y - 35.0, case.LATCH_BASE_PIVOT_Z + 12.0),
+        (0, case.LATCH_BASE_PIVOT_Y, case.LATCH_BASE_PIVOT_Z),
+        135,
+        [
+            ('PEAK LOAD / -7.35 deg', -63, 32, 4.4),
+            ('FULLY CLOSED / +3.00 deg', 8, 32, 4.4),
+            ('11.07 deg past dead center / draw relaxes 0.116 mm', -63, -29, 4.0),
+        ],
+    )
     print('FIELD_CASE_WIDE_HARDWARE_RENDERINGS_PASS', flush=True)
 
 

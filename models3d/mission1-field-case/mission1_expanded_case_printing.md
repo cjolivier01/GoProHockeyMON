@@ -65,11 +65,11 @@ TPU-compatible adhesive. The asymmetrical key determines its orientation.
 ![Form-fitting raised roof pad and matching lid interior](renderings/mission1_hardcase_lid_and_spacer.png)
 
 **This update preserves the current rounded case and every insert/tray outer
-envelope.** An already-printed current case, lid, lower insert, mount tray,
-front bin, organizer, latches, handle, gasket, and hinge hardware remain usable.
-Reprint only the raised roof pad to replace the former frame-and-rib spacer.
-Re-slice another part only when you want the new material, infill, wall, or
-support settings for a future print.
+envelope.** The lower insert, mount tray, front bin, organizer, form-fitting
+roof pad, handle, gasket, inlay, and hinge hardware remain usable. Upgrading
+from the previous 40.96 mm / M3 × 50 latch station requires the matching base,
+chosen lid, levers, and hooks described in [Wider latches and handle](#wider-latches-and-handle).
+No packing component or case envelope changes.
 
 Every part fits within 250 × 250 mm and below 250 mm tall. The project turns the
 base and compound lids 90° in plan to clear the printer's excluded corner.
@@ -96,9 +96,11 @@ the outer protector's tapered crown return, deep molded bay, load ledge, capture
 rail, and side webs. It prints crown-down in Bambu TPU for AMS with **6 wall
 loops, 45% grid infill**, and the same **30-degree support threshold** as the
 complete lid. The
-existing latch hook seats on the coupon's unchanged production rail and ledge,
-so the small print checks protector surface quality and latch fit before
-committing to the full lid.
+new 30.96 mm latch hook seats on the coupon's production rail and ledge, so the
+small print checks protector surface quality and latch fit before committing to
+the full lid. A coupon printed for the former 40.96 mm station has the same
+outer envelope but different rail, protector, and side-web geometry; print the
+regenerated coupon when qualifying this lid revision.
 
 ![TPU lid latch-station coupon in print, hook-fit, and outer-protector side views](renderings/mission1_tpu_lid_latch_coupon.png)
 
@@ -356,12 +358,15 @@ form-fitting roof pad uses TPU 95A with sparse gyroid infill.
 
 ## Wider latches and handle
 
-The expanded case has **40.96 mm-wide latches**, twice the previous 20.48 mm,
+The expanded case has **30.96 mm-wide latches**, 10.48 mm wider than the
+original 20.48 mm parts,
 and a **119.8 mm overall handle envelope**, about 20.8% wider than 99.2 mm.
 The handle's solid grip is 115.6 mm wide with a 95.6 mm opening. Each complete
 fork moves outward 10.3 mm; its original mount shape, wall thickness, bores,
-and 18-to-24 mm transition are preserved. Latch centers remain at ±82 mm.
-The enlarged guards remain 8.22 mm inside the case sides.
+and 18-to-24 mm transition are preserved. Latch centers move from ±82 mm to
+**±77 mm**, keeping each handle-side edge at its previous position while taking
+the full 10 mm width reduction from the outside edge. The guards remain
+18.22 mm inside the case sides.
 
 A **hard 1 mm minimum-clearance check covers continuous 360° handle rotation**
 against both closed latch levers, hooks, and moving link rods. The generated
@@ -378,23 +383,36 @@ the widened forks. Normal 0–90° handle travel retains **3.31 mm vertical
 separation** through all latch positions, with latch release, handle strength,
 and Allen access independently checked.
 
-When upgrading from the narrow-hardware design, reprint the **base, chosen lid,
-both latch levers, both hooks, and handle** as a matching set. The wider mounts
-are incompatible with the previous narrow latches and handle. The case interior
-remains **225 × 171 mm**, with the same
+When upgrading from the previous 40.96 mm / M3 × 50 design, reprint the
+**base, chosen lid, both latch levers, and both hooks** as a matching set. The
+119.8 mm handle is unchanged and remains reusable. The narrowed mounts are
+incompatible with the previous 40.96 mm latches. The case interior remains
+**225 × 171 mm**, with the same
 156.8 mm floor-to-rim depth, so existing inserts, gasket, inlay and hinge parts
 remain usable. The compact profile retains its original hardware and dimensions.
 
-Each wide latch needs one **M3 × 50 socket-head screw**, one M3 hex nut, and a
-**4 mm-diameter rod cut to 40.96 mm**. The 3.6 mm-deep head recess leaves a
-2.4 mm guard floor and nominally 0.04 mm screw-tip projection with full nut
-engagement. Reuse the handle's two **M3 × 14 screws and M3 nuts**.
+Each wide latch needs one **M3 × 40 socket-head screw**, one M3 hex nut, and a
+**4 mm-diameter rod cut to 30.96 mm**. The 4.7 mm-deep head recess leaves a
+1.3 mm nominal guard floor, 3.84 mm reach beyond the nut-pocket floor, and
+1.14 mm nominal screw-tip projection. It retains full 2.4 mm nut engagement
+after allowing 0.5 mm for a short screw, 0.2 mm for printed stack growth, and
+0.5 mm for the incomplete lead thread; worst-case usable thread is 2.64 mm and
+tip projection is 1.84 mm. Reuse the handle's two **M3 × 14 screws and M3 nuts**.
+
+The width change leaves the closure linkage unchanged. The moving pivot crosses
+dead center at -8.067 degrees and closes at +3 degrees, **11.067 degrees past
+dead center**, with 0.200 mm of over-center depth. The measured hook draw peaks
+at 31.306063 mm and relaxes to 31.190529 mm when fully closed, a **0.115534 mm
+post-peak pressure release**. The toggle therefore holds itself shut after the
+peak instead of depending on the secondary snap detents alone.
 
 ![Before and after hardware](renderings/mission1_wide_hardware_comparison.png)
 
 ![Installed wide hardware](renderings/mission1_wide_hardware_installed.png)
 
 ![Raised handle clearance](renderings/mission1_wide_hardware_clearance.png)
+
+![Latch peak-load and fully closed positions](renderings/mission1_latch_over_center.png)
 
 Regenerate these views with `render_mission1_wide_hardware.py` in background
 Blender. Run `check_mission1_wide_hardware.py` for width, interior preservation,

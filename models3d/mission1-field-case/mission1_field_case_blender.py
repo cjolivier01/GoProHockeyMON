@@ -428,8 +428,15 @@ LID_FLANGE_OUTSET = 5.0
 LID_FLANGE_FLARE_START_Z = 3.0
 LID_FLANGE_EDGE_START_Z = 8.0
 # Wider hardware belongs to the tall field case; retain the compact print kit.
+# The 30.96 mm expanded width places the complete fixed-pivot guard stack at
+# 43.56 mm, so a standard M3 x 40 screw retains full nut engagement with the
+# tolerance allowance configured alongside its counterbore below.
 LATCH_SOURCE_WIDTH = 20.48
-LATCH_WIDTH = LATCH_SOURCE_WIDTH * (2.0 if EXPANDED_ACCESSORY_STORAGE else 1.0)
+LATCH_PREVIOUS_EXPANDED_WIDTH = 2.0 * LATCH_SOURCE_WIDTH
+LATCH_EXPANDED_WIDTH = 30.96
+LATCH_WIDTH = (
+    LATCH_EXPANDED_WIDTH if EXPANDED_ACCESSORY_STORAGE else LATCH_SOURCE_WIDTH
+)
 LID_LATCH_TROUGH_WIDTH = LATCH_WIDTH + 1.12
 LID_LATCH_TROUGH_SHOULDER_WIDTH = 4.5
 LID_LATCH_TROUGH_SHOULDER_RISE = 1.0
@@ -1660,7 +1667,17 @@ PIVOT_MOUNT_RAMP_VERTICAL_MARGIN = 0.5
 # easy-running lever bore, with a captive nut on the case-center side.
 # The source visualization contained rigid-body overlaps; only their internal
 # 0-to-80-degree relative sweep was relieved before the meshes were embedded.
-LATCH_X_CENTERS = (-82.0, 82.0)
+LATCH_PREVIOUS_CENTER_MAGNITUDE = 82.0
+# Keep the expanded latch's handle-side edge at the previous 40.96 mm station
+# datum. Moving the narrowed station 5 mm toward the case center takes the full
+# 10 mm reduction from its outside edge instead of opening a needless gap to
+# the unchanged handle. The compact station remains at its issued +/-82 mm.
+LATCH_CENTER_MAGNITUDE = LATCH_PREVIOUS_CENTER_MAGNITUDE - (
+    (LATCH_PREVIOUS_EXPANDED_WIDTH - LATCH_EXPANDED_WIDTH) / 2.0
+    if EXPANDED_ACCESSORY_STORAGE
+    else 0.0
+)
+LATCH_X_CENTERS = (-LATCH_CENTER_MAGNITUDE, LATCH_CENTER_MAGNITUDE)
 LATCH_LINK_ROD_DIAMETER = 4.0
 LATCH_PRESS_FIT_BORE_DIAMETER = 3.9
 LATCH_RUNNING_BORE_DIAMETER = 4.4
@@ -1669,7 +1686,11 @@ LATCH_DEPTH_OFFSET = (CASE_DEPTH - 154.0) / 2.0
 LATCH_FIXED_M3_NOMINAL_DIAMETER = 3.0
 LATCH_FIXED_M3_CLEARANCE_DIAMETER = 3.5
 LATCH_FIXED_M3_COUNTERBORE_DIAMETER = 6.0
-LATCH_FIXED_M3_COUNTERBORE_DEPTH = 3.6 if EXPANDED_ACCESSORY_STORAGE else 3.2
+# Seat the expanded M3 x 40 screw deeply enough to retain full nut engagement
+# after allowing for a short screw, printed stack growth, and the incomplete
+# lead thread at the screw tip. The 6 mm guard still keeps a 1.3 mm nominal
+# counterbore floor. Preserve the already-issued compact profile at 3.2 mm.
+LATCH_FIXED_M3_COUNTERBORE_DEPTH = 4.7 if EXPANDED_ACCESSORY_STORAGE else 3.2
 LATCH_FIXED_M3_MAX_HEAD_DIAMETER = 5.5
 LATCH_FIXED_M3_MAX_HEAD_HEIGHT = 3.0
 LATCH_FIXED_M3_SOCKET_ACROSS_FLATS = 2.5
@@ -1680,9 +1701,12 @@ LATCH_FIXED_M3_NUT_DEPTH = 2.7
 LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS = 2.4
 LATCH_FIXED_M3_RECESS_BOOLEAN_OVERTRAVEL = 0.2
 LATCH_FIXED_M3_MIN_RECESS_FLOOR = 1.0
-LATCH_FIXED_M3_BOLT_LENGTH = 50.0 if EXPANDED_ACCESSORY_STORAGE else 30.0
+LATCH_FIXED_M3_BOLT_LENGTH = 40.0 if EXPANDED_ACCESSORY_STORAGE else 30.0
 LATCH_FIXED_M3_MIN_THREAD_ENGAGEMENT = LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS
 LATCH_FIXED_M3_MAX_TIP_PROTRUSION = 3.0
+LATCH_FIXED_M3_LENGTH_TOLERANCE = 0.5
+LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE = 0.2
+LATCH_FIXED_M3_LEAD_THREAD_ALLOWANCE = 0.5
 LATCH_LID_INSTALLED_Z = BASE_HEIGHT + LID_WALL_HEIGHT
 LATCH_SOURCE_SCALE = 0.8
 # Add material on the outward face while preserving the lid-side jaw plane.
@@ -1879,6 +1903,9 @@ LATCH_PROTECTOR_MOUNT_HALF_WIDTH = (
     + LATCH_PROTECTOR_BASE_WIDTH / 2.0
 )
 LATCH_FIXED_M3_GUARD_SPAN = 2.0 * LATCH_PROTECTOR_MOUNT_HALF_WIDTH
+# Keep the already-issued latch-station coupon's outer print envelope while
+# updating its exact production-lid crop to the narrowed latch geometry.
+TPU_LID_LATCH_COUPON_EXPANDED_WIDTH = 59.56
 LATCH_PROTECTOR_BODY_Y = -CASE_DEPTH / 2.0 + 0.3
 LATCH_PROTECTOR_SHELL_BOND_OVERLAP = 0.3
 LATCH_PROTECTOR_FRONT_Y = -CASE_DEPTH / 2.0 - LID_LATCH_PROTECTOR_PLATE_PROJECTION
@@ -2109,7 +2136,7 @@ HANDLE_M3_BOLT_LENGTH = 14.0
 HANDLE_M3_MIN_THREAD_ENGAGEMENT = HANDLE_M3_NOMINAL_NUT_THICKNESS
 HANDLE_M3_MAX_TIP_PROTRUSION = 3.0
 # Widen the 99.2 mm envelope to 119.8 mm by translating complete, unchanged
-# forks. This leaves 1.02 mm axial clearance to the double-width latch after
+# forks. This leaves 1.02 mm axial clearance to the expanded latch after
 # both axial plays, throughout any handle rotation. The case lugs follow the
 # new pivot centers; bores, cheek thicknesses and M3 x 14 hardware are retained.
 HANDLE_WIDTH_INCREASE = 20.6 if EXPANDED_ACCESSORY_STORAGE else 0.0
@@ -4042,6 +4069,24 @@ def extrude_loop_x(name: str, loop_yz, x0: float, x1: float):
     for index in range(count):
         next_index = (index + 1) % count
         faces.append((index, next_index, count + next_index, count + index))
+    return create_mesh_object(name, vertices, faces)
+
+
+def bridge_loops_x(name: str, loop0_yz, loop1_yz, x0: float, x1: float):
+    """Extrude between same-topology YZ loops that differ at the two X faces."""
+    if len(loop0_yz) != len(loop1_yz):
+        raise ValueError("Bridged X loops need matching vertex counts")
+    count = len(loop0_yz)
+    vertices = [(x0, y, z) for y, z in loop0_yz]
+    vertices.extend((x1, y, z) for y, z in loop1_yz)
+    faces = [list(reversed(range(count))), list(range(count, count * 2))]
+    for index in range(count):
+        next_index = (index + 1) % count
+        # The two profiles can move independently in Y, so the connecting
+        # four points are not generally coplanar. Triangulate explicitly to
+        # keep Boolean and layer-section results deterministic.
+        faces.append((index, next_index, count + next_index))
+        faces.append((index, count + next_index, count + index))
     return create_mesh_object(name, vertices, faces)
 
 
@@ -6016,6 +6061,35 @@ def validate_configuration() -> None:
         raise ValueError("Latch fixed-pivot M3 screw does not fully engage its nut")
     if not 0.0 <= fixed_m3_tip_protrusion <= LATCH_FIXED_M3_MAX_TIP_PROTRUSION:
         raise ValueError("Latch fixed-pivot M3 screw protrusion is unsafe")
+    if EXPANDED_ACCESSORY_STORAGE:
+        worst_case_usable_thread = (
+            fixed_m3_reach_past_nut_floor
+            - LATCH_FIXED_M3_LENGTH_TOLERANCE
+            - LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+            - LATCH_FIXED_M3_LEAD_THREAD_ALLOWANCE
+        )
+        if worst_case_usable_thread < LATCH_FIXED_M3_MIN_THREAD_ENGAGEMENT:
+            raise ValueError(
+                "Latch fixed-pivot M3 screw loses full nut engagement at "
+                "worst-case tolerance"
+            )
+        worst_case_tip_protrusion = (
+            fixed_m3_tip_protrusion
+            + LATCH_FIXED_M3_LENGTH_TOLERANCE
+            + LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+        )
+        if worst_case_tip_protrusion > LATCH_FIXED_M3_MAX_TIP_PROTRUSION:
+            raise ValueError(
+                "Latch fixed-pivot M3 screw protrusion is unsafe at worst-case "
+                "tolerance"
+            )
+        worst_case_counterbore_floor = (
+            counterbore_floor - LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+        )
+        if worst_case_counterbore_floor < LATCH_FIXED_M3_MIN_RECESS_FLOOR:
+            raise ValueError(
+                "Latch guard counterbore floor is too thin at worst-case tolerance"
+            )
     link_axial_clearance = (
         2.0 * LATCH_HOOK_CHEEK_INNER_X - LATCH_LEVER_LINK_TONGUE_WIDTH
     ) / 2.0
@@ -8995,13 +9069,18 @@ def rounded_rectangle_positive_y_at_x(width, depth, radius, x):
     return corner_center_y + math.sqrt(max(0.0, radius**2 - corner_x**2))
 
 
-def expanded_outer_lid_latch_protector_return_chain_yz(protector_center_x):
+def expanded_outer_lid_latch_protector_return_chain_yz(
+    protector_center_x,
+    shell_sample_x=None,
+):
     """Return the caseward edge that follows the raised shoulder and rim."""
     if not LID_DOME_RISE:
         return ()
 
-    protector_outer_x = (
-        abs(protector_center_x) + LATCH_PROTECTOR_BASE_WIDTH / 2.0
+    protector_shell_x = (
+        abs(shell_sample_x)
+        if shell_sample_x is not None
+        else abs(protector_center_x) + LATCH_PROTECTOR_BASE_WIDTH / 2.0
     )
     shoulder_datums = []
     for height in lid_dome_profile_heights():
@@ -9012,7 +9091,7 @@ def expanded_outer_lid_latch_protector_return_chain_yz(protector_center_x):
             LID_DOME_CROWN_SIZE[0] + 2.0 * growth,
             LID_DOME_CROWN_SIZE[1] + 2.0 * growth,
             CASE_CORNER_RADIUS - LID_DOME_INSET + growth,
-            protector_outer_x,
+            protector_shell_x,
         )
         shoulder_datums.append((height, shell_front_y))
 
@@ -9054,7 +9133,7 @@ def expanded_outer_lid_latch_protector_return_chain_yz(protector_center_x):
         CASE_WIDTH - 0.8,
         CASE_DEPTH - 0.8,
         CASE_CORNER_RADIUS - 0.4,
-        protector_outer_x,
+        protector_shell_x,
     )
     rim_anchor_y = (
         inner_rim_front_y
@@ -9075,12 +9154,14 @@ def expanded_outer_lid_latch_protector_return_chain_yz(protector_center_x):
 def expanded_outer_lid_latch_protector_profile_yz(
     profile,
     protector_center_x,
+    shell_sample_x=None,
 ):
     """Carry a raised-lid outer protector back through the complete shoulder."""
     if not LID_DOME_RISE:
         return profile
     back_chain = expanded_outer_lid_latch_protector_return_chain_yz(
-        protector_center_x
+        protector_center_x,
+        shell_sample_x=shell_sample_x,
     )
     return (
         back_chain[-1],
@@ -9227,7 +9308,7 @@ def create_lid(
     # horizontal rail through its outer edge.  The latch's flat bearing pad
     # presses on this ledge to pull the lid down; its round boss sits above the
     # ledge and behind the exposed half of the rail only to prevent outward
-    # escape.  Robust side towers guide the 20.48 mm hook, prevent lateral
+    # escape.  Robust side towers guide the configured hook, prevent lateral
     # walk-off, and tie both ledge and rail ends into the lid rim.
     rim_front_y = CASE_DEPTH / 2.0 + LID_FLANGE_OUTSET
     rim_inner_front_y = (CASE_DEPTH - 0.8) / 2.0
@@ -9402,12 +9483,41 @@ def create_lid(
                             tower_profile_yz
                         )
                     )
-            tower = extrude_loop_x(
-                f"Lid_Latch_{index}_Ramped_Base_Matched_Protector",
-                protector_profile_yz,
-                protector_center_x - LATCH_PROTECTOR_BASE_WIDTH / 2.0,
-                protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0,
-            )
+            protector_x0 = protector_center_x - LATCH_PROTECTOR_BASE_WIDTH / 2.0
+            protector_x1 = protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0
+            if lid_latch_protector_is_outer(x, side) and LID_DOME_RISE:
+                # Follow the rounded shoulder independently at both protector
+                # faces. A flat return based on only the outboard face would
+                # intrude into the lid cavity after moving the latch inward.
+                protector_center_local_x = protector_center_x - dx
+                protector_profile_x0 = (
+                    expanded_outer_lid_latch_protector_profile_yz(
+                        tower_profile_yz,
+                        protector_center_local_x,
+                        shell_sample_x=protector_x0 - dx,
+                    )
+                )
+                protector_profile_x1 = (
+                    expanded_outer_lid_latch_protector_profile_yz(
+                        tower_profile_yz,
+                        protector_center_local_x,
+                        shell_sample_x=protector_x1 - dx,
+                    )
+                )
+                tower = bridge_loops_x(
+                    f"Lid_Latch_{index}_Ramped_Base_Matched_Protector",
+                    protector_profile_x0,
+                    protector_profile_x1,
+                    protector_x0,
+                    protector_x1,
+                )
+            else:
+                tower = extrude_loop_x(
+                    f"Lid_Latch_{index}_Ramped_Base_Matched_Protector",
+                    protector_profile_yz,
+                    protector_x0,
+                    protector_x1,
+                )
             crown_return_loop = lid_latch_outer_protector_crown_return_loop_xy(
                 x,
                 side,
@@ -9780,18 +9890,21 @@ def tpu_lid_latch_coupon_crop_bounds():
         + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
     )
     crop_margin = 3.0
+    crop_center_x = LID_DISPLAY_OFFSET_X + latch_x
+    crop_width = (
+        TPU_LID_LATCH_COUPON_EXPANDED_WIDTH
+        if EXPANDED_ACCESSORY_STORAGE
+        else 2.0
+        * (
+            protector_offset
+            + LATCH_PROTECTOR_BASE_WIDTH / 2.0
+            + crop_margin
+        )
+    )
     return (
         (
-            LID_DISPLAY_OFFSET_X
-            + latch_x
-            - protector_offset
-            - LATCH_PROTECTOR_BASE_WIDTH / 2.0
-            - crop_margin,
-            LID_DISPLAY_OFFSET_X
-            + latch_x
-            + protector_offset
-            + LATCH_PROTECTOR_BASE_WIDTH / 2.0
-            + crop_margin,
+            crop_center_x - crop_width / 2.0,
+            crop_center_x + crop_width / 2.0,
         ),
         (
             CASE_DEPTH / 2.0 - 34.0,
@@ -11948,6 +12061,21 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
         + LATCH_FIXED_M3_COUNTERBORE_DEPTH
         - LATCH_FIXED_M3_GUARD_SPAN
     )
+    if EXPANDED_ACCESSORY_STORAGE:
+        worst_case_usable_thread = (
+            reach_past_nut_floor
+            - LATCH_FIXED_M3_LENGTH_TOLERANCE
+            - LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+            - LATCH_FIXED_M3_LEAD_THREAD_ALLOWANCE
+        )
+        worst_case_tip_protrusion = (
+            tip_protrusion
+            + LATCH_FIXED_M3_LENGTH_TOLERANCE
+            + LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+        )
+    else:
+        worst_case_usable_thread = thread_engagement
+        worst_case_tip_protrusion = tip_protrusion
     print(
         "FIELD_CASE_LATCH_FIXED_M3_VALID "
         f"latches={len(LATCH_X_CENTERS)} "
@@ -11970,7 +12098,9 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
         f"screw=M3x{LATCH_FIXED_M3_BOLT_LENGTH:.0f} "
         f"thread_engagement={thread_engagement:.2f} "
         f"reach_past_nut_floor={reach_past_nut_floor:.2f} "
-        f"tip_protrusion={tip_protrusion:.2f}"
+        f"tip_protrusion={tip_protrusion:.2f} "
+        f"worst_case_usable_thread={worst_case_usable_thread:.2f} "
+        f"worst_case_tip_protrusion={worst_case_tip_protrusion:.2f}"
     )
 
 
@@ -16613,13 +16743,22 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
             x0 = protector_center_x - LATCH_PROTECTOR_BASE_WIDTH / 2.0
             x1 = protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0
             protector_plate_root_y = plate_root_y
+            protector_plate_root_y0 = protector_plate_root_y
+            protector_plate_root_y1 = protector_plate_root_y
             if lid_latch_protector_is_outer(latch_x, side):
                 if LID_DOME_RISE:
-                    # The expanded return begins at this protector's exact
-                    # rounded-corner datum on the crown-down first layer.
-                    protector_plate_root_y = (
+                    # The expanded return follows the rounded corner at both
+                    # X faces rather than intruding into the lid cavity.
+                    protector_plate_root_y0 = (
                         expanded_outer_lid_latch_protector_return_chain_yz(
-                            protector_center_x
+                            protector_center_x,
+                            shell_sample_x=x0,
+                        )[-1][0]
+                    )
+                    protector_plate_root_y1 = (
+                        expanded_outer_lid_latch_protector_return_chain_yz(
+                            protector_center_x,
+                            shell_sample_x=x1,
                         )[-1][0]
                     )
                 else:
@@ -16629,16 +16768,19 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
                     protector_plate_root_y = (
                         compact_outer_lid_latch_protector_crown_anchor_y()
                     )
-            footprint_area = (x1 - x0) * (
-                plate_bottom_outer_y - protector_plate_root_y
+                    protector_plate_root_y0 = protector_plate_root_y
+                    protector_plate_root_y1 = protector_plate_root_y
+            tower_footprint = (
+                (x0, protector_plate_root_y0),
+                (x1, protector_plate_root_y1),
+                (x1, plate_bottom_outer_y),
+                (x0, plate_bottom_outer_y),
             )
+            footprint_area = polygon_area_xy(tower_footprint)
             outline_overlap_area = polygon_area_xy(
-                clip_polygon_to_rectangle(
+                clip_polygon_to_convex_polygon(
                     outline,
-                    x0,
-                    x1,
-                    protector_plate_root_y,
-                    plate_bottom_outer_y,
+                    tower_footprint,
                 )
             )
             expected_first_layer_area += footprint_area - outline_overlap_area
@@ -16650,19 +16792,13 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
                     outline,
                     crown_return_loop,
                 )
-                return_tower_overlap = clip_polygon_to_rectangle(
+                return_tower_overlap = clip_polygon_to_convex_polygon(
                     crown_return_loop,
-                    x0,
-                    x1,
-                    protector_plate_root_y,
-                    plate_bottom_outer_y,
+                    tower_footprint,
                 )
-                return_triple_overlap = clip_polygon_to_rectangle(
+                return_triple_overlap = clip_polygon_to_convex_polygon(
                     return_outline_overlap,
-                    x0,
-                    x1,
-                    protector_plate_root_y,
-                    plate_bottom_outer_y,
+                    tower_footprint,
                 )
                 expected_first_layer_area += (
                     polygon_area_xy(crown_return_loop)

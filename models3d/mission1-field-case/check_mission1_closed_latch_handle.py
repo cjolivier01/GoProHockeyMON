@@ -19,13 +19,12 @@ def main():
     lever, hook = case.create_pelican_latch_parts(material)
     handle = case.create_pivoting_handle_bar(material)
     parts = {'latch_lever': lever, 'latch_hook': hook, 'handle_bar': handle}
-    case.validate_handle_closed_latch_full_rotation(parts)
+    baseline_gap = case.validate_handle_closed_latch_full_rotation(parts)
     case.validate_built_part('handle_bar', handle)
     case.validate_built_handle_strength(handle)
     assert math.isclose(max(v.co.x for v in handle.data.vertices)
                         - min(v.co.x for v in handle.data.vertices), 119.8, abs_tol=.0001)
-    assert math.isclose(case.validate_handle_closed_latch_full_rotation(parts),
-                        1.02, abs_tol=.0001)
+    assert math.isclose(baseline_gap, 1.02, abs_tol=.0001)
 
     def wider_handle(extra_width):
         obj = handle.copy()
@@ -36,9 +35,9 @@ def main():
         obj.data.update()
         return obj
 
-    # Full-thickness forks at the originally requested +25% width physically
-    # intersect the closed lever when rotated upward through -45 degrees.
-    old = wider_handle(124.0 - 119.8)
+    # A deliberately over-wide full-thickness handle physically intersects
+    # the closed lever when rotated upward through -45 degrees.
+    old = wider_handle(15.2)
     try:
         old_parts = {**parts, 'handle_bar': old}
         case.validate_wide_hardware_clearance(old_parts)
@@ -54,21 +53,21 @@ def main():
                              case.HANDLE_PIVOT_Z - math.cos(angle) * case.HANDLE_LOCAL_PIVOT_Z),
             second_rotation=(angle, 0, 0))
         assert overlap > 1.0, overlap
-        print(f'CLOSED_LATCH_25_PERCENT_WIDTH_REJECTED intersection={overlap:.6f}', flush=True)
+        print(f'CLOSED_LATCH_OVERWIDE_HANDLE_REJECTED intersection={overlap:.6f}', flush=True)
     finally:
         case.bpy.data.objects.remove(old, do_unlink=True)
 
     # Positive clearance is insufficient: 0.98 mm must fail the 1 mm rule.
-    marginal = wider_handle(.08)
+    marginal = wider_handle(2.0 * (baseline_gap - 0.98))
     try:
         must_reject(lambda: case.validate_handle_closed_latch_full_rotation(
             {**parts, 'handle_bar': marginal}), 'required=1.00')
     finally:
         case.bpy.data.objects.remove(marginal, do_unlink=True)
 
-    # A 120.1 mm handle passes if either axial play is ignored, but fails when
+    # A marginal handle passes if either axial play is ignored, but fails when
     # both allowed movements toward the latch are included.
-    marginal = wider_handle(.3)
+    marginal = wider_handle(2.0 * (baseline_gap - 0.87))
     for attribute in ('HANDLE_AXIAL_CLEARANCE', 'LATCH_BASE_EAR_AXIAL_CLEARANCE'):
         play = getattr(case, attribute)
         try:
@@ -133,7 +132,7 @@ def main():
     # Check the moving metal linkage as well as the printed latch bodies.
     length = case.LATCH_LINK_ROD_LENGTH
     try:
-        case.LATCH_LINK_ROD_LENGTH += 4.0
+        case.LATCH_LINK_ROD_LENGTH += 20.0
         must_reject(lambda: case.validate_handle_closed_latch_full_rotation(parts), 'part=link rod')
     finally:
         case.LATCH_LINK_ROD_LENGTH = length
@@ -147,7 +146,7 @@ def main():
     finally:
         case.bpy.data.objects.remove(guard, do_unlink=True)
     print('FIELD_CASE_CLOSED_LATCH_FULL_ROTATION_REGRESSION_PASS '
-          '25_percent_width=reject thin_parts=reject enclosed_solid=reject '
+          'overwide_handle=reject thin_parts=reject enclosed_solid=reject '
           'submillimeter_gap=reject minimum_1mm=pass both_axial_plays=covered '
           'long_link_rod=reject guards=excluded', flush=True)
 

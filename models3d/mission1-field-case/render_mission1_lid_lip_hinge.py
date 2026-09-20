@@ -104,12 +104,13 @@ def main():
             bpy.data.objects.remove(obj, do_unlink=True)
 
     shell, rigid, tpu, hardware = (.22, .27, .34, 1), (.30, .60, .85, 1), (1, .43, .10, 1), (.42, .76, .55, 1)
-    section = ((82, -96, 161), (1.4, 25, 21))
+    latch_x = case.LATCH_X_CENTERS[1]
+    section = ((latch_x, -96, 161), (1.4, 25, 21))
     hook = parts['latch_hook'].copy()
     hook.data = parts['latch_hook'].data.copy()
     bpy.context.collection.objects.link(hook)
     hook.hide_render = True
-    case.position_installed_latch_hook(hook, 82)
+    case.position_installed_latch_hook(hook, latch_x)
     bpy.context.view_layer.update()
     hook_pose = (hook.location.copy(), hook.rotation_euler.copy())
     for source, color, shift in ((previous['lid'], (.62, .66, .72, 1), -29),
@@ -117,7 +118,7 @@ def main():
         copy(parts['base'], shell, shift, section=section)
         copy(source, color, shift, section=section, pose=case.installed_lid_pose(0))
         copy(hook, hardware, shift, section=section, pose=hook_pose)
-    render('mission1_lid_lip_thickness.png', (482, -96, 161), (82, -96, 161), 95,
+    render('mission1_lid_lip_thickness.png', (482, -96, 161), (latch_x, -96, 161), 95,
            [('LATCH-BEARING LIP / same contact height', -44, 24, 2.2),
             ('Previous: 2.4', -40, 15, 2.0), ('Rigid: 3.2', -11, 15, 2.0), ('68D TPU: 4.0', 17, 15, 2.0),
             ('Added material supports the lip from below; latch take-up stays the same.', -44, -19, 1.5)])

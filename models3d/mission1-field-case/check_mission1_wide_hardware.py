@@ -15,8 +15,10 @@ import mission1_field_case_blender as case
 from check_mission1_field_case_handle import must_reject
 
 
-# The merged rounded-shell design is the compatibility baseline for this PR.
+# The rounded-shell design is the hardware-shape baseline. The current merged
+# master is the compact-profile compatibility baseline for this latch change.
 BASELINE_REVISION = "e1e8d596f6d496957e9bcc17d8d6893bc4d61105"
+COMPACT_BASELINE_REVISION = "b93c7d6f7bd9984781f4c418cdcd283853ee9ddd"
 
 
 def canonical_faces(obj):
@@ -37,9 +39,24 @@ def main():
     parts['handle_bar'] = case.create_pivoting_handle_bar(material)
     assert (case.CASE_WIDTH, case.CASE_DEPTH, case.BASE_HEIGHT,
             case.WALL_THICKNESS, case.BASE_FLOOR_THICKNESS) == (234, 180, 160, 4.5, 3.2)
-    for key, width in (('latch_lever', 40.96), ('latch_hook', 40.96), ('handle_bar', 119.8)):
+    for key, width in (('latch_lever', 30.96), ('latch_hook', 30.96), ('handle_bar', 119.8)):
         coordinates = [v.co.x for v in parts[key].data.vertices]
         assert math.isclose(max(coordinates) - min(coordinates), width, abs_tol=.0001)
+    assert case.LATCH_FIXED_M3_BOLT_LENGTH == 40.0
+    assert case.LATCH_X_CENTERS == (-77.0, 77.0)
+    assert math.isclose(case.LATCH_FIXED_M3_GUARD_SPAN, 43.56, abs_tol=1e-6)
+    assert math.isclose(case.LATCH_FIXED_M3_COUNTERBORE_DEPTH, 4.7, abs_tol=1e-6)
+    previous_inner_edges = (
+        -case.LATCH_PREVIOUS_CENTER_MAGNITUDE
+        + case.LATCH_PREVIOUS_EXPANDED_WIDTH / 2.0,
+        case.LATCH_PREVIOUS_CENTER_MAGNITUDE
+        - case.LATCH_PREVIOUS_EXPANDED_WIDTH / 2.0,
+    )
+    current_inner_edges = (
+        case.LATCH_X_CENTERS[0] + case.LATCH_WIDTH / 2.0,
+        case.LATCH_X_CENTERS[1] - case.LATCH_WIDTH / 2.0,
+    )
+    assert current_inner_edges == previous_inner_edges
     case.validate_wide_hardware_clearance(parts)
     # Catch a local protrusion even when all configured dimensions still pass.
     obstructed = parts['handle_bar'].copy()
@@ -66,6 +83,14 @@ def main():
         must_reject(case.validate_configuration, 'fully engage')
     finally:
         case.LATCH_FIXED_M3_BOLT_LENGTH = bolt
+    counterbore_depth = case.LATCH_FIXED_M3_COUNTERBORE_DEPTH
+    try:
+        # The former 3.6 mm recess fit nominal hardware but did not retain
+        # full usable thread under the configured manufacturing tolerances.
+        case.LATCH_FIXED_M3_COUNTERBORE_DEPTH = 3.6
+        must_reject(case.validate_configuration, 'worst-case tolerance')
+    finally:
+        case.LATCH_FIXED_M3_COUNTERBORE_DEPTH = counterbore_depth
 
     # Check the rounded-shell baseline everywhere except the exterior front
     # hardware attachment strip. This includes the entire interior wall/floor,
@@ -159,9 +184,12 @@ def main():
     exec(compile(Path(case.__file__).read_bytes(), case.__file__, 'exec'), compact)
     compact['validate_configuration']()
     assert compact['LATCH_WIDTH'] == 20.48 and compact['HANDLE_WIDTH_INCREASE'] == 0
+    compact_source = subprocess.check_output(
+        ['git', 'show', f'{COMPACT_BASELINE_REVISION}:models3d/mission1-field-case/mission1_field_case_blender.py'],
+        cwd=Path(case.__file__).parent, text=True)
     baseline_compact = {'__name__': 'baseline_compact', '__file__': case.__file__,
                         'EXPANDED_ACCESSORY_STORAGE': False}
-    exec(compile(source, case.__file__, 'exec'), baseline_compact)
+    exec(compile(compact_source, case.__file__, 'exec'), baseline_compact)
     baseline_compact['validate_configuration']()
     baseline_lid, _ = baseline_compact['create_lid'](material, material)
     current_lid, _ = compact['create_lid'](material, material)
