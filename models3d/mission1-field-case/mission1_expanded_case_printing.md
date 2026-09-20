@@ -79,9 +79,10 @@ its shaped body upward. Exterior ramps stay within 45°; the latch bays and hing
 receivers retain short bridges. The project uses 0.20 mm layers and keeps
 supports globally disabled. Per-object support is enabled only for both lid
 alternatives, the lid-latch coupon, and the latch levers and hooks. The lids and
-coupon use a 50-degree support threshold so the isolated outer latch-protector
-ramps receive support; the two inner protectors merge into the broad crown and
-are inherently better braced.
+coupon use a 30-degree support threshold. Each outer latch protector now has a
+tapered 4 mm roof return that joins its narrow crown-down footprint to the broad
+lid crown, matching the stable root treatment of the inner protectors without
+changing the lid envelope.
 Bridge quality and physical fit still require a printed check with your
 material.
 
@@ -91,11 +92,12 @@ Before reprinting a complete TPU lid, print
 `mission1_field_case_tpu_lid_latch_station_coupon.stl`. This **59.56 × 55 ×
 38.8 mm** exact crop of the production TPU lid contains one complete left
 latch station: its inner and outer protector, rounded crown-to-corner shoulder,
-deep molded bay, load ledge, capture rail, and side webs. It prints crown-down
-in TPU for AMS with **45% rectilinear infill** and the same **50-degree support
-threshold** as the complete lid. The existing latch hook seats on the coupon's
-unchanged production rail and ledge, so the small print checks protector surface
-quality, support removal, and latch fit before committing to the full lid.
+the outer protector's tapered crown return, deep molded bay, load ledge, capture
+rail, and side webs. It prints crown-down in TPU for AMS with **45% rectilinear
+infill** and the same **30-degree support threshold** as the complete lid. The
+existing latch hook seats on the coupon's unchanged production rail and ledge,
+so the small print checks protector surface quality and latch fit before
+committing to the full lid.
 
 ![TPU lid latch-station coupon, alone and with the production hook seated](renderings/mission1_tpu_lid_latch_coupon.png)
 
@@ -305,9 +307,10 @@ The optional snap lid, hinge coupon, and lid-latch coupon use
 `Bambu TPU for AMS @BBL P1P` with **45% rectilinear infill**. Supports are
 enabled for the lid-latch coupon and complete lid, and disabled for the hinge
 coupon. The rigid lid alternative also has per-object supports enabled. Both
-lids and the latch coupon use a 50-degree support threshold to reach the
-isolated outer latch-protector ramps. The latch lever and hook objects are the
-only other support-enabled parts. The project selects the Textured PEI Plate and disables
+lids and the latch coupon use a 30-degree support threshold; the outer
+protectors' tapered crown returns make their 45-degree ramps self-supporting.
+The latch lever and hook objects are the only other support-enabled parts. The
+project selects the Textured PEI Plate and disables
 the prime tower because the lid occupies nearly the full 250 mm bed; filament
 changes still purge through the printer's normal chute workflow.
 

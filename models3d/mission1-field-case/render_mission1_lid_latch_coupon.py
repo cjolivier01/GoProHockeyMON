@@ -106,7 +106,16 @@ def main():
     print_offset = Vector((-43.0 - center.x, -center.y, 0.0))
     fit_offset = Vector((43.0 - center.x, -center.y, 0.0))
     original_coupon_matrix = print_coupon.matrix_world.copy()
-    print_coupon.matrix_world = Matrix.Translation(print_offset) @ original_coupon_matrix
+    # Show the print-bed/crown face on the standalone coupon so the tapered
+    # outer-protector return is visible; retain the interior face on the fitted
+    # copy so reviewers can inspect the unchanged hook seat and rail.
+    print_coupon.matrix_world = (
+        Matrix.Translation(print_offset)
+        @ Matrix.Translation(center)
+        @ Matrix.Rotation(math.pi, 4, "Y")
+        @ Matrix.Translation(-center)
+        @ original_coupon_matrix
+    )
     fitted_coupon.matrix_world = Matrix.Translation(fit_offset) @ original_coupon_matrix
     hook.matrix_world = fitted_coupon.matrix_world @ hook_in_lid_local
 
