@@ -137,9 +137,15 @@ def main():
         previews.append(rod)
     render('mission1_tpu_hinge_snap_comparison.png', (cx + 300, cy, cz), (cx, cy, cz), 45,
            [('TPU HINGE / closer snap entrance', -21, 11, 1.15),
-            ('Previous: 3.6 opening', -19, 7, .85), ('Revised: 3.5 opening', 2, 7, .85),
-            ('0.2 interference', -18, -7, .8), ('0.3 interference', 3, -7, .8),
-            ('Same 3.8 rod and 4.55 seated receiver; revised throat length 1.55.', -21, -10, .62)])
+            ('Previous: 3.6 opening', -19, 7, .85),
+            (f'Revised: {case.TPU_HINGE_SNAP_THROAT_WIDTH:g} opening', 2, 7, .85),
+            ('0.2 interference', -18, -7, .8),
+            (f'{case.HINGE_ROD_DIAMETER - case.TPU_HINGE_SNAP_THROAT_WIDTH:.2f}'
+             ' interference', 3, -7, .8),
+            (f'Same {case.HINGE_ROD_DIAMETER:g} rod and '
+             f'{case.HINGE_LID_RECEIVER_DIAMETER:g} seated receiver; '
+             f'revised throat length {case.TPU_HINGE_SNAP_THROAT_LENGTH:.2f}.',
+             -21, -10, .62)])
     clear()
 
     copy(parts['lid'], (.09, .12, .16, 1), pose=case.installed_lid_pose(0))

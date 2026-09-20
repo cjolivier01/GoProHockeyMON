@@ -331,11 +331,12 @@ with the wide latch parts and handle described below. The 151 mm-long 3.8 mm
 hinge rod retains its prior dimensions. That hinge revision also requires its
 updated coupon with the optional TPU lid.
 The hinge openings remain 4.325 mm in the base, 4.55 mm at the lid receiver and
-4.4 mm at the rigid slot. The optional snap throat is now 3.5 mm, giving 0.3 mm diametral interference
-with the 3.8 mm rod (previously 0.2 mm). Its straight section is 1.55 mm long,
-leaving approximately 0.096 mm of flat throat beyond the round receiver before
-the smooth 0.8 mm lead-in. The four coupon banks use this same updated entrance;
-one dot is the nominal 3.5 mm, followed by 3.6/3.7/3.8 mm.
+4.4 mm at the rigid slot. The optional snap throat is now 2.8 mm, giving 1.00 mm diametral interference
+with the 3.8 mm rod (previously 0.3 mm). Its straight section is 1.89 mm long,
+leaving 0.097 mm of flat throat beyond the round receiver before the smooth
+0.48 mm lead-in. Throat and lead length are derived from the throat width, so
+each coupon bank reproduces that same 0.097 mm flat at its own width; one dot
+is 2.7 mm, then the nominal 2.8 mm, followed by 2.9/3.0 mm.
 The TPU entrance and blunt jaws point upward at 45° in print orientation so
 the upper jaw grows from the receiver roof instead of starting in midair.
 Open the TPU lid about **25°** for progressive attachment/removal. The rigid
