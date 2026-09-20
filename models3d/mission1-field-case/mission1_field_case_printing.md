@@ -291,7 +291,7 @@ tray, not a flat carrier panel.
 
 The alternate keyed lid pad is a flat **224 × 148 × 2 mm** plate. It leaves
 **0.7 mm clearance** above the tray rims, with no intended rim compression.
-Use your 85A TPU for this replacement pad; no pad squeeze is required for closure.
+Use TPU 95A for this replacement pad; no pad squeeze is required for closure.
 The rear tray has a **14 × 8 mm, 3 mm-deep notch** at its back rim for the rigid
 lid's locating key. The notch is centered at X = −42 mm, Y = +71 mm in the
 installed case frame. It opens through the rear edge; its floor is Z = 99.1 mm.
@@ -393,11 +393,11 @@ The artwork, lettering, and blocks use the same orange material and are joined
 into one shallow 0.8 mm flush-inlay STL.
 
 With the default `PRINT_TPU_GASKET_WITH_LID = True`,
-`mission1_field_case_ams_project.3mf` contains all 17 unique printable STL
+`mission1_field_case_ams_project.3mf` contains all 18 unique printable STL
 deliverables, including two copies each of the latch lever and hook. They are
-arranged across 12 labeled 250 x 250 mm plates: base; rigid lid; optional 68D
+arranged across 13 labeled 250 x 250 mm plates: base; rigid lid; optional TPU-for-AMS
 TPU lid; three default-loadout TPU plates; four alternate fan-case/loadout
-plates; hinge coupon; and printed hardware. The rigid and TPU lid plates are
+plates; hinge coupon; lid-latch coupon; and printed hardware. The rigid and TPU lid plates are
 clearly marked as alternatives, so print one lid plate for a normal case or
 both only if both lid variants are wanted. Every loadout part remains in the
 same project even when it is not used with the selected lid or insert set.
@@ -417,10 +417,14 @@ second file. Both standalone trays print flat-floor-down, open-side-up, in the
 3MF and their STL exports. All installed inserts are normalized to Z = 0,
 and validation rejects any out-of-bed or mutually overlapping plate placement.
 
-The 3MF declares black and orange rigid filaments plus hard TPU as filament 3.
-Use an AMS-compatible hard TPU, a TPU-capable multimaterial system, or the
-printer's supported external-spool/manual-change workflow. Do not feed ordinary
-soft TPU through an AMS that does not support it.
+The 3MF declares four filament slots: black and orange
+`Bambu PETG HF @BBL X1C`, `Bambu TPU for AMS @BBL P1P`, and
+`Bambu TPU 95A HF @BBL X1C`. The optional TPU
+lid, gasket, hinge coupon, and lid-latch coupon use the TPU-for-AMS slot. Every internal tray and
+pad uses the TPU 95A slot with object overrides for **2 wall loops and 2% gyroid
+infill**. The latch lever, latch hook, and handle use **4 wall loops and 45%
+sparse infill**. Load the soft TPU 95A HF from the external spool or another supported
+manual workflow instead of an unsupported AMS path.
 
 Open `models3d/mission1-field-case/compact/mission1_field_case_ams_project.3mf` as a
 project to preserve plate assignments and multipart lid alignment. Select one
@@ -428,9 +432,14 @@ lid plate and the desired loadout plates before slicing; the project includes
 both mutually exclusive choices. The printed-hardware plate already contains
 two levers and two hooks. Review filament profiles and bridge settings
 for the actual printer before printing. The project uses 0.20 mm layers with
-supports disabled. For the alternate pad, select your
-85A TPU profile on its separate plate; the shared generic TPU preset does not
-specify Shore hardness.
+supports globally disabled. Object-level supports are enabled only for both
+lid alternatives, the lid-latch coupon, and the latch lever and hook objects.
+Both lids and the latch coupon use a 30-degree support threshold. Their outer
+latch protectors now continue caseward across the rounded soft edge and merge
+into the broad crown, so those 45-degree ramps no longer begin as isolated TPU
+islands. The hinge coupon, gasket, trays, pads, base, handle, and hinge pin
+remain support-free. The project selects the Textured PEI Plate and disables
+the prime tower because the lid occupies nearly the full bed.
 
 To regenerate the labeled overview directly from the packaged 3MF meshes:
 
@@ -859,7 +868,7 @@ is attached. Their smaller diameter clears the base rear wall;
 generated solid probes and deliberate axial-overtravel probes verify both
 stops and retention.
 
-### Optional 68D TPU snap-on lid
+### Optional TPU-for-AMS snap-on lid
 
 `mission1_field_case_lid_tpu_68d_snap.stl` is a complete alternative lid for
 TPU-for-AMS with a Shore rating of 68D. It replaces
@@ -893,12 +902,31 @@ the lid. Each coupon bank reproduces all three 6.53 mm clips, their 1.2 mm gaps,
 and the continuous shared root spine. The reinforced plate-to-barrel root,
 9.6 mm arc, blunt mouth, and exported print orientation match the lid through
 the same construction helper. Test progressive snapping, repeated opening, and
-removal on each complete bank. Print the lid and coupon at the project
-0.20 mm layer height with supports disabled. Choose the smallest throat
+removal on each complete bank. Print the lid at the project 0.20 mm layer
+height with **6 wall loops and 45% grid infill**. The hinge coupon retains
+**45% rectilinear infill**. Supports are enabled for the lid and disabled for
+the hinge coupon. Choose the smallest throat
 that snaps repeatedly without whitening, cracking, or requiring excessive
 force, then set `TPU_HINGE_SNAP_THROAT_WIDTH` to that value if it differs from
 3.5 mm. The 3.8 mm bank is a clearance control for the nominal 3.8 mm rod; the
 retaining snap-lid configuration requires positive throat interference.
+
+Print `mission1_field_case_tpu_lid_latch_station_coupon.stl` to check the lid's
+latch area before printing the complete TPU lid. The expanded coupon is
+**59.56 × 55 × 38.8 mm**; the compact coupon is **39.08 × 55 × 14.8 mm**.
+Each is an exact crop of one complete production-lid station. Both retain the
+inner protector's original direct crown root. On the expanded lid and coupon,
+the outer protector has the same tapered roof return into the raised crown. On
+the compact lid and coupon, the outer protector's own profile continues
+caseward across the rounded soft edge into the bed-level crown. Both coupons
+also include the molded bay, load ledge, capture rail, and side webs. The
+existing production latch hook fits the unchanged rail and ledge. Print the
+coupon crown-down with Bambu TPU for AMS, **6 wall loops and 45% grid infill**,
+supports enabled, and the same **30-degree support threshold** as the full lid.
+
+![Compact TPU lid latch-station coupon in print, hook-fit, and outer-protector side views](renderings/mission1_tpu_lid_latch_coupon_compact.png)
+
+![Compact TPU lid latch-station coupon outer-protector shoulder connection](renderings/mission1_tpu_lid_latch_coupon_compact_outer_profile.png)
 
 The optional TPU lid is included on its own clearly labeled 3MF plate beside
 the rigid-lid alternative. Its orange logo and integrated gasket are already
@@ -909,24 +937,21 @@ the selected lid is complete.
 
 ## Suggested printing
 
-- Base, lid, broad latch levers, handle bar, and hinge pin: PETG, ASA, nylon,
-  or another impact-tolerant rigid filament; 0.20 mm layers, four walls, and at
-  least 25% infill.
-- The upper moving latch hooks may be printed in hard TPU. Use the stiffest TPU
-  your printer handles reliably, at least five walls, and high infill around
-  the flat bearing pad, round retention boss, and link-pivot end. Soft 95A
-  tray-style settings are not recommended for this load-bearing part.
-- Lower fan cradle, upper equipment tray, and lid pad: TPU 95A, two or three
-  walls, and 15-20% infill.
+- Base, rigid lid, latch pieces, handle bar, and hinge pin: Bambu PETG HF. The
+  latch lever, latch hook, and handle use **4 wall loops and 45% sparse
+  infill**. The lever and hook have supports enabled; the base, rigid handle,
+  and hinge pin remain support-free.
+- Lower fan cradle, upper equipment tray, and lid pad: Bambu TPU 95A HF,
+  **2 wall loops and 2% gyroid infill**.
 - Alternate fan-case lower cradle, rear shallow tray, front deep tray,
-  and flat lid pad: TPU 95A (85A for the replacement flat lid pad) or a
-  comparably resilient protective material,
-  three walls, and 15-20% infill. Keep the PWM dock nubs flexible; do not fill
+  and lid pad: Bambu TPU 95A HF with **2 wall loops and 2% gyroid infill**. Keep the PWM
+  dock nubs flexible; do not fill
   the plug channels with support. Print both standalone trays flat-floor-down
   and open-side-up; neither has feet or long lid-mounted projections.
-- Optional snap-on lid and hinge coupon: TPU-for-AMS 68D, 0.20 mm layers, at
-  least four walls around the hinge clips, and enough top/bottom layers to make
-  the lid plate continuous. Print the coupon first with identical settings.
+- Optional snap-on lid: Bambu TPU for AMS, 0.20 mm layers, **6 wall loops, and
+  45% grid infill**. Its latch-station coupon uses the same profile. Both have
+  supports enabled with a 30-degree threshold. The separate hinge coupon uses
+  the same material with **45% rectilinear infill** and remains support-free.
 - Gasket: relatively hard TPU with a 0.4 mm nozzle and 0.20 mm layers. The air
   channel is modeled into the STL, so do not enable support or gap filling in
   that closed void. The gasket is for dust and splash resistance, not certified
@@ -936,14 +961,16 @@ the selected lid is complete.
   the default option, the gasket is already positioned inside the compound
   lid; the standalone gasket STL is an aligned multipart component, not a
   separate Z = 0 print.
-- The case-side latch and handle mounts rise on 45-degree lower webs and do not
-  require support. Do not place support inside their teardrop pivot bores.
+- The case-side latch and handle mounts rise on 45-degree lower webs. Supports
+  remain disabled for the base and handle. Do not place support inside their
+  teardrop pivot bores.
 - The rigid lid has two 22 mm hinge bridges in its broad-face-down orientation.
   The optional TPU lid has six tilted 6.53 mm clip slots, and the coupon has
   twelve matching receivers in four complete three-clip banks. The compact
-  lids include bed-level feet under the receiver roots. Print without generated
-  supports at the project's 0.20 mm layer height; tune bridge settings using
-  the coupon and verify the actual 3.8 mm bar before committing to a full lid.
+  lids include bed-level feet under the receiver roots. Both lid objects use
+  generated supports at the project's 0.20 mm layer height; the coupon remains
+  support-free for calibration. Verify the actual 3.8 mm bar before committing
+  to a full lid.
 - Print the optional headless 3.8 mm hinge pin on its D-shaped flat, or cut a
   3.8 mm metal bar to 151 mm. Verify the actual bar against a small bore test
   before printing the full base.

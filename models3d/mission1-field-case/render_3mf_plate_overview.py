@@ -389,15 +389,15 @@ def concise_object_name(name: str) -> str:
         "Pivoting Handle Bar": "handle",
         "Hinge Pin": "hinge pin",
         "Base Shell": "base shell",
-        "TPU 68D Hinge Calibration Coupon": "hinge coupon",
+        "TPU for AMS Hinge Calibration Coupon": "hinge coupon",
     }
     if name in replacements:
         return replacements[name]
     for prefix in (
         "Rigid AMS ",
-        "Optional 68D TPU ",
-        "Default TPU ",
-        "Alternate TPU ",
+        "Optional TPU for AMS ",
+        "Default TPU 95A ",
+        "Alternate TPU 95A ",
     ):
         if name.startswith(prefix):
             name = name[len(prefix) :]
@@ -551,7 +551,8 @@ def render_overview(project: ThreeMFProject, output_path: Path, width: int) -> N
         0: make_material("Unassigned_3MF_Part", (0.72, 0.75, 0.80, 1.0)),
         1: make_material("Rigid_Black", (0.055, 0.075, 0.105, 1.0)),
         2: make_material("Rigid_Orange_Inlay", (1.0, 0.20, 0.025, 1.0)),
-        3: make_material("TPU_68D", (0.94, 0.30, 0.045, 1.0)),
+        3: make_material("TPU_For_AMS", (0.90, 0.29, 0.18, 1.0)),
+        4: make_material("TPU_95A", (0.20, 0.48, 0.88, 1.0)),
     }
     plate_material = make_material("250mm_Print_Plate", (0.18, 0.22, 0.29, 1.0))
     excluded_material = make_material("Excluded_Bed_Corner", (0.30, 0.11, 0.11, 1.0))
@@ -618,7 +619,7 @@ def render_overview(project: ThreeMFProject, output_path: Path, width: int) -> N
     bottom_y = -(rows - 1) * PLATE_STRIDE - 30.0
     add_text(
         "Material_Legend",
-        "DARK = RIGID  •  ORANGE = RIGID INLAY  •  CORAL = TPU (SELECT THE REQUIRED HARDNESS)  •  RED CORNER = PRINTER EXCLUSION",
+        "DARK = RIGID  •  ORANGE = RIGID INLAY  •  CORAL = TPU FOR AMS  •  BLUE = TPU 95A  •  RED CORNER = PRINTER EXCLUSION",
         (full_width_center, bottom_y, 1.0),
         5.0,
         label_material,

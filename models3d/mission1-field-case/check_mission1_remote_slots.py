@@ -103,12 +103,11 @@ def main():
     finally:
         case.ACCESSORY_REMOTE_GRIP_INTERFERENCE = original
 
-    original = case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS
-    try:
-        case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = 5.0
-        thick = case.create_fan_case_pair_lid_pad(material)
-    finally:
-        case.FAN_CASE_PAIR_LID_PAD_PLATE_THICKNESS = original
+    thick = parts['fan_case_pair_lid_pad'].copy()
+    thick.data = parts['fan_case_pair_lid_pad'].data.copy()
+    case.bpy.context.collection.objects.link(thick)
+    for vertex in thick.data.vertices:
+        vertex.co.z -= 3.0
     try:
         must_reject(lambda: check({'fan_case_pair_lid_pad': thick}),
                     'clearance below lid pad is insufficient')
