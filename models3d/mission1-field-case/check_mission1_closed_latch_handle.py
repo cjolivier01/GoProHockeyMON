@@ -24,7 +24,7 @@ def main():
     case.validate_built_handle_strength(handle)
     assert math.isclose(max(v.co.x for v in handle.data.vertices)
                         - min(v.co.x for v in handle.data.vertices), 119.8, abs_tol=.0001)
-    assert math.isclose(baseline_gap, 6.02, abs_tol=.0001)
+    assert math.isclose(baseline_gap, 1.02, abs_tol=.0001)
 
     def wider_handle(extra_width):
         obj = handle.copy()

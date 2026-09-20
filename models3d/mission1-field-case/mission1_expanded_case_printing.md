@@ -363,12 +363,14 @@ original 20.48 mm parts,
 and a **119.8 mm overall handle envelope**, about 20.8% wider than 99.2 mm.
 The handle's solid grip is 115.6 mm wide with a 95.6 mm opening. Each complete
 fork moves outward 10.3 mm; its original mount shape, wall thickness, bores,
-and 18-to-24 mm transition are preserved. Latch centers remain at ±82 mm.
-The enlarged guards remain 13.22 mm inside the case sides.
+and 18-to-24 mm transition are preserved. Latch centers move from ±82 mm to
+**±77 mm**, keeping each handle-side edge at its previous position while taking
+the full 10 mm width reduction from the outside edge. The guards remain
+18.22 mm inside the case sides.
 
 A **hard 1 mm minimum-clearance check covers continuous 360° handle rotation**
 against both closed latch levers, hooks, and moving link rods. The generated
-meshes have **6.02 mm minimum axial separation**, after including ±0.2 mm latch
+meshes have **1.02 mm minimum axial separation**, after including ±0.2 mm latch
 and ±0.4 mm handle axial play. Rotation about the handle's pivot preserves
 this lateral separation at every angle. Protection walls are excluded from
 this constraint; the check does not rely on a guard stopping rotation.

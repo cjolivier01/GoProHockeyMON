@@ -43,8 +43,20 @@ def main():
         coordinates = [v.co.x for v in parts[key].data.vertices]
         assert math.isclose(max(coordinates) - min(coordinates), width, abs_tol=.0001)
     assert case.LATCH_FIXED_M3_BOLT_LENGTH == 40.0
+    assert case.LATCH_X_CENTERS == (-77.0, 77.0)
     assert math.isclose(case.LATCH_FIXED_M3_GUARD_SPAN, 43.56, abs_tol=1e-6)
     assert math.isclose(case.LATCH_FIXED_M3_COUNTERBORE_DEPTH, 4.7, abs_tol=1e-6)
+    previous_inner_edges = (
+        -case.LATCH_PREVIOUS_CENTER_MAGNITUDE
+        + case.LATCH_PREVIOUS_EXPANDED_WIDTH / 2.0,
+        case.LATCH_PREVIOUS_CENTER_MAGNITUDE
+        - case.LATCH_PREVIOUS_EXPANDED_WIDTH / 2.0,
+    )
+    current_inner_edges = (
+        case.LATCH_X_CENTERS[0] + case.LATCH_WIDTH / 2.0,
+        case.LATCH_X_CENTERS[1] - case.LATCH_WIDTH / 2.0,
+    )
+    assert current_inner_edges == previous_inner_edges
     case.validate_wide_hardware_clearance(parts)
     # Catch a local protrusion even when all configured dimensions still pass.
     obstructed = parts['handle_bar'].copy()

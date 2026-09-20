@@ -432,6 +432,7 @@ LID_FLANGE_EDGE_START_Z = 8.0
 # 43.56 mm, so a standard M3 x 40 screw retains full nut engagement with the
 # tolerance allowance configured alongside its counterbore below.
 LATCH_SOURCE_WIDTH = 20.48
+LATCH_PREVIOUS_EXPANDED_WIDTH = 2.0 * LATCH_SOURCE_WIDTH
 LATCH_EXPANDED_WIDTH = 30.96
 LATCH_WIDTH = (
     LATCH_EXPANDED_WIDTH if EXPANDED_ACCESSORY_STORAGE else LATCH_SOURCE_WIDTH
@@ -1666,7 +1667,17 @@ PIVOT_MOUNT_RAMP_VERTICAL_MARGIN = 0.5
 # easy-running lever bore, with a captive nut on the case-center side.
 # The source visualization contained rigid-body overlaps; only their internal
 # 0-to-80-degree relative sweep was relieved before the meshes were embedded.
-LATCH_X_CENTERS = (-82.0, 82.0)
+LATCH_PREVIOUS_CENTER_MAGNITUDE = 82.0
+# Keep the expanded latch's handle-side edge at the previous 40.96 mm station
+# datum. Moving the narrowed station 5 mm toward the case center takes the full
+# 10 mm reduction from its outside edge instead of opening a needless gap to
+# the unchanged handle. The compact station remains at its issued +/-82 mm.
+LATCH_CENTER_MAGNITUDE = LATCH_PREVIOUS_CENTER_MAGNITUDE - (
+    (LATCH_PREVIOUS_EXPANDED_WIDTH - LATCH_EXPANDED_WIDTH) / 2.0
+    if EXPANDED_ACCESSORY_STORAGE
+    else 0.0
+)
+LATCH_X_CENTERS = (-LATCH_CENTER_MAGNITUDE, LATCH_CENTER_MAGNITUDE)
 LATCH_LINK_ROD_DIAMETER = 4.0
 LATCH_PRESS_FIT_BORE_DIAMETER = 3.9
 LATCH_RUNNING_BORE_DIAMETER = 4.4
@@ -2125,7 +2136,7 @@ HANDLE_M3_BOLT_LENGTH = 14.0
 HANDLE_M3_MIN_THREAD_ENGAGEMENT = HANDLE_M3_NOMINAL_NUT_THICKNESS
 HANDLE_M3_MAX_TIP_PROTRUSION = 3.0
 # Widen the 99.2 mm envelope to 119.8 mm by translating complete, unchanged
-# forks. This leaves 6.02 mm axial clearance to the expanded latch after
+# forks. This leaves 1.02 mm axial clearance to the expanded latch after
 # both axial plays, throughout any handle rotation. The case lugs follow the
 # new pivot centers; bores, cheek thicknesses and M3 x 14 hardware are retained.
 HANDLE_WIDTH_INCREASE = 20.6 if EXPANDED_ACCESSORY_STORAGE else 0.0
