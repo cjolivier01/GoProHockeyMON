@@ -1,4 +1,4 @@
-"""Render the exact-crop TPU lid latch coupon in print and hook-fit poses."""
+"""Render the exact-crop TPU lid latch coupon in print, fit, and side poses."""
 
 import argparse
 import math
@@ -70,7 +70,7 @@ def configure(review_round, profile):
     )
     bpy.context.collection.objects.link(camera)
     camera.data.type = "ORTHO"
-    camera.data.ortho_scale = 165.0 if profile == "expanded" else 140.0
+    camera.data.ortho_scale = 210.0 if profile == "expanded" else 170.0
     camera.data.clip_end = 2000.0
     camera.location = (
         (165.0, -205.0, 150.0)
@@ -113,6 +113,10 @@ def main():
     fitted_coupon.data = print_coupon.data.copy()
     fitted_coupon.name = "Fitted_TPU_Lid_Latch_Station_Coupon"
     bpy.context.collection.objects.link(fitted_coupon)
+    profile_coupon = print_coupon.copy()
+    profile_coupon.data = print_coupon.data.copy()
+    profile_coupon.name = "Outer_Protector_Profile_TPU_Lid_Latch_Coupon"
+    bpy.context.collection.objects.link(profile_coupon)
 
     lever, hook = case.create_pelican_latch_parts(hardware)
     bpy.data.objects.remove(lever, do_unlink=True)
@@ -123,8 +127,14 @@ def main():
 
     minimum, maximum = case.object_world_bounds(print_coupon)
     center = (minimum + maximum) / 2.0
-    print_offset = Vector((-43.0 - center.x, -center.y, 0.0))
-    fit_offset = Vector((43.0 - center.x, -center.y, 0.0))
+    camera_right = (
+        bpy.context.scene.camera.matrix_world.to_3x3() @ Vector((1.0, 0.0, 0.0))
+    ).normalized()
+    spread = 66.0 if args.profile == "expanded" else 54.0
+    center_xy = Vector((center.x, center.y, 0.0))
+    print_offset = -camera_right * spread - center_xy
+    fit_offset = -center_xy
+    profile_offset = camera_right * spread - center_xy
     original_coupon_matrix = print_coupon.matrix_world.copy()
     # Show the print-bed/crown face on the standalone coupon so the outer
     # protector's crown-connected root is visible; retain the interior face on
@@ -137,9 +147,19 @@ def main():
         @ original_coupon_matrix
     )
     fitted_coupon.matrix_world = Matrix.Translation(fit_offset) @ original_coupon_matrix
+    # Turn the third copy so the camera looks along the outer protector's
+    # exposed side.  This view makes any separation from the rounded lid
+    # shoulder visible instead of hiding it behind the latch station.
+    profile_coupon.matrix_world = (
+        Matrix.Translation(profile_offset)
+        @ Matrix.Translation(center)
+        @ Matrix.Rotation(math.pi, 4, "Z")
+        @ Matrix.Translation(-center)
+        @ original_coupon_matrix
+    )
     hook.matrix_world = fitted_coupon.matrix_world @ hook_in_lid_local
 
-    for obj in (print_coupon, fitted_coupon):
+    for obj in (print_coupon, fitted_coupon, profile_coupon):
         obj.color = (0.18, 0.48, 0.72, 1.0)
         reference.shade_auto_smooth(obj)
     hook.color = (0.95, 0.48, 0.08, 1.0)
@@ -153,6 +173,43 @@ def main():
         else "mission1_tpu_lid_latch_coupon_compact.png"
     )
     bpy.context.scene.render.filepath = str(DIRECTORY / "renderings" / output_name)
+    bpy.ops.render.render(write_still=True)
+
+    # Render a separate outside-corner inspection view.  Looking from the
+    # outer X side and the front exposes the entire protector-to-shoulder seam
+    # that can be hidden by either the print-face or hook-fit poses above.
+    print_coupon.hide_render = True
+    fitted_coupon.hide_render = True
+    hook.hide_render = True
+    profile_coupon.matrix_world = (
+        Matrix.Translation(Vector((-center.x, -center.y, 0.0)))
+        @ original_coupon_matrix
+    )
+    camera = bpy.context.scene.camera
+    camera.data.ortho_scale = 78.0 if args.profile == "expanded" else 56.0
+    camera.location = (
+        (-145.0, 175.0, 92.0)
+        if args.profile == "expanded"
+        else (-125.0, 155.0, 72.0)
+    )
+    profile_target_z = 18.0 if args.profile == "expanded" else 8.0
+    camera.rotation_euler = (
+        Vector((0.0, 0.0, profile_target_z)) - camera.location
+    ).to_track_quat("-Z", "Y").to_euler()
+    base_stamp = (
+        "Initial proposal - before reviews"
+        if args.review_round == 0
+        else f"After review round {args.review_round}"
+    )
+    bpy.context.scene.render.stamp_note_text = base_stamp + " - outer protector side"
+    profile_output_name = (
+        "mission1_tpu_lid_latch_coupon_outer_profile.png"
+        if args.profile == "expanded"
+        else "mission1_tpu_lid_latch_coupon_compact_outer_profile.png"
+    )
+    bpy.context.scene.render.filepath = str(
+        DIRECTORY / "renderings" / profile_output_name
+    )
     bpy.ops.render.render(write_still=True)
 
 

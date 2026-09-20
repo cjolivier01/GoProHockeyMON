@@ -99,7 +99,9 @@ existing latch hook seats on the coupon's unchanged production rail and ledge,
 so the small print checks protector surface quality and latch fit before
 committing to the full lid.
 
-![TPU lid latch-station coupon, alone and with the production hook seated](renderings/mission1_tpu_lid_latch_coupon.png)
+![TPU lid latch-station coupon in print, hook-fit, and outer-protector side views](renderings/mission1_tpu_lid_latch_coupon.png)
+
+![TPU lid latch-station coupon outer-protector shoulder connection](renderings/mission1_tpu_lid_latch_coupon_outer_profile.png)
 
 The existing raised battery-door pockets, deeper rear fan-inlet reliefs, cable
 corridors and load-bearing insert webs remain in use inside the reshaped liner.
@@ -308,7 +310,9 @@ The optional snap lid, hinge coupon, and lid-latch coupon use
 enabled for the lid-latch coupon and complete lid, and disabled for the hinge
 coupon. The rigid lid alternative also has per-object supports enabled. Both
 lids and the latch coupon use a 30-degree support threshold; the outer
-protectors' tapered crown returns make their 45-degree ramps self-supporting.
+protectors use tapered crown-down feet and continuous returns that follow the
+rounded lid shoulder through the rim. This removes the open side gap while
+keeping each outward step at or below a printable 1:1 slope.
 The latch lever and hook objects are the only other support-enabled parts. The
 project selects the Textured PEI Plate and disables
 the prime tower because the lid occupies nearly the full 250 mm bed; filament

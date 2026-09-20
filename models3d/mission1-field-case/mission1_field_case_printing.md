@@ -921,7 +921,9 @@ existing production latch hook fits the unchanged rail and ledge. Print the
 coupon crown-down with TPU for AMS, **45% rectilinear infill**, supports
 enabled, and the same **30-degree support threshold** as the full lid.
 
-![Compact TPU lid latch-station coupon, alone and with the production hook seated](renderings/mission1_tpu_lid_latch_coupon_compact.png)
+![Compact TPU lid latch-station coupon in print, hook-fit, and outer-protector side views](renderings/mission1_tpu_lid_latch_coupon_compact.png)
+
+![Compact TPU lid latch-station coupon outer-protector shoulder connection](renderings/mission1_tpu_lid_latch_coupon_compact_outer_profile.png)
 
 The optional TPU lid is included on its own clearly labeled 3MF plate beside
 the rigid-lid alternative. Its orange logo and integrated gasket are already

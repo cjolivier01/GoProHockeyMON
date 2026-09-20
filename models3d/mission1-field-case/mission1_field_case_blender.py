@@ -455,14 +455,17 @@ LID_LATCH_PROTECTOR_PLATE_PROJECTION = 21.0
 LID_LATCH_PROTECTOR_PLATE_ROOT_OVERLAP = 0.5
 LID_LATCH_PROTECTOR_PLATE_HEIGHT = LID_WALL_HEIGHT
 LID_LATCH_PROTECTOR_SHOULDER_RUN = 7.0
-# Each outer protector needs a crown-down root instead of an isolated 6 mm TPU
-# island.  The raised lid uses an inward tapered roof continuation because its
-# crown is inset in X and Y.  The compact lid extends the protector's own
-# caseward profile across its shallow soft edge.  Both stay behind the latch
-# bay and inside the existing lid envelopes.
+# Each outer protector needs to grow continuously from the lid body instead of
+# starting as an isolated 6 mm TPU island.  The raised lid uses both an inward
+# tapered crown-down root and a full-height caseward return that follows the
+# rounded shoulder and rim.  The compact lid extends the protector's own
+# caseward profile across its shallow soft edge.  All additions stay behind the
+# latch bay and inside the existing lid envelopes.
 LID_LATCH_PROTECTOR_CROWN_RETURN_TOWER_OVERLAP = 0.5
 LID_LATCH_PROTECTOR_CROWN_RETURN_ANCHOR_INSET = 4.0
 LID_LATCH_PROTECTOR_CROWN_RETURN_ANCHOR_DEPTH = 2.0
+LID_LATCH_PROTECTOR_FULL_HEIGHT_RETURN_SHELL_OVERLAP = 0.8
+LID_LATCH_PROTECTOR_FULL_HEIGHT_RETURN_RIM_BOND = 1.0
 LID_DISPLAY_OFFSET_X = 215.0
 
 # The lower cradle and lid pad retain their close locator fit.  The frequently
@@ -8977,6 +8980,138 @@ def compact_outer_lid_latch_protector_profile_yz(profile):
     )
 
 
+def rounded_rectangle_positive_y_at_x(width, depth, radius, x):
+    """Return the positive-Y outline coordinate, or None beyond the outline."""
+    half_width = width / 2.0
+    absolute_x = abs(x)
+    if absolute_x > half_width + 1e-9:
+        return None
+    radius = min(max(radius, 0.0), half_width, depth / 2.0)
+    tangent_x = half_width - radius
+    if absolute_x <= tangent_x:
+        return depth / 2.0
+    corner_center_y = depth / 2.0 - radius
+    corner_x = absolute_x - tangent_x
+    return corner_center_y + math.sqrt(max(0.0, radius**2 - corner_x**2))
+
+
+def expanded_outer_lid_latch_protector_return_chain_yz(protector_center_x):
+    """Return the caseward edge that follows the raised shoulder and rim."""
+    if not LID_DOME_RISE:
+        return ()
+
+    protector_outer_x = (
+        abs(protector_center_x) + LATCH_PROTECTOR_BASE_WIDTH / 2.0
+    )
+    shoulder_datums = []
+    for height in lid_dome_profile_heights():
+        if height > LID_DOME_RISE:
+            continue
+        growth = dome_shoulder_growth(height)
+        shell_front_y = rounded_rectangle_positive_y_at_x(
+            LID_DOME_CROWN_SIZE[0] + 2.0 * growth,
+            LID_DOME_CROWN_SIZE[1] + 2.0 * growth,
+            CASE_CORNER_RADIUS - LID_DOME_INSET + growth,
+            protector_outer_x,
+        )
+        shoulder_datums.append((height, shell_front_y))
+
+    first_shell_index = next(
+        (
+            index
+            for index, (_height, shell_front_y) in enumerate(shoulder_datums)
+            if shell_front_y is not None
+        ),
+        None,
+    )
+    if first_shell_index is None:
+        raise ValueError("Expanded outer latch protector misses the lid shoulder")
+    first_shell_y = (
+        shoulder_datums[first_shell_index][1]
+        - LID_LATCH_PROTECTOR_FULL_HEIGHT_RETURN_SHELL_OVERLAP
+    )
+    supported_datums = []
+    previous_height = shoulder_datums[0][0]
+    previous_y = first_shell_y
+    for index, (height, shell_front_y) in enumerate(shoulder_datums):
+        if index < first_shell_index:
+            anchor_y = first_shell_y
+        else:
+            shell_anchor_y = (
+                shell_front_y
+                - LID_LATCH_PROTECTOR_FULL_HEIGHT_RETURN_SHELL_OVERLAP
+            )
+            # In the first few corner layers the rounded outline grows faster
+            # in Y than one layer can support.  Keep the return inside the shell
+            # while limiting its outward advance to a printable 1:1 slope.
+            maximum_supported_y = previous_y + height - previous_height
+            anchor_y = min(shell_anchor_y, maximum_supported_y)
+        supported_datums.append((height, anchor_y))
+        previous_height = height
+        previous_y = anchor_y
+
+    inner_rim_front_y = rounded_rectangle_positive_y_at_x(
+        CASE_WIDTH - 0.8,
+        CASE_DEPTH - 0.8,
+        CASE_CORNER_RADIUS - 0.4,
+        protector_outer_x,
+    )
+    rim_anchor_y = (
+        inner_rim_front_y
+        + LID_LATCH_PROTECTOR_FULL_HEIGHT_RETURN_RIM_BOND
+    )
+    dome_top_anchor_y = supported_datums[-1][1]
+    return (
+        (rim_anchor_y, LID_LATCH_PROTECTOR_PLATE_HEIGHT),
+        (rim_anchor_y, LID_FLANGE_EDGE_START_Z),
+        (dome_top_anchor_y, LID_FLANGE_FLARE_START_Z),
+        *tuple(
+            (anchor_y, height - LID_DOME_RISE)
+            for height, anchor_y in reversed(supported_datums)
+        ),
+    )
+
+
+def expanded_outer_lid_latch_protector_profile_yz(
+    profile,
+    protector_center_x,
+):
+    """Carry a raised-lid outer protector back through the complete shoulder."""
+    if not LID_DOME_RISE:
+        return profile
+    back_chain = expanded_outer_lid_latch_protector_return_chain_yz(
+        protector_center_x
+    )
+    return (
+        back_chain[-1],
+        *profile[1:4],
+        *back_chain[:-1],
+    )
+
+
+def expanded_outer_lid_latch_protector_gap_probe_location(latch_x, side):
+    """Return a point in the former shoulder gap, outside the domed shell."""
+    protector_center_x = latch_x + side * (
+        LATCH_BASE_EAR_CENTER_OFFSET_X
+        + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+    )
+    direction = math.copysign(1.0, protector_center_x)
+    probe_x = protector_center_x + direction * (
+        LATCH_PROTECTOR_BASE_WIDTH / 2.0 - 0.25
+    )
+    probe_height = LID_DOME_RISE / 2.0
+    growth = dome_shoulder_growth(probe_height)
+    shell_front_y = rounded_rectangle_positive_y_at_x(
+        LID_DOME_CROWN_SIZE[0] + 2.0 * growth,
+        LID_DOME_CROWN_SIZE[1] + 2.0 * growth,
+        CASE_CORNER_RADIUS - LID_DOME_INSET + growth,
+        probe_x,
+    )
+    if shell_front_y is None:
+        raise ValueError("Expanded outer latch protector probe misses the lid shell")
+    return probe_x, shell_front_y + 0.25, probe_height
+
+
 def lid_latch_outer_protector_crown_return_loop_xy(latch_x, side):
     """Return the raised-lid tapered roof root in the crown-down plane."""
     if not LID_DOME_RISE or not lid_latch_protector_is_outer(latch_x, side):
@@ -9248,15 +9383,25 @@ def create_lid(
                 + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
             )
             protector_profile_yz = tower_profile_yz
-            if (
-                not LID_DOME_RISE
-                and lid_latch_protector_is_outer(x, side)
-            ):
-                protector_profile_yz = (
-                    compact_outer_lid_latch_protector_profile_yz(
-                        tower_profile_yz
+            if lid_latch_protector_is_outer(x, side):
+                if LID_DOME_RISE:
+                    protector_profile_yz = (
+                        expanded_outer_lid_latch_protector_profile_yz(
+                            tower_profile_yz,
+                            x
+                            + side
+                            * (
+                                LATCH_BASE_EAR_CENTER_OFFSET_X
+                                + LATCH_PROTECTOR_AXIAL_OUTWARD_SHIFT
+                            ),
+                        )
                     )
-                )
+                else:
+                    protector_profile_yz = (
+                        compact_outer_lid_latch_protector_profile_yz(
+                            tower_profile_yz
+                        )
+                    )
             tower = extrude_loop_x(
                 f"Lid_Latch_{index}_Ramped_Base_Matched_Protector",
                 protector_profile_yz,
@@ -11347,6 +11492,7 @@ def validate_built_latch_impact_protectors(parts) -> None:
     lid_shoulder_volumes = []
     lid_crown_return_anchor_volumes = []
     lid_crown_return_tower_volumes = []
+    lid_full_height_return_volumes = []
     lid_probe_dimensions = (0.8, 0.4, 0.4)
     lid_minimum_fill = math.prod(lid_probe_dimensions) * 0.9
     lid_top_extension_probe_dimensions = (0.8, 0.3, 0.2)
@@ -11483,6 +11629,26 @@ def validate_built_latch_impact_protectors(parts) -> None:
                         return_probe_dimensions,
                     )
                 )
+                return_x, return_y, return_z = (
+                    expanded_outer_lid_latch_protector_gap_probe_location(
+                        x,
+                        side,
+                    )
+                )
+                full_height_probe_dimensions = (0.2, 0.2, 0.2)
+                lid_full_height_return_volumes.append(
+                    overlap_at(
+                        parts["lid"],
+                        f"TEMPORARY_Latch_{index}_Outer_Protector_"
+                        "Full_Height_Return_Probe",
+                        (
+                            LID_DISPLAY_OFFSET_X + return_x,
+                            return_y,
+                            return_z - LID_DOME_RISE,
+                        ),
+                        full_height_probe_dimensions,
+                    )
+                )
             elif lid_latch_protector_is_outer(x, side):
                 compact_anchor_y = (
                     compact_outer_lid_latch_protector_crown_anchor_y()
@@ -11544,6 +11710,18 @@ def validate_built_latch_impact_protectors(parts) -> None:
             f"anchors={lid_crown_return_anchor_volumes} "
             f"towers={lid_crown_return_tower_volumes}"
         )
+    if LID_DOME_RISE:
+        full_height_probe_minimum_fill = 0.2**3 * 0.9
+        if not (
+            len(lid_full_height_return_volumes) == len(LATCH_X_CENTERS)
+            and min(lid_full_height_return_volumes)
+            >= full_height_probe_minimum_fill
+        ):
+            raise ValueError(
+                "An outer lid latch protector leaves a gap along the raised "
+                "lid shoulder: "
+                f"returns={lid_full_height_return_volumes}"
+            )
     print(
         "FIELD_CASE_LATCH_PROTECTORS_VALID "
         f"base_thickness={LATCH_PROTECTOR_BASE_WIDTH:.2f} "
@@ -11554,6 +11732,8 @@ def validate_built_latch_impact_protectors(parts) -> None:
         f"lid_solid_min={min(lid_guard_volumes):.6f} "
         f"lid_shoulder_min={min(lid_shoulder_volumes):.6f} "
         f"lid_crown_returns={len(lid_crown_return_anchor_volumes)} "
+        f"lid_full_height_return_min="
+        f"{min(lid_full_height_return_volumes, default=0.0):.6f} "
         f"finger_access_air_max={max(access_air_volumes):.9f}"
     )
 
@@ -15670,11 +15850,48 @@ def validate_tpu_lid_latch_coupon(parts) -> None:
             f"actual={crown_return_volume:.5f} "
             f"expected={crown_return_probe_volume:.5f}"
         )
+    full_height_return_volume = 0.0
+    if LID_DOME_RISE:
+        outer_side = math.copysign(1.0, latch_x)
+        return_x, return_y, return_z = (
+            expanded_outer_lid_latch_protector_gap_probe_location(
+                latch_x,
+                outer_side,
+            )
+        )
+        full_height_probe = add_rounded_box(
+            "TEMPORARY_TPU_Lid_Latch_Coupon_Full_Height_Return_Core",
+            (0.2, 0.2, 0.2),
+            (
+                LID_DISPLAY_OFFSET_X + return_x,
+                return_y,
+                return_z,
+            ),
+            bevel=0.0,
+        )
+        try:
+            _faces, full_height_return_volume = exact_transformed_intersection(
+                coupon,
+                full_height_probe,
+                first_location=coupon.location.copy(),
+                first_rotation=coupon.rotation_euler.copy(),
+                second_location=full_height_probe.location.copy(),
+                second_rotation=full_height_probe.rotation_euler.copy(),
+            )
+        finally:
+            bpy.data.objects.remove(full_height_probe, do_unlink=True)
+        if full_height_return_volume < 0.2**3 * 0.9:
+            raise ValueError(
+                "TPU lid-latch coupon leaves the production outer-protector "
+                "shoulder gap open: "
+                f"actual={full_height_return_volume:.6f}"
+            )
     print(
         "FIELD_CASE_TPU_LID_LATCH_COUPON_VALID "
         f"exact_crop_volume={coupon_volume:.3f} "
         f"protectors={','.join(f'{value:.3f}' for value in protector_volumes)} "
         f"crown_return={crown_return_volume:.3f} "
+        f"full_height_return={full_height_return_volume:.6f} "
         "station=left hook_fit=production_geometry "
         f"crop={x1 - x0:.2f}x{y1 - y0:.2f}mm",
         flush=True,
@@ -16385,16 +16602,22 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
             x0 = protector_center_x - LATCH_PROTECTOR_BASE_WIDTH / 2.0
             x1 = protector_center_x + LATCH_PROTECTOR_BASE_WIDTH / 2.0
             protector_plate_root_y = plate_root_y
-            if (
-                not LID_DOME_RISE
-                and lid_latch_protector_is_outer(latch_x, side)
-            ):
-                # The compact outer protector now reaches caseward across the
-                # rounded crown edge.  Count the exposed portion of that
-                # continuous bed-level root while excluding its crown overlap.
-                protector_plate_root_y = (
-                    compact_outer_lid_latch_protector_crown_anchor_y()
-                )
+            if lid_latch_protector_is_outer(latch_x, side):
+                if LID_DOME_RISE:
+                    # The expanded return begins at this protector's exact
+                    # rounded-corner datum on the crown-down first layer.
+                    protector_plate_root_y = (
+                        expanded_outer_lid_latch_protector_return_chain_yz(
+                            protector_center_x
+                        )[-1][0]
+                    )
+                else:
+                    # The compact outer protector reaches caseward across the
+                    # rounded crown edge.  Count only its exposed bed-level
+                    # root, excluding the portion inside the crown.
+                    protector_plate_root_y = (
+                        compact_outer_lid_latch_protector_crown_anchor_y()
+                    )
             footprint_area = (x1 - x0) * (
                 plate_bottom_outer_y - protector_plate_root_y
             )
@@ -16420,14 +16643,14 @@ def validate_flush_lid_first_layer_payloads(lid_payload, inlay_payloads):
                     crown_return_loop,
                     x0,
                     x1,
-                    plate_root_y,
+                    protector_plate_root_y,
                     plate_bottom_outer_y,
                 )
                 return_triple_overlap = clip_polygon_to_rectangle(
                     return_outline_overlap,
                     x0,
                     x1,
-                    plate_root_y,
+                    protector_plate_root_y,
                     plate_bottom_outer_y,
                 )
                 expected_first_layer_area += (
