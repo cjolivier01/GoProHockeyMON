@@ -206,9 +206,9 @@ def main():
         (0, case.LATCH_BASE_PIVOT_Y, case.LATCH_BASE_PIVOT_Z),
         135,
         [
-            ('PEAK LOAD / -7.35 deg', -63, 48, 4.4),
-            ('FULLY CLOSED / +3.00 deg', 8, 48, 4.4),
-            ('11.07 deg past dead center / draw relaxes 0.116 mm', -63, -51, 4.0),
+            ('PEAK LOAD / -7.35 deg', -63, 32, 4.4),
+            ('FULLY CLOSED / +3.00 deg', 8, 32, 4.4),
+            ('11.07 deg past dead center / draw relaxes 0.116 mm', -63, -29, 4.0),
         ],
     )
     print('FIELD_CASE_WIDE_HARDWARE_RENDERINGS_PASS', flush=True)

@@ -65,11 +65,11 @@ TPU-compatible adhesive. The asymmetrical key determines its orientation.
 ![Form-fitting raised roof pad and matching lid interior](renderings/mission1_hardcase_lid_and_spacer.png)
 
 **This update preserves the current rounded case and every insert/tray outer
-envelope.** An already-printed current case, lid, lower insert, mount tray,
-front bin, organizer, latches, handle, gasket, and hinge hardware remain usable.
-Reprint only the raised roof pad to replace the former frame-and-rib spacer.
-Re-slice another part only when you want the new material, infill, wall, or
-support settings for a future print.
+envelope.** The lower insert, mount tray, front bin, organizer, form-fitting
+roof pad, handle, gasket, inlay, and hinge hardware remain usable. Upgrading
+from the previous 40.96 mm / M3 × 50 latch station requires the matching base,
+chosen lid, levers, and hooks described in [Wider latches and handle](#wider-latches-and-handle).
+No packing component or case envelope changes.
 
 Every part fits within 250 × 250 mm and below 250 mm tall. The project turns the
 base and compound lids 90° in plan to clear the printer's excluded corner.
@@ -96,9 +96,11 @@ the outer protector's tapered crown return, deep molded bay, load ledge, capture
 rail, and side webs. It prints crown-down in Bambu TPU for AMS with **6 wall
 loops, 45% grid infill**, and the same **30-degree support threshold** as the
 complete lid. The
-existing latch hook seats on the coupon's unchanged production rail and ledge,
-so the small print checks protector surface quality and latch fit before
-committing to the full lid.
+new 30.96 mm latch hook seats on the coupon's production rail and ledge, so the
+small print checks protector surface quality and latch fit before committing to
+the full lid. A coupon printed for the former 40.96 mm station has the same
+outer envelope but different rail, protector, and side-web geometry; print the
+regenerated coupon when qualifying this lid revision.
 
 ![TPU lid latch-station coupon in print, hook-fit, and outer-protector side views](renderings/mission1_tpu_lid_latch_coupon.png)
 
@@ -388,9 +390,12 @@ incompatible with the previous 40.96 mm latches. The case interior remains
 remain usable. The compact profile retains its original hardware and dimensions.
 
 Each wide latch needs one **M3 × 40 socket-head screw**, one M3 hex nut, and a
-**4 mm-diameter rod cut to 30.96 mm**. The 3.6 mm-deep head recess leaves a
-2.4 mm guard floor and nominally 0.04 mm screw-tip projection with full nut
-engagement. Reuse the handle's two **M3 × 14 screws and M3 nuts**.
+**4 mm-diameter rod cut to 30.96 mm**. The 4.7 mm-deep head recess leaves a
+1.3 mm nominal guard floor, 3.84 mm reach beyond the nut-pocket floor, and
+1.14 mm nominal screw-tip projection. It retains full 2.4 mm nut engagement
+after allowing 0.5 mm for a short screw, 0.2 mm for printed stack growth, and
+0.5 mm for the incomplete lead thread; worst-case usable thread is 2.64 mm and
+tip projection is 1.84 mm. Reuse the handle's two **M3 × 14 screws and M3 nuts**.
 
 The width change leaves the closure linkage unchanged. The moving pivot crosses
 dead center at -8.067 degrees and closes at +3 degrees, **11.067 degrees past

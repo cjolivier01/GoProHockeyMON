@@ -429,8 +429,8 @@ LID_FLANGE_FLARE_START_Z = 3.0
 LID_FLANGE_EDGE_START_Z = 8.0
 # Wider hardware belongs to the tall field case; retain the compact print kit.
 # The 30.96 mm expanded width places the complete fixed-pivot guard stack at
-# 43.56 mm, so a standard M3 x 40 screw retains the same full nut engagement
-# and 0.04 mm tip projection as the former 40.96 mm / M3 x 50 stack.
+# 43.56 mm, so a standard M3 x 40 screw retains full nut engagement with the
+# tolerance allowance configured alongside its counterbore below.
 LATCH_SOURCE_WIDTH = 20.48
 LATCH_EXPANDED_WIDTH = 30.96
 LATCH_WIDTH = (
@@ -1675,7 +1675,11 @@ LATCH_DEPTH_OFFSET = (CASE_DEPTH - 154.0) / 2.0
 LATCH_FIXED_M3_NOMINAL_DIAMETER = 3.0
 LATCH_FIXED_M3_CLEARANCE_DIAMETER = 3.5
 LATCH_FIXED_M3_COUNTERBORE_DIAMETER = 6.0
-LATCH_FIXED_M3_COUNTERBORE_DEPTH = 3.6 if EXPANDED_ACCESSORY_STORAGE else 3.2
+# Seat the expanded M3 x 40 screw deeply enough to retain full nut engagement
+# after allowing for a short screw, printed stack growth, and the incomplete
+# lead thread at the screw tip. The 6 mm guard still keeps a 1.3 mm nominal
+# counterbore floor. Preserve the already-issued compact profile at 3.2 mm.
+LATCH_FIXED_M3_COUNTERBORE_DEPTH = 4.7 if EXPANDED_ACCESSORY_STORAGE else 3.2
 LATCH_FIXED_M3_MAX_HEAD_DIAMETER = 5.5
 LATCH_FIXED_M3_MAX_HEAD_HEIGHT = 3.0
 LATCH_FIXED_M3_SOCKET_ACROSS_FLATS = 2.5
@@ -1689,6 +1693,9 @@ LATCH_FIXED_M3_MIN_RECESS_FLOOR = 1.0
 LATCH_FIXED_M3_BOLT_LENGTH = 40.0 if EXPANDED_ACCESSORY_STORAGE else 30.0
 LATCH_FIXED_M3_MIN_THREAD_ENGAGEMENT = LATCH_FIXED_M3_NOMINAL_NUT_THICKNESS
 LATCH_FIXED_M3_MAX_TIP_PROTRUSION = 3.0
+LATCH_FIXED_M3_LENGTH_TOLERANCE = 0.5
+LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE = 0.2
+LATCH_FIXED_M3_LEAD_THREAD_ALLOWANCE = 0.5
 LATCH_LID_INSTALLED_Z = BASE_HEIGHT + LID_WALL_HEIGHT
 LATCH_SOURCE_SCALE = 0.8
 # Add material on the outward face while preserving the lid-side jaw plane.
@@ -6043,6 +6050,35 @@ def validate_configuration() -> None:
         raise ValueError("Latch fixed-pivot M3 screw does not fully engage its nut")
     if not 0.0 <= fixed_m3_tip_protrusion <= LATCH_FIXED_M3_MAX_TIP_PROTRUSION:
         raise ValueError("Latch fixed-pivot M3 screw protrusion is unsafe")
+    if EXPANDED_ACCESSORY_STORAGE:
+        worst_case_usable_thread = (
+            fixed_m3_reach_past_nut_floor
+            - LATCH_FIXED_M3_LENGTH_TOLERANCE
+            - LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+            - LATCH_FIXED_M3_LEAD_THREAD_ALLOWANCE
+        )
+        if worst_case_usable_thread < LATCH_FIXED_M3_MIN_THREAD_ENGAGEMENT:
+            raise ValueError(
+                "Latch fixed-pivot M3 screw loses full nut engagement at "
+                "worst-case tolerance"
+            )
+        worst_case_tip_protrusion = (
+            fixed_m3_tip_protrusion
+            + LATCH_FIXED_M3_LENGTH_TOLERANCE
+            + LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+        )
+        if worst_case_tip_protrusion > LATCH_FIXED_M3_MAX_TIP_PROTRUSION:
+            raise ValueError(
+                "Latch fixed-pivot M3 screw protrusion is unsafe at worst-case "
+                "tolerance"
+            )
+        worst_case_counterbore_floor = (
+            counterbore_floor - LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+        )
+        if worst_case_counterbore_floor < LATCH_FIXED_M3_MIN_RECESS_FLOOR:
+            raise ValueError(
+                "Latch guard counterbore floor is too thin at worst-case tolerance"
+            )
     link_axial_clearance = (
         2.0 * LATCH_HOOK_CHEEK_INNER_X - LATCH_LEVER_LINK_TONGUE_WIDTH
     ) / 2.0
@@ -12014,6 +12050,21 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
         + LATCH_FIXED_M3_COUNTERBORE_DEPTH
         - LATCH_FIXED_M3_GUARD_SPAN
     )
+    if EXPANDED_ACCESSORY_STORAGE:
+        worst_case_usable_thread = (
+            reach_past_nut_floor
+            - LATCH_FIXED_M3_LENGTH_TOLERANCE
+            - LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+            - LATCH_FIXED_M3_LEAD_THREAD_ALLOWANCE
+        )
+        worst_case_tip_protrusion = (
+            tip_protrusion
+            + LATCH_FIXED_M3_LENGTH_TOLERANCE
+            + LATCH_FIXED_M3_PRINTED_STACK_TOLERANCE
+        )
+    else:
+        worst_case_usable_thread = thread_engagement
+        worst_case_tip_protrusion = tip_protrusion
     print(
         "FIELD_CASE_LATCH_FIXED_M3_VALID "
         f"latches={len(LATCH_X_CENTERS)} "
@@ -12036,7 +12087,9 @@ def validate_built_latch_fixed_m3_hardware(parts) -> None:
         f"screw=M3x{LATCH_FIXED_M3_BOLT_LENGTH:.0f} "
         f"thread_engagement={thread_engagement:.2f} "
         f"reach_past_nut_floor={reach_past_nut_floor:.2f} "
-        f"tip_protrusion={tip_protrusion:.2f}"
+        f"tip_protrusion={tip_protrusion:.2f} "
+        f"worst_case_usable_thread={worst_case_usable_thread:.2f} "
+        f"worst_case_tip_protrusion={worst_case_tip_protrusion:.2f}"
     )
 
 

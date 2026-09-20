@@ -44,6 +44,7 @@ def main():
         assert math.isclose(max(coordinates) - min(coordinates), width, abs_tol=.0001)
     assert case.LATCH_FIXED_M3_BOLT_LENGTH == 40.0
     assert math.isclose(case.LATCH_FIXED_M3_GUARD_SPAN, 43.56, abs_tol=1e-6)
+    assert math.isclose(case.LATCH_FIXED_M3_COUNTERBORE_DEPTH, 4.7, abs_tol=1e-6)
     case.validate_wide_hardware_clearance(parts)
     # Catch a local protrusion even when all configured dimensions still pass.
     obstructed = parts['handle_bar'].copy()
@@ -70,6 +71,14 @@ def main():
         must_reject(case.validate_configuration, 'fully engage')
     finally:
         case.LATCH_FIXED_M3_BOLT_LENGTH = bolt
+    counterbore_depth = case.LATCH_FIXED_M3_COUNTERBORE_DEPTH
+    try:
+        # The former 3.6 mm recess fit nominal hardware but did not retain
+        # full usable thread under the configured manufacturing tolerances.
+        case.LATCH_FIXED_M3_COUNTERBORE_DEPTH = 3.6
+        must_reject(case.validate_configuration, 'worst-case tolerance')
+    finally:
+        case.LATCH_FIXED_M3_COUNTERBORE_DEPTH = counterbore_depth
 
     # Check the rounded-shell baseline everywhere except the exterior front
     # hardware attachment strip. This includes the entire interior wall/floor,
