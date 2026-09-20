@@ -356,16 +356,17 @@ form-fitting roof pad uses TPU 95A with sparse gyroid infill.
 
 ## Wider latches and handle
 
-The expanded case has **40.96 mm-wide latches**, twice the previous 20.48 mm,
+The expanded case has **30.96 mm-wide latches**, 10.48 mm wider than the
+original 20.48 mm parts,
 and a **119.8 mm overall handle envelope**, about 20.8% wider than 99.2 mm.
 The handle's solid grip is 115.6 mm wide with a 95.6 mm opening. Each complete
 fork moves outward 10.3 mm; its original mount shape, wall thickness, bores,
 and 18-to-24 mm transition are preserved. Latch centers remain at ±82 mm.
-The enlarged guards remain 8.22 mm inside the case sides.
+The enlarged guards remain 13.22 mm inside the case sides.
 
 A **hard 1 mm minimum-clearance check covers continuous 360° handle rotation**
 against both closed latch levers, hooks, and moving link rods. The generated
-meshes have **1.02 mm minimum axial separation**, after including ±0.2 mm latch
+meshes have **6.02 mm minimum axial separation**, after including ±0.2 mm latch
 and ±0.4 mm handle axial play. Rotation about the handle's pivot preserves
 this lateral separation at every angle. Protection walls are excluded from
 this constraint; the check does not rely on a guard stopping rotation.
@@ -378,23 +379,33 @@ the widened forks. Normal 0–90° handle travel retains **3.31 mm vertical
 separation** through all latch positions, with latch release, handle strength,
 and Allen access independently checked.
 
-When upgrading from the narrow-hardware design, reprint the **base, chosen lid,
-both latch levers, both hooks, and handle** as a matching set. The wider mounts
-are incompatible with the previous narrow latches and handle. The case interior
-remains **225 × 171 mm**, with the same
+When upgrading from the previous 40.96 mm / M3 × 50 design, reprint the
+**base, chosen lid, both latch levers, and both hooks** as a matching set. The
+119.8 mm handle is unchanged and remains reusable. The narrowed mounts are
+incompatible with the previous 40.96 mm latches. The case interior remains
+**225 × 171 mm**, with the same
 156.8 mm floor-to-rim depth, so existing inserts, gasket, inlay and hinge parts
 remain usable. The compact profile retains its original hardware and dimensions.
 
-Each wide latch needs one **M3 × 50 socket-head screw**, one M3 hex nut, and a
-**4 mm-diameter rod cut to 40.96 mm**. The 3.6 mm-deep head recess leaves a
+Each wide latch needs one **M3 × 40 socket-head screw**, one M3 hex nut, and a
+**4 mm-diameter rod cut to 30.96 mm**. The 3.6 mm-deep head recess leaves a
 2.4 mm guard floor and nominally 0.04 mm screw-tip projection with full nut
 engagement. Reuse the handle's two **M3 × 14 screws and M3 nuts**.
+
+The width change leaves the closure linkage unchanged. The moving pivot crosses
+dead center at -8.067 degrees and closes at +3 degrees, **11.067 degrees past
+dead center**, with 0.200 mm of over-center depth. The measured hook draw peaks
+at 31.306063 mm and relaxes to 31.190529 mm when fully closed, a **0.115534 mm
+post-peak pressure release**. The toggle therefore holds itself shut after the
+peak instead of depending on the secondary snap detents alone.
 
 ![Before and after hardware](renderings/mission1_wide_hardware_comparison.png)
 
 ![Installed wide hardware](renderings/mission1_wide_hardware_installed.png)
 
 ![Raised handle clearance](renderings/mission1_wide_hardware_clearance.png)
+
+![Latch peak-load and fully closed positions](renderings/mission1_latch_over_center.png)
 
 Regenerate these views with `render_mission1_wide_hardware.py` in background
 Blender. Run `check_mission1_wide_hardware.py` for width, interior preservation,
