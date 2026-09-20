@@ -93,8 +93,9 @@ Before reprinting a complete TPU lid, print
 38.8 mm** exact crop of the production TPU lid contains one complete left
 latch station: its inner and outer protector, rounded crown-to-corner shoulder,
 the outer protector's tapered crown return, deep molded bay, load ledge, capture
-rail, and side webs. It prints crown-down in TPU for AMS with **45% rectilinear
-infill** and the same **30-degree support threshold** as the complete lid. The
+rail, and side webs. It prints crown-down in Bambu TPU for AMS with **6 wall
+loops, 45% grid infill**, and the same **30-degree support threshold** as the
+complete lid. The
 existing latch hook seats on the coupon's unchanged production rail and ledge,
 so the small print checks protector surface quality and latch fit before
 committing to the full lid.
@@ -286,10 +287,12 @@ any particular printer's dimensional error.
 
 ## Printing and hardware
 
-Use rigid PETG or another tough rigid filament for the shell and chosen rigid
-lid. Every internal tray—the lower insert, mount tray, front utility bin,
+Every rigid project object is assigned to `Bambu PETG HF @BBL X1C`. The latch
+lever, latch hook, and handle have object overrides for **4 wall loops and 45%
+sparse infill**; supports remain enabled only for the lever and hook. Every
+internal tray—the lower insert, mount tray, front utility bin,
 remote organizer, and raised roof pad—is assigned to
-`Bambu TPU 95A @BBL X1C` with **2 wall loops and 2% gyroid infill**. Load this
+`Bambu TPU 95A HF @BBL X1C` with **2 wall loops and 2% gyroid infill**. Load this
 soft TPU from the external spool or another supported manual workflow instead
 of an unsupported AMS path. The trays print floor down; their air passages
 have 45° roofs and retain the required floor above them.
@@ -306,9 +309,11 @@ separate retainer STL or extra retainer plate; the complete project contains
 16 unique STLs on 11 plates.
 
 The optional snap lid, hinge coupon, and lid-latch coupon use
-`Bambu TPU for AMS @BBL P1P` with **45% rectilinear infill**. Supports are
-enabled for the lid-latch coupon and complete lid, and disabled for the hinge
-coupon. The rigid lid alternative also has per-object supports enabled. Both
+`Bambu TPU for AMS @BBL P1P`. The lid and exact-crop latch coupon use **6 wall
+loops and 45% grid infill**; the hinge coupon retains **45% rectilinear
+infill**. Supports are enabled for the lid-latch coupon and complete lid, and
+disabled for the hinge coupon. The rigid lid alternative also has per-object
+supports enabled. Both
 lids and the latch coupon use a 30-degree support threshold; the outer
 protectors use tapered crown-down feet and continuous returns that follow the
 rounded lid shoulder through the rim. This removes the open side gap while

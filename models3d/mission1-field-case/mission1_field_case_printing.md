@@ -417,11 +417,13 @@ second file. Both standalone trays print flat-floor-down, open-side-up, in the
 3MF and their STL exports. All installed inserts are normalized to Z = 0,
 and validation rejects any out-of-bed or mutually overlapping plate placement.
 
-The 3MF declares four filament slots: black PETG, orange PETG,
-`Bambu TPU for AMS @BBL P1P`, and `Bambu TPU 95A @BBL X1C`. The optional TPU
+The 3MF declares four filament slots: black and orange
+`Bambu PETG HF @BBL X1C`, `Bambu TPU for AMS @BBL P1P`, and
+`Bambu TPU 95A HF @BBL X1C`. The optional TPU
 lid, gasket, hinge coupon, and lid-latch coupon use the TPU-for-AMS slot. Every internal tray and
 pad uses the TPU 95A slot with object overrides for **2 wall loops and 2% gyroid
-infill**. Load the soft TPU 95A from the external spool or another supported
+infill**. The latch lever, latch hook, and handle use **4 wall loops and 45%
+sparse infill**. Load the soft TPU 95A HF from the external spool or another supported
 manual workflow instead of an unsupported AMS path.
 
 Open `models3d/mission1-field-case/compact/mission1_field_case_ams_project.3mf` as a
@@ -900,9 +902,10 @@ the lid. Each coupon bank reproduces all three 6.53 mm clips, their 1.2 mm gaps,
 and the continuous shared root spine. The reinforced plate-to-barrel root,
 9.6 mm arc, blunt mouth, and exported print orientation match the lid through
 the same construction helper. Test progressive snapping, repeated opening, and
-removal on each complete bank. Print the lid and coupon at the project
-0.20 mm layer height with **45% rectilinear infill**. Supports are enabled for
-the lid and disabled for the coupon. Choose the smallest throat
+removal on each complete bank. Print the lid at the project 0.20 mm layer
+height with **6 wall loops and 45% grid infill**. The hinge coupon retains
+**45% rectilinear infill**. Supports are enabled for the lid and disabled for
+the hinge coupon. Choose the smallest throat
 that snaps repeatedly without whitening, cracking, or requiring excessive
 force, then set `TPU_HINGE_SNAP_THROAT_WIDTH` to that value if it differs from
 3.5 mm. The 3.8 mm bank is a clearance control for the nominal 3.8 mm rod; the
@@ -918,8 +921,8 @@ the compact lid and coupon, the outer protector's own profile continues
 caseward across the rounded soft edge into the bed-level crown. Both coupons
 also include the molded bay, load ledge, capture rail, and side webs. The
 existing production latch hook fits the unchanged rail and ledge. Print the
-coupon crown-down with TPU for AMS, **45% rectilinear infill**, supports
-enabled, and the same **30-degree support threshold** as the full lid.
+coupon crown-down with Bambu TPU for AMS, **6 wall loops and 45% grid infill**,
+supports enabled, and the same **30-degree support threshold** as the full lid.
 
 ![Compact TPU lid latch-station coupon in print, hook-fit, and outer-protector side views](renderings/mission1_tpu_lid_latch_coupon_compact.png)
 
@@ -934,24 +937,21 @@ the selected lid is complete.
 
 ## Suggested printing
 
-- Base, lid, broad latch levers, handle bar, and hinge pin: PETG, ASA, nylon,
-  or another impact-tolerant rigid filament; 0.20 mm layers, four walls, and at
-  least 25% infill.
-- The upper moving latch hooks may be printed in hard TPU. Use the stiffest TPU
-  your printer handles reliably, at least five walls, and high infill around
-  the flat bearing pad, round retention boss, and link-pivot end. Soft 95A
-  tray-style settings are not recommended for this load-bearing part.
-- Lower fan cradle, upper equipment tray, and lid pad: TPU 95A, **2 wall loops
-  and 2% gyroid infill**.
+- Base, rigid lid, latch pieces, handle bar, and hinge pin: Bambu PETG HF. The
+  latch lever, latch hook, and handle use **4 wall loops and 45% sparse
+  infill**. The lever and hook have supports enabled; the base, rigid handle,
+  and hinge pin remain support-free.
+- Lower fan cradle, upper equipment tray, and lid pad: Bambu TPU 95A HF,
+  **2 wall loops and 2% gyroid infill**.
 - Alternate fan-case lower cradle, rear shallow tray, front deep tray,
-  and lid pad: TPU 95A with **2 wall loops and 2% gyroid infill**. Keep the PWM
+  and lid pad: Bambu TPU 95A HF with **2 wall loops and 2% gyroid infill**. Keep the PWM
   dock nubs flexible; do not fill
   the plug channels with support. Print both standalone trays flat-floor-down
   and open-side-up; neither has feet or long lid-mounted projections.
-- Optional snap-on lid and hinge coupon: Bambu TPU for AMS, 0.20 mm layers and
-  **45% rectilinear infill**. Print the coupon first with the same material and
-  infill; the lid has supports enabled with a 30-degree threshold while the
-  coupon remains support-free.
+- Optional snap-on lid: Bambu TPU for AMS, 0.20 mm layers, **6 wall loops, and
+  45% grid infill**. Its latch-station coupon uses the same profile. Both have
+  supports enabled with a 30-degree threshold. The separate hinge coupon uses
+  the same material with **45% rectilinear infill** and remains support-free.
 - Gasket: relatively hard TPU with a 0.4 mm nozzle and 0.20 mm layers. The air
   channel is modeled into the STL, so do not enable support or gap filling in
   that closed void. The gasket is for dust and splash resistance, not certified

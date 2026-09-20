@@ -16154,12 +16154,17 @@ THREE_MF_CONTENT_TYPES_NAMESPACE = (
 )
 BAMBU_PRINTER_SETTINGS_ID = "Bambu Lab P1S 0.4 nozzle"
 BAMBU_PROCESS_SETTINGS_ID = "0.20mm Standard @BBL X1C"
-BAMBU_RIGID_FILAMENT_SETTINGS_ID = "Bambu PETG Basic @BBL X1C"
+BAMBU_RIGID_FILAMENT_SETTINGS_ID = "Bambu PETG HF @BBL X1C"
 BAMBU_TPU_FOR_AMS_FILAMENT_SETTINGS_ID = "Bambu TPU for AMS @BBL P1P"
-BAMBU_TPU_95A_FILAMENT_SETTINGS_ID = "Bambu TPU 95A @BBL X1C"
+BAMBU_TPU_95A_FILAMENT_SETTINGS_ID = "Bambu TPU 95A HF @BBL X1C"
 TPU_FOR_AMS_EXTRUDER = 3
 TPU_95A_EXTRUDER = 4
-TPU_FOR_AMS_INFILL_SETTINGS = {
+TPU_FOR_AMS_LID_SETTINGS = {
+    "wall_loops": "6",
+    "sparse_infill_density": "45%",
+    "sparse_infill_pattern": "grid",
+}
+TPU_FOR_AMS_HINGE_COUPON_SETTINGS = {
     "sparse_infill_density": "45%",
     "sparse_infill_pattern": "rectilinear",
 }
@@ -16167,6 +16172,10 @@ TPU_95A_TRAY_SETTINGS = {
     "wall_loops": "2",
     "sparse_infill_density": "2%",
     "sparse_infill_pattern": "gyroid",
+}
+RIGID_HARDWARE_SETTINGS = {
+    "wall_loops": "4",
+    "sparse_infill_density": "45%",
 }
 SUPPORT_ENABLED_SETTINGS = {"enable_support": "1"}
 LID_SUPPORT_SETTINGS = {
@@ -16179,8 +16188,10 @@ LID_SUPPORT_SETTINGS = {
 }
 PROJECT_OBJECT_SETTING_KEYS = frozenset(
     {
-        *TPU_FOR_AMS_INFILL_SETTINGS,
+        *TPU_FOR_AMS_LID_SETTINGS,
+        *TPU_FOR_AMS_HINGE_COUPON_SETTINGS,
         *TPU_95A_TRAY_SETTINGS,
+        *RIGID_HARDWARE_SETTINGS,
         *LID_SUPPORT_SETTINGS,
     }
 )
@@ -17065,13 +17076,13 @@ def field_case_3mf_groups():
         tpu_lid_sources,
         tpu_lid_extruders,
         new_plate(
-            "03 - Optional TPU for AMS Lid - 45% Rectilinear - "
+            "03 - Optional TPU for AMS Lid - 6 Walls - 45% Grid - "
             "Supports On at 30deg "
             "(Choose This or Plate 02)"
         ),
         role="tpu_lid",
         process_overrides={
-            **TPU_FOR_AMS_INFILL_SETTINGS,
+            **TPU_FOR_AMS_LID_SETTINGS,
             **LID_SUPPORT_SETTINGS,
         },
         print_rotations={key: (0.0, 0.0, math.pi / 2.0) for key in tpu_lid_keys} if EXPANDED_ACCESSORY_STORAGE else {},
@@ -17088,59 +17099,59 @@ def field_case_3mf_groups():
 
     for plate_name, name, key, source_file in (
         (
-            "Default Loadout - Lower Dual-Fan Cradle - TPU 95A - 2 Walls - 2% Gyroid",
-            "Default TPU 95A Lower Dual-Fan Cradle",
+            "Default Loadout - Lower Dual-Fan Cradle - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "Default TPU 95A HF Lower Dual-Fan Cradle",
             "fan_cradle",
             FAN_CRADLE_STL_NAME,
         ),
         (
-            "Default Loadout - Upper Equipment Tray - TPU 95A - 2 Walls - 2% Gyroid",
-            "Default TPU 95A Upper Equipment Tray",
+            "Default Loadout - Upper Equipment Tray - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "Default TPU 95A HF Upper Equipment Tray",
             "equipment_tray",
             EQUIPMENT_TRAY_STL_NAME,
         ),
         (
-            "Default Loadout - Lid Retainer Pad - TPU 95A - 2 Walls - 2% Gyroid",
-            "Default TPU 95A Lid Retainer Pad",
+            "Default Loadout - Lid Retainer Pad - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "Default TPU 95A HF Lid Retainer Pad",
             "lid_retainer",
             LID_RETAINER_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Lower Insert - TPU 95A - 2 Walls - 2% Gyroid",
-            "Alternate TPU 95A Fan-Case Pair Lower Insert",
+            "Alternate Fan-Case - Lower Insert - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "Alternate TPU 95A HF Fan-Case Pair Lower Insert",
             "fan_case_pair_insert",
             FAN_CASE_PAIR_INSERT_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Mount Tray - TPU 95A - 2 Walls - 2% Gyroid"
+            "Alternate Fan-Case - Mount Tray - TPU 95A HF - 2 Walls - 2% Gyroid"
             if EXPANDED_ACCESSORY_STORAGE
-            else "Alternate Fan-Case - Key-Notched Rear Tray - TPU 95A - 2 Walls - 2% Gyroid",
-            "Alternate TPU 95A Fan-Case Mount Tray" if EXPANDED_ACCESSORY_STORAGE
-            else "Alternate TPU 95A Fan-Case Key-Notched Rear Tray",
+            else "Alternate Fan-Case - Key-Notched Rear Tray - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "Alternate TPU 95A HF Fan-Case Mount Tray" if EXPANDED_ACCESSORY_STORAGE
+            else "Alternate TPU 95A HF Fan-Case Key-Notched Rear Tray",
             "fan_case_pair_carrier",
             FAN_CASE_PAIR_OVERHEAD_CARRIER_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Front Utility Tray - TPU 95A - 2 Walls - 2% Gyroid"
+            "Alternate Fan-Case - Front Utility Tray - TPU 95A HF - 2 Walls - 2% Gyroid"
             if EXPANDED_ACCESSORY_STORAGE
-            else "Alternate Fan-Case - Deep Storage Tray - TPU 95A - 2 Walls - 2% Gyroid",
-            "Alternate TPU 95A Fan-Case Deep Storage Tray",
+            else "Alternate Fan-Case - Deep Storage Tray - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "Alternate TPU 95A HF Fan-Case Deep Storage Tray",
             "fan_case_pair_storage_bin",
             FAN_CASE_PAIR_STORAGE_BIN_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Coil and Five Remote Slots - TPU 95A - 2 Walls - 2% Gyroid",
-            "TPU 95A Coil and Five Remote Slot Organizer",
+            "Alternate Fan-Case - Coil and Five Remote Slots - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "TPU 95A HF Coil and Five Remote Slot Organizer",
             "accessory_organizer",
             ACCESSORY_ORGANIZER_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Raised Roof Pad - TPU 95A - 2 Walls - 2% Gyroid"
+            "Alternate Fan-Case - Raised Roof Pad - TPU 95A HF - 2 Walls - 2% Gyroid"
             if LID_DOME_RISE
-            else "Alternate Fan-Case - 2 mm Lid Pad - TPU 95A - 2 Walls - 2% Gyroid",
-            "TPU 95A Form-Fitting Raised Roof Pad"
+            else "Alternate Fan-Case - 2 mm Lid Pad - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "TPU 95A HF Form-Fitting Raised Roof Pad"
             if LID_DOME_RISE
-            else "Alternate TPU 95A Fan-Case 2 mm Lid Pad",
+            else "Alternate TPU 95A HF Fan-Case 2 mm Lid Pad",
             "fan_case_pair_lid_pad",
             FAN_CASE_PAIR_LID_PAD_STL_NAME,
         ),
@@ -17165,7 +17176,7 @@ def field_case_3mf_groups():
         (TPU_FOR_AMS_EXTRUDER,),
         new_plate("TPU for AMS Hinge Coupon - 45% Rectilinear - Supports Off"),
         role="tpu_for_ams_coupon",
-        process_overrides=TPU_FOR_AMS_INFILL_SETTINGS,
+        process_overrides=TPU_FOR_AMS_HINGE_COUPON_SETTINGS,
     )
     add_group(
         "TPU for AMS Lid Latch Station Coupon",
@@ -17173,16 +17184,19 @@ def field_case_3mf_groups():
         (TPU_LID_LATCH_COUPON_STL_NAME,),
         (TPU_FOR_AMS_EXTRUDER,),
         new_plate(
-            "TPU for AMS Lid Latch Coupon - 45% Rectilinear - "
+            "TPU for AMS Lid Latch Coupon - 6 Walls - 45% Grid - "
             "Supports On at 30deg"
         ),
         role="tpu_lid_coupon",
         process_overrides={
-            **TPU_FOR_AMS_INFILL_SETTINGS,
+            **TPU_FOR_AMS_LID_SETTINGS,
             **LID_SUPPORT_SETTINGS,
         },
     )
-    hardware_plate = new_plate("Rigid Hardware - Latch Supports On - Print Latches Twice")
+    hardware_plate = new_plate(
+        "Rigid Hardware - 4 Walls - 45% Infill - Latch Supports On - "
+        "Print Latches Twice"
+    )
     for name, key, source_file, copies, copy_offsets in (
         (
             "Pelican Latch Lever - Print Two",
@@ -17224,10 +17238,18 @@ def field_case_3mf_groups():
             hardware_plate,
             copies=copies,
             copy_offsets=copy_offsets,
-            process_overrides=(
-                SUPPORT_ENABLED_SETTINGS
+            role=(
+                "rigid_latch"
                 if key in {"latch_lever", "latch_hook"}
-                else None
+                else "rigid_handle" if key == "handle_bar" else None
+            ),
+            process_overrides=(
+                {
+                    **RIGID_HARDWARE_SETTINGS,
+                    **SUPPORT_ENABLED_SETTINGS,
+                }
+                if key in {"latch_lever", "latch_hook"}
+                else RIGID_HARDWARE_SETTINGS if key == "handle_bar" else None
             ),
         )
     return groups, tuple(plate_names)
@@ -17855,7 +17877,7 @@ def validate_3mf_project(path: Path) -> None:
                     f"TPU 95A tray object {object_id} has an incorrect filament"
                 )
         if group["role"] == "tpu_for_ams_coupon":
-            if overrides != TPU_FOR_AMS_INFILL_SETTINGS:
+            if overrides != TPU_FOR_AMS_HINGE_COUPON_SETTINGS:
                 raise ValueError(
                     "TPU for AMS hinge coupon must use 45% rectilinear infill "
                     "with supports disabled"
@@ -17864,26 +17886,41 @@ def validate_3mf_project(path: Path) -> None:
                 raise ValueError("TPU for AMS hinge coupon has an incorrect filament")
         if group["role"] == "tpu_lid":
             expected = {
-                **TPU_FOR_AMS_INFILL_SETTINGS,
+                **TPU_FOR_AMS_LID_SETTINGS,
                 **LID_SUPPORT_SETTINGS,
             }
             if overrides != expected:
                 raise ValueError(
-                    "TPU for AMS lid must use 45% rectilinear infill and supports"
+                    "TPU for AMS lid must use 6 walls, 45% grid infill, and supports"
                 )
         if group["role"] == "tpu_lid_coupon":
             expected = {
-                **TPU_FOR_AMS_INFILL_SETTINGS,
+                **TPU_FOR_AMS_LID_SETTINGS,
                 **LID_SUPPORT_SETTINGS,
             }
             if overrides != expected:
                 raise ValueError(
-                    "TPU lid-latch coupon must use 45% rectilinear infill and "
-                    "30-degree supports"
+                    "TPU lid-latch coupon must use 6 walls, 45% grid infill, "
+                    "and 30-degree supports"
                 )
             if group["extruders"] != (TPU_FOR_AMS_EXTRUDER,):
                 raise ValueError(
                     "TPU lid-latch coupon has an incorrect filament"
+                )
+        if group["role"] == "rigid_latch":
+            expected = {
+                **RIGID_HARDWARE_SETTINGS,
+                **SUPPORT_ENABLED_SETTINGS,
+            }
+            if overrides != expected:
+                raise ValueError(
+                    "Rigid latch pieces must use 4 walls, 45% sparse infill, "
+                    "and supports"
+                )
+        if group["role"] == "rigid_handle":
+            if overrides != RIGID_HARDWARE_SETTINGS:
+                raise ValueError(
+                    "Rigid handle must use 4 walls and 45% sparse infill"
                 )
     if {node.get("id") for node in settings_parts} != set(expected_parts):
         raise ValueError("3MF model settings describe incorrect mesh parts")
@@ -18067,7 +18104,8 @@ def validate_3mf_project(path: Path) -> None:
         f"gasket_with_lid={str(PRINT_TPU_GASKET_WITH_LID).lower()} "
         f"beam_interlock={project_settings['interlocking_beam']} "
         f"build_items={len(build_items)} extruders={','.join(sorted(extruders))} "
-        f"hard_tpu=45%_rectilinear soft_tpu=2_walls_2%_gyroid "
+        f"tpu_lid=6_walls_45%_grid hinge_coupon=45%_rectilinear "
+        f"soft_tpu_hf=2_walls_2%_gyroid rigid_hardware=4_walls_45% "
         f"support_objects={len(support_object_ids)}"
     )
 
