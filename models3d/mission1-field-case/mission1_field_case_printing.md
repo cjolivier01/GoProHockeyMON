@@ -433,10 +433,10 @@ for the actual printer before printing. The project uses 0.20 mm layers with
 supports globally disabled. Object-level supports are enabled only for both
 lid alternatives, the lid-latch coupon, and the latch lever and hook objects.
 Both lids and the latch coupon use a 30-degree support threshold. Their outer
-latch protectors now have tapered roof returns that merge into the broad crown,
-so those 45-degree ramps no longer rely on generated support. The hinge coupon,
-gasket, trays, pads, base, handle, and hinge pin remain support-free. The project
-selects the Textured PEI Plate and disables
+latch protectors now continue caseward across the rounded soft edge and merge
+into the broad crown, so those 45-degree ramps no longer begin as isolated TPU
+islands. The hinge coupon, gasket, trays, pads, base, handle, and hinge pin
+remain support-free. The project selects the Textured PEI Plate and disables
 the prime tower because the lid occupies nearly the full bed.
 
 To regenerate the labeled overview directly from the packaged 3MF meshes:
@@ -909,16 +909,19 @@ force, then set `TPU_HINGE_SNAP_THROAT_WIDTH` to that value if it differs from
 retaining snap-lid configuration requires positive throat interference.
 
 Print `mission1_field_case_tpu_lid_latch_station_coupon.stl` to check the lid's
-latch area before printing the complete TPU lid. The compact coupon is **39.08
-× 55 × 14.8 mm** and is an exact crop of one complete production-lid station.
-It includes both the inner protector that merges into the broad crown and the
-outer protector with its production crown-connected root, plus the molded bay,
-load ledge, capture rail, and side webs. The existing production latch hook fits
-the unchanged rail and ledge. Print the coupon crown-down with TPU for AMS,
-**45% rectilinear infill**, supports enabled, and the same **30-degree support
-threshold** as the full lid.
+latch area before printing the complete TPU lid. The expanded coupon is
+**59.56 × 55 × 38.8 mm**; the compact coupon is **39.08 × 55 × 14.8 mm**.
+Each is an exact crop of one complete production-lid station. Both retain the
+inner protector's original direct crown root. On the expanded lid and coupon,
+the outer protector has the same tapered roof return into the raised crown. On
+the compact lid and coupon, the outer protector's own profile continues
+caseward across the rounded soft edge into the bed-level crown. Both coupons
+also include the molded bay, load ledge, capture rail, and side webs. The
+existing production latch hook fits the unchanged rail and ledge. Print the
+coupon crown-down with TPU for AMS, **45% rectilinear infill**, supports
+enabled, and the same **30-degree support threshold** as the full lid.
 
-![TPU lid latch-station coupon, alone and with the production hook seated](renderings/mission1_tpu_lid_latch_coupon.png)
+![Compact TPU lid latch-station coupon, alone and with the production hook seated](renderings/mission1_tpu_lid_latch_coupon_compact.png)
 
 The optional TPU lid is included on its own clearly labeled 3MF plate beside
 the rigid-lid alternative. Its orange logo and integrated gasket are already

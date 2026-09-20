@@ -4,17 +4,26 @@ import argparse
 import math
 from pathlib import Path
 import sys
+import types
 
 import bpy
 from mathutils import Matrix, Vector
 
 DIRECTORY = Path(__file__).resolve().parent
 sys.path.insert(0, str(DIRECTORY))
-import mission1_field_case_blender as case
 import build_hardcase as reference
 
 
-def configure(review_round):
+def load_case(profile):
+    source = DIRECTORY / "mission1_field_case_blender.py"
+    module = types.ModuleType(f"mission1_field_case_{profile}_coupon_render")
+    module.__file__ = str(source)
+    module.EXPANDED_ACCESSORY_STORAGE = profile == "expanded"
+    exec(compile(source.read_bytes(), str(source), "exec"), module.__dict__)
+    return module
+
+
+def configure(review_round, profile):
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.render.resolution_x = 1600
@@ -61,11 +70,16 @@ def configure(review_round):
     )
     bpy.context.collection.objects.link(camera)
     camera.data.type = "ORTHO"
-    camera.data.ortho_scale = 165.0
+    camera.data.ortho_scale = 165.0 if profile == "expanded" else 140.0
     camera.data.clip_end = 2000.0
-    camera.location = (165.0, -205.0, 150.0)
+    camera.location = (
+        (165.0, -205.0, 150.0)
+        if profile == "expanded"
+        else (140.0, -180.0, 115.0)
+    )
+    target_z = 17.0 if profile == "expanded" else 8.0
     camera.rotation_euler = (
-        Vector((0.0, 0.0, 17.0)) - camera.location
+        Vector((0.0, 0.0, target_z)) - camera.location
     ).to_track_quat("-Z", "Y").to_euler()
     scene.camera = camera
 
@@ -73,12 +87,18 @@ def configure(review_round):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--review-round", type=int, default=0)
+    parser.add_argument(
+        "--profile",
+        choices=("expanded", "compact"),
+        default="expanded",
+    )
     args = parser.parse_args(
         sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
     )
+    case = load_case(args.profile)
     case.clear_scene()
     case.set_units()
-    configure(args.review_round)
+    configure(args.review_round, args.profile)
 
     tpu = case.make_material("Coupon_TPU_For_AMS", (0.18, 0.48, 0.72))
     orange = case.make_material("Coupon_Orange", (0.95, 0.28, 0.04))
@@ -106,9 +126,9 @@ def main():
     print_offset = Vector((-43.0 - center.x, -center.y, 0.0))
     fit_offset = Vector((43.0 - center.x, -center.y, 0.0))
     original_coupon_matrix = print_coupon.matrix_world.copy()
-    # Show the print-bed/crown face on the standalone coupon so the tapered
-    # outer-protector return is visible; retain the interior face on the fitted
-    # copy so reviewers can inspect the unchanged hook seat and rail.
+    # Show the print-bed/crown face on the standalone coupon so the outer
+    # protector's crown-connected root is visible; retain the interior face on
+    # the fitted copy so reviewers can inspect the unchanged hook seat and rail.
     print_coupon.matrix_world = (
         Matrix.Translation(print_offset)
         @ Matrix.Translation(center)
@@ -127,9 +147,12 @@ def main():
     lid.hide_render = True
     inlay.hide_render = True
 
-    bpy.context.scene.render.filepath = str(
-        DIRECTORY / "renderings" / "mission1_tpu_lid_latch_coupon.png"
+    output_name = (
+        "mission1_tpu_lid_latch_coupon.png"
+        if args.profile == "expanded"
+        else "mission1_tpu_lid_latch_coupon_compact.png"
     )
+    bpy.context.scene.render.filepath = str(DIRECTORY / "renderings" / output_name)
     bpy.ops.render.render(write_still=True)
 
 
