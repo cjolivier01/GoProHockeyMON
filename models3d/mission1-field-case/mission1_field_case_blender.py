@@ -1537,10 +1537,14 @@ TPU_HINGE_ROOT_CASEWARD_OFFSET = 3.95
 TPU_HINGE_RELEASE_ANGLE_DEGREES = 25.0
 HINGE_PROFILE_RIGID_SLIDE = "RIGID_SLIDE"
 HINGE_PROFILE_TPU_68D_SNAP = "TPU_68D_SNAP"
-TPU_HINGE_SNAP_THROAT_WIDTH = 3.5
+# High-retention throat: 1.00 mm interference on the 3.8 mm rod, so each jaw
+# deflects 0.50 mm to admit it. The round receiver eats the first 1.79 mm of
+# entrance at this width, so the throat runs longer to keep the same 0.10 mm
+# calibrated flat, and the lead-in shortens to stay inside the 2.4 mm mouth.
+TPU_HINGE_SNAP_THROAT_WIDTH = 2.8
 TPU_HINGE_SNAP_MOUTH_WIDTH = 5.0
-TPU_HINGE_SNAP_THROAT_LENGTH = 1.55
-TPU_HINGE_SNAP_LEAD_LENGTH = 0.8
+TPU_HINGE_SNAP_THROAT_LENGTH = 1.89
+TPU_HINGE_SNAP_LEAD_LENGTH = 0.48
 TPU_HINGE_SNAP_LEAD_RADIUS = 0.8
 TPU_HINGE_SNAP_LEAD_SAMPLES = 8
 TPU_HINGE_CLIPS_PER_SEGMENT = 3
@@ -5280,7 +5284,7 @@ def validate_configuration() -> None:
     if not (
         0.05
         <= HINGE_ROD_DIAMETER - TPU_HINGE_SNAP_THROAT_WIDTH
-        <= 0.35
+        <= 1.00
         and TPU_HINGE_SNAP_MOUTH_WIDTH >= HINGE_ROD_DIAMETER + 0.6
         and 0.8 <= TPU_HINGE_CLIP_RELIEF_GAP <= 1.5
         and min(tpu_clip_widths) >= 6.0
