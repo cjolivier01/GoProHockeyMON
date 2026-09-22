@@ -169,10 +169,11 @@ def check_shared_cable_mouths():
         case.FAN_CASE_CABLE_THROAT_WIDTH * math.cos(math.pi / 48.0)
     )
     minimum_radial_clearance = float("inf")
-    for assembly_index, (well_center, routes) in enumerate(zip(
+    for assembly_index, (well_center, routes_by_angle) in enumerate(zip(
         case.FAN_CASE_CABLE_WELL_CENTERS,
-        case.FAN_CASE_PAIR_STORAGE["cable_route_options"],
+        case.FAN_CASE_PAIR_STORAGE["supported_cable_route_options"],
     ), start=1):
+        routes = tuple(route for angle_routes in routes_by_angle for route in angle_routes)
         relief = case.fan_case_cable_relief_region(well_center, routes)
         assert relief.geom_type == "Polygon" and not relief.is_empty, (
             f"Assembly {assembly_index} cable relief is not one connected mouth"
@@ -314,7 +315,7 @@ def check_cover_config_restoration():
         restore_wrapping_cover_config(original)
 
 
-def check_all_four_routes(parts, references, assembly_groups):
+def check_all_supported_routes(parts, references, assembly_groups):
     original = wrapping_cover_config()
     configured = dict(original)
     configured["CLEAR_SCENE"] = True
@@ -325,9 +326,13 @@ def check_all_four_routes(parts, references, assembly_groups):
     cover_calls = []
     source_configs = []
 
-    def capture_cover(assembly_index, corner):
-        cover_calls.append((assembly_index, corner))
-        return real_cover_builder(assembly_index, corner)
+    def capture_cover(assembly_index, corner, fan_angles=None):
+        cover_calls.append((assembly_index, fan_angles, corner))
+        return real_cover_builder(
+            assembly_index,
+            corner,
+            fan_angles=fan_angles,
+        )
 
     def capture_source():
         source_configs.append(wrapping_cover_config())
@@ -344,15 +349,24 @@ def check_all_four_routes(parts, references, assembly_groups):
             maximum_overlap = case.validate_fan_case_bottom_cable_routes(
                 parts, references, assembly_groups
             )
-        expected_calls = [(1, -1), (1, 1), (2, -1), (2, 1)]
+        expected_calls = [
+            (assembly_index, fan_angles, corner)
+            for assembly_index, assembly_angles in enumerate(
+                case.FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES,
+                start=1,
+            )
+            for fan_angles in assembly_angles
+            for corner in (-1, 1)
+        ]
         assert cover_calls == expected_calls, (
-            f"Bottom-cable validation did not exercise all four routes: {cover_calls}"
+            "Bottom-cable validation did not exercise both exits at every "
+            f"supported source/midpoint angle: {cover_calls}"
         )
         assert [
             item["CABLE_NOTCH_OFFSET"] for item in source_configs
         ] == [
             corner * abs(configured["CABLE_NOTCH_OFFSET"])
-            for _assembly_index, corner in expected_calls
+            for _assembly_index, _fan_angles, corner in expected_calls
         ]
         assert all(item["CLEAR_SCENE"] is False for item in source_configs)
         assert all(item["CABLE_NOTCH_SIDE"] == "TOP" for item in source_configs)
@@ -389,7 +403,8 @@ def check_alternate_route_obstruction(parts, references, assembly_groups):
             message = str(error)
             expected = (
                 "Bottom-corner cable route is obstructed: "
-                f"assembly={assembly_index} corner={alternate_corner:+d} "
+                f"assembly={assembly_index} yaw=-15.00 "
+                f"corner={alternate_corner:+d} "
                 f"object={blocker.name}"
             )
             assert expected in message, f"Unexpected cable-route rejection: {message}"
@@ -410,13 +425,13 @@ def check_bottom_cables(scene_path=None):
     check_invalid_notch_offsets()
     check_cover_config_restoration()
     parts, references, assembly_groups, source = load_or_build_loadout(scene_path)
-    maximum_overlap = check_all_four_routes(parts, references, assembly_groups)
+    maximum_overlap = check_all_supported_routes(parts, references, assembly_groups)
     blocked_assembly, blocked_corner = check_alternate_route_obstruction(
         parts, references, assembly_groups
     )
     print(
         "FIELD_CASE_BOTTOM_CABLE_REGRESSION_PASS "
-        f"source={source} routes=4 overlap_max={maximum_overlap:.6f} "
+        f"source={source} routes=52 overlap_max={maximum_overlap:.6f} "
         f"live_notch_separation={live_notch_separation:.3f} "
         f"shared_mouth_min_diameter={shared_mouth_diameter:.3f} "
         "outside_offset_rejected=True collapsed_pair_rejected=True "

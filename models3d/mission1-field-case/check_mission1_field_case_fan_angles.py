@@ -14,6 +14,20 @@ import mission1_field_case_blender as case
 
 
 EXPECTED_STORAGE_ANGLES = ((-15.0, 0.0), (15.0, 0.0))
+EXPECTED_SUPPORTED_ANGLES = (
+    (
+        (-15.0, 0.0), (-16.25, 0.0), (-17.5, 0.0), (-18.75, 0.0),
+        (-20.0, 0.0), (-21.25, 0.0), (-22.5, 0.0), (-23.75, 0.0),
+        (-25.0, 0.0), (-26.25, 0.0), (-27.5, 0.0), (-28.75, 0.0),
+        (-30.0, 0.0),
+    ),
+    (
+        (15.0, 0.0), (16.25, 0.0), (17.5, 0.0), (18.75, 0.0),
+        (20.0, 0.0), (21.25, 0.0), (22.5, 0.0), (23.75, 0.0),
+        (25.0, 0.0), (26.25, 0.0), (27.5, 0.0), (28.75, 0.0),
+        (30.0, 0.0),
+    ),
+)
 
 
 def source_config():
@@ -144,11 +158,117 @@ def check_profile_minimum_feature_closing():
     return broad_gap_clearance
 
 
-def create_insert_from_existing_references(material, references):
+def check_front_bin_cover_sweep_and_return(storage_bin):
+    """Prove off-grid cover clearance and the finished bin's inward return."""
+    from shapely.geometry import Polygon, box
+
+    clearance, _clearance_z0, _clearance_z1 = (
+        case.fan_case_supported_cover_tray_clearance_region()
+    )
+    return_region = case.fan_case_supported_cover_tray_return_region(clearance)
+    x0, x1, y0, y1, z0, _z1 = case.FAN_CASE_PAIR_OVERHEAD_STORAGE[
+        "bin_bounds"
+    ]
+    wall = case.FAN_CASE_PAIR_STORAGE_BIN_WALL
+    floor = case.FAN_CASE_PAIR_STORAGE_BIN_FLOOR
+    interior = box(x0 + wall, y0 + wall, x1 - wall, y1 - wall)
+    cover_x0, cover_x1, cover_y0, cover_y1 = case.FAN_CASE_PAIR_STORAGE[
+        "straight_cover_bounds"
+    ][:4]
+    maximum_missing = 0.0
+    minimum_clearance = math.inf
+    checked = 0
+    for index, side in enumerate((-1.0, 1.0)):
+        offset = case.Vector(case.FAN_CASE_PAIR_STORAGE["placements"][index])
+        for step in range(301):
+            angle = side * (15.0 + step * 0.05)
+            transform = case.fan_case_storage_mount_transform(angle, 0.0)
+            points = []
+            for x, y in (
+                (cover_x0, cover_y0),
+                (cover_x1, cover_y0),
+                (cover_x1, cover_y1),
+                (cover_x0, cover_y1),
+            ):
+                point = transform @ case.Vector((x, y, 0.0)) + offset
+                points.append((point.x, point.y))
+            cover = Polygon(points)
+            required = cover.buffer(
+                case.FAN_CASE_PAIR_CARRIER_ASSEMBLY_CLEARANCE,
+                quad_segs=16,
+                join_style="round",
+            )
+            maximum_missing = max(
+                maximum_missing,
+                required.difference(clearance).area,
+            )
+            minimum_clearance = min(
+                minimum_clearance,
+                clearance.boundary.distance(cover),
+            )
+            checked += 1
+    assert maximum_missing <= 1e-7, (
+        "Cover tray notch misses an off-grid clearance envelope: "
+        f"area={maximum_missing:.9f}"
+    )
+    assert minimum_clearance >= (
+        case.FAN_CASE_PAIR_CARRIER_ASSEMBLY_CLEARANCE - 0.001
+    ), (
+        "Cover tray notch loses its running clearance between angle samples: "
+        f"clearance={minimum_clearance:.6f}"
+    )
+
+    storage_air = interior.difference(return_region)
+    separation = storage_air.distance(clearance)
+    assert separation >= case.FAN_CASE_PAIR_COVER_TRAY_RETURN_WALL - 0.02, (
+        "Cover tray return does not isolate the storage bay: "
+        f"separation={separation:.6f}"
+    )
+    probe_region = (
+        clearance.buffer(case.FAN_CASE_PAIR_COVER_TRAY_RETURN_WALL - 0.1)
+        .difference(clearance.buffer(0.1))
+        .intersection(interior)
+    )
+    assert probe_region.area > 1.0
+    probe = case.extrude_planar_region(
+        "TEST_Tray_Return_Wall",
+        probe_region,
+        z0 + floor + 0.2,
+        z0 + floor + 1.2,
+    )
+    try:
+        _faces, filled = case.exact_transformed_intersection(
+            storage_bin,
+            probe,
+            first_location=storage_bin.location.copy(),
+            first_rotation=storage_bin.rotation_euler.copy(),
+            second_location=probe.location.copy(),
+            second_rotation=probe.rotation_euler.copy(),
+        )
+    finally:
+        case.bpy.data.objects.remove(probe, do_unlink=True)
+    expected = probe_region.area
+    assert filled >= expected * 0.98, (
+        "Finished bin does not retain the cover-notch return wall: "
+        f"filled={filled:.6f} expected={expected:.6f}"
+    )
+    return checked, minimum_clearance, separation, filled / expected
+
+
+def create_insert_from_existing_references(material, references, parts):
     """Build once, reusing profiles and forbidding a hidden source rebuild."""
     extraction_geometry = case.fan_case_pair_extraction_profiles(
         references,
         return_rear_reliefs=True,
+        supported_pose_validator=lambda index, angles, group: (
+            case.validate_supported_fan_case_source_pose(
+                parts,
+                references,
+                index,
+                angles,
+                group,
+            )
+        ),
     )
 
     previous_preview = case.BUILD_REFERENCE_MOCKUPS
@@ -173,12 +293,30 @@ def create_insert_from_existing_references(material, references):
     return insert, *extraction_geometry
 
 
-def check_profile_tracks_runtime_mesh(references, baseline_profile):
+def check_profile_tracks_runtime_mesh(references, swept_profile):
     group = [
         obj for obj in references
         if obj.name.startswith("REFERENCE_ONLY_Fan_Case_Assembly_1_")
     ]
     back = next(obj for obj in group if "GoPro_Fan_Case_Back" in obj.name)
+    baseline_profile = case.fan_case_assembly_extraction_profile(group)
+    all_faces_profile = case.fan_case_assembly_extraction_profile(
+        group,
+        upward_faces_only=False,
+    )
+    projection_deviation = baseline_profile.hausdorff_distance(all_faces_profile)
+    assert (
+        all_faces_profile.difference(baseline_profile.buffer(0.01)).area <= 1e-7
+        and baseline_profile.difference(all_faces_profile.buffer(0.01)).area <= 1e-7
+    ), (
+        "Upward-face source projection differs from the all-triangle oracle: "
+        f"hausdorff={projection_deviation:.9f}"
+    )
+    missing_from_sweep = baseline_profile.difference(swept_profile.buffer(0.001)).area
+    assert missing_from_sweep <= 1e-7, (
+        "Swept extraction profile does not include its live nominal source: "
+        f"missing_area={missing_from_sweep:.9f}"
+    )
     original_coordinates = [vertex.co.copy() for vertex in back.data.vertices]
     local_x = [coordinate.x for coordinate in original_coordinates]
     center_x = (min(local_x) + max(local_x)) / 2.0
@@ -205,7 +343,7 @@ def check_profile_tracks_runtime_mesh(references, baseline_profile):
             vertex.co = coordinate
         back.data.update()
         case.bpy.context.view_layer.update()
-    return changed_area
+    return changed_area, projection_deviation
 
 
 def profile_projection_limits(profile, direction):
@@ -220,77 +358,43 @@ def profile_projection_limits(profile, direction):
     return min(projections), max(projections)
 
 
-def check_rear_fan_depth_allowance(references, nominal_profiles, rear_reliefs):
-    """Prove only each rectangular slot's back edge gains exactly 1.5 mm."""
+def check_rear_fan_depth_allowance(references, swept_profiles, rear_reliefs):
+    """Prove every sampled angle receives its exact 1.5 mm rear slot band."""
     from shapely import union_all
 
     assert math.isclose(case.FAN_CASE_REAR_DEPTH_ALLOWANCE, 1.5, abs_tol=1e-9)
     measured = []
-    for index, (nominal, rear_relief) in enumerate(
-        zip(nominal_profiles, rear_reliefs), start=1
+    for index, (swept, rear_relief) in enumerate(
+        zip(swept_profiles, rear_reliefs), start=1
     ):
-        group = [
-            obj for obj in references
-            if obj.name.startswith(f"REFERENCE_ONLY_Fan_Case_Assembly_{index}_")
-        ]
-        rebuilt_nominal = case.fan_case_assembly_extraction_profile(group)
-        if nominal.symmetric_difference(rebuilt_nominal).area > 1e-7:
-            raise AssertionError(f"Assembly {index} nominal profile was modified")
-        relieved = union_all((nominal, rear_relief))
-        outward = (
-            case.FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1].to_3x3()
-            @ case.Vector((0.0, -1.0, 0.0))
-        ).normalized()
-        nominal_rear = profile_projection_limits(nominal, outward)[1]
-        relieved_rear = profile_projection_limits(relieved, outward)[1]
-        allowance = relieved_rear - nominal_rear
-        assert math.isclose(
-            allowance, case.FAN_CASE_REAR_DEPTH_ALLOWANCE, abs_tol=0.01
-        ), (
-            f"Assembly {index} rear relief is {allowance:.6f} mm, expected "
-            f"{case.FAN_CASE_REAR_DEPTH_ALLOWANCE:.6f} mm"
-        )
-        slot_band = case.fan_case_rear_slot_relief_region(index)
-        added = relieved.difference(nominal)
-        unexpected_added_area = added.difference(slot_band).area
-        removed_area = nominal.difference(relieved).area
-        if unexpected_added_area > 1e-7 or removed_area > 1e-7:
-            raise AssertionError(
-                f"Assembly {index} changed outside its rectangular rear slot: "
-                f"unexpected_added={unexpected_added_area:.9f} "
-                f"removed={removed_area:.9f}"
+        relieved = union_all((swept, rear_relief))
+        for fan_angles in case.FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES[index - 1]:
+            slot_band = case.fan_case_rear_slot_relief_region(index, fan_angles)
+            if slot_band.difference(relieved.buffer(0.001)).area > 1e-7:
+                raise AssertionError(
+                    f"Assembly {index} misses rear relief at {fan_angles[0]:+.1f} degrees"
+                )
+            transform = case.fan_case_storage_mount_transform(*fan_angles)
+            outward = (transform.to_3x3() @ case.Vector((0.0, -1.0, 0.0))).normalized()
+            lateral = (transform.to_3x3() @ case.Vector((1.0, 0.0, 0.0))).normalized()
+            depth = profile_projection_limits(slot_band, outward)
+            allowance = depth[1] - depth[0] - 0.01
+            assert math.isclose(
+                allowance, case.FAN_CASE_REAR_DEPTH_ALLOWANCE, abs_tol=0.001
+            ), (
+                f"Assembly {index} rear band at {fan_angles[0]:+.1f} degrees is "
+                f"{allowance:.6f} mm, expected {case.FAN_CASE_REAR_DEPTH_ALLOWANCE:.6f} mm"
             )
-        lateral = (
-            case.FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1].to_3x3()
-            @ case.Vector((1.0, 0.0, 0.0))
-        ).normalized()
-        transform = case.FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1]
-        placement = case.Vector(
-            case.FAN_CASE_PAIR_STORAGE["placements"][index - 1]
-        )
-        cover_x0, cover_x1 = (
-            case.FAN_CASE_PAIR_STORAGE["straight_cover_bounds"][:2]
-        )
-        expected_clearance = case.FAN_CASE_STORAGE_CLEARANCE + 0.01
-        expected_local_sides = (
-            cover_x0 - expected_clearance,
-            cover_x1 + expected_clearance,
-        )
-        expected_sides = []
-        for x in expected_local_sides:
-            point = transform @ case.Vector((x, 0.0, 0.0)) + placement
-            expected_sides.append(point.x * lateral.x + point.y * lateral.y)
-        expected_sides = tuple(sorted(expected_sides))
-        actual_sides = profile_projection_limits(slot_band, lateral)
-        if any(
-            not math.isclose(expected, actual, abs_tol=0.001)
-            for expected, actual in zip(expected_sides, actual_sides)
-        ):
-            raise AssertionError(
-                f"Assembly {index} rectangular slot width or side walls changed: "
-                f"expected={expected_sides} actual={actual_sides}"
+            cover_x0, cover_x1 = case.FAN_CASE_PAIR_STORAGE["straight_cover_bounds"][:2]
+            expected_width = (
+                cover_x1 - cover_x0
+                + 2.0 * (case.FAN_CASE_STORAGE_CLEARANCE + 0.01)
             )
-        measured.append(allowance)
+            actual_sides = profile_projection_limits(slot_band, lateral)
+            assert math.isclose(
+                actual_sides[1] - actual_sides[0], expected_width, abs_tol=0.001
+            )
+            measured.append(allowance)
     return measured
 
 
@@ -425,6 +529,9 @@ def check_loadout():
     assert case.FAN_CASE_STORAGE_FAN_ANGLES == EXPECTED_STORAGE_ANGLES, (
         "Storage must retain explicit outward -15/+15-degree fan poses"
     )
+    assert case.FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES == EXPECTED_SUPPORTED_ANGLES, (
+        "Storage sweep must cover both handed 15-through-30-degree ranges"
+    )
     case.validate_configuration()
     broad_gap_clearance = check_profile_minimum_feature_closing()
     material = case.make_material("Angle_Check", (0.5, 0.5, 0.5))
@@ -437,16 +544,40 @@ def check_loadout():
     remove_objects(alternate_references)
     assert source_config() == original_config
 
-    insert, profiles, rear_reliefs = create_insert_from_existing_references(
-        material, references
-    )
     parts = {
         "base": case.create_base(material),
-        "fan_case_pair_insert": insert,
         "fan_case_pair_carrier": case.create_fan_case_pair_overhead_carrier(material),
         "fan_case_pair_storage_bin": case.create_fan_case_pair_storage_bin(material),
         "fan_case_pair_lid_pad": case.create_fan_case_pair_lid_pad(material),
     }
+    if case.EXPANDED_ACCESSORY_STORAGE:
+        parts["accessory_organizer"] = case.create_accessory_organizer(material)
+    expected_tray_sizes = (
+        {
+            "fan_case_pair_carrier": (223.0, 169.0, 42.02959),
+            "fan_case_pair_storage_bin": (223.0, 43.52492, 27.71041),
+        }
+        if case.EXPANDED_ACCESSORY_STORAGE
+        else {
+            "fan_case_pair_carrier": (223.0, 112.97508, 26.12959),
+            "fan_case_pair_storage_bin": (223.0, 32.52492, 53.84),
+        }
+    )
+    for key, expected in expected_tray_sizes.items():
+        actual = tuple(float(value) for value in case.object_world_dimensions(parts[key]))
+        assert all(
+            math.isclose(value, target, abs_tol=0.02)
+            for value, target in zip(actual, expected)
+        ), f"{key} outer dimensions changed: actual={actual} expected={expected}"
+    notch_checks, notch_clearance, return_separation, return_fill = (
+        check_front_bin_cover_sweep_and_return(
+            parts["fan_case_pair_storage_bin"]
+        )
+    )
+    insert, profiles, rear_reliefs = create_insert_from_existing_references(
+        material, references, parts
+    )
+    parts["fan_case_pair_insert"] = insert
     parts["lid"], inlay = case.create_lid(material, material)
     case.bpy.data.objects.remove(inlay, do_unlink=True)
     if case.EXPANDED_ACCESSORY_STORAGE:
@@ -456,9 +587,11 @@ def check_loadout():
             hinge_profile=case.HINGE_PROFILE_TPU_68D_SNAP,
         )
         case.bpy.data.objects.remove(inlay, do_unlink=True)
-        parts["accessory_organizer"] = case.create_accessory_organizer(material)
         references.extend(case.create_accessory_reference_mockups(material))
-    profile_delta = check_profile_tracks_runtime_mesh(references, profiles[0])
+    profile_delta, projection_deviation = check_profile_tracks_runtime_mesh(
+        references,
+        profiles[0],
+    )
     rear_depth_allowances = check_rear_fan_depth_allowance(
         references, profiles, rear_reliefs
     )
@@ -487,16 +620,21 @@ def check_loadout():
     assert (case.CASE_WIDTH, case.CASE_DEPTH, case.BASE_HEIGHT) == ((234.0, 180.0, 160.0) if case.EXPANDED_ACCESSORY_STORAGE else (234.0, 158.0, 97.8))
     print(
         "FIELD_CASE_FAN_ANGLE_REGRESSION_PASS "
-        "storage_yaws=-15,+15 source_defaults=0,31 "
+        "preview_yaws=-15,+15 supported_yaws=-15..-30,+15..+30 source_defaults=0,31 "
         f"runtime_profile_delta={profile_delta:.3f} "
+        f"projection_oracle_deviation={projection_deviation:.6f} "
         "rear_depth_allowances="
         + ",".join(f"{value:.3f}" for value in rear_depth_allowances)
         + " "
         f"finished_relief_overlap={finished_relief_overlap:.6f} "
         f"synthetic_broad_gap_clearance={broad_gap_clearance:.3f} "
+        f"notch_off_grid_checks={notch_checks} "
+        f"notch_clearance={notch_clearance:.3f} "
+        f"return_separation={return_separation:.3f} "
+        f"return_fill={return_fill:.6f} "
         "preview_independent=True references_reused=True bad_pose_rejected=True "
         "blocked_door_lift_rejected=True blocked_assembly_lift_rejected=True "
-        "source_config_restored=True",
+        "tray_envelopes_preserved=True source_config_restored=True",
         flush=True,
     )
 

@@ -498,12 +498,74 @@ EQUIPMENT_TRAY_LIFT_NOTCH_X_CENTERS = (-96.0, 96.0)
 FAN_CASE_STORAGE_COUNT = 2
 FAN_CASE_STORAGE_CENTERS_X = (-52.0, 52.0)
 # The two upright cameras use outward-facing fan pads: left negative X,
-# right positive X. This loadout deliberately overrides the companion's
-# default pose; every other source dimension still comes from its live build.
-FAN_CASE_STORAGE_FAN_YAW_DEGREES = 15.0
+# right positive X.  The visible reference pair stays at the minimum angle,
+# while the removable insert molds a sampled swept envelope through 30 degrees.
+# Thirteen live source poses per side are joined with a small interpolation
+# allowance.  The farthest cover corner moves less than the existing 1 mm
+# running clearance between a sample and the midpoint to its neighbor.
+FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES = 15.0
+FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES = 30.0
+FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES = 1.25
+FAN_CASE_STORAGE_SWEEP_INTERPOLATION_ALLOWANCE = 0.05
+FAN_CASE_STORAGE_SWEEP_PROFILE_SIMPLIFY = 0.005
+FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES = 1.25
+FAN_CASE_STORAGE_REAR_RELIEF_STEP_DEGREES = 0.05
+FAN_CASE_STORAGE_REAR_RELIEF_INTERPOLATION_ALLOWANCE = 0.00002
+FAN_CASE_STORAGE_FAN_YAW_DEGREES = FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
 FAN_CASE_STORAGE_FAN_ANGLES = (
     (-FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
     (FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
+)
+FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES = tuple(
+    FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
+    + index * FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES
+    for index in range(
+        round(
+            (
+                FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES
+                - FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
+            )
+            / FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES
+        )
+        + 1
+    )
+)
+FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES = tuple(
+    tuple((side * yaw, 0.0) for yaw in FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES)
+    for side in (-1.0, 1.0)
+)
+
+
+def fan_case_storage_fan_angles_at_step(step_degrees):
+    """Return inclusive handed yaw samples at the requested positive step."""
+    if step_degrees <= 0.0:
+        raise ValueError("Fan-case yaw sampling step must be positive")
+    span = (
+        FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES
+        - FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
+    )
+    count = round(span / step_degrees)
+    if not math.isclose(count * step_degrees, span, abs_tol=1e-9):
+        raise ValueError("Fan-case yaw sampling step must divide the supported range")
+    magnitudes = tuple(
+        FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES + index * step_degrees
+        for index in range(count + 1)
+    )
+    return tuple(
+        tuple((side * yaw, 0.0) for yaw in magnitudes)
+        for side in (-1.0, 1.0)
+    )
+
+
+# Cable mouths include every live source pose. The inexpensive analytical rear
+# band uses a much finer angular sweep and a
+# 0.02 micron interpolation allowance so its outer 1.5 mm edge also covers
+# angles between samples without a measurable change to the requested depth.
+FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES = fan_case_storage_fan_angles_at_step(
+    FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES
+)
+FAN_CASE_STORAGE_REAR_RELIEF_FAN_ANGLES = fan_case_storage_fan_angles_at_step(
+    FAN_CASE_STORAGE_REAR_RELIEF_STEP_DEGREES
 )
 FAN_CASE_STORAGE_CLEARANCE = 1.0
 # The bought 40 mm fans can run slightly deeper than their nominal 20 mm
@@ -553,14 +615,24 @@ FAN_CASE_BATTERY_NUB_HEIGHT = 2.0
 FAN_CASE_BATTERY_NUB_INTRUSION = 0.65
 # Turn the two 50 x 10 x 18 mm doors lengthwise, one on either side of the
 # center spine. Their vertical removal paths stay open with both trays lifted.
-# Raise their pocket rims to the adjacent battery-pocket rims while retaining
-# 11 mm seating depth and 7 mm of exposed door above the front retaining wall.
+# Raise the complete pockets until the upper edge of each sideways door is
+# level with the top of the adjacent upright battery.  Retain 11 mm seating
+# depth and 7 mm of exposed door above the front retaining wall.
 FAN_CASE_BATTERY_DOOR_COUNT = 2
 FAN_CASE_BATTERY_DOOR_SLOT_SIZE = (11.0, 50.8)
 FAN_CASE_BATTERY_DOOR_CENTERS = ((-12.0, -47.0), (12.0, -47.0))
 FAN_CASE_BATTERY_DOOR_WALL = 1.5
-FAN_CASE_BATTERY_DOOR_WALL_HEIGHT = FAN_CASE_BATTERY_TOWER_HEIGHT
-FAN_CASE_BATTERY_DOOR_FLOOR_Z = FAN_CASE_BATTERY_DOOR_WALL_HEIGHT - 11.0
+FAN_CASE_BATTERY_DOOR_HEIGHT = 18.0
+FAN_CASE_BATTERY_DOOR_SEATING_DEPTH = 11.0
+FAN_CASE_BATTERY_DOOR_FLOOR_Z = (
+    FAN_CASE_BATTERY_FLOOR_Z
+    + BATTERY_HEIGHT
+    - FAN_CASE_BATTERY_DOOR_HEIGHT
+)
+FAN_CASE_BATTERY_DOOR_WALL_HEIGHT = (
+    FAN_CASE_BATTERY_DOOR_FLOOR_Z
+    + FAN_CASE_BATTERY_DOOR_SEATING_DEPTH
+)
 FAN_CASE_BATTERY_DOOR_NUB_WIDTH = 6.0
 FAN_CASE_BATTERY_DOOR_NUB_HEIGHT = 2.0
 FAN_CASE_BATTERY_DOOR_NUB_INTRUSION = 0.55
@@ -596,6 +668,8 @@ FAN_CASE_PAIR_LID_PAD_DISPLAY_Y = 440.0
 FAN_CASE_PAIR_CARRIER_THICKNESS = 3.0
 FAN_CASE_PAIR_CARRIER_REAR_Y = (CASE_DEPTH - 2.0 * WALL_THICKNESS) / 2.0 - 1.0
 FAN_CASE_PAIR_CARRIER_ASSEMBLY_CLEARANCE = 0.70
+FAN_CASE_PAIR_COVER_TRAY_SWEEP_ALLOWANCE = 0.01
+FAN_CASE_PAIR_COVER_TRAY_RETURN_WALL = 2.0
 FAN_CASE_PAIR_INSERT_WITHDRAWAL_CLEARANCE = 1.0
 FAN_CASE_PAIR_SUPPORT_ARCH_CLEARANCE = 1.0
 FAN_CASE_PAIR_SUPPORT_MAX_OVERHANG_DEGREES = 45.0
@@ -883,6 +957,20 @@ def fan_case_pair_storage_geometry():
         fan_case_storage_mount_transform(*angles)
         for angles in FAN_CASE_STORAGE_FAN_ANGLES
     )
+    supported_fan_transforms = tuple(
+        tuple(
+            fan_case_storage_mount_transform(*angles)
+            for angles in assembly_angles
+        )
+        for assembly_angles in FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES
+    )
+    cable_route_fan_transforms = tuple(
+        tuple(
+            fan_case_storage_mount_transform(*angles)
+            for angles in assembly_angles
+        )
+        for assembly_angles in FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES
+    )
     straight_cover_bounds = (
         fan_case.FAN_CENTER_X - cover_outer_width / 2.0,
         fan_case.FAN_CENTER_X + cover_outer_width / 2.0,
@@ -891,11 +979,39 @@ def fan_case_pair_storage_geometry():
         fan_case.FAN_CENTER_Z - cover_outer_height / 2.0,
         fan_case.FAN_CENTER_Z + cover_outer_height / 2.0,
     )
+    cover_corner_points = tuple(
+        Vector((x, y, z))
+        for x in straight_cover_bounds[:2]
+        for y in straight_cover_bounds[2:4]
+        for z in straight_cover_bounds[4:6]
+    )
+    sweep_interpolation_corner_gap = max(
+        min(
+            (
+                fan_case_storage_mount_transform(
+                    (first[0] + second[0]) / 2.0,
+                    (first[1] + second[1]) / 2.0,
+                ) @ point
+                - fan_case_storage_mount_transform(*endpoint) @ point
+            ).length
+            for endpoint in (first, second)
+        )
+        for assembly_angles in FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES
+        for first, second in zip(assembly_angles, assembly_angles[1:])
+        for point in cover_corner_points
+    )
     cover_bounds = tuple(
         transformed_box_bounds(straight_cover_bounds, transform)
         for transform in fan_transforms
     )
-    reference_bounds_by_assembly = tuple(
+    supported_cover_bounds = tuple(
+        tuple(
+            transformed_box_bounds(straight_cover_bounds, transform)
+            for transform in assembly_transforms
+        )
+        for assembly_transforms in supported_fan_transforms
+    )
+    nominal_reference_bounds_by_assembly = tuple(
         tuple(
             min(straight_reference_bounds[axis], bounds[axis])
             if axis % 2 == 0
@@ -904,12 +1020,36 @@ def fan_case_pair_storage_geometry():
         )
         for bounds in cover_bounds
     )
+    reference_bounds_by_assembly = tuple(
+        tuple(
+            min(
+                straight_reference_bounds[axis],
+                *(bounds[axis] for bounds in assembly_bounds),
+            )
+            if axis % 2 == 0
+            else max(
+                straight_reference_bounds[axis],
+                *(bounds[axis] for bounds in assembly_bounds),
+            )
+            for axis in range(6)
+        )
+        for assembly_bounds in supported_cover_bounds
+    )
+    supported_cover_notch_options = tuple(
+        tuple(
+            tuple(tuple(transform @ Vector((
+                fan_case.FAN_CENTER_X
+                + corner * abs(wrapping_fan_cover.CABLE_NOTCH_OFFSET),
+                cover_notch_source_y,
+                cover_notch_source_z,
+            ))) for corner in (-1, 1))
+            for transform in assembly_transforms
+        )
+        for assembly_transforms in cable_route_fan_transforms
+    )
     cover_notch_options = tuple(
-        tuple(tuple(transform @ Vector((
-            fan_case.FAN_CENTER_X + corner * abs(wrapping_fan_cover.CABLE_NOTCH_OFFSET),
-            cover_notch_source_y, cover_notch_source_z
-        ))) for corner in (-1, 1))
-        for transform in fan_transforms
+        assembly_options[0]
+        for assembly_options in supported_cover_notch_options
     )
     cover_notches = tuple(options[0 if corner < 0 else 1] for options, corner in zip(
         cover_notch_options, FAN_CASE_CABLE_PREVIEW_CORNERS))
@@ -930,8 +1070,11 @@ def fan_case_pair_storage_geometry():
     placements = []
     cavity_bounds = []
     installed_reference_bounds = []
-    for center_x, reference_bounds in zip(
-        FAN_CASE_STORAGE_CENTERS_X, reference_bounds_by_assembly
+    installed_supported_reference_bounds = []
+    for center_x, nominal_reference_bounds, reference_bounds in zip(
+        FAN_CASE_STORAGE_CENTERS_X,
+        nominal_reference_bounds_by_assembly,
+        reference_bounds_by_assembly,
     ):
         # The fan and cover float above the 12 mm deck. Keep the established
         # low locator footprint and open the raised front guide around their
@@ -958,6 +1101,16 @@ def fan_case_pair_storage_geometry():
         )
         installed_reference_bounds.append(
             (
+                nominal_reference_bounds[0] + translation_x,
+                nominal_reference_bounds[1] + translation_x,
+                nominal_reference_bounds[2] + translation_y,
+                nominal_reference_bounds[3] + translation_y,
+                nominal_reference_bounds[4] + translation_z,
+                nominal_reference_bounds[5] + translation_z,
+            )
+        )
+        installed_supported_reference_bounds.append(
+            (
                 reference_bounds[0] + translation_x,
                 reference_bounds[1] + translation_x,
                 reference_bounds[2] + translation_y,
@@ -966,7 +1119,9 @@ def fan_case_pair_storage_geometry():
                 reference_bounds[5] + translation_z,
             )
         )
-    assembly_top_z = max(bounds[5] for bounds in installed_reference_bounds)
+    assembly_top_z = max(
+        bounds[5] for bounds in installed_supported_reference_bounds
+    )
     # Land the lid bosses on the broad upper edge of the upright rear shell,
     # rather than using a narrow button or thumb nut as the hold-down datum.
     shell_center_y = fan_case.BACK_DEPTH + translation_y - 2.0
@@ -983,18 +1138,18 @@ def fan_case_pair_storage_geometry():
     lower_hardware_floor_clearance = (
         lower_hardware_bottom_z - hardware_relief_top_z
     )
-    cable_route_options = []
+    supported_cable_route_options = []
     cable_center_z = (
         FAN_CASE_PAIR_INSERT_INSTALLED_Z
         + FAN_CASE_CABLE_WELL_FLOOR
         + 0.3
         + FAN_CASE_CABLE_DIAMETER / 2.0
     )
-    for placement, well_center, notch_options, reference_bounds in zip(
+    for placement, well_center, notch_options_by_angle, reference_bounds in zip(
         placements,
         FAN_CASE_CABLE_WELL_CENTERS,
-        cover_notch_options,
-        reference_bounds_by_assembly,
+        supported_cover_notch_options,
+        nominal_reference_bounds_by_assembly,
     ):
         coil_entry_y = (
             well_center[1] + (FAN_CASE_CABLE_WELL_SIZE[1] - 4.0) / 2.0
@@ -1005,21 +1160,32 @@ def fan_case_pair_storage_geometry():
             reference_bounds[2] + placement[1] - FAN_CASE_STORAGE_CLEARANCE
             - FAN_CASE_CABLE_DIAMETER / 2.0
         )
-        routes = []
-        for cover_notch in notch_options:
-            notch_x, notch_y, notch_z = tuple(
-                value + offset for value, offset in zip(cover_notch, placement))
-            cable_below_cover_z = (
-                notch_z - wrapping_fan_cover.WALL_THICKNESS / 2.0
-                - FAN_CASE_CABLE_DIAMETER / 2.0 - FAN_CASE_STORAGE_CLEARANCE)
-            routes.append((
-                (notch_x, notch_y, notch_z),
-                (notch_x, notch_y, cable_below_cover_z),
-                (notch_x, throat_y, cable_below_cover_z),
-                (notch_x, throat_y, cable_center_z),
-                (notch_x, coil_entry_y, cable_center_z),
-            ))
-        cable_route_options.append(tuple(routes))
+        assembly_routes = []
+        for notch_options in notch_options_by_angle:
+            routes = []
+            for cover_notch in notch_options:
+                notch_x, notch_y, notch_z = tuple(
+                    value + offset
+                    for value, offset in zip(cover_notch, placement)
+                )
+                cable_below_cover_z = (
+                    notch_z - wrapping_fan_cover.WALL_THICKNESS / 2.0
+                    - FAN_CASE_CABLE_DIAMETER / 2.0
+                    - FAN_CASE_STORAGE_CLEARANCE
+                )
+                routes.append((
+                    (notch_x, notch_y, notch_z),
+                    (notch_x, notch_y, cable_below_cover_z),
+                    (notch_x, throat_y, cable_below_cover_z),
+                    (notch_x, throat_y, cable_center_z),
+                    (notch_x, coil_entry_y, cable_center_z),
+                ))
+            assembly_routes.append(tuple(routes))
+        supported_cable_route_options.append(tuple(assembly_routes))
+    cable_route_options = tuple(
+        assembly_routes[0]
+        for assembly_routes in supported_cable_route_options
+    )
     cable_route_points = tuple(options[0 if corner < 0 else 1] for options, corner in zip(
         cable_route_options, FAN_CASE_CABLE_PREVIEW_CORNERS))
     cover_top_z = max(
@@ -1035,11 +1201,17 @@ def fan_case_pair_storage_geometry():
         "cover_values": cover_values,
         "reference_source_bounds": reference_bounds_by_assembly,
         "fan_transforms": fan_transforms,
+        "supported_fan_transforms": supported_fan_transforms,
         "straight_cover_bounds": straight_cover_bounds,
+        "sweep_interpolation_corner_gap": sweep_interpolation_corner_gap,
         "cover_source_bounds": cover_bounds,
+        "supported_cover_source_bounds": supported_cover_bounds,
         "placements": tuple(placements),
         "cavity_bounds": tuple(cavity_bounds),
         "installed_reference_bounds": tuple(installed_reference_bounds),
+        "installed_supported_reference_bounds": tuple(
+            installed_supported_reference_bounds
+        ),
         "assembly_top_z": assembly_top_z,
         "shell_contact_base_y": shell_center_y,
         "back_dimensions": (back_width, back_height),
@@ -1047,7 +1219,9 @@ def fan_case_pair_storage_geometry():
         "lower_hardware_floor_clearance": lower_hardware_floor_clearance,
         "cover_notch_source": cover_notches,
         "cover_notch_options": cover_notch_options,
-        "cable_route_options": tuple(cable_route_options),
+        "supported_cover_notch_options": supported_cover_notch_options,
+        "cable_route_options": cable_route_options,
+        "supported_cable_route_options": tuple(supported_cable_route_options),
         "cable_route_points": tuple(cable_route_points),
         "cover_top_z": cover_top_z,
         "cable_top_z": cable_top_z,
@@ -1083,8 +1257,14 @@ def fan_case_pair_overhead_storage_geometry():
     rim_z = (
         installed_lid_inner_face - FAN_CASE_PAIR_TRAY_RIM_LID_RECESS
     )
-    division_y = min(route[-2][1] for route in FAN_CASE_PAIR_STORAGE["cable_route_points"]) \
-        - FAN_CASE_CABLE_DIAMETER / 2.0 - FAN_CASE_PAIR_DEEP_TRAY_CABLE_CLEARANCE
+    # Preserve the established upper-tray split and every tray outer envelope.
+    # Larger fan angles receive local cover-clearance notches in the front
+    # tray's rear wall instead of moving this boundary.
+    division_y = (
+        min(route[-2][1] for route in FAN_CASE_PAIR_STORAGE["cable_route_points"])
+        - FAN_CASE_CABLE_DIAMETER / 2.0
+        - FAN_CASE_PAIR_DEEP_TRAY_CABLE_CLEARANCE
+    )
     rear_y0 = division_y + FAN_CASE_PAIR_TRAY_SEPARATION
     rear_y1 = inner_depth / 2.0 - EQUIPMENT_TRAY_SIDE_CLEARANCE
     front_y0 = -inner_depth / 2.0 + EQUIPMENT_TRAY_SIDE_CLEARANCE
@@ -4860,7 +5040,11 @@ def validate_configuration() -> None:
         and wrapping_fan_cover.CABLE_NOTCH_WIDTH >= FAN_CASE_CABLE_DIAMETER + 0.5
         and all(
             notch[2] < fan_case.FAN_CENTER_Z
-            for options in FAN_CASE_PAIR_STORAGE["cover_notch_options"] for notch in options
+            for assembly_options in FAN_CASE_PAIR_STORAGE[
+                "supported_cover_notch_options"
+            ]
+            for options in assembly_options
+            for notch in options
         )
     ):
         raise ValueError(
@@ -4879,9 +5063,36 @@ def validate_configuration() -> None:
         and all(
             options[1][0] - options[0][0] - FAN_CASE_CABLE_THROAT_WIDTH
             >= FAN_CASE_PAIR_CRADLE_MIN_FEATURE
-            for options in FAN_CASE_PAIR_STORAGE["cover_notch_options"])
+            for assembly_options in FAN_CASE_PAIR_STORAGE[
+                "supported_cover_notch_options"
+            ]
+            for options in assembly_options
+        )
     ):
         raise ValueError("Both bottom fan-cable corner routes must remain distinct and well separated")
+    if not (
+        FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES[0]
+        == FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
+        and FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES[-1]
+        == FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES
+        and FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES == 15.0
+        and FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES == 30.0
+        and FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES <= 1.25
+        and FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES
+        <= FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES
+        and FAN_CASE_STORAGE_REAR_RELIEF_STEP_DEGREES <= 0.05
+        and FAN_CASE_STORAGE_SWEEP_INTERPOLATION_ALLOWANCE >= 0.0
+        and FAN_CASE_PAIR_STORAGE["sweep_interpolation_corner_gap"]
+        <= (
+            FAN_CASE_STORAGE_CLEARANCE
+            + FAN_CASE_STORAGE_SWEEP_INTERPOLATION_ALLOWANCE
+        )
+        and all(
+            len(angles) == len(FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES)
+            for angles in FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES
+        )
+    ):
+        raise ValueError("Fan-case insert must cover both handed 15-to-30-degree yaw ranges")
     if not (
         fan_case.FAN_OPENING_ENABLED
         and math.isclose(fan_case.FAN_HOLE_SPACING_X, 32.0, abs_tol=1e-6)
@@ -4897,22 +5108,26 @@ def validate_configuration() -> None:
         )
     alternate_insert_half_width = cradle_width / 2.0
     alternate_insert_half_depth = cradle_depth / 2.0
-    for index, bounds in enumerate(FAN_CASE_PAIR_STORAGE["cavity_bounds"], start=1):
-        x0, x1, y0, y1 = bounds
-        cover_bottom_z = (
-            FAN_CASE_PAIR_STORAGE["cover_source_bounds"][index - 1][4]
-            + FAN_CASE_PAIR_STORAGE["placements"][index - 1][2]
-        )
+    for index, bounds in enumerate(
+        FAN_CASE_PAIR_STORAGE["installed_supported_reference_bounds"], start=1
+    ):
+        x0, x1, y0, y1 = bounds[:4]
+        cover_bottom_z = min(
+            cover_bounds[4]
+            for cover_bounds in FAN_CASE_PAIR_STORAGE[
+                "supported_cover_source_bounds"
+            ][index - 1]
+        ) + FAN_CASE_PAIR_STORAGE["placements"][index - 1][2]
         if cover_bottom_z < FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_PAIR_INSERT_HEIGHT + 1.0:
             raise ValueError("Angled fan cover does not clear the lower insert deck")
         if (
-            x0 < -alternate_insert_half_width + 4.0
-            or x1 > alternate_insert_half_width - 4.0
-            or y0 < -alternate_insert_half_depth + 4.0
-            or y1 > alternate_insert_half_depth - 4.0
+            x0 - FAN_CASE_STORAGE_CLEARANCE < -alternate_insert_half_width + 4.0
+            or x1 + FAN_CASE_STORAGE_CLEARANCE > alternate_insert_half_width - 4.0
+            or y0 - FAN_CASE_STORAGE_CLEARANCE < -alternate_insert_half_depth + 4.0
+            or y1 + FAN_CASE_STORAGE_CLEARANCE > alternate_insert_half_depth - 4.0
         ):
             raise ValueError(
-                f"Complete fan-case cavity {index} lacks a 4 mm outer TPU wall"
+                f"Swept fan-case cavity {index} lacks a 4 mm outer TPU wall"
             )
     first_cavity, second_cavity = FAN_CASE_PAIR_STORAGE["cavity_bounds"]
     if second_cavity[0] - first_cavity[1] < 2.0:
@@ -4920,11 +5135,16 @@ def validate_configuration() -> None:
     guide_engagement = (
         FAN_CASE_PAIR_INSERT_INSTALLED_Z
         + FAN_CASE_PAIR_GUIDE_HEIGHT
-        - min(bounds[4] for bounds in FAN_CASE_PAIR_STORAGE["installed_reference_bounds"])
+        - min(
+            bounds[4]
+            for bounds in FAN_CASE_PAIR_STORAGE[
+                "installed_supported_reference_bounds"
+            ]
+        )
     )
     assembly_height = (
-        FAN_CASE_PAIR_STORAGE["installed_reference_bounds"][0][5]
-        - FAN_CASE_PAIR_STORAGE["installed_reference_bounds"][0][4]
+        FAN_CASE_PAIR_STORAGE["installed_supported_reference_bounds"][0][5]
+        - FAN_CASE_PAIR_STORAGE["installed_supported_reference_bounds"][0][4]
     )
     if guide_engagement < 50.0 or assembly_height - guide_engagement < 12.0:
         raise ValueError(
@@ -5020,14 +5240,19 @@ def validate_configuration() -> None:
     if not (
         FAN_CASE_BATTERY_DOOR_COUNT == len(FAN_CASE_BATTERY_DOOR_CENTERS) == 2
         and math.isclose(
-            FAN_CASE_BATTERY_DOOR_WALL_HEIGHT,
-            FAN_CASE_BATTERY_TOWER_HEIGHT,
+            FAN_CASE_BATTERY_DOOR_FLOOR_Z + FAN_CASE_BATTERY_DOOR_HEIGHT,
+            FAN_CASE_BATTERY_FLOOR_Z + BATTERY_HEIGHT,
             abs_tol=1e-6,
         )
         and math.isclose(
             FAN_CASE_BATTERY_DOOR_WALL_HEIGHT
             - FAN_CASE_BATTERY_DOOR_FLOOR_Z,
-            11.0,
+            FAN_CASE_BATTERY_DOOR_SEATING_DEPTH,
+            abs_tol=1e-6,
+        )
+        and math.isclose(
+            FAN_CASE_BATTERY_DOOR_HEIGHT,
+            BATTERY_DOOR_SIZE[2],
             abs_tol=1e-6,
         )
         and 0.1
@@ -5037,7 +5262,7 @@ def validate_configuration() -> None:
     ):
         raise ValueError(
             "Alternate loadout needs two lightly retained door pockets "
-            "raised to the battery-pocket rims"
+            "with door tops level with the inserted battery tops"
         )
     door_tower_size = tuple(
         value + 2.0 * FAN_CASE_BATTERY_DOOR_WALL
@@ -7499,7 +7724,11 @@ def create_fan_case_shell_retention_rib(spec, local=False):
     return create_mesh_object("Fan_Case_Broad_Shell_45_Degree_Retention_Rib", vertices, faces)
 
 
-def fan_case_assembly_extraction_profile(objects, clearance=FAN_CASE_STORAGE_CLEARANCE):
+def fan_case_assembly_extraction_profile(
+    objects,
+    clearance=FAN_CASE_STORAGE_CLEARANCE,
+    upward_faces_only=True,
+):
     """Project the evaluated assembly, not an envelope or a convex hull.
 
     Filling internal holes prevents TPU posts inside hollow shells or fan
@@ -7518,8 +7747,20 @@ def fan_case_assembly_extraction_profile(objects, clearance=FAN_CASE_STORAGE_CLE
         try:
             mesh.calc_loop_triangles()
             coordinates = [evaluated.matrix_world @ vertex.co for vertex in mesh.vertices]
+            normal_matrix = evaluated.matrix_world.to_3x3().inverted().transposed()
             triangles = []
             for triangle in mesh.loop_triangles:
+                # The XY projection of a closed solid is exactly covered by
+                # its upward-facing surface: every interior vertical ray exits
+                # through a face with positive world Z normal. Downward faces
+                # duplicate that area, and vertical faces add only zero-area
+                # boundaries. Excluding both avoids overlaying hundreds of
+                # thousands of redundant high-resolution source triangles.
+                if (
+                    upward_faces_only
+                    and (normal_matrix @ triangle.normal).z <= 1e-9
+                ):
+                    continue
                 polygon = Polygon([(coordinates[i].x, coordinates[i].y)
                                    for i in triangle.vertices])
                 if polygon.area > 1e-9:
@@ -7572,11 +7813,13 @@ def extrude_planar_region(name, region, z0, z1):
     return create_mesh_object(name, vertices, faces)
 
 
-def fan_case_rear_slot_relief_region(index):
+def fan_case_rear_slot_relief_region(index, fan_angles=None):
     """Return the one back-edge extension for a handed rectangular fan slot."""
     from shapely.geometry import Polygon
 
-    transform = FAN_CASE_PAIR_STORAGE["fan_transforms"][index - 1]
+    if fan_angles is None:
+        fan_angles = FAN_CASE_STORAGE_FAN_ANGLES[index - 1]
+    transform = fan_case_storage_mount_transform(*fan_angles)
     placement = Vector(FAN_CASE_PAIR_STORAGE["placements"][index - 1])
     cover_x0, cover_x1, cover_y0, _cover_y1, _z0, _z1 = (
         FAN_CASE_PAIR_STORAGE["straight_cover_bounds"]
@@ -7604,9 +7847,37 @@ def fan_case_rear_slot_relief_region(index):
     return Polygon(world_corners)
 
 
+def fan_case_rear_slot_sweep_region(index):
+    """Return the continuous-angle rear-depth band for one handed assembly."""
+    from shapely import union_all
+
+    bands = tuple(
+        fan_case_rear_slot_relief_region(index, fan_angles)
+        for fan_angles in FAN_CASE_STORAGE_REAR_RELIEF_FAN_ANGLES[index - 1]
+    )
+    # A rigid rotation carries every point along a short circular arc. The
+    # convex hull of each neighboring pair contains that sub-sweep except for
+    # its microscopic arc sagitta, covered by the interpolation allowance.
+    return union_all(
+        tuple(
+            union_all((first, second)).convex_hull
+            for first, second in zip(bands, bands[1:])
+        ),
+        grid_size=0.00001,
+    ).buffer(
+        FAN_CASE_STORAGE_REAR_RELIEF_INTERPOLATION_ALLOWANCE,
+        quad_segs=2,
+    )
+
+
 def fan_case_rear_slot_relief_bottom_z(index):
     """Local insert Z where the stored fan-cover inlet actually begins."""
-    cover_bottom_z = FAN_CASE_PAIR_STORAGE["cover_source_bounds"][index - 1][4]
+    cover_bottom_z = min(
+        bounds[4]
+        for bounds in FAN_CASE_PAIR_STORAGE["supported_cover_source_bounds"][
+            index - 1
+        ]
+    )
     placement_z = FAN_CASE_PAIR_STORAGE["placements"][index - 1][2]
     return (
         cover_bottom_z
@@ -7616,20 +7887,112 @@ def fan_case_rear_slot_relief_bottom_z(index):
     )
 
 
-def fan_case_pair_extraction_profiles(reference_objects, return_rear_reliefs=False):
+def fan_case_pair_extraction_profiles(
+    reference_objects,
+    return_rear_reliefs=False,
+    supported_pose_validator=None,
+):
+    """Mold each handed assembly through its complete supported yaw range."""
+    from shapely import union_all
+
     profiles = []
     rear_reliefs = []
     for index in range(1, FAN_CASE_STORAGE_COUNT + 1):
         group = [obj for obj in reference_objects
                  if obj.name.startswith(f"REFERENCE_ONLY_Fan_Case_Assembly_{index}_")]
-        profile = fan_case_assembly_extraction_profile(group)
-        rear_slot_band = fan_case_rear_slot_relief_region(index)
+        if not group:
+            raise ValueError(f"Fan-case reference assembly {index} is empty")
+        sampled_profiles = [fan_case_assembly_extraction_profile(group)]
+        if supported_pose_validator is not None:
+            supported_pose_validator(
+                index,
+                FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[index - 1][0],
+                group,
+            )
+        material = next(
+            (
+                slot.material
+                for obj in group
+                for slot in obj.material_slots
+                if slot.material is not None
+            ),
+            None,
+        )
+        temporary_objects = []
+        try:
+            for sample_angles in FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[index - 1][1:]:
+                sample_objects = create_fan_case_source_reference_mockups(
+                    *([material] * 7),
+                    assembly_index=index,
+                    fan_angles=sample_angles,
+                )
+                temporary_objects.extend(sample_objects)
+                for obj in sample_objects:
+                    obj.location = FAN_CASE_PAIR_STORAGE["placements"][index - 1]
+                sampled_profiles.append(
+                    fan_case_assembly_extraction_profile(sample_objects)
+                )
+                if supported_pose_validator is not None:
+                    supported_pose_validator(index, sample_angles, sample_objects)
+        finally:
+            for obj in temporary_objects:
+                mesh = obj.data
+                bpy.data.objects.remove(obj, do_unlink=True)
+                if mesh.users == 0:
+                    bpy.data.meshes.remove(mesh)
+        # Overlaying thirteen almost-identical high-resolution silhouettes and
+        # buffering their union can create sub-micron boundary segments. Those
+        # are valid in Shapely but poorly conditioned after float32 mesh
+        # extrusion and repeated Blender Booleans. The extra outward allowance
+        # protects the requested interpolation margin while simplification
+        # restores the same 0.005 mm conditioning used by each source profile.
+        profile = union_all(sampled_profiles, grid_size=0.001).buffer(
+            FAN_CASE_STORAGE_SWEEP_INTERPOLATION_ALLOWANCE
+            + FAN_CASE_STORAGE_SWEEP_PROFILE_SIMPLIFY,
+            quad_segs=12,
+        ).simplify(
+            FAN_CASE_STORAGE_SWEEP_PROFILE_SIMPLIFY,
+            preserve_topology=True,
+        )
+        missing_source_area = max(
+            sample.difference(profile).area for sample in sampled_profiles
+        )
+        profile_polygons = (
+            tuple(profile.geoms)
+            if profile.geom_type == "MultiPolygon"
+            else (profile,)
+        )
+        profile_rings = tuple(
+            ring
+            for polygon in profile_polygons
+            for ring in (polygon.exterior, *polygon.interiors)
+        )
+        minimum_profile_edge = min(
+            math.hypot(x1 - x0, y1 - y0)
+            for ring in profile_rings
+            for (x0, y0), (x1, y1) in zip(ring.coords, ring.coords[1:])
+        )
+        if missing_source_area > 1e-7:
+            raise ValueError(
+                "Conditioned fan-case sweep lost source clearance: "
+                f"assembly={index} missing_area={missing_source_area:.9f}"
+            )
+        if minimum_profile_edge <= 2.0 * BOOLEAN_CLEANUP_DISTANCE:
+            raise ValueError(
+                "Conditioned fan-case sweep retains an unstable short edge: "
+                f"assembly={index} edge={minimum_profile_edge:.9f}"
+            )
+        rear_slot_band = fan_case_rear_slot_sweep_region(index)
         added_rear_relief = rear_slot_band.difference(profile)
         profiles.append(profile)
         rear_reliefs.append(added_rear_relief)
         print(f"FIELD_CASE_RUNTIME_CONTOUR assembly={index} objects={len(group)} "
-              f"yaw={FAN_CASE_STORAGE_FAN_ANGLES[index - 1][0]:+.1f} "
+              f"yaw_range={FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[index - 1][0][0]:+.1f}.."
+              f"{FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[index - 1][-1][0]:+.1f} "
+              f"samples={len(sampled_profiles)} "
               f"rear_depth_allowance={FAN_CASE_REAR_DEPTH_ALLOWANCE:.3f} "
+              f"source_missing={missing_source_area:.9f} "
+              f"min_edge={minimum_profile_edge:.6f} "
               f"area={profile.area:.3f} bounds={profile.bounds}", flush=True)
     if return_rear_reliefs:
         return profiles, rear_reliefs
@@ -7658,6 +8021,75 @@ def fan_case_cable_relief_region(well_center, routes):
         x, y0, y1 = fan_case_cable_throat_bounds(well_center, route)
         throats.append(LineString(((x, y0 + radius), (x, y1 - radius))).buffer(radius, quad_segs=12))
     return union_all(throats).convex_hull
+
+
+def fan_case_supported_cover_tray_clearance_region():
+    """Return the local notch that clears every supported cover pose.
+
+    The front tray keeps its established outer envelope. Only two small local
+    passages at its rear rim and floor edge follow the handed cover sweep.
+    """
+    from shapely import union_all
+    from shapely.geometry import Polygon
+
+    cover_x0, cover_x1, cover_y0, cover_y1, cover_z0, cover_z1 = (
+        FAN_CASE_PAIR_STORAGE["straight_cover_bounds"]
+    )
+    swept_rectangles = []
+    clearance = FAN_CASE_PAIR_CARRIER_ASSEMBLY_CLEARANCE
+    for placement, transforms in zip(
+        FAN_CASE_PAIR_STORAGE["placements"],
+        FAN_CASE_PAIR_STORAGE["supported_fan_transforms"],
+    ):
+        offset = Vector(placement)
+        rectangles = []
+        for transform in transforms:
+            points = []
+            for x, y in (
+                (cover_x0, cover_y0),
+                (cover_x1, cover_y0),
+                (cover_x1, cover_y1),
+                (cover_x0, cover_y1),
+            ):
+                point = transform @ Vector((x, y, 0.0)) + offset
+                points.append((point.x, point.y))
+            rectangles.append(Polygon(points))
+        swept_rectangles.extend(
+            union_all((first, second)).convex_hull
+            for first, second in zip(rectangles, rectangles[1:])
+        )
+    # A rotating corner follows a short arc outside the straight chord joining
+    # two neighboring samples. Buffering the pairwise hulls by the requested
+    # running clearance plus a bounded interpolation allowance covers that
+    # sagitta and keeps at least 0.70 mm around off-grid cover poses.
+    region = union_all(swept_rectangles, grid_size=0.001).buffer(
+        clearance + FAN_CASE_PAIR_COVER_TRAY_SWEEP_ALLOWANCE,
+        quad_segs=8,
+        join_style="mitre",
+    ).simplify(
+        0.001,
+        preserve_topology=True,
+    )
+    z0 = min(
+        placement[2] + cover_z0 - clearance
+        for placement in FAN_CASE_PAIR_STORAGE["placements"]
+    )
+    z1 = max(
+        placement[2] + cover_z1 + clearance
+        for placement in FAN_CASE_PAIR_STORAGE["placements"]
+    )
+    return region, z0, z1
+
+
+def fan_case_supported_cover_tray_return_region(clearance_region=None):
+    """Keep a printable inward wall around each rear-rim clearance notch."""
+    if clearance_region is None:
+        clearance_region = fan_case_supported_cover_tray_clearance_region()[0]
+    return clearance_region.buffer(
+        FAN_CASE_PAIR_COVER_TRAY_RETURN_WALL,
+        quad_segs=8,
+        join_style="round",
+    )
 
 
 def create_fan_case_pair_insert(
@@ -7822,7 +8254,13 @@ def create_fan_case_pair_insert(
         cable_mouth = extrude_planar_region(
             f"Fan_Case_{index}_Shared_Bottom_Cable_Mouth",
             fan_case_cable_relief_region((center_x, center_y),
-                FAN_CASE_PAIR_STORAGE["cable_route_options"][index - 1]),
+                tuple(
+                    route
+                    for sample_routes in FAN_CASE_PAIR_STORAGE[
+                        "supported_cable_route_options"
+                    ][index - 1]
+                    for route in sample_routes
+                )),
             FAN_CASE_CABLE_WELL_FLOOR, FAN_CASE_PAIR_GUIDE_HEIGHT + 0.3)
         difference_from(insert, cable_mouth)
 
@@ -8060,8 +8498,13 @@ def create_fan_case_pair_insert(
         # Start at the fan-cover inlet bottom rather than the insert floor;
         # structure below the stored fan is unrelated to this rectangular
         # slot and remains available to tie the surrounding supports together.
-        final_region = rear_relief.buffer(0.01).intersection(
-            fan_case_rear_slot_relief_region(index)
+        supported_rear_slot_region = fan_case_rear_slot_sweep_region(index)
+        from shapely import set_precision
+
+        final_region = set_precision(
+            rear_relief.buffer(0.01).intersection(supported_rear_slot_region),
+            grid_size=0.001,
+            mode="valid_output",
         )
         final_rear_relief = extrude_planar_region(
             f"Fan_Case_{index}_Final_Rear_Fan_Depth_Relief",
@@ -8100,7 +8543,35 @@ def create_fan_case_pair_standalone_tray(material, key, name):
             z0 - .3, z1 + .4,
             CASE_CORNER_RADIUS - WALL_THICKNESS - EQUIPMENT_TRAY_SIDE_CLEARANCE - wall)
         boolean_apply(cavity, cavity_limit, "INTERSECT")
+    cover_clearance_data = None
+    if key == "bin_bounds":
+        cover_clearance_data = fan_case_supported_cover_tray_clearance_region()
+        clearance_region = cover_clearance_data[0]
+        # The cover must pass through the established rear rim and, locally,
+        # through its floor edge. Exclude a 2 mm collar from the storage-air
+        # cutter before opening that passage. The result is an upward-open,
+        # support-free return wall that keeps the usable bay enclosed without
+        # changing the tray's outer envelope.
+        return_keepout = extrude_planar_region(
+            name + "_Supported_Fan_Cover_Return_Keepout",
+            fan_case_supported_cover_tray_return_region(clearance_region),
+            z0 + FAN_CASE_PAIR_STORAGE_BIN_FLOOR - 0.2,
+            z1 + 0.4,
+        )
+        difference_from(cavity, return_keepout)
     difference_from(tray, cavity)
+    if key == "bin_bounds":
+        # The 30-degree cover corners reach slightly into the established rear
+        # wall of this tray. Remove only their swept local clearance volume;
+        # the tray retains its width, depth, height, and enclosed storage bay.
+        clearance_region, clearance_z0, _clearance_z1 = cover_clearance_data
+        cover_clearance = extrude_planar_region(
+            name + "_Supported_Fan_Cover_Clearance",
+            clearance_region,
+            clearance_z0,
+            z1 + 0.3,
+        )
+        difference_from(tray, cover_clearance)
     # Low finger scallops at the facing rim let either tray lift independently.
     # They open upward, so neither needs a horizontal printed bridge.
     facing_y = y0 if key == "carrier_bounds" else y1
@@ -14169,7 +14640,7 @@ def validate_built_fan_cradle(cradle) -> None:
     )
 
 
-def create_fan_case_storage_cover(assembly_index, corner):
+def create_fan_case_storage_cover(assembly_index, corner, fan_angles=None):
     """Build the live sleeve with its wire notch at either installed bottom corner.
 
     Print-coordinate TOP faces down in this installed pose. Only notch side
@@ -14187,8 +14658,10 @@ def create_fan_case_storage_cover(assembly_index, corner):
     finally:
         for name, value in previous.items():
             setattr(wrapping_fan_cover, name, value)
+    if fan_angles is None:
+        fan_angles = FAN_CASE_STORAGE_FAN_ANGLES[assembly_index - 1]
     cover.matrix_world = (
-        FAN_CASE_PAIR_STORAGE["fan_transforms"][assembly_index - 1]
+        fan_case_storage_mount_transform(*fan_angles)
         @ Matrix.Translation((
             fan_case.FAN_CENTER_X,
             FAN_CASE_PAIR_STORAGE["straight_cover_bounds"][2],
@@ -14197,6 +14670,25 @@ def create_fan_case_storage_cover(assembly_index, corner):
         @ Matrix.Rotation(-math.pi / 2.0, 4, "X")
     )
     return cover
+
+
+def create_fan_case_storage_fan(assembly_index, fan_angles=None):
+    """Build the direct 40 mm fan at one supported source pad transform."""
+    if fan_angles is None:
+        fan_angles = FAN_CASE_STORAGE_FAN_ANGLES[assembly_index - 1]
+    cover_values = FAN_CASE_PAIR_STORAGE["cover_values"]
+    fan = add_rounded_box(
+        "Fan_Case_Direct_40mm_Rear_Fan",
+        (cover_values[1], cover_values[3], cover_values[2]),
+        (
+            fan_case.FAN_CENTER_X,
+            fan_case.back_exterior_y() - cover_values[3] / 2.0,
+            fan_case.FAN_CENTER_Z,
+        ),
+        bevel=2.0,
+    )
+    fan.matrix_world = fan_case_storage_mount_transform(*fan_angles) @ fan.matrix_world
+    return fan
 
 
 def create_fan_case_source_reference_mockups(
@@ -14208,8 +14700,11 @@ def create_fan_case_source_reference_mockups(
     cable_material,
     hardware_material,
     assembly_index,
+    fan_angles=None,
 ):
     """Build one complete source assembly with its own outward fan angle."""
+    if fan_angles is None:
+        fan_angles = FAN_CASE_STORAGE_FAN_ANGLES[assembly_index - 1]
     previous_fan_case = {
         name: getattr(fan_case, name)
         for name in (
@@ -14237,7 +14732,7 @@ def create_fan_case_source_reference_mockups(
             (
                 fan_case.FAN_ANGLE_HORIZONTAL_DEG,
                 fan_case.FAN_ANGLE_VERTICAL_DEG,
-            ) = FAN_CASE_STORAGE_FAN_ANGLES[assembly_index - 1]
+            ) = fan_angles
         fan_case.SHOW_BACK_SHELL = True
         fan_case.SHOW_HOLLOW_INSERT = True
         fan_case.SHOW_BUTTONS = True
@@ -14266,26 +14761,14 @@ def create_fan_case_source_reference_mockups(
     camera.location.y = fan_case.camera_stop_end_y()
     assign_material(camera, camera_material)
 
-    cover_values = FAN_CASE_PAIR_STORAGE["cover_values"]
-    cover_fan_width = cover_values[1]
-    cover_fan_height = cover_values[2]
-    cover_fan_depth = cover_values[3]
-    fan = add_rounded_box(
-        "Fan_Case_Direct_40mm_Rear_Fan",
-        (cover_fan_width, cover_fan_depth, cover_fan_height),
-        (
-            fan_case.FAN_CENTER_X,
-            fan_case.back_exterior_y() - cover_fan_depth / 2.0,
-            fan_case.FAN_CENTER_Z,
-        ),
-        bevel=2.0,
-    )
+    fan = create_fan_case_storage_fan(assembly_index, fan_angles=fan_angles)
     assign_material(fan, fan_material)
-    mount_transform = FAN_CASE_PAIR_STORAGE["fan_transforms"][assembly_index - 1]
-    fan.matrix_world = mount_transform @ fan.matrix_world
 
     cover = create_fan_case_storage_cover(
-        assembly_index, FAN_CASE_CABLE_PREVIEW_CORNERS[assembly_index - 1])
+        assembly_index,
+        FAN_CASE_CABLE_PREVIEW_CORNERS[assembly_index - 1],
+        fan_angles=fan_angles,
+    )
     assign_material(cover, cover_material)
 
     front_hardware = FAN_CASE_PAIR_STORAGE["front_hardware"]
@@ -14909,8 +15392,11 @@ def validate_fan_case_contoured_cradle(
                 openings.append(box(center[0] - size[0] / 2.0, center[1] - size[1] / 2.0,
                                     center[0] + size[0] / 2.0, center[1] + size[1] / 2.0))
             for well_center, routes in zip(FAN_CASE_CABLE_WELL_CENTERS,
-                                           FAN_CASE_PAIR_STORAGE["cable_route_options"]):
-                openings.append(fan_case_cable_relief_region(well_center, routes))
+                    FAN_CASE_PAIR_STORAGE["supported_cable_route_options"]):
+                openings.append(fan_case_cable_relief_region(
+                    well_center,
+                    tuple(route for sample_routes in routes for route in sample_routes),
+                ))
             wedge_area = wedge_area.difference(union_all(openings))
             for side_x0, side_x1 in ((xmin, center_x), (center_x, xmax)):
                 region = wedge_area.intersection(box(side_x0, ymin, side_x1, ymax)).buffer(-3.0)
@@ -14941,6 +15427,156 @@ def validate_fan_case_contoured_cradle(
     return max(lift_overlaps), min(infill_volumes)
 
 
+def static_objects_overlap(first, second, tolerance=1e-5):
+    """Return exact overlap after a cheap world-bounds rejection."""
+    first_minimum, first_maximum = object_world_bounds(first)
+    second_minimum, second_maximum = object_world_bounds(second)
+    if any(
+        first_maximum[axis] < second_minimum[axis] - tolerance
+        or second_maximum[axis] < first_minimum[axis] - tolerance
+        for axis in range(3)
+    ):
+        return 0.0
+    return exact_transformed_intersection(
+        first,
+        second,
+        first_location=first.location.copy(),
+        first_rotation=first.rotation_euler.copy(),
+        second_location=second.location.copy(),
+        second_rotation=second.rotation_euler.copy(),
+    )[1]
+
+
+def validate_supported_fan_case_source_pose(
+    parts,
+    reference_objects,
+    assembly_index,
+    fan_angles,
+    assembly_group,
+):
+    """Check one live source pose against the fixed loadout and both leads."""
+    static_obstacles = [
+        parts[key]
+        for key in (
+            "base",
+            "fan_case_pair_carrier",
+            "fan_case_pair_storage_bin",
+            "accessory_organizer",
+        )
+        if key in parts
+    ]
+    bounds = [object_world_bounds(obj) for obj in assembly_group]
+    actual_bounds = tuple(
+        value
+        for axis in range(3)
+        for value in (
+            min(item[0][axis] for item in bounds),
+            max(item[1][axis] for item in bounds),
+        )
+    )
+    configured_bounds = FAN_CASE_PAIR_STORAGE[
+        "installed_supported_reference_bounds"
+    ][assembly_index - 1]
+    if any(
+        actual < configured - 0.06
+        if axis % 2 == 0
+        else actual > configured + 0.06
+        for axis, (actual, configured) in enumerate(
+            zip(actual_bounds, configured_bounds)
+        )
+    ):
+        raise ValueError(
+            "Supported live source exceeds its configured case envelope: "
+            f"assembly={assembly_index} yaw={fan_angles[0]:+.2f} "
+            f"actual={actual_bounds} configured={configured_bounds}"
+        )
+    other_assembly_objects = [
+        obj
+        for obj in reference_objects
+        if obj.name.startswith("REFERENCE_ONLY_Fan_Case_Assembly_")
+        and not obj.name.startswith(
+            f"REFERENCE_ONLY_Fan_Case_Assembly_{assembly_index}_"
+        )
+    ]
+    accessories = [
+        obj
+        for obj in reference_objects
+        if any(
+            obj.name.startswith(prefix)
+            for prefix in (
+                "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
+                "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
+                "REFERENCE_ONLY_Fan_Case_Battery_Door_",
+            )
+        )
+    ]
+    maximum_overlap = 0.0
+    for obj in assembly_group:
+        for obstacle in (*static_obstacles, *other_assembly_objects):
+            volume = static_objects_overlap(obj, obstacle)
+            maximum_overlap = max(maximum_overlap, volume)
+            if volume > 1e-5:
+                raise ValueError(
+                    "Supported fan-case source pose is obstructed: "
+                    f"assembly={assembly_index} yaw={fan_angles[0]:+.2f} "
+                    f"object={obj.name} obstacle={obstacle.name} "
+                    f"overlap={volume:.6f}"
+                )
+
+    angle_index = FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES[
+        assembly_index - 1
+    ].index(fan_angles)
+    routes = FAN_CASE_PAIR_STORAGE["supported_cable_route_options"][
+        assembly_index - 1
+    ][angle_index]
+    for corner, route in zip((-1, 1), routes):
+        temporary = []
+        try:
+            cover = create_fan_case_storage_cover(
+                assembly_index,
+                corner,
+                fan_angles=fan_angles,
+            )
+            temporary.append(cover)
+            cover.matrix_world = Matrix.Translation(
+                FAN_CASE_PAIR_STORAGE["placements"][assembly_index - 1]
+            ) @ cover.matrix_world
+            lead = add_round_polyline(
+                "TEMPORARY_Supported_Pose_Bottom_Cable",
+                route,
+                FAN_CASE_CABLE_DIAMETER,
+            )
+            temporary.append(lead)
+            bpy.context.view_layer.update()
+            obstacles = [
+                *(obj for obj in assembly_group if "Wrapping_Fan_Cover" not in obj.name),
+                cover,
+                *static_obstacles,
+                *other_assembly_objects,
+                *accessories,
+            ]
+            for obstacle in obstacles:
+                volume = static_objects_overlap(lead, obstacle)
+                maximum_overlap = max(maximum_overlap, volume)
+                if volume > 1e-5:
+                    raise ValueError(
+                        "Supported fan-case cable route is obstructed: "
+                        f"assembly={assembly_index} yaw={fan_angles[0]:+.2f} "
+                        f"corner={corner:+d} object={obstacle.name} "
+                        f"overlap={volume:.6f}"
+                    )
+        finally:
+            for obj in temporary:
+                bpy.data.objects.remove(obj, do_unlink=True)
+    print(
+        "FIELD_CASE_SUPPORTED_FAN_POSE_VALID "
+        f"assembly={assembly_index} yaw={fan_angles[0]:+.2f} "
+        f"cable_exits=2 overlap_max={maximum_overlap:.6f}",
+        flush=True,
+    )
+    return maximum_overlap
+
+
 def validate_fan_case_bottom_cable_routes(parts, reference_objects, assembly_groups):
     """Prove both bottom exits on BOTH handed assemblies, not only the preview.
 
@@ -14952,43 +15588,108 @@ def validate_fan_case_bottom_cable_routes(parts, reference_objects, assembly_gro
     accessories = [obj for obj in reference_objects if any(obj.name.startswith(prefix) for prefix in (
         "REFERENCE_ONLY_Fan_Case_PWM_Plug_", "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
         "REFERENCE_ONLY_Fan_Case_Battery_Door_"))]
-    for index, options in enumerate(FAN_CASE_PAIR_STORAGE["cable_route_options"], 1):
-        for corner, route in zip((-1, 1), options):
-            temporary = []
-            try:
-                cover = create_fan_case_storage_cover(index, corner)
-                temporary.append(cover)
-                cover.matrix_world = Matrix.Translation(
-                    FAN_CASE_PAIR_STORAGE["placements"][index - 1]) @ cover.matrix_world
-                lead = add_round_polyline("TEMPORARY_Bottom_Corner_Cable", route, FAN_CASE_CABLE_DIAMETER)
-                temporary.append(lead)
-                bpy.context.view_layer.update()
-                obstacles = [*accessories, cover, *(parts[key] for key in (
-                    "base", "fan_case_pair_insert", "fan_case_pair_carrier",
-                    "fan_case_pair_storage_bin"))]
-                obstacles.extend(obj for group_index, group in enumerate(assembly_groups, 1)
-                                 for obj in group if group_index != index or "Wrapping_Fan_Cover" not in obj.name)
-                for obstacle in obstacles:
+    checked_routes = 0
+    for index, angle_routes in enumerate(
+        FAN_CASE_PAIR_STORAGE["supported_cable_route_options"], 1
+    ):
+        for fan_angles, options in zip(
+            FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES[index - 1], angle_routes
+        ):
+            for corner, route in zip((-1, 1), options):
+                temporary = []
+                try:
+                    cover = create_fan_case_storage_cover(
+                        index,
+                        corner,
+                        fan_angles=fan_angles,
+                    )
+                    temporary.append(cover)
+                    fan = create_fan_case_storage_fan(index, fan_angles=fan_angles)
+                    temporary.append(fan)
+                    placement = Matrix.Translation(
+                        FAN_CASE_PAIR_STORAGE["placements"][index - 1]
+                    )
+                    cover.matrix_world = placement @ cover.matrix_world
+                    fan.matrix_world = placement @ fan.matrix_world
+                    lead = add_round_polyline(
+                        "TEMPORARY_Bottom_Corner_Cable",
+                        route,
+                        FAN_CASE_CABLE_DIAMETER,
+                    )
+                    temporary.append(lead)
+                    bpy.context.view_layer.update()
+                    obstacles = [
+                        *accessories,
+                        cover,
+                        fan,
+                        *(parts[key] for key in (
+                            "base",
+                            "fan_case_pair_insert",
+                            "fan_case_pair_carrier",
+                            "fan_case_pair_storage_bin",
+                        )),
+                        *(
+                            (parts["accessory_organizer"],)
+                            if "accessory_organizer" in parts
+                            else ()
+                        ),
+                    ]
+                    obstacles.extend(
+                        obj
+                        for group_index, group in enumerate(assembly_groups, 1)
+                        if group_index != index
+                        for obj in group
+                    )
+                    for obstacle in obstacles:
+                        volume = static_objects_overlap(lead, obstacle)
+                        if volume > 1e-5:
+                            raise ValueError(
+                                "Bottom-corner cable route is obstructed: "
+                                f"assembly={index} yaw={fan_angles[0]:+.2f} "
+                                f"corner={corner:+d} object={obstacle.name} "
+                                f"overlap={volume:.6f}"
+                            )
+                        overlaps.append(volume)
                     _faces, volume = exact_transformed_intersection(
-                        lead, obstacle,
+                        lead, parts["fan_case_pair_lid_pad"],
                         first_location=lead.location.copy(), first_rotation=lead.rotation_euler.copy(),
-                        second_location=obstacle.location.copy(), second_rotation=obstacle.rotation_euler.copy())
+                        second_location=installed_flat_lid_pad_pose(0)[0],
+                        second_rotation=installed_flat_lid_pad_pose(0)[1])
                     if volume > 1e-5:
-                        raise ValueError(f"Bottom-corner cable route is obstructed: assembly={index} "
-                                         f"corner={corner:+d} object={obstacle.name} overlap={volume:.6f}")
+                        raise ValueError(
+                            "Bottom-corner cable meets closed lid pad: "
+                            f"{index}/{fan_angles[0]:+.2f}/{corner} volume={volume}"
+                        )
                     overlaps.append(volume)
-                _faces, volume = exact_transformed_intersection(
-                    lead, parts["fan_case_pair_lid_pad"],
-                    first_location=lead.location.copy(), first_rotation=lead.rotation_euler.copy(),
-                    second_location=installed_flat_lid_pad_pose(0)[0],
-                    second_rotation=installed_flat_lid_pad_pose(0)[1])
-                if volume > 1e-5:
-                    raise ValueError(f"Bottom-corner cable meets closed lid pad: {index}/{corner} volume={volume}")
-                overlaps.append(volume)
-            finally:
-                for obj in temporary:
-                    bpy.data.objects.remove(obj, do_unlink=True)
-    print(f"FIELD_CASE_BOTTOM_CABLE_ROUTES_VALID routes=4 overlap_max={max(overlaps):.6f}", flush=True)
+                    tray_obstacles = (
+                        parts["fan_case_pair_carrier"],
+                        parts["fan_case_pair_storage_bin"],
+                        *(
+                            (parts["accessory_organizer"],)
+                            if "accessory_organizer" in parts
+                            else ()
+                        ),
+                    )
+                    for moving in (cover, fan):
+                        for obstacle in tray_obstacles:
+                            moving_overlap = static_objects_overlap(moving, obstacle)
+                            if moving_overlap > 1e-5:
+                                raise ValueError(
+                                    "Supported fan or cover meets an upper tray: "
+                                    f"assembly={index} yaw={fan_angles[0]:+.2f} "
+                                    f"moving={moving.name} object={obstacle.name} "
+                                    f"overlap={moving_overlap:.6f}"
+                                )
+                            overlaps.append(moving_overlap)
+                    checked_routes += 1
+                finally:
+                    for obj in temporary:
+                        bpy.data.objects.remove(obj, do_unlink=True)
+    print(
+        "FIELD_CASE_BOTTOM_CABLE_ROUTES_VALID "
+        f"routes={checked_routes} overlap_max={max(overlaps):.6f}",
+        flush=True,
+    )
     return max(overlaps)
 
 
@@ -15481,6 +16182,64 @@ def validate_fan_case_pair_loadout(
                 CASE_WIDTH - 2 * inset, CASE_DEPTH - 2 * inset,
                 z0 + floor, z1 + .3, CASE_CORNER_RADIUS - inset)
             boolean_apply(air, curved_air, "INTERSECT")
+        return_wall_fill = 0.0
+        return_wall_displacement_cm3 = 0.0
+        if part_key == "fan_case_pair_storage_bin":
+            from shapely.geometry import box
+
+            clearance_region = fan_case_supported_cover_tray_clearance_region()[0]
+            return_region = fan_case_supported_cover_tray_return_region(
+                clearance_region
+            )
+            # The old rectangular-air probe predates the two intentional
+            # inward returns. Keep 0.2 mm off those walls here, then prove the
+            # walls positively with a separate finished-mesh fill probe.
+            return_air_exclusion = extrude_planar_region(
+                "TEMPORARY_Tray_Return_Wall_Air_Exclusion",
+                return_region.buffer(0.2, quad_segs=8),
+                z0 + floor,
+                z1 + 0.4,
+            )
+            difference_from(air, return_air_exclusion)
+            nominal_interior = box(
+                x0 + wall,
+                y0 + wall,
+                x1 - wall,
+                y1 - wall,
+            )
+            return_footprint = (
+                return_region.difference(clearance_region)
+                .intersection(nominal_interior)
+            )
+            return_wall_displacement_cm3 = (
+                return_footprint.area * inner[2] / 1000.0
+            )
+            return_probe_region = (
+                clearance_region.buffer(
+                    FAN_CASE_PAIR_COVER_TRAY_RETURN_WALL - 0.1
+                )
+                .difference(clearance_region.buffer(0.1))
+                .intersection(nominal_interior)
+            )
+            return_probe = extrude_planar_region(
+                "TEMPORARY_Tray_Return_Wall_Fill",
+                return_probe_region,
+                z0 + floor + 0.2,
+                z0 + floor + 1.2,
+            )
+            try:
+                return_wall_fill = probe_fill_volume(
+                    parts[part_key],
+                    return_probe,
+                )
+            finally:
+                bpy.data.objects.remove(return_probe, do_unlink=True)
+            if return_wall_fill < return_probe_region.area * 0.98:
+                raise ValueError(
+                    "Front tray does not retain its cover-notch return walls: "
+                    f"filled={return_wall_fill:.6f} "
+                    f"expected={return_probe_region.area:.6f}"
+                )
         try:
             air_overlap = probe_fill_volume(parts[part_key], air)
         finally:
@@ -15522,8 +16281,15 @@ def validate_fan_case_pair_loadout(
             raise ValueError(f"Tray has feet below its flat floor or blocked storage: {part_key} "
                              f"floor_offset={minimum.z - z0:.6f} air_overlap={air_overlap:.6f}")
         tray_metrics[part_key] = {
-            "inner": inner, "capacity_cm3": math.prod(inner) / 1000.0,
-            "air": air_overlap, "solid_min": min(solid_fills), "level_min": min(level_fills),
+            "inner": inner,
+            "capacity_cm3": (
+                math.prod(inner) / 1000.0 - return_wall_displacement_cm3
+            ),
+            "return_wall_displacement_cm3": return_wall_displacement_cm3,
+            "return_wall_fill": return_wall_fill,
+            "air": air_overlap,
+            "solid_min": min(solid_fills),
+            "level_min": min(level_fills),
         }
 
     overhead_unwanted_overlap = 0.0
@@ -15720,6 +16486,10 @@ def validate_fan_case_pair_loadout(
         f"{actual_bounds[0][5] - actual_bounds[0][4]:.2f} "
         "cameras=installed direct_fans=2x40x40x20 wrapping_covers=2 "
         f"fan_yaws={','.join(f'{angles[0]:+.1f}' for angles in FAN_CASE_STORAGE_FAN_ANGLES)} "
+        f"fan_yaw_ranges={FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[0][0][0]:+.1f}.."
+        f"{FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[0][-1][0]:+.1f},"
+        f"{FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[1][0][0]:+.1f}.."
+        f"{FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[1][-1][0]:+.1f} "
         f"rear_fan_depth_allowance={FAN_CASE_REAR_DEPTH_ALLOWANCE:.2f}mm "
         f"fan_mount_error_max={max(mount_alignment_errors):.6f} "
         f"case_bolts={FAN_CASE_STORAGE_COUNT * len(fan_case.CASE_FASTENER_POSITIONS_XZ)}x"
@@ -18380,7 +19150,7 @@ def validate_built_part(name: str, obj) -> None:
 
 
 def validate_preserved_case_and_tray_envelopes(parts) -> None:
-    """Lock the already-printed case and insert/tray outer dimensions."""
+    """Lock the case envelope and each intended generated part size."""
     expanded = {
         "base": (246.0, 209.8, 165.0),
         "lid": (244.0, 207.8, 39.8),
@@ -19513,6 +20283,15 @@ def build_mission1_field_case():
     fan_case_extraction_geometry = fan_case_pair_extraction_profiles(
         fan_case_references,
         return_rear_reliefs=True,
+        supported_pose_validator=lambda index, angles, group: (
+            validate_supported_fan_case_source_pose(
+                parts,
+                fan_case_references,
+                index,
+                angles,
+                group,
+            )
+        ),
     )
     parts["fan_case_pair_insert"] = create_fan_case_pair_insert(
         tpu_material,
