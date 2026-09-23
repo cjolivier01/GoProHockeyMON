@@ -64,12 +64,14 @@ TPU-compatible adhesive. The asymmetrical key determines its orientation.
 
 ![Form-fitting raised roof pad and matching lid interior](renderings/mission1_hardcase_lid_and_spacer.png)
 
-**This update preserves the current rounded case and every insert/tray outer
-envelope.** The lower insert, mount tray, front bin, organizer, form-fitting
-roof pad, handle, gasket, inlay, and hinge hardware remain usable. Upgrading
+**The rounded-case, latch, and fan-angle updates preserve the case and tray
+outer envelopes.** The fan-angle update described below changes the lower
+insert and adds local upward-open clearance passages with inward return walls
+at the front bin's rear rim; the mount
+tray, organizer, form-fitting roof pad, handle, gasket, inlay, and hinge hardware remain usable. Upgrading
 from the previous 40.96 mm / M3 × 50 latch station requires the matching base,
 chosen lid, levers, and hooks described in [Wider latches and handle](#wider-latches-and-handle).
-No packing component or case envelope changes.
+No other packing component or case envelope changes.
 
 Every part fits within 250 × 250 mm and below 250 mm tall. The project turns the
 base and compound lids 90° in plan to clear the printer's excluded corner.
@@ -106,8 +108,14 @@ regenerated coupon when qualifying this lid revision.
 
 ![TPU lid latch-station coupon outer-protector shoulder connection](renderings/mission1_tpu_lid_latch_coupon_outer_profile.png)
 
-The existing raised battery-door pockets, deeper rear fan-inlet reliefs, cable
-corridors and load-bearing insert webs remain in use inside the reshaped liner.
+The lower insert uses the battery-door pockets raised level with the inserted
+battery tops, swept ±15-to-±30-degree fan clearances, deeper rear fan-inlet
+reliefs, cable corridors and load-bearing webs inside the reshaped liner. The
+front utility bin keeps its existing outer dimensions and receives two local
+upward-open rear-rim passages that preserve at least 0.7 mm clearance through
+the complete angle range. A 2 mm inward return wall around each passage keeps
+the storage bay enclosed; reprint that bin with the lower insert when using the
+full fan-angle range.
 
 ## What fits
 
@@ -237,7 +245,8 @@ Pack from the bottom upward:
 1. Seat the lower TPU insert and the existing complete camera/fan assemblies,
    small cables, batteries, doors, and PWM plugs.
 2. Fit the lower front utility bin. It retains approximately **217 × 37.5 ×
-   24.7 mm** of usable storage beneath the mount tray.
+   24.7 mm** of nominal usable storage beneath the mount tray. Its two local
+   return walls displace approximately 0.5 mL from that rectangular envelope.
 3. Fit the TPU 95A mount tray and lay the assembled mount flat inside it. The
    tray rests on the rear cradle ledges and the front utility bin's side walls.
 4. Fit the one-piece TPU 95A upper organizer. Put the rolled cord in the large

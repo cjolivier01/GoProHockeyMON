@@ -98,21 +98,21 @@ def main():
     show(snapshots[0], -125, section=True)
     show(snapshots[1], 125, section=True)
     render('mission1_raised_battery_door_pockets.png', (0, -480, 360), (0, -50, 30), 520,
-        [('BATTERY DOORS RAISED 10.8 mm', -241, 128, 8.5),
+        [('BATTERY DOORS RAISED 11.76 mm', -241, 128, 8.5),
          ('Front section of the TPU insert / trays removed', -241, 112, 5.8),
-         ('BEFORE', -231, 72, 7), ('AFTER / rims match battery slots', 19, 72, 7),
-         ('Door floor: 3.0 mm', -231, -68, 6), ('Door floor: 13.8 mm', 19, -68, 6),
-         ('Pocket rim: 14.0 mm', -231, -81, 6), ('Pocket rim: 24.8 mm', 19, -81, 6),
-         ('Door top: 21.0 mm', -231, -94, 6), ('Door top: 31.8 mm', 19, -94, 6),
+         ('BEFORE', -231, 72, 7), ('AFTER / door tops match batteries', 19, 72, 7),
+         ('Door floor: 13.8 mm', -231, -68, 6), ('Door floor: 25.56 mm', 19, -68, 6),
+         ('Pocket rim: 24.8 mm', -231, -81, 6), ('Pocket rim: 36.56 mm', 19, -81, 6),
+         ('Door top: 31.8 mm', -231, -94, 6), ('Door + battery tops: 43.56 mm', 19, -94, 6),
          ('11 mm seating depth and 7 mm exposed grip retained', -241, -122, 6)])
     for obj in visible:
         bpy.data.objects.remove(obj, do_unlink=True)
     visible.clear()
     show(snapshots[1])
     render('mission1_field_case_fan_case_insert_detail.png', (0, -310, 310), (0, 0, 36), 410,
-        [('RAISED BATTERY-DOOR POCKETS', -190, 108, 6.5),
+        [('LEVEL BATTERY + DOOR TOPS / 43.56 mm', -190, 108, 6.5),
          ('Orange: battery doors / blue: batteries', -190, 94, 4.8),
-         ('Only the lower TPU insert changes', -190, -102, 5.0)])
+         ('Lower insert also accepts handed 15-30 degree fans', -190, -102, 5.0)])
     print('BATTERY_DOOR_ACCESS_PREVIEWS_PASS', flush=True)
 
 
