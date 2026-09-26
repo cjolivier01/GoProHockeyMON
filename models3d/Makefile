@@ -232,6 +232,8 @@ ifeq ($(HOCKEYMOM_REAR_BATTERY_SLOT_ENABLED),True)
 HOCKEYMOM_CAM_CASE_ACTIVE_BATTERY_STLS += $(HOCKEYMOM_CAM_CASE_BATTERY_BRACKET_STL)
 endif
 HOCKEYMOM_CAM_CASE_3MF := $(HOCKEYMON_CAMERA_CASE_DIR)/hockeymom_cam_case.3mf
+HOCKEYMOM_CAM_CASE_PLATE_RENDER := $(HOCKEYMON_CAMERA_CASE_DIR)/docs/images/flat_battery_print_plates.png
+HOCKEYMOM_CAM_CASE_PLATE_RENDER_SOURCE := $(HOCKEYMON_CAMERA_CASE_DIR)/render_3mf_plate_overview.py
 HOCKEYMOM_CAM_CASE_STLS := $(HOCKEYMOM_CAM_CASE_CORE_STLS) \
 	$(HOCKEYMOM_CAM_CASE_ACTIVE_FAN_STLS) $(HOCKEYMOM_CAM_CASE_ACTIVE_BATTERY_STLS)
 
@@ -302,7 +304,7 @@ STL_FILES := \
 	fan-case-dim-pdf check-fan-case-dim-pdf-sync \
 	mission1-field-case-dim-pdf check-mission1-field-case-dim-pdf-sync \
 	flat-fan-cover wrapping-fan-cover horn horn-renderings mission1-dummy mission1-field-case mission1-field-case-plate-overview dual-fan fan-silencer \
-	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymon-camera-case hockeymom-cam-case \
+	fan-silencer-cross-section fan-silencer-mounted-view fan-case hockeymon-camera-case hockeymon-camera-case-plate-overview hockeymom-cam-case \
 	hockeymom-keystone-test-coupon check-hockeymon-battery-slot check-hockeymon-fan-cover check-hockeymon-eye-closures check-mission1-field-case-scene check-print-3mf \
 	clean clean-flat-fan-cover clean-wrapping-fan-cover clean-horn \
 	clean-mission1-dummy clean-mission1-field-case clean-dual-fan clean-fan-silencer clean-fan-case clean-hockeymom-cam-case \
@@ -541,7 +543,15 @@ $(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF) &: $(HOCKEYMON_CAMERA_CASE_
 	$(PDF_PYTHON) -c "from pathlib import Path; paths=[Path(name) for name in '$(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF)'.split()]; missing=[str(path) for path in paths if not path.is_file() or path.stat().st_size == 0]; assert not missing, f'Missing Blender outputs: {missing}'"
 
 hockeymon-camera-case: $(HOCKEYMOM_CAM_CASE_STLS) $(HOCKEYMOM_CAM_CASE_3MF)
+hockeymon-camera-case-plate-overview: $(HOCKEYMOM_CAM_CASE_PLATE_RENDER)
 hockeymom-cam-case: hockeymon-camera-case
+
+$(HOCKEYMOM_CAM_CASE_PLATE_RENDER): $(HOCKEYMOM_CAM_CASE_3MF) \
+	$(HOCKEYMOM_CAM_CASE_PLATE_RENDER_SOURCE) $(MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 \
+		--python $(HOCKEYMOM_CAM_CASE_PLATE_RENDER_SOURCE) -- \
+		--input "$(abspath $(HOCKEYMOM_CAM_CASE_3MF))" --output "$(abspath $@)"
+	$(PDF_PYTHON) -c "from pathlib import Path; path=Path('$@'); assert path.is_file() and path.stat().st_size > 0, f'Missing plate-overview render: {path}'"
 
 check-hockeymon-eye-closures:
 	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 \

@@ -1,4 +1,4 @@
-"""Check an INTERNAL upright battery and two-screw bar, closed-case containment and cooling clearance.
+"""Check a flat internal battery and two-screw bar, closed-case containment and cooling clearance.
 
 Run with Blender --background --factory-startup --python-exit-code 1 --python.
 The normal camera-case build also checks the complete assembled hardware.
@@ -38,7 +38,7 @@ def check_configuration():
     for name,value,message in (
         ("REAR_BATTERY_FIT_CLEARANCE",-0.1,"finite and positive"),
         ("REAR_BATTERY_USB_CLEARANCE",float("nan"),"finite and positive"),
-        ("REAR_BATTERY_WIDTH",95.0,"closed lid"),
+        ("REAR_BATTERY_THICKNESS",95.0,"closed lid"),
         ("REAR_BATTERY_FLOOR_THICKNESS",2.0,"case floor"),
         ("REAR_BATTERY_BRACKET_SCREW_LENGTH",8.0,"full insert engagement"),
         ("REAR_BATTERY_BRACKET_RECEIVER_DEPTH",5.0,"blind-hole tip clearance"),
@@ -102,17 +102,20 @@ def check_mesh(mode, material="RIGID"):
     validate = lambda obstacles=(): model["validate_rear_battery_slot"](base,lid,layout,footprint,obstacles,bracket=bracket)
     validate()
     bx,by,bz = layout["pack_bounds"]
-    assert tuple(round(high-low,3) for low,high in (bx,by,bz)) == (26.3,138.0,70.0)
+    assert tuple(round(high-low,3) for low,high in (bx,by,bz)) == (70.0,138.0,26.3)
     assert abs(layout["usb_bounds"][1][1]-layout["usb_bounds"][1][0]-40) < 1e-8
     assert sum(by) == 0.0 and layout["center_y"] == 0.0
-    assert bx[0] == layout["protected_x"] + 8.0 + 10.0 + 0.6
-    assert bz == (5.7,75.7)
+    expected_front = max(model["REAR_BATTERY_MIN_FRONT_X"],
+        layout["fan_rear_x"] - 70.0*model["REAR_BATTERY_FAN_OVERLAP_FRACTION"]
+        + 2*model["REAR_BATTERY_FIT_CLEARANCE"])
+    assert abs(bx[0] - expected_front - model["REAR_BATTERY_FIT_CLEARANCE"]) < 1e-8
+    assert bz == (5.7,32.0)
     shifted = deepcopy(layout)
     shifted["pack_bounds"] = (bx,(by[0]+1,by[1]+1),bz)
     expect_error(RuntimeError,lambda: model["validate_rear_battery_slot"](
         base,lid,shifted,footprint,(),bracket=bracket),"centered east-west")
     assert bz[1] < model["BASE_HEIGHT"]
-    assert tuple(round(high-low,3) for low,high in record["bounds"]) == (47.5,16.0,4.0)
+    assert tuple(round(high-low,3) for low,high in record["bounds"]) == (91.2,16.0,4.0)
     # Stops survive the final union and block translation toward either end.
     for shift in (-0.9,0.9):
         sliding = box("Battery_Sliding_End_Check",(bx,(by[0]+shift,by[1]+shift),bz))
@@ -128,11 +131,12 @@ def check_mesh(mode, material="RIGID"):
     lid_attachment = box("Lid_Attachment",(bx,by,(model["BODY_HEIGHT"]+1,model["BODY_HEIGHT"]+8)))
     model["validate_rear_battery_slot"](base,lid,layout,footprint,(lid_attachment,),lid_parts=(lid_attachment,),bracket=bracket)
     bpy.data.objects.remove(lid_attachment,do_unlink=True)
-    # Independent full fan-opening prism: no holder material may enter the
-    # vertical cooling column, even when a seated battery passes collision checks.
+    # Independent upper fan-opening prism: the low cradle and flat pack may
+    # overlap in plan, while the fan-to-camera passage stays open above them.
     opening = model["lid_fan_reference_dimensions"]()["opening"]
+    flow_floor = record["bounds"][2][1] + model["M3_SOCKET_HEAD_NOMINAL_HEIGHT"] + model["REAR_BATTERY_AIR_GAP"]
     for x,y in model["lid_fan_unit_centers"]():
-        witness = box("Fan_Column",((x-opening/2,x+opening/2),(y-opening/2,y+opening/2),(3.21,model["BASE_HEIGHT"]-0.01)))
+        witness = box("Fan_Column",((x-opening/2,x+opening/2),(y-opening/2,y+opening/2),(flow_floor,model["BASE_HEIGHT"]-0.01)))
         assert model["intersection_metrics"](base,witness,"fan_column")[2] < 0.0001
         bpy.data.objects.remove(witness,do_unlink=True)
     for name,bounds,message in (
@@ -151,8 +155,8 @@ def check_mesh(mode, material="RIGID"):
     outside["pack_bounds"] = ((bx[0]+500,bx[1]+500),by,bz)
     expect_error(RuntimeError,lambda: model["validate_rear_battery_slot"](base,lid,outside,footprint,(),bracket=bracket),"outside the closed case")
     intrusion = deepcopy(layout)
-    intrusion["protected_x"] += 1.0
-    expect_error(RuntimeError,lambda: model["validate_rear_battery_slot"](base,lid,intrusion,footprint,(),bracket=bracket),"protected cooling region")
+    intrusion["fan_rear_x"] = bx[0] + model["REAR_BATTERY_WIDTH"]/2 + 1.0
+    expect_error(RuntimeError,lambda: model["validate_rear_battery_slot"](base,lid,intrusion,footprint,(),bracket=bracket),"50 percent overlap")
     for target in layout["post_targets"]:
         assert not model["circular_feature_intersects_rear_battery"](target,5.25)
     assert model["circular_feature_intersects_rear_battery"]((sum(bx)/2,sum(by)/2),5.25)
@@ -202,4 +206,4 @@ check_configuration()
 check_mesh("lid_single")
 check_mesh("lid_pair")
 check_mesh("lid_single", "TPU")
-print("REAR_BATTERY_REGRESSION PASS upright pack, two-screw bracket, loading, USB, cable, cooling, rigid/TPU posts, single/pair fans, 250 x 255 mm exports")
+print("REAR_BATTERY_REGRESSION PASS flat pack, two-screw bracket, loading, USB, cable, cooling, rigid/TPU posts, single/pair fans, 250 x 255 mm exports")

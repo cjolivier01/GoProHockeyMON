@@ -4,6 +4,7 @@ Build from the repository root:
 
 ```sh
 make -C models3d hockeymon-camera-case
+make -C models3d hockeymon-camera-case-plate-overview
 make -C models3d dim-pdf
 make -C models3d check-dim-pdf-sync
 make -C models3d check-hockeymon-battery-slot
@@ -49,8 +50,8 @@ The base's slot cheeks have **45-degree internal lead-ins**, extending
 **5 mm inward**, with a **0.25 mm front land**. These clear the fillers as
 the lid tilts into its front anchor while preserving the visible slot edges.
 **Print the matching base and lid from this revision**; the new flush lid
-can bind against the previous base during insertion. Exterior dimensions
-and the 250 × 255 mm individual-part print limit remain unchanged.
+can bind against the previous base during insertion. The current compact
+base and lid remain within the 250 × 255 mm individual-part print limit.
 
 ## Streamlined fan cover and rear corners
 
@@ -73,99 +74,47 @@ controlled separately so rounding does not grow the case beyond the printer
 limit. The 40 mm USB space, rear screw access and battery fit are checked
 against the rounded shell. Use the matching base and lid for this revision.
 
-## Internal rear battery bay
+## Compact flat battery bay
 
-![Battery centered across the bottom mount with one-sided USB space](docs/images/centered_battery_plan.png)
+![Flat battery and retaining bar inside the open base](docs/images/flat_battery_open_base.png)
 
-![Battery inside the enlarged base, with the lid removed](docs/images/rear_battery_loaded.png)
+The gold battery envelope and gray retaining bar are shown with the lid and fan removed.
 
-![Enlarged case with the battery enclosed by the main lid](docs/images/rear_battery_closed.png)
+The 26.3 × 70 × 138 mm battery lies flat inside the case: 70 mm front to back
+(X), 138 mm across (Y), and 26.3 mm high (Z). Its Y range is −69 to +69 mm,
+centered on the bottom bolt axis. The USB-A/USB-C face points toward +Y and
+has 40 mm of internal plug and cable-bend space, from Y=+69 to +109 mm. The
+outer shell mirrors that space on the other side to remain symmetric. The
+cameras, adjustment mechanism, bolt access, and removable lid still fit.
 
-![Empty internal slot and camera chamber](docs/images/rear_battery_empty.png)
+The default base is **248.58 × 231.18 × 77 mm**; the matching main lid
+brings body height to **81.653 mm**, before the fan assembly. The previous
+upright-battery base was about 249.25 × 237.99 × 90 mm. Thus the flat layout
+saves about 0.67 mm front to back, 6.81 mm across, and 13 mm in base height.
+The camera hardware and rear lid posts limit further depth reduction. Each
+part is exported to its own 250 × 255 mm 3MF plate, with its matching STL.
+The base and lid from the flat-battery revision must be printed together.
 
-The **26.3 × 70 × 138 mm** battery goes **inside the case**, upright:
-26.3 mm along X (front to back), 138 mm along Y (across the back), and
-70 mm vertically. The pack spans **Y = −69 to +69 mm**, centered east–west
-on the bottom bolt mount at **Y = 0**. Its rearward X position and seat height
-stay unchanged. Its USB-A/USB-C face points toward **+Y**, into a
-**40 mm internal clearance zone** for plugs and cable bends. The plug region extends over the face above the low corner stops, with an
-open path through the center below them. The USB zone spans **Y = +69 to
-+109 mm**. The opposite side has matching empty space so the outer base
-and lid envelope remains symmetric about **Y = 0**. The generator checks
-that the entire outer outline matches its reflection within 0.001 mm.
+![All twelve 3MF print plates](docs/images/flat_battery_print_plates.png)
 
-The base and matching main lid extend rearward, with a taller roof to keep
-the footprint within a **250 × 255 mm print bed**. The default base measures
-**249.25 × 237.99 × 90 mm**. Main body height is 94.653 mm; the external fan
-and grille sit above it. Camera positions and the worm-shaft exit remain
-unchanged. Rear lid screws move behind the battery and stay accessible.
-Use the matching base and lid from this revision. The largest part has only
-0.75 mm total spare width on a 250 mm bed, so slice it without an outward
-brim or skirt. Each part exports separately in its intended print orientation;
-the generator checks each part against 250 mm in X and 255 mm in Y,
-rotating it 90 degrees in the print plane when needed. Each part is printed
-individually; they do not need to share one plate.
+The battery sits at Z=5.7–32 mm. About **17.8 mm of its 70 mm depth** lies
+beneath the fan opening in plan, below the air passage. The retaining bar,
+screw heads, and battery leave more than 30 mm of vertical space below the
+fan-side lid opening. The model checks an open upper fan column and battery
+assembly clearances. A conservative side-view path from the fan's rear edge
+to the nearest camera rear face clears the battery screws by about 9.8 mm;
+this is a geometric estimate, not a measured airflow rate. Keep loose USB cable
+loops away from the fan.
 
-![Low battery stop tabs at the USB end](docs/images/battery_bottom_stops.png)
-
-Matching pairs of thick tabs at **both ends** limit battery movement in
-both directions along its length. This removes the heavier full-height
-wall from one end and makes the cradle and its retaining bar symmetric. Each projects **3 mm**
-across a bottom corner, rises **4 mm above the seat**, and is **4 mm thick**
-along the end. The lowest 4 mm at those two corners must be free of ports.
-The center of the USB face and the space above the tabs remain open, with
-40 mm for plugs and cable bends. The top retaining bar still holds the pack
-down; remove it before lifting the battery past the stops.
-
-The two-wall cradle has **0.6 mm clearance per side**, giving a **27.5 mm
-clear width** and **139.2 mm length** between its end stops. Its 3.2 mm walls
-rise to Z=60 mm. The pack rests on the solid seat at Z=5.7 mm, with its top
-at Z=75.7 mm, below the lid and clear of the fan opening.
-
-A single **47.5 × 16 × 4 mm screw-on bar** holds the battery down. Print
-`hockeymom_cam_case_battery_bracket.stl` flat and use **two M3 × 10 mm
-socket-head screws**. For the default rigid base, install **two M3 × 5 mm
-heat-set inserts** in the cradle posts (4.0 mm pockets with 4.8 mm lead-ins).
-The posts have blind tip clearance below the inserts. TPU-base mode uses
-pointed M3 screws and pilot holes under the existing material policy.
-
-Remove the main lid and attached fan assembly, lower the battery into the
-cradle, and place the bar across its middle. Snug both screws: the post tops
-sit 0.25 mm below the battery top so the bar can clamp the pack. Avoid
-forcing the bar down or overtightening against the battery housing. To remove
-the battery, remove the lid, unplug the leads, undo the two screws, lift off
-the bar, and lift out the pack. The bar and screw heads stay inside the case.
-
-The battery, cradle, bar and USB plug envelope sit at least **8 mm aft of
-the protected top-fan/camera flow region**. The fan opening's full vertical
-projection remains clear for intake or exhaust. A validated 6 mm cable exit
-corridor connects the USB space to the camera chamber. Route leads along
-the inside of the case with slack for camera adjustment; keep loose loops
-away from fan and camera openings. The corridor validates the bay exit;
-the exact purchased leads and their route to each camera need fitting during
-assembly. Geometry checks establish clearance, not measured cooling performance.
-
-Print the base upright on its bottom and the bar flat. The battery and screws
-in the previews are reference objects. Check physical pack fit and retention
+A low two-wall cradle has 0.6 mm side fit, with small 4 mm-high corner stops
+at both Y ends to limit sliding. The 91.2 × 16 × 4 mm screw-on bar crosses
+the middle of the battery. Use two M3 × 10 mm socket-head screws and, for a
+rigid base, two M3 × 5 mm heat-set inserts in the cradle posts. TPU mode uses
+pointed M3 pilots. Remove the lid and fan, remove the bar, unplug the battery,
+then lift it past the stops. Check the purchased pack and plugs physically
 before field use.
 
-`REAR_BATTERY_*` settings control pack dimensions, fit, USB space, cooling
-separation and bracket hardware. The generator solves the rear footprint and
-screw targets, protects the camera/mechanism perimeter, and checks rear height
-taper. `PRINT_BED_WIDTH_MM` / `PRINT_BED_DEPTH_MM` default to 250 / 255.
-Set `REAR_BATTERY_SLOT_ENABLED =
-False` to restore the original plan footprint or use rear-wall fans; height
-settings remain independently configurable.
-
-The shell envelope, battery, cradle, retaining bar and fan are centered
-east–west. The camera adjustment mechanism and camera internals retain
-their functional layout; exact assembled balance also depends on the actual
-component masses, print infill and cable routing. As a uniform-solid plastic
-comparison, the base centroid moved from Y=+4.58 to +1.84 mm and the lid
-from +4.98 to −0.16 mm; the battery holder balances within 0.001 mm of Y=0.
-
-Validation checks outline symmetry, cradle balance, closed-case containment, battery and bracket removal,
-screwdriver access, screw-hole alignment and depth, USB/cable clearance,
-post/mount keepouts and manifold geometry. Regressions exercise one 120 mm fan,
-a 60 mm fan pair, rigid/TPU receivers and oversized-export rejection. The
-dimension PDF includes the upright bay and all configuration values.
+The generator validates outer symmetry, pack/USB and cable clearance,
+retention, mount and lid-post keepouts, cooling space, and each printable
+part's bed fit. The battery regression covers rigid and TPU bodies and both
+single and paired lid fans. The dimension guide shows the flat layout.
