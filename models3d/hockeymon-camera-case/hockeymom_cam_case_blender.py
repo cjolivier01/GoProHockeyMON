@@ -246,10 +246,10 @@ PREVIEW_SHOW_CAMERA_MOCKUPS = True
 BODY_WIDTH = 160
 BODY_DEPTH = 233.661
 # BODY_DEPTH = 210
-# Upright rear battery and its screw-on bar fit below this taller roof while
-# keeping the base and lid inside a 250 mm square print bed.
-BODY_HEIGHT = 94.653
-BASE_HEIGHT = 90.0
+# The flat battery and screw-on bar fit below the lid while each printed part
+# stays within a 250 × 255 mm plate.
+BODY_HEIGHT = 81.653
+BASE_HEIGHT = 77.0
 LID_THICKNESS = BODY_HEIGHT - BASE_HEIGHT
 BOTTOM_THICKNESS = 3.2
 BODY_WALL_THICKNESS = 3.2
@@ -342,9 +342,11 @@ REAR_BATTERY_LENGTH = 138.0
 REAR_BATTERY_WIDTH = 70.0
 REAR_BATTERY_FIT_CLEARANCE = 0.6  # per side in X and at both Y ends
 REAR_BATTERY_USB_CLEARANCE = 40.0  # straight plugs plus cable bend allowance
-REAR_BATTERY_AIR_GAP = 8.0  # aft of the protected fan/camera flow region
+REAR_BATTERY_AIR_GAP = 8.0  # minimum open height above the installed pack and fasteners
+REAR_BATTERY_FAN_OVERLAP_FRACTION = 0.28
+REAR_BATTERY_REAR_POST_OFFSET = 9.0
 REAR_BATTERY_WALL_THICKNESS = 3.2
-REAR_BATTERY_WALL_HEIGHT = 60.0
+REAR_BATTERY_WALL_HEIGHT = 20.0
 REAR_BATTERY_FLOOR_THICKNESS = 5.7
 REAR_BATTERY_SERVICE_CLEARANCE = 4.0
 REAR_BATTERY_BRACKET_WIDTH = 16.0
@@ -358,7 +360,7 @@ REAR_BATTERY_BRACKET_RECEIVER_DEPTH = 7.0
 REAR_BATTERY_LID_CLEARANCE = 4.0
 REAR_BATTERY_CABLE_DIAMETER = 6.0
 REAR_BATTERY_BAY_CORNER_RADIUS = 24.0
-REAR_BATTERY_BAY_ENVELOPE_MARGIN = 4.0
+REAR_BATTERY_BAY_ENVELOPE_MARGIN = 0.5
 # Matching low corner stops at both ends retain the pack with balanced mass.
 # These reserve the lowest 4 mm of the pack's outermost 3 mm corners; ports
 # must lie above those corners or within the open center of the face.
@@ -15264,7 +15266,9 @@ def resolve_bottom_mount_hole_position(
         # Left/right centering is a mount invariant, not an auto-placement
         # preference.  Only the front/back coordinate may be searched.
         position = (x, 0.0)
-        if circular_feature_intersects_rear_battery(position, feature_radius):
+        # The tilted mount's structural plinth can merge with nearby cradle
+        # material; final bore/seat checks validate the real access cavity.
+        if circular_feature_intersects_rear_battery(position, feature_radius, include_bracket_posts=False):
             continue
         if not point_in_polygon(position, bottom_loop):
             continue
@@ -29992,13 +29996,15 @@ def validate_rear_battery_config():
             if not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and positive")
     seat = REAR_BATTERY_FLOOR_THICKNESS
-    if not seat < REAR_BATTERY_WALL_HEIGHT < seat + REAR_BATTERY_WIDTH:
+    if not seat < REAR_BATTERY_WALL_HEIGHT < seat + REAR_BATTERY_THICKNESS:
         raise ValueError("Battery walls must rise above the seat and below the pack top")
     if seat < BOTTOM_THICKNESS:
         raise ValueError("Battery seat must remain above the case floor")
-    top = seat + REAR_BATTERY_WIDTH
+    top = seat + REAR_BATTERY_THICKNESS
     if top + REAR_BATTERY_BRACKET_THICKNESS + M3_SOCKET_HEAD_NOMINAL_HEIGHT + REAR_BATTERY_LID_CLEARANCE >= BASE_HEIGHT - LID_LIP_DEPTH:
-        raise ValueError("Upright battery and bracket need more clearance below the closed lid")
+        raise ValueError("Flat battery and bracket need more clearance below the closed lid")
+    if BASE_HEIGHT - LID_LIP_DEPTH - (top + REAR_BATTERY_BRACKET_THICKNESS + M3_SOCKET_HEAD_NOMINAL_HEIGHT) < REAR_BATTERY_AIR_GAP:
+        raise ValueError("Battery and its fasteners leave too little open height beneath the fan")
     if REAR_BATTERY_BRACKET_POST_DIAMETER < HEAT_INSERT_LEADIN_DIAMETER + 4.0:
         raise ValueError("Battery screw posts need at least 2 mm around their insert mouths")
     if REAR_BATTERY_BRACKET_WIDTH < REAR_BATTERY_BRACKET_POST_DIAMETER or REAR_BATTERY_BRACKET_WIDTH + 2*REAR_BATTERY_WALL_THICKNESS >= REAR_BATTERY_LENGTH:
@@ -30014,32 +30020,35 @@ def validate_rear_battery_config():
         raise ValueError("Battery screw receivers need a closed bottom web")
     if REAR_BATTERY_USB_CLEARANCE <= 2 * REAR_BATTERY_CABLE_DIAMETER:
         raise ValueError("Battery USB clearance must leave space for plugs and a cable bend")
-    if 2*(REAR_BATTERY_END_STOP_WIDTH + REAR_BATTERY_FIT_CLEARANCE) >= REAR_BATTERY_THICKNESS - REAR_BATTERY_CABLE_DIAMETER:
+    if REAR_BATTERY_FAN_OVERLAP_FRACTION > 0.5:
+        raise ValueError("Flat battery cannot overlap more than half its depth beneath the fan")
+    if 2*(REAR_BATTERY_END_STOP_WIDTH + REAR_BATTERY_FIT_CLEARANCE) >= REAR_BATTERY_WIDTH - REAR_BATTERY_CABLE_DIAMETER:
         raise ValueError("Battery end stops must leave the USB face center open")
-    if REAR_BATTERY_END_STOP_HEIGHT + REAR_BATTERY_FIT_CLEARANCE >= REAR_BATTERY_WIDTH / 4:
+    if REAR_BATTERY_END_STOP_HEIGHT + REAR_BATTERY_FIT_CLEARANCE >= REAR_BATTERY_THICKNESS / 4:
         raise ValueError("Battery end stops must stay below the USB connector region")
 
 
 def rear_battery_layout(cameras=(), mechanism=None):
-    """Reserve an internal upright pack and its USB end behind the cooling region."""
+    """Reserve a flat pack with its front half no farther than the fan rear edge."""
     fan = lid_fan_reference_dimensions()
     fan_rear_x = max(x for x, _ in lid_fan_unit_centers()) + fan["opening"] / 2
     camera_rear_x = rear_taper_camera_keepout_max_x(cameras, mechanism) if cameras else -math.inf
     protected_x = max(fan_rear_x, camera_rear_x)
-    wall = REAR_BATTERY_WALL_THICKNESS
     fit = REAR_BATTERY_FIT_CLEARANCE
-    x0 = protected_x + REAR_BATTERY_AIR_GAP + REAR_BATTERY_BRACKET_POST_DIAMETER
-    x1 = x0 + REAR_BATTERY_THICKNESS + 2 * fit
+    # The battery sits below the camera/fan flow path. Limit its plan overlap
+    # with the 70 mm fan-facing dimension to at most half that dimension.
+    x0 = fan_rear_x - REAR_BATTERY_WIDTH * REAR_BATTERY_FAN_OVERLAP_FRACTION + 2*fit
+    x1 = x0 + REAR_BATTERY_WIDTH + 2 * fit
     # The bottom bolt mount is constrained to Y=0; center the pack mass there.
     center_y = 0.0
     pack_y0 = center_y - REAR_BATTERY_LENGTH / 2
     pack_y1 = center_y + REAR_BATTERY_LENGTH / 2
     seat = REAR_BATTERY_FLOOR_THICKNESS
-    pack = ((x0 + fit, x1 - fit), (pack_y0, pack_y1), (seat, seat + REAR_BATTERY_WIDTH))
+    pack = ((x0 + fit, x1 - fit), (pack_y0, pack_y1), (seat, seat + REAR_BATTERY_THICKNESS))
     usb = (pack[0], (pack_y1, pack_y1 + REAR_BATTERY_USB_CLEARANCE), pack[2])
     # Relocate the rear screw pair behind the pack, where screw tools and
     # posts cannot intrude into either its top-loading or USB envelope.
-    post_x = x1 + wall + REAR_BATTERY_SERVICE_CLEARANCE + FASTENER_POST_DIAMETER / 2 + 1.0
+    post_x = x1 + REAR_BATTERY_REAR_POST_OFFSET
     post_y = min(REAR_BATTERY_LENGTH / 2, (REAR_BATTERY_LENGTH + REAR_BATTERY_USB_CLEARANCE) / 2 - 15)
     cable_y = usb[1][1] - REAR_BATTERY_CABLE_DIAMETER
     cable_z = sum(pack[2]) / 2
@@ -30127,14 +30136,19 @@ def validate_rear_battery_envelope_symmetry(footprint):
         raise ValueError(f"Battery case outer envelope is not symmetric about Y=0: {error:.6f} mm")
     print(f"BATTERY_ENVELOPE_SYMMETRY max_error={error:.6f}mm axis=Y0")
 
-def circular_feature_intersects_rear_battery(position, radius):
+def circular_feature_intersects_rear_battery(position, radius, include_bracket_posts=True):
     layout = _RESOLVED_REAR_BATTERY_LAYOUT
     if layout is None:
         return False
-    wall = REAR_BATTERY_WALL_THICKNESS + REAR_BATTERY_SERVICE_CLEARANCE
+    wall = REAR_BATTERY_WALL_THICKNESS
     bounds = ((layout["x0"]-wall,layout["x1"]+wall),
-              (layout["y0"]-wall,layout["usb_bounds"][1][1]))
-    return math.hypot(*(max(low-position[i],0.0,position[i]-high) for i,(low,high) in enumerate(bounds))) < radius + 0.5
+              (layout["y0"]-max(wall,REAR_BATTERY_END_STOP_THICKNESS),layout["usb_bounds"][1][1]))
+    if math.hypot(*(max(low-position[i],0.0,position[i]-high) for i,(low,high) in enumerate(bounds))) < radius + 0.5:
+        return True
+    return include_bracket_posts and any(
+        math.dist(position,center) < radius + REAR_BATTERY_BRACKET_POST_DIAMETER/2 + 0.5
+        for center in rear_battery_bracket_layout(layout)["centers"]
+    )
 
 
 def rear_battery_box(name, bounds):
@@ -30245,7 +30259,7 @@ def add_rear_battery_slot(base,layout,obstacles):
     boolean_union(base,holder,"Internal_Battery_Slot")
     base["rear_battery_pack_bounds"] = [v for pair in layout["pack_bounds"] for v in pair]
     base["rear_battery_usb_bounds"] = [v for pair in layout["usb_bounds"] for v in pair]
-    print("REAR_BATTERY_SLOT internal=True orientation=upright "
+    print("REAR_BATTERY_SLOT internal=True orientation=flat "
           f"pack={REAR_BATTERY_THICKNESS}x{REAR_BATTERY_LENGTH}x{REAR_BATTERY_WIDTH} "
           f"usb_clearance={REAR_BATTERY_USB_CLEARANCE:.2f} pack_bounds={layout['pack_bounds']} "
           f"retention=flat_bar_2xM3x{REAR_BATTERY_BRACKET_SCREW_LENGTH:g} receiver={profile['style']}")
@@ -30260,9 +30274,12 @@ def validate_rear_battery_slot(base,lid,layout,footprint,obstacles,lid_parts=(),
     if abs(sum(by)/2) > 0.001 or abs(layout["center_y"]) > 0.001:
         raise RuntimeError("Battery must be centered east-west on the bottom mount Y=0")
     record = rear_battery_bracket_layout(layout)
-    protected_limit = layout["protected_x"] + REAR_BATTERY_AIR_GAP
-    if min(bx[0],layout["usb_bounds"][0][0],record["bounds"][0][0]) < protected_limit-0.001:
-        raise RuntimeError("Battery assembly intrudes into the protected cooling region")
+    overlap = max(0.0, layout["fan_rear_x"] - bx[0])
+    if overlap > REAR_BATTERY_WIDTH / 2 + 0.001:
+        raise RuntimeError("Flat battery exceeds 50 percent overlap beneath the fan")
+    cooling_gap = BASE_HEIGHT - LID_LIP_DEPTH - (record["bounds"][2][1] + M3_SOCKET_HEAD_NOMINAL_HEIGHT)
+    if cooling_gap < REAR_BATTERY_AIR_GAP:
+        raise RuntimeError("Battery assembly blocks the vertical cooling clearance")
     installed = (
         ("pack",layout["pack_bounds"]),("usb_plugs",layout["usb_bounds"]),
         ("bracket",record["bounds"]),
@@ -30280,7 +30297,7 @@ def validate_rear_battery_slot(base,lid,layout,footprint,obstacles,lid_parts=(),
     usb_upper,usb_lower = rear_battery_usb_clearance_regions(layout)
     probes = (*(entry for entry in installed if entry[0] != "usb_plugs"),
         ("usb_plugs",usb_upper),("usb_plugs_lower",usb_lower),
-        ("top_loading",(bx,by,(bz[0],BASE_HEIGHT+REAR_BATTERY_WIDTH))),
+        ("top_loading",(bx,by,(bz[0],BASE_HEIGHT+REAR_BATTERY_THICKNESS))),
         ("bracket_removal",(*record["bounds"][:2],(record["bounds"][2][0],BASE_HEIGHT+REAR_BATTERY_BRACKET_THICKNESS))),
         *((f"screw_access_{i}",(head[0],head[1],(head[2][0],BASE_HEIGHT+30.0)))
           for i,head in enumerate(record["head_bounds"])),
@@ -30323,7 +30340,7 @@ def validate_rear_battery_slot(base,lid,layout,footprint,obstacles,lid_parts=(),
             finally:
                 bpy.data.objects.remove(probe,do_unlink=True)
     print("REAR_BATTERY_CLEARANCE internal=PASS lid_closed=clear lid_off_loading=clear "
-          f"usb_face=clear cable_exit=clear cooling_gap={REAR_BATTERY_AIR_GAP:.2f}mm "
+          f"usb_face=clear cable_exit=clear fan_plan_overlap={overlap:.2f}mm cooling_gap={cooling_gap:.2f}mm "
           "retention=two_screw_bar screw_access=clear blind_tip=clear")
 
 

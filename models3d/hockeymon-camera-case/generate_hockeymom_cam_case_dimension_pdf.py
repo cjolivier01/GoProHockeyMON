@@ -249,7 +249,7 @@ FEATURE_RULES = (
     FeatureRule(
         "rear_battery",
         "Internal rear battery bay",
-        "Upright battery fit, USB clearance, low end stops, rounded rear corners and two-screw retaining bar.",
+        "Flat battery fit, USB clearance, low end stops, rounded rear corners and two-screw retaining bar.",
         (r"^REAR_BATTERY_",),
     ),
     FeatureRule(
@@ -2470,37 +2470,42 @@ def page_body(pdf):
 def page_rear_battery(pdf):
     fig = new_sheet(None, "INTERNAL REAR BATTERY BAY",
                     f"{C['REAR_BATTERY_THICKNESS']:g} x {C['REAR_BATTERY_WIDTH']:g} x "
-                    f"{C['REAR_BATTERY_LENGTH']:g} mm pack upright inside the case; simple two-screw retaining bar")
+                    f"{C['REAR_BATTERY_LENGTH']:g} mm pack lying flat inside the case; two-screw bar crosses X")
     length = C["REAR_BATTERY_LENGTH"]
-    height = C["REAR_BATTERY_WIDTH"]
-    thickness = C["REAR_BATTERY_THICKNESS"]
+    width = C["REAR_BATTERY_WIDTH"]
+    height = C["REAR_BATTERY_THICKNESS"]
     fit = C["REAR_BATTERY_FIT_CLEARANCE"]
-    wall = C["REAR_BATTERY_WALL_THICKNESS"]
     seat = C["REAR_BATTERY_FLOOR_THICKNESS"]
     usb = C["REAR_BATTERY_USB_CLEARANCE"]
     post = C["REAR_BATTERY_BRACKET_POST_DIAMETER"]
     bar_w = C["REAR_BATTERY_BRACKET_WIDTH"]
     bar_t = C["REAR_BATTERY_BRACKET_THICKNESS"]
-    slot_w = thickness+2*fit
+    slot_w = width+2*fit
     bar_length = slot_w+2*post
-    ax = panel(fig, [0.065,0.43,0.56,0.43], "ENCLOSED PACK AND USB SPACE", "TOP (+Z), NTS")
-    ax.add_patch(Rectangle((-usb-8,-post-8),length+2*usb+16,bar_length+16,facecolor="#e6f1f7",edgecolor=BLUE,lw=2))
-    ax.add_patch(Rectangle((0,fit),length,thickness,facecolor="#e1e5e8",edgecolor=INK))
-    ax.add_patch(Rectangle((length/2-bar_w/2,-post),bar_w,bar_length,facecolor="#ccd3dc",edgecolor=PURPLE))
+    pack_y0, pack_y1 = -length/2, length/2
+    ax = panel(fig, [0.065,0.43,0.56,0.43], "FLAT PACK AND USB SPACE", "TOP (+Z), NTS")
+    # Horizontal drawing coordinates are global Y; vertical coordinates are
+    # local X from the cradle opening. The retaining bar therefore crosses X.
+    ax.add_patch(Rectangle((pack_y0-usb-8,-post-8),length+2*usb+16,bar_length+16,facecolor="#e6f1f7",edgecolor=BLUE,lw=2))
+    ax.add_patch(Rectangle((pack_y0,fit),length,width,facecolor="#e1e5e8",edgecolor=INK))
+    ax.add_patch(Rectangle((-bar_w/2,-post),bar_w,bar_length,facecolor="#ccd3dc",edgecolor=PURPLE))
     for y in (-post/2,slot_w+post/2):
-        ax.add_patch(Circle((length/2,y),C["REAR_BATTERY_BRACKET_SCREW_HOLE_DIAMETER"]/2,facecolor=WHITE,edgecolor=PURPLE))
-    ax.add_patch(Rectangle((length,fit),usb,thickness,facecolor="#e5f2e9",edgecolor=GREEN,ls="--"))
-    for x in (-fit-C["REAR_BATTERY_END_STOP_THICKNESS"],length+fit):
-        for y in (fit,fit+thickness-C["REAR_BATTERY_END_STOP_WIDTH"]):
+        ax.add_patch(Circle((0,y),C["REAR_BATTERY_BRACKET_SCREW_HOLE_DIAMETER"]/2,facecolor=WHITE,edgecolor=PURPLE))
+    ax.add_patch(Rectangle((pack_y1,fit),usb,width,facecolor="#e5f2e9",edgecolor=GREEN,ls="--"))
+    for x in (pack_y0-fit-C["REAR_BATTERY_END_STOP_THICKNESS"],pack_y1+fit):
+        for y in (fit,fit+width-C["REAR_BATTERY_END_STOP_WIDTH"]):
             ax.add_patch(Rectangle((x,y),C["REAR_BATTERY_END_STOP_THICKNESS"],C["REAR_BATTERY_END_STOP_WIDTH"],facecolor=BLUE,edgecolor=BLUE))
-    ax.text(-usb/2,slot_w/2,"Matching\nempty bay",ha="center",va="center",fontsize=6,color=BLUE)
-    centerline(ax, (length/2,-post-8), (length/2,slot_w+post+10))
-    ax.text(length/2,slot_w+post+12,"Y=0: pack + bottom mount centerline",ha="center",fontsize=6,color=PURPLE)
-    ax.text(length+usb/2,slot_w/2,"USB plugs\n+ cable bend",ha="center",va="center",fontsize=7,color=GREEN)
-    dim_h(ax,0,length,-post-20,-post-8,"REAR_BATTERY_LENGTH")
-    dim_h(ax,length,length+usb,slot_w+post+18,slot_w+post+8,"REAR_BATTERY_USB_CLEARANCE",GREEN)
-    dim_v(ax,fit,fit+thickness,-usb-21,-usb-8,"REAR_BATTERY_THICKNESS")
-    setup(ax,-usb-34,length+usb+18,-post-30,slot_w+post+42)
+    ax.text(pack_y0-usb/2,slot_w/2,"Matching\nempty bay",ha="center",va="center",fontsize=6,color=BLUE)
+    centerline(ax, (0,-post-8), (0,slot_w+post+10))
+    ax.text(0,slot_w+post+12,"Y=0: pack + bottom mount",ha="center",fontsize=6,color=PURPLE)
+    ax.text(pack_y1+usb/2,slot_w/2,"USB +Y\nplugs + bend",ha="center",va="center",fontsize=6.5,color=GREEN)
+    dim_h(ax,pack_y0,pack_y1,-post-20,-post-8,"REAR_BATTERY_LENGTH")
+    dim_h(ax,pack_y1,pack_y1+usb,slot_w+post+18,slot_w+post+8,"",GREEN)
+    ax.text(pack_y1+usb,slot_w+post+22,"REAR_BATTERY_USB_CLEARANCE",ha="right",va="bottom",fontsize=7,color=GREEN)
+    ax.text(pack_y1+usb/2,slot_w+post+13,f"{usb:g} mm",ha="center",va="top",fontsize=6,color=GREEN)
+    dim_v(ax,fit,fit+width,pack_y0-usb-21,pack_y0-usb-8,"REAR_BATTERY_WIDTH")
+    ax.text(0,-post-29,f"Y = {pack_y0:g} to +{pack_y1:g} mm; X runs upward",ha="center",fontsize=6,color=GRAY)
+    setup(ax,pack_y0-usb-34,pack_y1+usb+20,-post-38,slot_w+post+48)
     ax2 = panel(fig,[0.65,0.43,0.285,0.43],"PACK AND HOLD-DOWN BAR","END (+Y), NTS")
     case_left = -post-8
     case_right = slot_w+post+8
@@ -2508,24 +2513,28 @@ def page_rear_battery(pdf):
     ax2.add_patch(Rectangle((case_left+C["BODY_WALL_THICKNESS"],C["BOTTOM_THICKNESS"]),
                             case_right-case_left-2*C["BODY_WALL_THICKNESS"],C["BASE_HEIGHT"]-C["BOTTOM_THICKNESS"],
                             facecolor=WHITE,edgecolor=BLUE))
-    ax2.add_patch(Rectangle((fit,seat),thickness,height,facecolor="#e1e5e8",edgecolor=INK))
+    ax2.add_patch(Rectangle((0,0),slot_w,seat,facecolor="#e6f1f7",edgecolor=BLUE))
+    ax2.add_patch(Rectangle((fit,seat),width,height,facecolor="#e1e5e8",edgecolor=INK))
     for x in (-post,slot_w):
         ax2.add_patch(Rectangle((x,0),post,seat+height-C["REAR_BATTERY_BRACKET_CLAMP_TRAVEL"],facecolor="#e6f1f7",edgecolor=BLUE))
         ax2.plot([x+post/2,x+post/2],[seat+height+bar_t-C["REAR_BATTERY_BRACKET_SCREW_LENGTH"],seat+height+bar_t+3],color=PURPLE,lw=2)
     ax2.add_patch(Rectangle((-post,seat+height),bar_length,bar_t,facecolor="#ccd3dc",edgecolor=PURPLE))
-    dim_v(ax2,seat,seat+height,case_right+10,slot_w,"REAR_BATTERY_WIDTH")
+    dim_v(ax2,seat,seat+height,case_right+10,slot_w,"REAR_BATTERY_THICKNESS")
+    ax2.text(slot_w/2,seat+height/2,f"X {width:g} x Z {height:g} mm",ha="center",va="center",fontsize=7,color=INK)
+    ax2.text(slot_w/2,C["BASE_HEIGHT"]-9,
+             f"Base {C['BASE_HEIGHT']:g} mm / body {C['BODY_HEIGHT']:g} mm",ha="center",fontsize=6,color=GRAY)
     setup(ax2,case_left-8,case_right+22,-10,C["BODY_HEIGHT"]+12)
     note_box(fig,[0.065,0.16,0.42,0.20],"INTERNAL FIT AND RETENTION",[
-        f"Pack X/Y/Z: {thickness:g} x {length:g} x {height:g} mm; seat Z={seat:g} mm.",
+        f"Flat pack X/Y/Z: {width:g} x {length:g} x {height:g} mm; seat Z={seat:g} mm.",
         f"Pack centered east-west: Y=-{length/2:g} to +{length/2:g} mm; bottom bolt Y=0.",
-        f"USB space Y=+{length/2:g} to +{length/2+usb:g} mm; rearward X placement unchanged.",
-        f"Separate bar: {bar_length:g} x {bar_w:g} x {bar_t:g} mm; two M3 x {C['REAR_BATTERY_BRACKET_SCREW_LENGTH']:g} screws.",
+        f"USB face toward +Y; plug space Y=+{length/2:g} to +{length/2+usb:g} mm.",
+        f"Bar across X: {bar_length:g} x {bar_w:g} x {bar_t:g} mm; two M3 x {C['REAR_BATTERY_BRACKET_SCREW_LENGTH']:g} screws.",
         f"Rigid base: two M3 x {C['REAR_BATTERY_BRACKET_INSERT_DEPTH']:g} heat-set inserts; TPU base uses pointed-M3 pilots.",
         f"Both ends: matching {C['REAR_BATTERY_END_STOP_HEIGHT']:g} mm-high stops, {C['REAR_BATTERY_END_STOP_WIDTH']:g} mm across each bottom corner.",
         "Ports must clear those two low corners; remove bar and lift to release pack.",
     ],PURPLE)
     note_box(fig,[0.515,0.16,0.42,0.20],"COOLING AND PRINT ENVELOPE",[
-        f"Pack, cradle, bar and USB zone remain {C['REAR_BATTERY_AIR_GAP']:g} mm aft of the fan/camera flow region.",
+        f"Fan plan overlap {C['REAR_BATTERY_FAN_OVERLAP_FRACTION']*C['REAR_BATTERY_WIDTH']-3*fit:g} mm; vertical gap above screws >= {C['REAR_BATTERY_AIR_GAP']:g} mm.",
         f"Base height {C['BASE_HEIGHT']:g} mm; main body height {C['BODY_HEIGHT']:g} mm. Rear lid screws move aft.",
         f"Each STL / 3MF plate must fit {C['PRINT_BED_WIDTH_MM']:g} x {C['PRINT_BED_DEPTH_MM']:g} mm; logs report the solved footprint.",
         f"A {C['REAR_BATTERY_CABLE_DIAMETER']:g} mm cable exit connects the USB space to the camera chamber.",

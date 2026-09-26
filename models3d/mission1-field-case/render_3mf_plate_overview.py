@@ -42,8 +42,13 @@ PRODUCTION_NAMESPACE = (
     "http://schemas.microsoft.com/3dmanufacturing/production/2015/06"
 )
 PLATE_SIZE = 250.0
-PLATE_STRIDE = 300.0
+PLATE_DEPTH = 250.0
+PLATE_STRIDE_X = 300.0
+PLATE_STRIDE_Y = 300.0
 BED_EXCLUDE_SIZE = (18.0, 28.0)
+PROJECT_TITLE = "FIELD CASE"
+PROJECT_NOTICE = None
+MATERIAL_LEGEND = "DARK = RIGID  •  ORANGE = RIGID INLAY  •  CORAL = TPU FOR AMS  •  BLUE = TPU 95A  •  RED CORNER = PRINTER EXCLUSION"
 
 
 def core_tag(name: str) -> str:
@@ -478,18 +483,18 @@ def validate_plate_bounds(project: ThreeMFProject, objects_by_plate) -> None:
     columns = math.ceil(math.sqrt(len(project.plates)))
     for plate_index, objects in enumerate(objects_by_plate):
         minimum, maximum = object_bounds(objects)
-        origin_x = (plate_index % columns) * PLATE_STRIDE
-        origin_y = -(plate_index // columns) * PLATE_STRIDE
+        origin_x = (plate_index % columns) * PLATE_STRIDE_X
+        origin_y = -(plate_index // columns) * PLATE_STRIDE_Y
         if not (
             origin_x - 1e-4 <= minimum.x
             and maximum.x <= origin_x + PLATE_SIZE + 1e-4
             and origin_y - 1e-4 <= minimum.y
-            and maximum.y <= origin_y + PLATE_SIZE + 1e-4
+            and maximum.y <= origin_y + PLATE_DEPTH + 1e-4
             and minimum.z >= -1e-4
             and maximum.z <= 250.0 + 1e-4
         ):
             raise ValueError(
-                f"Plate {plate_index + 1} geometry lies outside its 250 mm "
+                f"Plate {plate_index + 1} geometry lies outside its {PLATE_SIZE:g} × {PLATE_DEPTH:g} mm "
                 f"print volume: min={tuple(round(value, 3) for value in minimum)} "
                 f"max={tuple(round(value, 3) for value in maximum)}"
             )
@@ -519,8 +524,8 @@ def configure_scene(project: ThreeMFProject, width: int):
     columns = math.ceil(math.sqrt(len(project.plates)))
     rows = math.ceil(len(project.plates) / columns)
     left = -28.0
-    right = (columns - 1) * PLATE_STRIDE + PLATE_SIZE + 28.0
-    bottom = -(rows - 1) * PLATE_STRIDE - 52.0
+    right = (columns - 1) * PLATE_STRIDE_X + PLATE_SIZE + 28.0
+    bottom = -(rows - 1) * PLATE_STRIDE_Y - 52.0
     top = 350.0
     world_width = right - left
     world_height = top - bottom
@@ -554,6 +559,14 @@ def render_overview(project: ThreeMFProject, output_path: Path, width: int) -> N
         3: make_material("TPU_For_AMS", (0.90, 0.29, 0.18, 1.0)),
         4: make_material("TPU_95A", (0.20, 0.48, 0.88, 1.0)),
     }
+    if PROJECT_TITLE != "FIELD CASE":
+        materials = {
+            0: make_material("Camera_Case_Unassigned", (0.72, 0.82, 0.90, 1.0)),
+            1: make_material("Camera_Case_Rigid", (0.70, 0.80, 0.88, 1.0)),
+            2: make_material("Camera_Case_Accent", (1.0, 0.52, 0.18, 1.0)),
+            3: make_material("Camera_Case_TPU", (0.30, 0.66, 0.95, 1.0)),
+            4: make_material("Camera_Case_TPU_95A", (0.30, 0.66, 0.95, 1.0)),
+        }
     plate_material = make_material("250mm_Print_Plate", (0.18, 0.22, 0.29, 1.0))
     excluded_material = make_material("Excluded_Bed_Corner", (0.30, 0.11, 0.11, 1.0))
     label_material = make_material("Plate_Label", (0.88, 0.92, 0.98, 1.0))
@@ -563,63 +576,65 @@ def render_overview(project: ThreeMFProject, output_path: Path, width: int) -> N
 
     scene, columns, rows = configure_scene(project, width)
     for plate_index, plate in enumerate(project.plates):
-        origin_x = (plate_index % columns) * PLATE_STRIDE
-        origin_y = -(plate_index // columns) * PLATE_STRIDE
+        origin_x = (plate_index % columns) * PLATE_STRIDE_X
+        origin_y = -(plate_index // columns) * PLATE_STRIDE_Y
         add_box(
             f"Plate_{plate_index + 1:02d}_250mm",
-            (origin_x + PLATE_SIZE / 2.0, origin_y + PLATE_SIZE / 2.0, -2.0),
-            (PLATE_SIZE, PLATE_SIZE, 2.0),
+            (origin_x + PLATE_SIZE / 2.0, origin_y + PLATE_DEPTH / 2.0, -2.0),
+            (PLATE_SIZE, PLATE_DEPTH, 2.0),
             plate_material,
         )
-        add_box(
-            f"Plate_{plate_index + 1:02d}_Excluded_Corner",
-            (
-                origin_x + BED_EXCLUDE_SIZE[0] / 2.0,
-                origin_y + BED_EXCLUDE_SIZE[1] / 2.0,
-                -0.85,
-            ),
-            (BED_EXCLUDE_SIZE[0], BED_EXCLUDE_SIZE[1], 0.3),
-            excluded_material,
-        )
+        if BED_EXCLUDE_SIZE is not None:
+            add_box(
+                f"Plate_{plate_index + 1:02d}_Excluded_Corner",
+                (
+                    origin_x + BED_EXCLUDE_SIZE[0] / 2.0,
+                    origin_y + BED_EXCLUDE_SIZE[1] / 2.0,
+                    -0.85,
+                ),
+                (BED_EXCLUDE_SIZE[0], BED_EXCLUDE_SIZE[1], 0.3),
+                excluded_material,
+            )
         header = plate.name
         if not header.lower().startswith(f"{plate_index + 1:02d}"):
             header = f"{plate_index + 1:02d} — {header}"
         add_text(
             f"Plate_{plate_index + 1:02d}_Name",
             header,
-            (origin_x + PLATE_SIZE / 2.0, origin_y + 282.0, 1.0),
+            (origin_x + PLATE_SIZE / 2.0, origin_y + PLATE_DEPTH + 32.0, 1.0),
             6.3,
             label_material,
         )
         add_text(
             f"Plate_{plate_index + 1:02d}_Copies",
             copy_summary(project, plate_index),
-            (origin_x + PLATE_SIZE / 2.0, origin_y + 263.0, 1.0),
+            (origin_x + PLATE_SIZE / 2.0, origin_y + PLATE_DEPTH + 13.0, 1.0),
             4.2,
             label_material,
         )
 
-    full_width_center = ((columns - 1) * PLATE_STRIDE + PLATE_SIZE) / 2.0
+    full_width_center = ((columns - 1) * PLATE_STRIDE_X + PLATE_SIZE) / 2.0
     add_text(
         "Overview_Title",
-        f"FIELD CASE — ALL {len(project.plates)} LABELED 250 × 250 mm PRINT PLATES",
+        f"{PROJECT_TITLE} — ALL {len(project.plates)} LABELED {PLATE_SIZE:g} × {PLATE_DEPTH:g} mm PRINT PLATES",
         (full_width_center, 334.0, 1.0),
         10.0,
         label_material,
     )
     add_text(
         "Alternative_Notice",
-        ("CHOOSE ONE LID: 02 OR 03  •  DEFAULT AND FAN-CASE LOADOUT PLATES ARE ALTERNATIVES"
+        (PROJECT_NOTICE if PROJECT_NOTICE is not None else
+         "CHOOSE ONE LID: 02 OR 03  •  DEFAULT AND FAN-CASE LOADOUT PLATES ARE ALTERNATIVES"
          if any("Default Loadout" in plate.name for plate in project.plates) else
          "CHOOSE ONE LID: 02 OR 03  •  EXPANDED CAMERA, MOUNT, CORD AND REMOTE KIT"),
         (full_width_center, 313.0, 1.0),
         6.0,
         note_material,
     )
-    bottom_y = -(rows - 1) * PLATE_STRIDE - 30.0
+    bottom_y = -(rows - 1) * PLATE_STRIDE_Y - 30.0
     add_text(
         "Material_Legend",
-        "DARK = RIGID  •  ORANGE = RIGID INLAY  •  CORAL = TPU FOR AMS  •  BLUE = TPU 95A  •  RED CORNER = PRINTER EXCLUSION",
+        MATERIAL_LEGEND,
         (full_width_center, bottom_y, 1.0),
         5.0,
         label_material,
