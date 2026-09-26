@@ -105,7 +105,10 @@ def check_mesh(mode, material="RIGID"):
     assert tuple(round(high-low,3) for low,high in (bx,by,bz)) == (70.0,138.0,26.3)
     assert abs(layout["usb_bounds"][1][1]-layout["usb_bounds"][1][0]-40) < 1e-8
     assert sum(by) == 0.0 and layout["center_y"] == 0.0
-    assert abs(bx[0] - (layout["fan_rear_x"] - 70.0*model["REAR_BATTERY_FAN_OVERLAP_FRACTION"] + 3*model["REAR_BATTERY_FIT_CLEARANCE"])) < 1e-8
+    expected_front = max(model["REAR_BATTERY_MIN_FRONT_X"],
+        layout["fan_rear_x"] - 70.0*model["REAR_BATTERY_FAN_OVERLAP_FRACTION"]
+        + 2*model["REAR_BATTERY_FIT_CLEARANCE"])
+    assert abs(bx[0] - expected_front - model["REAR_BATTERY_FIT_CLEARANCE"]) < 1e-8
     assert bz == (5.7,32.0)
     shifted = deepcopy(layout)
     shifted["pack_bounds"] = (bx,(by[0]+1,by[1]+1),bz)

@@ -2534,7 +2534,7 @@ def page_rear_battery(pdf):
         "Ports must clear those two low corners; remove bar and lift to release pack.",
     ],PURPLE)
     note_box(fig,[0.515,0.16,0.42,0.20],"COOLING AND PRINT ENVELOPE",[
-        f"Fan plan overlap {C['REAR_BATTERY_FAN_OVERLAP_FRACTION']*C['REAR_BATTERY_WIDTH']-3*fit:g} mm; vertical gap above screws >= {C['REAR_BATTERY_AIR_GAP']:g} mm.",
+        f"Fan plan overlap <= {max(0.0,C['REAR_BATTERY_FAN_OVERLAP_FRACTION']*C['REAR_BATTERY_WIDTH']-3*fit):g} mm; screw-to-roof gap >= {C['REAR_BATTERY_AIR_GAP']:g} mm.",
         f"Base height {C['BASE_HEIGHT']:g} mm; main body height {C['BODY_HEIGHT']:g} mm. Rear lid screws move aft.",
         f"Each STL / 3MF plate must fit {C['PRINT_BED_WIDTH_MM']:g} x {C['PRINT_BED_DEPTH_MM']:g} mm; logs report the solved footprint.",
         f"A {C['REAR_BATTERY_CABLE_DIAMETER']:g} mm cable exit connects the USB space to the camera chamber.",

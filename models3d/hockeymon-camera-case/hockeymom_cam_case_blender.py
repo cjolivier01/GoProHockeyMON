@@ -344,6 +344,7 @@ REAR_BATTERY_FIT_CLEARANCE = 0.6  # per side in X and at both Y ends
 REAR_BATTERY_USB_CLEARANCE = 40.0  # straight plugs plus cable bend allowance
 REAR_BATTERY_AIR_GAP = 8.0  # minimum open height above the installed pack and fasteners
 REAR_BATTERY_FAN_OVERLAP_FRACTION = 0.28
+REAR_BATTERY_MIN_FRONT_X = 26.6  # preserve bolt and front lid-post access with smaller fans
 REAR_BATTERY_REAR_POST_OFFSET = 9.0
 REAR_BATTERY_WALL_THICKNESS = 3.2
 REAR_BATTERY_WALL_HEIGHT = 20.0
@@ -30037,7 +30038,8 @@ def rear_battery_layout(cameras=(), mechanism=None):
     fit = REAR_BATTERY_FIT_CLEARANCE
     # The battery sits below the camera/fan flow path. Limit its plan overlap
     # with the 70 mm fan-facing dimension to at most half that dimension.
-    x0 = fan_rear_x - REAR_BATTERY_WIDTH * REAR_BATTERY_FAN_OVERLAP_FRACTION + 2*fit
+    x0 = max(REAR_BATTERY_MIN_FRONT_X,
+             fan_rear_x - REAR_BATTERY_WIDTH * REAR_BATTERY_FAN_OVERLAP_FRACTION + 2*fit)
     x1 = x0 + REAR_BATTERY_WIDTH + 2 * fit
     # The bottom bolt mount is constrained to Y=0; center the pack mass there.
     center_y = 0.0
