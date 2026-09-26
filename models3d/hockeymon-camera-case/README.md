@@ -32,6 +32,33 @@ tail. The near-bed-width base and lid need no outward brim or skirt.
 For custom Blender runs, set `EXPORT_3MF = False` for STL-only output.
 The Make target always generates both formats.
 
+## Camera eye clearance and aiming range
+
+![Lens faces in the old and revised openings at both physical gear stops](docs/images/eye_clearance_hard_stops.png)
+
+The rounded eye opening is **62 × 51.5 mm**, reduced from 64 × 52 mm around
+the **41.8 × 41.8 mm** lens housing face. At the adjustable camera's physical
+gear stops, measured in the opening plane, the new gaps are:
+
+| Adjustable yaw | Left | Right | Above | Below | Closest rounded corner |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| −12° | 5.76 mm | 15.35 mm | 4.85 mm | 4.85 mm | 3.50 mm |
+| +12° | 14.91 mm | 6.20 mm | 4.85 mm | 4.85 mm | 3.75 mm |
+
+Left and right are viewed from outside, facing the adjustable camera. The
+previous opening's corresponding closest corner gaps were 4.28 and 4.49 mm;
+its top and bottom gap was 5.10 mm. At center, the new side gaps are 10.10 mm
+each. The generator checks at least **3.0 mm** to the lens face throughout the
+full physical sweep, including the hard stops.
+
+The camera axes are **70° apart** at center. The rated ±10° adjustment gives
+**60–80°** between cameras; the approximately ±12° physical stops extend that
+to **58–82°**. The two eyes are air inlets for the lid exhaust fan. Their
+combined free area is about **2574 mm²**, or **27.1%** of the gross fan opening.
+Smaller inlets may make the air stream hug the lens housings more closely,
+but also increase flow resistance. These dimensions do not
+establish a cooling improvement without airflow or temperature measurements.
+
 ## Flush lid eye fillers
 
 ![Installed lid fillers follow the outside case face](docs/images/eye_fillers_front.png)
