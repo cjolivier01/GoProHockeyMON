@@ -489,8 +489,8 @@ EYE_LID_VISOR_ROOT_RIB_EDGE_INSET = 0.35
 # The eye mouth is a direct opening through the enclosure.  There is no
 # annular ring; camera retention comes from independent fixed/cartridge
 # datums, while the lid-owned upper closure and optional eyelid visor remain.
-EYE_MOUTH_WIDTH = 64.0
-EYE_MOUTH_HEIGHT = 52.0
+EYE_MOUTH_WIDTH = 62.0
+EYE_MOUTH_HEIGHT = 51.5
 EYE_MOUTH_CORNER_RADIUS = 14.5
 EYE_MOUTH_FACE_INSET = 1.0
 EYE_MOUTH_RECESS_DEPTH = 5.0
@@ -549,6 +549,7 @@ CAMERA_LENS_FACE_MIN_OUTSET = 0.5
 # solve; it no longer needlessly holds the fixed lens back.
 CAMERA_FIXED_INDEPENDENT_FORWARD_ADVANCE_ENABLED = True
 CAMERA_LENS_OPENING_CLEARANCE = 0.5
+CAMERA_LENS_MOUTH_AIRFLOW_CLEARANCE = 3.0  # minimum lens-to-eye gap through physical stops
 # The rotating camera's lens moves slightly fore/aft as it yaws about its
 # under-body pivot.  Reject configurations that pull it back into the eye
 # throat anywhere in the usable sweep.
@@ -6441,6 +6442,7 @@ def validate_config() -> None:
         "CAMERA_BODY_MUTUAL_CLEARANCE": CAMERA_BODY_MUTUAL_CLEARANCE,
         "CAMERA_LENS_FACE_MIN_OUTSET": CAMERA_LENS_FACE_MIN_OUTSET,
         "CAMERA_LENS_OPENING_CLEARANCE": CAMERA_LENS_OPENING_CLEARANCE,
+        "CAMERA_LENS_MOUTH_AIRFLOW_CLEARANCE": CAMERA_LENS_MOUTH_AIRFLOW_CLEARANCE,
         "CAMERA_LENS_MIN_SWEEP_EYE_FACE_PROTRUSION": (
             CAMERA_LENS_MIN_SWEEP_EYE_FACE_PROTRUSION
         ),
@@ -7167,7 +7169,10 @@ def validate_config() -> None:
         or EYE_MOUTH_HEIGHT <= mission1.LENS_FACE_HEIGHT
     ):
         raise ValueError("Eye mouths must clear the MISSION 1 lens housing")
-    required_lens_edge_clearance = CAMERA_LENS_OPENING_CLEARANCE
+    required_lens_edge_clearance = max(
+        CAMERA_LENS_OPENING_CLEARANCE,
+        CAMERA_LENS_MOUTH_AIRFLOW_CLEARANCE,
+    )
     if rear_wall_fans_enabled():
         required_lens_edge_clearance = max(
             required_lens_edge_clearance,
@@ -37037,7 +37042,10 @@ def validate_adjustable_camera_range(
         moving_mockup,
     )
     fixed_envelope = convex_hull_2d(camera_xy_corners(fixed_camera))
-    required_lens_edge_clearance = CAMERA_LENS_OPENING_CLEARANCE
+    required_lens_edge_clearance = max(
+        CAMERA_LENS_OPENING_CLEARANCE,
+        CAMERA_LENS_MOUTH_AIRFLOW_CLEARANCE,
+    )
     if rear_wall_fans_enabled():
         required_lens_edge_clearance = max(
             required_lens_edge_clearance,
@@ -37055,6 +37063,46 @@ def validate_adjustable_camera_range(
         mission1.LENS_FACE_WIDTH,
         mission1.LENS_FACE_HEIGHT,
         mission1.LENS_FACE_CORNER_RADIUS,
+    )
+    eye_loop = rounded_rectangle_loop(
+        EYE_MOUTH_WIDTH,
+        EYE_MOUTH_HEIGHT,
+        EYE_MOUTH_CORNER_RADIUS,
+    )
+    minimum_lens_eye_gap = math.inf
+    worst_lens_eye_yaw = None
+    # A user can crank the gear to the physical ±12-degree stop, beyond the
+    # rated ±10-degree aiming range. Keep the real lens face clear there too.
+    for yaw_delta in adjustable_hold_down_yaw_samples(camera):
+        for tangent, vertical in lens_loop:
+            point = adjustable_camera_local_point(
+                camera, 0.0, tangent,
+                camera_eye_center_z() + vertical, yaw_delta,
+            )
+            eye_tangent = (
+                point.x * nominal_tangent[0]
+                + point.y * nominal_tangent[1]
+                - camera["eye_tangent"]
+            )
+            eye_point = (eye_tangent, vertical)
+            if not point_inside_rounded_rectangle(
+                eye_point, opening_width, opening_height, opening_radius,
+            ):
+                raise RuntimeError(
+                    "Lens face violates the required eye-opening edge gap at "
+                    f"yaw {yaw_delta:+.2f}; required="
+                    f"{required_lens_edge_clearance:.2f} mm"
+                )
+            gap = polygon_boundary_distance(eye_point, eye_loop)
+            if gap < minimum_lens_eye_gap:
+                minimum_lens_eye_gap = gap
+                worst_lens_eye_yaw = yaw_delta
+    print(
+        "LENS_EYE_SWEEP_CLEARANCE "
+        f"hard_stop=±{adjustable_hard_stop_geometry(camera)['hard_stop_limit_deg']:.2f}deg "
+        f"minimum={minimum_lens_eye_gap:.3f}mm "
+        f"worst_yaw={worst_lens_eye_yaw:+.2f}deg "
+        f"required={required_lens_edge_clearance:.2f}mm"
     )
     pivot = adjustable_camera_pivot(camera)
     mechanism = adjustable_mechanism_layout(cameras, footprint)
@@ -37109,31 +37157,6 @@ def validate_adjustable_camera_range(
             raise RuntimeError(
                 f"Cameras collide at adjustable yaw {yaw_delta:+.2f}"
             )
-        for tangent, vertical in lens_loop:
-            point = adjustable_camera_local_point(
-                camera,
-                0.0,
-                tangent,
-                camera_eye_center_z() + vertical,
-                yaw_delta,
-            )
-            eye_tangent = (
-                point.x * nominal_tangent[0]
-                + point.y * nominal_tangent[1]
-                - camera["eye_tangent"]
-            )
-            if not point_inside_rounded_rectangle(
-                (eye_tangent, vertical),
-                opening_width,
-                opening_height,
-                opening_radius,
-            ):
-                raise RuntimeError(
-                    "Lens face violates the required eye-opening edge gap at "
-                    f"yaw {yaw_delta:+.2f}; required="
-                    f"{required_lens_edge_clearance:.2f} mm"
-                )
-
         yaw_radians = math.radians(yaw_delta)
         cosine = math.cos(yaw_radians)
         sine = math.sin(yaw_radians)
