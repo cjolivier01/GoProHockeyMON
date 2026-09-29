@@ -28,8 +28,10 @@ Axes:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import math
 import sys
+from array import array
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -1140,11 +1142,45 @@ def deform_fan_point(point):
     return Vector(deform_fan_points([point])[0])
 
 
+# Tessellating the rear wall is the single most expensive step of an angled
+# build, and it reads only the canonical (yaw-zero) mesh and the blend plane,
+# both of which are independent of the requested fan angles. A sweep that
+# rebuilds the same part at many angles therefore repeats identical work, so
+# keep the pre-bend tessellation keyed by its exact input.
+_FAN_TESSELLATION_CACHE: dict[str, bpy.types.Mesh] = {}
+
+
+def reset_fan_tessellation_cache() -> None:
+    """Drop cached pre-bend tessellations after any configuration change."""
+    for mesh in _FAN_TESSELLATION_CACHE.values():
+        if mesh.users == 0:
+            bpy.data.meshes.remove(mesh)
+    _FAN_TESSELLATION_CACHE.clear()
+
+
+def fan_tessellation_cache_key(mesh, blend_end) -> str:
+    """Identify a pre-bend mesh by its exact contents, not by its name."""
+    coordinates = array("f", [0.0]) * (len(mesh.vertices) * 3)
+    mesh.vertices.foreach_get("co", coordinates)
+    loop_vertices = array("i", [0]) * len(mesh.loops)
+    mesh.loops.foreach_get("vertex_index", loop_vertices)
+    digest = hashlib.sha256(coordinates.tobytes())
+    digest.update(loop_vertices.tobytes())
+    digest.update(repr((len(mesh.polygons), round(blend_end, 9))).encode())
+    return digest.hexdigest()
+
+
 def deform_fan_mesh(obj):
     """Sample the curved rear wall finely without splitting fixed hardware."""
     if not fan_mount_is_angled():
         return obj
     _rigid_end, blend_end = fan_deformation_y_planes()
+    cache_key = fan_tessellation_cache_key(obj.data, blend_end)
+    cached = _FAN_TESSELLATION_CACHE.get(cache_key)
+    if cached is not None:
+        bm = bmesh.new()
+        bm.from_mesh(cached)
+        return _bend_tessellated_fan_mesh(obj, bm)
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     # Separate the moving surface before transverse cuts. Splitting the
@@ -1187,6 +1223,15 @@ def deform_fan_mesh(obj):
                 plane_co=(0.0, station * spacing, 0.0), plane_no=(0.0, 1.0, 0.0),
             )["geom"]
     bmesh.ops.triangulate(bm, faces=list(bm.faces))
+    tessellated = bpy.data.meshes.new(f"{obj.data.name}_Pre_Bend_Tessellation")
+    tessellated.use_fake_user = True
+    bm.to_mesh(tessellated)
+    _FAN_TESSELLATION_CACHE[cache_key] = tessellated
+    return _bend_tessellated_fan_mesh(obj, bm)
+
+
+def _bend_tessellated_fan_mesh(obj, bm):
+    """Apply the angle-dependent flow to an already tessellated rear wall."""
     points = deform_fan_points([tuple(vertex.co) for vertex in bm.verts])
     for vertex, point in zip(bm.verts, points):
         vertex.co = point
