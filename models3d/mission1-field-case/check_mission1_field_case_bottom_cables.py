@@ -24,6 +24,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mission1_field_case_blender as case
 
 
+# Two assemblies x 25 sampled yaw poses x both bottom-corner exits.
+EXPECTED_ROUTE_COUNT = 100
+
 PART_OBJECT_NAMES = {
     "base": "Field_Case_Base",
     "fan_case_pair_insert": "Field_Case_Fan_Case_Pair_Lower_TPU_Insert",
@@ -373,7 +376,8 @@ def check_all_supported_routes(parts, references, assembly_groups):
         assert wrapping_cover_config() == configured
     finally:
         restore_wrapping_cover_config(original)
-    return maximum_overlap
+    # Report what validation actually exercised, not what it should have.
+    return maximum_overlap, len(cover_calls)
 
 
 def check_alternate_route_obstruction(parts, references, assembly_groups):
@@ -381,9 +385,17 @@ def check_alternate_route_obstruction(parts, references, assembly_groups):
     preview_corner = case.FAN_CASE_CABLE_PREVIEW_CORNERS[assembly_index - 1]
     alternate_corner = -preview_corner
     option_index = 0 if alternate_corner < 0 else 1
-    route = case.FAN_CASE_PAIR_STORAGE["cable_route_options"][
+    # Validation walks the sampled poses in order, so obstruct the first one
+    # and expect exactly its yaw. Obstructing the nominal preview route
+    # instead only works while the blocker stays wide enough to swallow the
+    # descent line's drift in X between poses, which is not a property worth
+    # depending on.
+    blocked_yaw = case.FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES[
         assembly_index - 1
-    ][option_index]
+    ][0][0]
+    route = case.FAN_CASE_PAIR_STORAGE["supported_cable_route_options"][
+        assembly_index - 1
+    ][0][option_index]
     upper, lower = Vector(route[2]), Vector(route[3])
     center = (upper + lower) / 2.0
     blocker = case.add_rounded_box(
@@ -403,7 +415,7 @@ def check_alternate_route_obstruction(parts, references, assembly_groups):
             message = str(error)
             expected = (
                 "Bottom-corner cable route is obstructed: "
-                f"assembly={assembly_index} yaw=-15.00 "
+                f"assembly={assembly_index} yaw={blocked_yaw:+.2f} "
                 f"corner={alternate_corner:+d} "
                 f"object={blocker.name}"
             )
@@ -425,13 +437,21 @@ def check_bottom_cables(scene_path=None):
     check_invalid_notch_offsets()
     check_cover_config_restoration()
     parts, references, assembly_groups, source = load_or_build_loadout(scene_path)
-    maximum_overlap = check_all_supported_routes(parts, references, assembly_groups)
+    maximum_overlap, routes = check_all_supported_routes(
+        parts, references, assembly_groups
+    )
+    # An external literal, so a coarser or finer route grid cannot quietly
+    # change what "every supported pose" means.
+    assert routes == EXPECTED_ROUTE_COUNT, (
+        f"Bottom-cable validation exercised {routes} routes, "
+        f"expected {EXPECTED_ROUTE_COUNT}"
+    )
     blocked_assembly, blocked_corner = check_alternate_route_obstruction(
         parts, references, assembly_groups
     )
     print(
         "FIELD_CASE_BOTTOM_CABLE_REGRESSION_PASS "
-        f"source={source} routes=52 overlap_max={maximum_overlap:.6f} "
+        f"source={source} routes={routes} overlap_max={maximum_overlap:.6f} "
         f"live_notch_separation={live_notch_separation:.3f} "
         f"shared_mouth_min_diameter={shared_mouth_diameter:.3f} "
         "outside_offset_rejected=True collapsed_pair_rejected=True "

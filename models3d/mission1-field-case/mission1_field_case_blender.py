@@ -497,13 +497,13 @@ EQUIPMENT_TRAY_LIFT_NOTCH_X_CENTERS = (-96.0, 96.0)
 # seated against the generated camera stops.
 FAN_CASE_STORAGE_COUNT = 2
 FAN_CASE_STORAGE_CENTERS_X = (-52.0, 52.0)
-# The two upright cameras use outward-facing fan pads: left negative X,
-# right positive X.  The visible reference pair stays at the minimum angle,
-# while the removable insert molds a sampled swept envelope through 30 degrees.
-# Thirteen live source poses per side are joined with a small interpolation
-# allowance.  The farthest cover corner moves less than the existing 1 mm
-# running clearance between a sample and the midpoint to its neighbor.
-FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES = 15.0
+# The two upright cameras use outward-handed fan pads: left negative X,
+# right positive X.  The removable insert molds a sampled swept envelope from
+# the straight pose out through 30 degrees on each side.  Twenty-five live
+# source poses per side are joined with a small interpolation allowance.  The
+# farthest cover corner moves less than the existing 1 mm running clearance
+# between a sample and the midpoint to its neighbor.
+FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES = 0.0
 FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES = 30.0
 FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES = 1.25
 FAN_CASE_STORAGE_SWEEP_INTERPOLATION_ALLOWANCE = 0.05
@@ -511,33 +511,29 @@ FAN_CASE_STORAGE_SWEEP_PROFILE_SIMPLIFY = 0.005
 FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES = 1.25
 FAN_CASE_STORAGE_REAR_RELIEF_STEP_DEGREES = 0.05
 FAN_CASE_STORAGE_REAR_RELIEF_INTERPOLATION_ALLOWANCE = 0.00002
-FAN_CASE_STORAGE_FAN_YAW_DEGREES = FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
+# One representative mid-range pose drives the visible reference pair, the
+# preview cable exits, and the upper-tray split.  It is deliberately not the
+# range minimum: a straight pair would hide the handed layout and pull the
+# tray division forward into the swept cover envelope.  It must remain one of
+# the sampled poses below so no separate source build is needed for it.
+FAN_CASE_STORAGE_FAN_YAW_DEGREES = 15.0
 FAN_CASE_STORAGE_FAN_ANGLES = (
     (-FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
     (FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
 )
-FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES = tuple(
-    FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
-    + index * FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES
-    for index in range(
-        round(
-            (
-                FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES
-                - FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
-            )
-            / FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES
-        )
-        + 1
+
+
+def handed_storage_fan_angles(magnitudes):
+    """Return outward-handed yaw pairs, keeping the straight pose unsigned."""
+    magnitudes = tuple(magnitudes)
+    return tuple(
+        tuple(((side * yaw if yaw else 0.0), 0.0) for yaw in magnitudes)
+        for side in (-1.0, 1.0)
     )
-)
-FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES = tuple(
-    tuple((side * yaw, 0.0) for yaw in FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES)
-    for side in (-1.0, 1.0)
-)
 
 
-def fan_case_storage_fan_angles_at_step(step_degrees):
-    """Return inclusive handed yaw samples at the requested positive step."""
+def storage_yaw_magnitudes(step_degrees):
+    """Return inclusive yaw magnitudes covering the supported range."""
     if step_degrees <= 0.0:
         raise ValueError("Fan-case yaw sampling step must be positive")
     span = (
@@ -547,13 +543,37 @@ def fan_case_storage_fan_angles_at_step(step_degrees):
     count = round(span / step_degrees)
     if not math.isclose(count * step_degrees, span, abs_tol=1e-9):
         raise ValueError("Fan-case yaw sampling step must divide the supported range")
-    magnitudes = tuple(
+    return tuple(
         FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES + index * step_degrees
         for index in range(count + 1)
     )
-    return tuple(
-        tuple((side * yaw, 0.0) for yaw in magnitudes)
-        for side in (-1.0, 1.0)
+
+
+FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES = storage_yaw_magnitudes(
+    FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES
+)
+FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES = handed_storage_fan_angles(
+    FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES
+)
+
+
+def fan_case_storage_fan_angles_at_step(step_degrees):
+    """Return inclusive handed yaw samples at the requested positive step."""
+    return handed_storage_fan_angles(storage_yaw_magnitudes(step_degrees))
+
+
+def fan_case_storage_nominal_sample_index(assembly_angles, assembly_index):
+    """Locate the nominal handed pose inside one sampled yaw sequence."""
+    nominal = FAN_CASE_STORAGE_FAN_ANGLES[assembly_index - 1]
+    for index, angles in enumerate(assembly_angles):
+        if all(
+            math.isclose(sampled, wanted, abs_tol=1e-9)
+            for sampled, wanted in zip(angles, nominal)
+        ):
+            return index
+    raise ValueError(
+        "The nominal fan-case storage pose must be one of the sampled yaw "
+        f"poses: assembly={assembly_index} nominal={nominal}"
     )
 
 
@@ -1047,9 +1067,20 @@ def fan_case_pair_storage_geometry():
         )
         for assembly_transforms in cable_route_fan_transforms
     )
+    # The preview cable must leave the cover the reference pair actually
+    # wears, so index the sampled sweep at the nominal pose rather than at
+    # the range minimum.
+    nominal_cable_route_indices = tuple(
+        fan_case_storage_nominal_sample_index(assembly_angles, assembly_index)
+        for assembly_index, assembly_angles in enumerate(
+            FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES, start=1
+        )
+    )
     cover_notch_options = tuple(
-        assembly_options[0]
-        for assembly_options in supported_cover_notch_options
+        assembly_options[nominal_index]
+        for assembly_options, nominal_index in zip(
+            supported_cover_notch_options, nominal_cable_route_indices
+        )
     )
     cover_notches = tuple(options[0 if corner < 0 else 1] for options, corner in zip(
         cover_notch_options, FAN_CASE_CABLE_PREVIEW_CORNERS))
@@ -1183,8 +1214,10 @@ def fan_case_pair_storage_geometry():
             assembly_routes.append(tuple(routes))
         supported_cable_route_options.append(tuple(assembly_routes))
     cable_route_options = tuple(
-        assembly_routes[0]
-        for assembly_routes in supported_cable_route_options
+        assembly_routes[nominal_index]
+        for assembly_routes, nominal_index in zip(
+            supported_cable_route_options, nominal_cable_route_indices
+        )
     )
     cable_route_points = tuple(options[0 if corner < 0 else 1] for options, corner in zip(
         cable_route_options, FAN_CASE_CABLE_PREVIEW_CORNERS))
@@ -5075,7 +5108,7 @@ def validate_configuration() -> None:
         == FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
         and FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES[-1]
         == FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES
-        and FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES == 15.0
+        and FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES == 0.0
         and FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES == 30.0
         and FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES <= 1.25
         and FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES
@@ -5092,7 +5125,46 @@ def validate_configuration() -> None:
             for angles in FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES
         )
     ):
-        raise ValueError("Fan-case insert must cover both handed 15-to-30-degree yaw ranges")
+        raise ValueError("Fan-case insert must cover both handed 0-to-30-degree yaw ranges")
+    # The reference pair drives the preview cable exits and the upper-tray
+    # split, and it is resolved inside the sampled sweeps by value. At the
+    # range minimum it would pull the tray division into the swept cover
+    # envelope; at the maximum it would lose the sweep's outer endpoint; off
+    # either grid the by-value lookups fail. Diagnose those separately from
+    # the range itself.
+    if not (
+        FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
+        < FAN_CASE_STORAGE_FAN_YAW_DEGREES
+        < FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES
+        and all(
+            nominal in assembly_angles
+            for assembly_angles, nominal in zip(
+                FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES,
+                FAN_CASE_STORAGE_FAN_ANGLES,
+            )
+        )
+        # Supported poses are resolved against the cable-route grid with
+        # tuple.index(), which is exact equality, so that grid has to contain
+        # every sampled pose literally. Being finer than the sample step is
+        # not sufficient: a 0.6-degree route step divides the range and is
+        # finer than 1.25, yet misses 22 of the 25 sampled poses and the
+        # lookup raises mid-build.
+        and all(
+            sampled in cable_angles
+            for cable_angles, supported_angles in zip(
+                FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES,
+                FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES,
+            )
+            for sampled in supported_angles
+        )
+    ):
+        raise ValueError(
+            "Fan-case reference pose "
+            f"{FAN_CASE_STORAGE_FAN_YAW_DEGREES:g} must sit strictly inside "
+            f"the {FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES:g}-to-"
+            f"{FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES:g}-degree range, and "
+            "every sampled pose must land on the cable-route grid"
+        )
     if not (
         fan_case.FAN_OPENING_ENABLED
         and math.isclose(fan_case.FAN_HOLE_SPACING_X, 32.0, abs_tol=1e-6)
@@ -7902,13 +7974,7 @@ def fan_case_pair_extraction_profiles(
                  if obj.name.startswith(f"REFERENCE_ONLY_Fan_Case_Assembly_{index}_")]
         if not group:
             raise ValueError(f"Fan-case reference assembly {index} is empty")
-        sampled_profiles = [fan_case_assembly_extraction_profile(group)]
-        if supported_pose_validator is not None:
-            supported_pose_validator(
-                index,
-                FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[index - 1][0],
-                group,
-            )
+        sampled_profiles = []
         material = next(
             (
                 slot.material
@@ -7918,17 +7984,27 @@ def fan_case_pair_extraction_profiles(
             ),
             None,
         )
+        # The supplied reference pair already stands at the nominal pose;
+        # every other sampled pose is built, measured, and discarded here.
+        nominal_index = fan_case_storage_nominal_sample_index(
+            FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[index - 1], index
+        )
         temporary_objects = []
         try:
-            for sample_angles in FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[index - 1][1:]:
-                sample_objects = create_fan_case_source_reference_mockups(
-                    *([material] * 7),
-                    assembly_index=index,
-                    fan_angles=sample_angles,
-                )
-                temporary_objects.extend(sample_objects)
-                for obj in sample_objects:
-                    obj.location = FAN_CASE_PAIR_STORAGE["placements"][index - 1]
+            for sample_index, sample_angles in enumerate(
+                FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES[index - 1]
+            ):
+                if sample_index == nominal_index:
+                    sample_objects = group
+                else:
+                    sample_objects = create_fan_case_source_reference_mockups(
+                        *([material] * 7),
+                        assembly_index=index,
+                        fan_angles=sample_angles,
+                    )
+                    temporary_objects.extend(sample_objects)
+                    for obj in sample_objects:
+                        obj.location = FAN_CASE_PAIR_STORAGE["placements"][index - 1]
                 sampled_profiles.append(
                     fan_case_assembly_extraction_profile(sample_objects)
                 )
@@ -7940,7 +8016,7 @@ def fan_case_pair_extraction_profiles(
                 bpy.data.objects.remove(obj, do_unlink=True)
                 if mesh.users == 0:
                     bpy.data.meshes.remove(mesh)
-        # Overlaying thirteen almost-identical high-resolution silhouettes and
+        # Overlaying twenty-five almost-identical high-resolution silhouettes and
         # buffering their union can create sub-micron boundary segments. Those
         # are valid in Shapely but poorly conditioned after float32 mesh
         # extrusion and repeated Blender Booleans. The extra outward allowance

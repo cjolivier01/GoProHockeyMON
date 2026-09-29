@@ -149,11 +149,13 @@ and their 10 mm-diameter, nominally 2.5 mm-thick low-profile thumb-nuts.
 Generation temporarily disables the fan-case generator's
 optional 60 mm rear adapter because the 40 mm fan uses the shell's direct
 32 x 32 mm mounting pattern. Using the current angled companion generator,
-the left fan may point from 15 through 30 degrees left and the right fan from
-15 through 30 degrees right, always with zero vertical tilt. The visible
-reference pair remains at -15/+15 degrees, independently of the companion's
-default angle. The insert cavity is cut from live source builds every 1.25
-degrees from 15 through 30 degrees on each side, plus a 0.05 mm interpolation
+the left fan may point from straight ahead through 30 degrees left and the
+right fan from straight ahead through 30 degrees right, always with zero
+vertical tilt. The visible reference pair remains at the mid-range -15/+15
+degrees, independently of the companion's default angle; a straight pair
+would hide the handed layout and pull the upper-tray split into the swept
+cover envelope. The insert cavity is cut from live source builds every 1.25
+degrees from 0 through 30 degrees on each side, plus a 0.05 mm interpolation
 allowance. The farthest cover corner moves less than the 1 mm running clearance
 between each sample and the midpoint to its neighbor. Each shell, fan, cover, and
 cable exit uses its sampled pad transform. Temporary source settings are
@@ -164,6 +166,21 @@ unchanged. The angle-capable companion is included in this revision, so a clean
 checkout generates the same handed loadout without editing its default pose.
 
 ![Supported handed fan-angle range](renderings/mission1_fan_angle_range.png)
+
+Lowering the supported minimum from 15 degrees to the straight pose releases
+4.47 cm3 of TPU from the cradle walls inboard of each assembly and from the
+shared cable mouth, taking the insert from 815.48 cm3 to 811.08 cm3. The outer
+envelope, the assembly centers and every tray dimension are unchanged. Compare
+a previously exported lower insert against the current one with:
+
+```sh
+blender --background --factory-startup --python-exit-code 1 \
+  --python models3d/mission1-field-case/render_mission1_insert_sweep_comparison.py -- \
+  --scene current-case.blend \
+  --baseline-insert previous/mission1_field_case_fan_case_pair_lower_insert_tpu.stl
+```
+
+![Lower insert before and after the wider sweep](renderings/mission1_fan_angle_insert_comparison.png)
 
 The bolt length is resolved from the fan-case geometry rather than represented
 by a generic front allowance. The current captured hex-head bearing seat is at
@@ -188,7 +205,7 @@ cradles rise to 58 mm and engage 54.5 mm of each assembly. Broad, curved support
 masses fill all four spaces beside the rear domes, on the outer sides and
 between cameras. They grow continuously from the deck rather than forming
 thin rings around rectangular voids. The cavity is cut from the evaluated
-meshes of each complete generated assembly: the union of its thirteen curved,
+meshes of each complete generated assembly: the union of its twenty-five curved,
 non-convex XY outlines is expanded by the 1 mm running clearance and extended
 vertically for straight-up removal. Internal
 shell/grille holes are filled in the cutting profile, preventing TPU posts
@@ -198,9 +215,9 @@ preserving the much larger dome-side curves. No dome dimensions or contour
 points are copied into the field-case generator. Source dimension changes rebuild the mold; changes
 that cannot fit the preserved case fail validation instead of resizing it.
 In addition to the 1 mm running clearance, the back edge of each rectangular
-fan-inlet slot extends **1.5 mm farther outward along every fan axis from ±15
+fan-inlet slot extends **1.5 mm farther outward along every fan axis from 0
 through ±30 degrees**. A dense analytical sweep fills the angles between the
-thirteen live source poses. This accepts a fan that is 1.5 mm deeper than the
+twenty-five live source poses. This accepts a fan that is 1.5 mm deeper than the
 nominal 20 mm reference without flexing the insert. The camera seats, assembly
 locations, and the case's internal width, depth, and height remain unchanged.
 About 14 mm of assembly remains exposed for lifting. Local 1.4 mm-floor
@@ -217,7 +234,7 @@ The two reliefs join in a shared rounded mouth, removing the narrow upright
 strip that separate slots would leave in front of the fan. The broad curved
 dome-side supports remain connected to the outer and center cradle masses.
 Routes use the live sleeve dimensions and absolute `CABLE_NOTCH_OFFSET`, then
-pad transforms every 1.25 degrees from -15 through -30 and +15 through +30.
+pad transforms every 1.25 degrees from 0 through -30 and 0 through +30.
 Their shared mouths cover every live source pose. Each lead passes beneath its cover
 before descending into the well; it no longer loops over the fan. There is
 approximately 12.9 mm between the cover bottom and the cradle's cavity floor,
@@ -358,9 +375,9 @@ Do not stack any of these four alternate parts with a dual-fan-loadout insert.
 
 The exact references are built directly from the current local fan-case,
 MISSION 1 dummy, and wrapping-cover generators. The production Make target
-builds twenty-six complete fan-case source poses to form the two handed sweeps
+builds fifty complete fan-case source poses to form the two handed sweeps
 and checks every pose against the fixed case/tray stack, both cable exits, and
-the rigid case base, for 52 angle/exit configurations. The visible loadout includes two cameras,
+the rigid case base, for 100 angle/exit configurations. The visible loadout includes two cameras,
 two direct 40 x 40 x 20 mm fans, two wrapping covers, six
 M3 x 40 bolts, six 10 mm thumb-nuts, two batteries, two battery doors, both
 cable coils, and both PWM plugs for fit, guide engagement, retention, and
@@ -381,9 +398,10 @@ instead of silently producing an incompatible storage insert.
 Finished-mesh probes check both visible fans' seating planes, all eight
 shell-pad corners, and both cover grille planes against their handed mount
 transforms. The swept profile and cable checks use every 1.25-degree live
-source pose from 15 through 30 degrees on both sides. The rear-depth band uses
+source pose from 0 through 30 degrees on both sides. The rear-depth band uses
 a 0.05-degree analytical sweep with segment hulls between samples. The tray
-notch regression checks 602 off-grid cover poses at 0.05-degree spacing, its
+notch regression runs 1202 handed cover checks at 0.05-degree spacing, covering
+1201 distinct poses because both sides share the straight one; it measures its
 minimum 0.7 mm running clearance, and the finished 2 mm return walls. Run the handed-loadout regression,
 including intentional bad fan placement, an intentionally blocked door-removal
 path, and source-setting restoration after a build failure, with:

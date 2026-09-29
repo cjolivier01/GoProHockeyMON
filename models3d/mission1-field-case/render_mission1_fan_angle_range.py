@@ -1,4 +1,4 @@
-"""Render the actual handed 15- and 30-degree fan-case endpoint assemblies.
+"""Render the actual straight and handed 30-degree fan-case endpoint assemblies.
 
 blender --background --factory-startup --python this_file.py -- \
   --scene current-case.blend
@@ -36,16 +36,60 @@ def build_endpoint_pair(material, magnitude):
         zip(case.FAN_CASE_PAIR_STORAGE['placements'], (-1.0, 1.0)),
         start=1,
     ):
+        handed = case.handed_storage_fan_angles((magnitude,))
         group = case.create_fan_case_source_reference_mockups(
             *([material] * 7),
             assembly_index=assembly_index,
-            fan_angles=(sign * magnitude, 0.0),
+            fan_angles=handed[0 if sign < 0 else 1][0],
         )
         for obj in group:
             obj.location = placement
         objects.extend(group)
     bpy.context.view_layer.update()
     return objects
+
+
+def check_saved_scene_matches_configuration(references):
+    """Reject a scene whose reference pair is not the configured one.
+
+    This is a partial staleness check and deliberately advertises its limit:
+    it compares the saved reference pair against the nominal envelope, which
+    catches a scene built at a different reference pose, case size or
+    placement. It does NOT prove the saved insert was molded over the current
+    yaw range -- the sweep leaves the nominal envelope untouched, and the TPU
+    it removes sits low in the cradle rather than in the cover pocket, so no
+    cheap analytic probe distinguishes the two inserts. Regenerate the scene
+    whenever the sampled range changes.
+    """
+    worst = 0.0
+    for assembly_index in range(1, case.FAN_CASE_STORAGE_COUNT + 1):
+        group = [
+            obj for obj in references
+            if obj.name.startswith(
+                f'REFERENCE_ONLY_Fan_Case_Assembly_{assembly_index}_'
+            )
+        ]
+        if not group:
+            raise RuntimeError(f'Saved scene lacks assembly {assembly_index}')
+        bounds = [case.object_world_bounds(obj) for obj in group]
+        merged = tuple(
+            value
+            for axis in range(3)
+            for value in (min(item[0][axis] for item in bounds),
+                          max(item[1][axis] for item in bounds))
+        )
+        expected = case.FAN_CASE_PAIR_STORAGE['installed_reference_bounds'][
+            assembly_index - 1
+        ]
+        deviation = max(abs(a - b) for a, b in zip(merged, expected))
+        if deviation > 0.06:
+            raise RuntimeError(
+                'Saved scene does not match the current configuration: '
+                f'assembly={assembly_index} deviation={deviation:.4f} mm '
+                f'actual={merged} expected={expected}'
+            )
+        worst = max(worst, deviation)
+    return worst
 
 
 def main():
@@ -63,11 +107,27 @@ def main():
     if not nominal:
         raise RuntimeError('Saved scene does not contain the nominal fan-case references')
     material = nominal[0].material_slots[0].material
-    endpoint = build_endpoint_pair(material, 30.0)
-    snapshots = {
-        15: [mesh_snapshot(insert), *(mesh_snapshot(obj) for obj in nominal)],
-        30: [mesh_snapshot(insert), *(mesh_snapshot(obj) for obj in endpoint)],
-    }
+    deviation = check_saved_scene_matches_configuration(nominal)
+    print(
+        'FAN_ANGLE_RANGE_SCENE_MATCHES_CONFIG '
+        f'reference_deviation={deviation:.6f}',
+        flush=True,
+    )
+
+    # The saved scene holds the mid-range reference pair, so build both
+    # endpoints of the supported range explicitly.
+    snapshots = {}
+    for magnitude in (case.FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES,
+                      case.FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES):
+        endpoint = build_endpoint_pair(material, magnitude)
+        snapshots[magnitude] = [
+            mesh_snapshot(insert), *(mesh_snapshot(obj) for obj in endpoint)
+        ]
+        for obj in endpoint:
+            mesh = obj.data
+            bpy.data.objects.remove(obj, do_unlink=True)
+            if mesh.users == 0:
+                bpy.data.meshes.remove(mesh)
 
     case.clear_scene()
     scene = bpy.context.scene
@@ -101,8 +161,8 @@ def main():
     scene.camera = camera
 
     for magnitude, offset_x, color in (
-        (15, -125.0, (.13, .62, .82, 1.0)),
-        (30, 125.0, (1.0, .34, .06, 1.0)),
+        (case.FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES, -125.0, (.13, .62, .82, 1.0)),
+        (case.FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES, 125.0, (1.0, .34, .06, 1.0)),
     ):
         for name, vertices, faces in snapshots[magnitude]:
             obj = case.create_mesh_object(
@@ -115,14 +175,18 @@ def main():
                 else color
             )
 
+    low = case.FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
+    high = case.FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES
+    step = case.FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES
     captions = (
         ('HANDED FAN-CASE RANGE / ACTUAL SOURCE GEOMETRY', -246, 133, 7.7),
-        ('-15 degrees / +15 degrees', -226, 104, 6.2),
-        ('-30 degrees / +30 degrees', 24, 104, 6.2),
+        (f'{low:g} degrees / both fans straight' if not low
+         else f'-{low:g} degrees / +{low:g} degrees', -226, 104, 6.2),
+        (f'-{high:g} degrees / +{high:g} degrees', 24, 104, 6.2),
         ('CYAN: minimum angle', -226, -111, 5.0),
         ('ORANGE: maximum angle', 24, -111, 5.0),
-        ('Same lower insert accepts every 1.25-degree pose from 15 through 30 degrees',
-         -246, -129, 5.2),
+        (f'Same lower insert accepts every {step:g}-degree pose from '
+         f'{low:g} through {high:g} degrees', -246, -129, 5.2),
         ('Case width, depth, height and assembly centers unchanged', -246, -143, 4.8),
     )
     for text, x, y, size in captions:
@@ -135,7 +199,12 @@ def main():
         DIRECTORY / 'renderings' / 'mission1_fan_angle_range.png'
     )
     bpy.ops.render.render(write_still=True)
-    print('FAN_ANGLE_RANGE_PREVIEW_PASS endpoints=-15,+15,-30,+30', flush=True)
+    minimum_endpoints = f'{low:g}' if not low else f'-{low:g},+{low:g}'
+    print(
+        'FAN_ANGLE_RANGE_PREVIEW_PASS '
+        f'endpoints={minimum_endpoints},-{high:g},+{high:g}',
+        flush=True,
+    )
 
 
 if __name__ == '__main__':
