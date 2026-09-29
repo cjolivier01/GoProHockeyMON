@@ -109,7 +109,7 @@ regenerated coupon when qualifying this lid revision.
 ![TPU lid latch-station coupon outer-protector shoulder connection](renderings/mission1_tpu_lid_latch_coupon_outer_profile.png)
 
 The lower insert uses the battery-door pockets raised level with the inserted
-battery tops, swept ±15-to-±30-degree fan clearances, deeper rear fan-inlet
+battery tops, swept 0-to-±30-degree fan clearances, deeper rear fan-inlet
 reliefs, cable corridors and load-bearing webs inside the reshaped liner. The
 front utility bin keeps its existing outer dimensions and receives two local
 upward-open rear-rim passages that preserve at least 0.7 mm clearance through

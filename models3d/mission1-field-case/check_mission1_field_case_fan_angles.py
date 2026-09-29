@@ -16,18 +16,28 @@ import mission1_field_case_blender as case
 EXPECTED_STORAGE_ANGLES = ((-15.0, 0.0), (15.0, 0.0))
 EXPECTED_SUPPORTED_ANGLES = (
     (
+        (0.0, 0.0), (-1.25, 0.0), (-2.5, 0.0), (-3.75, 0.0),
+        (-5.0, 0.0), (-6.25, 0.0), (-7.5, 0.0), (-8.75, 0.0),
+        (-10.0, 0.0), (-11.25, 0.0), (-12.5, 0.0), (-13.75, 0.0),
         (-15.0, 0.0), (-16.25, 0.0), (-17.5, 0.0), (-18.75, 0.0),
         (-20.0, 0.0), (-21.25, 0.0), (-22.5, 0.0), (-23.75, 0.0),
         (-25.0, 0.0), (-26.25, 0.0), (-27.5, 0.0), (-28.75, 0.0),
         (-30.0, 0.0),
     ),
     (
+        (0.0, 0.0), (1.25, 0.0), (2.5, 0.0), (3.75, 0.0),
+        (5.0, 0.0), (6.25, 0.0), (7.5, 0.0), (8.75, 0.0),
+        (10.0, 0.0), (11.25, 0.0), (12.5, 0.0), (13.75, 0.0),
         (15.0, 0.0), (16.25, 0.0), (17.5, 0.0), (18.75, 0.0),
         (20.0, 0.0), (21.25, 0.0), (22.5, 0.0), (23.75, 0.0),
         (25.0, 0.0), (26.25, 0.0), (27.5, 0.0), (28.75, 0.0),
         (30.0, 0.0),
     ),
 )
+EXPECTED_NOMINAL_SAMPLE_INDEX = 12
+# Off-grid probe resolution for the front-bin cover notch, owned by this
+# regression rather than borrowed from the rear-relief feature's constant.
+PROBE_STEP_DEGREES = 0.05
 
 
 def source_config():
@@ -121,6 +131,100 @@ def check_failed_source_build_restores_config(material):
         restore_source_config(previous)
 
 
+def expect_configuration_failure(message_fragment):
+    try:
+        case.validate_configuration()
+    except ValueError as error:
+        assert message_fragment in str(error), (
+            f"Unexpected configuration rejection: {error}"
+        )
+    else:
+        raise AssertionError(
+            f"Invalid fan-angle configuration was accepted: {message_fragment}"
+        )
+
+
+def check_reference_pose_guard():
+    """Prove the reference pair cannot silently leave the sampled grids.
+
+    The pair drives the preview cable exits and the upper-tray split, and it
+    is resolved inside both sweeps by value, so every way it can come loose
+    has to be rejected rather than silently molded.
+    """
+    fragment = "must sit strictly inside"
+    original = {
+        name: getattr(case, name)
+        for name in (
+            "FAN_CASE_STORAGE_FAN_YAW_DEGREES",
+            "FAN_CASE_STORAGE_FAN_ANGLES",
+            "FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES",
+            "FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES",
+        )
+    }
+    rejected = []
+    try:
+        # Either endpoint of the range, and any pose off the sample grid.
+        for bad in (
+            case.FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES,
+            case.FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES,
+            case.FAN_CASE_STORAGE_FAN_YAW_DEGREES
+            + case.FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES / 2.0,
+        ):
+            case.FAN_CASE_STORAGE_FAN_YAW_DEGREES = bad
+            case.FAN_CASE_STORAGE_FAN_ANGLES = tuple(
+                side[0] for side in case.handed_storage_fan_angles((bad,))
+            )
+            expect_configuration_failure(fragment)
+            rejected.append(bad)
+        case.FAN_CASE_STORAGE_FAN_YAW_DEGREES = original[
+            "FAN_CASE_STORAGE_FAN_YAW_DEGREES"
+        ]
+        case.FAN_CASE_STORAGE_FAN_ANGLES = original["FAN_CASE_STORAGE_FAN_ANGLES"]
+        # A cable-route grid that divides the range and is finer than the
+        # sample step, but still misses sampled poses: 0.6 reproduces only 3
+        # of the 25, so the tuple.index() lookup in
+        # validate_supported_fan_case_source_pose would raise mid-build.
+        for bad_step in (1.0, 0.6):
+            case.FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES = bad_step
+            case.FAN_CASE_STORAGE_CABLE_ROUTE_FAN_ANGLES = (
+                case.fan_case_storage_fan_angles_at_step(bad_step)
+            )
+            expect_configuration_failure(fragment)
+            rejected.append(bad_step)
+    finally:
+        for name, value in original.items():
+            setattr(case, name, value)
+    case.validate_configuration()
+
+    # The sample lookup must reject an absent pose rather than return 0.
+    try:
+        case.fan_case_storage_nominal_sample_index(((99.0, 0.0),), 1)
+    except ValueError as error:
+        assert "must be one of the sampled yaw poses" in str(error), (
+            f"Unexpected sample-lookup rejection: {error}"
+        )
+    else:
+        raise AssertionError("An absent nominal pose escaped the sample lookup")
+
+    # The handed helper must not consume a one-shot iterable.
+    generated = case.handed_storage_fan_angles(x for x in (0.0, 30.0))
+    assert generated == (
+        ((0.0, 0.0), (-30.0, 0.0)),
+        ((0.0, 0.0), (30.0, 0.0)),
+    ), f"handed_storage_fan_angles consumed its argument twice: {generated}"
+
+    # The magnitude grid must reject a step that does not divide the range.
+    try:
+        case.storage_yaw_magnitudes(0.7)
+    except ValueError as error:
+        assert "must divide the supported range" in str(error), (
+            f"Unexpected sampling-step rejection: {error}"
+        )
+    else:
+        raise AssertionError("A step that does not divide the range was accepted")
+    return len(rejected)
+
+
 class PreviewModeMustNotBeRead:
     """Sentinel proving lower-insert geometry does not branch on preview mode."""
 
@@ -178,10 +282,16 @@ def check_front_bin_cover_sweep_and_return(storage_bin):
     maximum_missing = 0.0
     minimum_clearance = math.inf
     checked = 0
+    # The notch is built from the coarse 1.25-degree sample grid, so probe the
+    # configured range on this much finer grid to measure the interpolation
+    # sagitta between samples. Deriving the domain (not the step) from the
+    # configuration means narrowing or widening the supported yaw cannot leave
+    # poses unchecked. Both sides evaluate the shared straight pose.
+    probe_magnitudes = case.storage_yaw_magnitudes(PROBE_STEP_DEGREES)
     for index, side in enumerate((-1.0, 1.0)):
         offset = case.Vector(case.FAN_CASE_PAIR_STORAGE["placements"][index])
-        for step in range(301):
-            angle = side * (15.0 + step * 0.05)
+        for magnitude in probe_magnitudes:
+            angle = side * magnitude if magnitude else 0.0
             transform = case.fan_case_storage_mount_transform(angle, 0.0)
             points = []
             for x, y in (
@@ -527,12 +637,30 @@ def check_loadout():
     case.clear_scene()
     original_config = source_config()
     assert case.FAN_CASE_STORAGE_FAN_ANGLES == EXPECTED_STORAGE_ANGLES, (
-        "Storage must retain explicit outward -15/+15-degree fan poses"
+        "Storage must retain explicit outward -15/+15-degree reference poses"
     )
     assert case.FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES == EXPECTED_SUPPORTED_ANGLES, (
-        "Storage sweep must cover both handed 15-through-30-degree ranges"
+        "Storage sweep must cover both handed 0-through-30-degree ranges"
     )
+    # Tuple equality and dict/index lookups all treat -0.0 as 0.0, so the
+    # assertion above cannot see a signed zero. It only reaches the printed
+    # yaw labels, where it would read "-0.00"; keep the straight pose unsigned.
+    # Only applies while the range starts at zero.
+    assert all(
+        assembly_angles[0][0] != 0.0
+        or math.copysign(1.0, assembly_angles[0][0]) > 0.0
+        for assembly_angles in case.FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES
+    ), "The straight storage pose kept a signed zero"
+    # The reference pair is a sampled pose, so the sweep never rebuilds it.
+    assert all(
+        case.fan_case_storage_nominal_sample_index(assembly_angles, index)
+        == EXPECTED_NOMINAL_SAMPLE_INDEX
+        for index, assembly_angles in enumerate(
+            case.FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES, start=1
+        )
+    ), "The -15/+15-degree reference pair left the sampled yaw grid"
     case.validate_configuration()
+    rejected_reference_poses = check_reference_pose_guard()
     broad_gap_clearance = check_profile_minimum_feature_closing()
     material = case.make_material("Angle_Check", (0.5, 0.5, 0.5))
 
@@ -620,7 +748,7 @@ def check_loadout():
     assert (case.CASE_WIDTH, case.CASE_DEPTH, case.BASE_HEIGHT) == ((234.0, 180.0, 160.0) if case.EXPANDED_ACCESSORY_STORAGE else (234.0, 158.0, 97.8))
     print(
         "FIELD_CASE_FAN_ANGLE_REGRESSION_PASS "
-        "preview_yaws=-15,+15 supported_yaws=-15..-30,+15..+30 source_defaults=0,31 "
+        "preview_yaws=-15,+15 supported_yaws=0..-30,0..+30 source_defaults=0,31 "
         f"runtime_profile_delta={profile_delta:.3f} "
         f"projection_oracle_deviation={projection_deviation:.6f} "
         "rear_depth_allowances="
@@ -632,6 +760,7 @@ def check_loadout():
         f"notch_clearance={notch_clearance:.3f} "
         f"return_separation={return_separation:.3f} "
         f"return_fill={return_fill:.6f} "
+        f"reference_pose_mutations_rejected={rejected_reference_poses} "
         "preview_independent=True references_reused=True bad_pose_rejected=True "
         "blocked_door_lift_rejected=True blocked_assembly_lift_rejected=True "
         "tray_envelopes_preserved=True source_config_restored=True",
