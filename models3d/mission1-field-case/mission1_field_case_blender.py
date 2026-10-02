@@ -3958,7 +3958,8 @@ PELICAN_BLEND_LATCH_MESHES_LZMA_BASE85 = (
 )
 
 # Flush orange GoPro-style inlay with strokes 50% wider than the original.
-LID_LOGO_TEXT = "Sports AI"
+# LID_LOGO_TEXT = "Sports AI"
+LID_LOGO_TEXT = "HockeyMON"
 LID_LOGO_TEXT_SIZE = 18.0
 LID_LOGO_TEXT_MAX_WIDTH = 122.0
 LID_LOGO_TEXT_CENTER_Y = -7.0
@@ -8089,8 +8090,8 @@ def fan_case_cable_relief_region(well_center, routes):
     The hull is ONLY for the short cable mouth, never the assembly mold;
     the broad dome-side cradles retain their actual concave source contours.
     """
-    from shapely.geometry import LineString
     from shapely import union_all
+    from shapely.geometry import LineString
     radius = FAN_CASE_CABLE_THROAT_WIDTH / 2.0
     throats = []
     for route in routes:
@@ -15408,8 +15409,8 @@ def validate_fan_case_contoured_cradle(
 
     Supplied extraction profiles must describe the current assembly groups.
     """
-    from shapely.geometry import box
     from shapely import union_all
+    from shapely.geometry import box
     from shapely.ops import polylabel
 
     if extraction_profiles is None:
