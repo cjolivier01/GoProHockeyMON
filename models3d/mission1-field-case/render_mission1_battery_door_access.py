@@ -112,7 +112,7 @@ def main():
     render('mission1_field_case_fan_case_insert_detail.png', (0, -310, 310), (0, 0, 36), 410,
         [('LEVEL BATTERY + DOOR TOPS / 43.56 mm', -190, 108, 6.5),
          ('Orange: battery doors / blue: batteries', -190, 94, 4.8),
-         ('Lower insert also accepts handed 0-30 degree fans', -190, -102, 5.0)])
+         ('Lower insert also accepts handed 0-15 degree fans', -190, -102, 5.0)])
     print('BATTERY_DOOR_ACCESS_PREVIEWS_PASS', flush=True)
 
 

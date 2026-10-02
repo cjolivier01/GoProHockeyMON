@@ -13,28 +13,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mission1_field_case_blender as case
 
 
-EXPECTED_STORAGE_ANGLES = ((-15.0, 0.0), (15.0, 0.0))
+EXPECTED_STORAGE_ANGLES = ((-7.5, 0.0), (7.5, 0.0))
 EXPECTED_SUPPORTED_ANGLES = (
     (
         (0.0, 0.0), (-1.25, 0.0), (-2.5, 0.0), (-3.75, 0.0),
         (-5.0, 0.0), (-6.25, 0.0), (-7.5, 0.0), (-8.75, 0.0),
         (-10.0, 0.0), (-11.25, 0.0), (-12.5, 0.0), (-13.75, 0.0),
-        (-15.0, 0.0), (-16.25, 0.0), (-17.5, 0.0), (-18.75, 0.0),
-        (-20.0, 0.0), (-21.25, 0.0), (-22.5, 0.0), (-23.75, 0.0),
-        (-25.0, 0.0), (-26.25, 0.0), (-27.5, 0.0), (-28.75, 0.0),
-        (-30.0, 0.0),
+        (-15.0, 0.0),
     ),
     (
         (0.0, 0.0), (1.25, 0.0), (2.5, 0.0), (3.75, 0.0),
         (5.0, 0.0), (6.25, 0.0), (7.5, 0.0), (8.75, 0.0),
         (10.0, 0.0), (11.25, 0.0), (12.5, 0.0), (13.75, 0.0),
-        (15.0, 0.0), (16.25, 0.0), (17.5, 0.0), (18.75, 0.0),
-        (20.0, 0.0), (21.25, 0.0), (22.5, 0.0), (23.75, 0.0),
-        (25.0, 0.0), (26.25, 0.0), (27.5, 0.0), (28.75, 0.0),
-        (30.0, 0.0),
+        (15.0, 0.0),
     ),
 )
-EXPECTED_NOMINAL_SAMPLE_INDEX = 12
+EXPECTED_NOMINAL_SAMPLE_INDEX = 6
 # Off-grid probe resolution for the front-bin cover notch, owned by this
 # regression rather than borrowed from the rear-relief feature's constant.
 PROBE_STEP_DEGREES = 0.05
@@ -85,7 +79,7 @@ def build_references_from_source_default(material, horizontal, vertical):
                 case.fan_case, "build_gopro_fan_case", side_effect=capture_real_build):
             references = case.create_fan_case_pair_reference_mockups(*([material] * 7))
         assert tuple(observed_build_angles) == EXPECTED_STORAGE_ANGLES, (
-            "Fan-case source builder did not receive the explicit -15/+15 storage "
+            "Fan-case source builder did not receive the explicit -7.5/+7.5 storage "
             f"poses: source_default={(horizontal, vertical)!r} "
             f"observed={observed_build_angles!r}"
         )
@@ -122,7 +116,7 @@ def check_failed_source_build_restores_config(material):
             else:
                 raise AssertionError("The injected source-build failure was not propagated")
         assert observed_build_angles == [EXPECTED_STORAGE_ANGLES[1]], (
-            "A failed source build did not use the explicit +15-degree storage pose"
+            "A failed source build did not use the explicit +7.5-degree storage pose"
         )
         assert source_config() == configured, (
             "Failed source build leaked its temporary companion configuration"
@@ -144,10 +138,27 @@ def expect_configuration_failure(message_fragment):
         )
 
 
+def check_tray_split_independent_of_preview():
+    """Preview cable movement must not resize already-printed tray interfaces."""
+    original = case.fan_case_pair_overhead_storage_geometry()
+    moved_routes = tuple(
+        tuple((x, y + 5.0, z) for x, y, z in route)
+        for route in case.FAN_CASE_PAIR_STORAGE["cable_route_points"]
+    )
+    with patch.dict(case.FAN_CASE_PAIR_STORAGE, cable_route_points=moved_routes):
+        assert case.fan_case_pair_overhead_storage_geometry() == original
+    bounds = original["bin_bounds"]
+    assert math.isclose(
+        bounds[3] - bounds[2],
+        43.52492 if case.EXPANDED_ACCESSORY_STORAGE else 32.52492,
+        abs_tol=0.00001,
+    ), "Printed front-bin depth changed"
+
+
 def check_reference_pose_guard():
     """Prove the reference pair cannot silently leave the sampled grids.
 
-    The pair drives the preview cable exits and the upper-tray split, and it
+    The pair drives the preview cable exits, and it
     is resolved inside both sweeps by value, so every way it can come loose
     has to be rejected rather than silently molded.
     """
@@ -181,8 +192,8 @@ def check_reference_pose_guard():
         ]
         case.FAN_CASE_STORAGE_FAN_ANGLES = original["FAN_CASE_STORAGE_FAN_ANGLES"]
         # A cable-route grid that divides the range and is finer than the
-        # sample step, but still misses sampled poses: 0.6 reproduces only 3
-        # of the 25, so the tuple.index() lookup in
+        # sample step, but still misses sampled poses: 0.6 reproduces only 2
+        # of the 13, so the tuple.index() lookup in
         # validate_supported_fan_case_source_pose would raise mid-build.
         for bad_step in (1.0, 0.6):
             case.FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES = bad_step
@@ -339,6 +350,15 @@ def check_front_bin_cover_sweep_and_return(storage_bin):
         .difference(clearance.buffer(0.1))
         .intersection(interior)
     )
+    if probe_region.is_empty:
+        # The 0–15-degree sweep clears the preserved bin entirely. No local
+        # return is needed; verify that the ordinary rear wall stays solid.
+        # Only accept this path if even the full return collar misses the bay
+        # and the clearance envelope misses the entire outer bin footprint.
+        assert return_region.intersection(interior).is_empty
+        assert clearance.distance(box(x0, y0, x1, y1)) > 0.0
+        # Stay inside the wall faces and beyond the 6.5 mm rounded end corners.
+        probe_region = box(x0 + 10.0, y1 - wall + 0.2, x1 - 10.0, y1 - 0.2)
     assert probe_region.area > 1.0
     probe = case.extrude_planar_region(
         "TEST_Tray_Return_Wall",
@@ -359,7 +379,7 @@ def check_front_bin_cover_sweep_and_return(storage_bin):
         case.bpy.data.objects.remove(probe, do_unlink=True)
     expected = probe_region.area
     assert filled >= expected * 0.98, (
-        "Finished bin does not retain the cover-notch return wall: "
+        "Finished bin does not retain the required rear wall: "
         f"filled={filled:.6f} expected={expected:.6f}"
     )
     return checked, minimum_clearance, separation, filled / expected
@@ -634,13 +654,14 @@ def check_blocked_complete_assembly_lift(parts, references, profiles):
 
 
 def check_loadout():
+    check_tray_split_independent_of_preview()
     case.clear_scene()
     original_config = source_config()
     assert case.FAN_CASE_STORAGE_FAN_ANGLES == EXPECTED_STORAGE_ANGLES, (
-        "Storage must retain explicit outward -15/+15-degree reference poses"
+        "Storage must retain explicit outward -7.5/+7.5-degree reference poses"
     )
     assert case.FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES == EXPECTED_SUPPORTED_ANGLES, (
-        "Storage sweep must cover both handed 0-through-30-degree ranges"
+        "Storage sweep must cover both handed 0-through-15-degree ranges"
     )
     # Tuple equality and dict/index lookups all treat -0.0 as 0.0, so the
     # assertion above cannot see a signed zero. It only reaches the printed
@@ -658,7 +679,7 @@ def check_loadout():
         for index, assembly_angles in enumerate(
             case.FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES, start=1
         )
-    ), "The -15/+15-degree reference pair left the sampled yaw grid"
+    ), "The -7.5/+7.5-degree reference pair left the sampled yaw grid"
     case.validate_configuration()
     rejected_reference_poses = check_reference_pose_guard()
     broad_gap_clearance = check_profile_minimum_feature_closing()
@@ -748,7 +769,7 @@ def check_loadout():
     assert (case.CASE_WIDTH, case.CASE_DEPTH, case.BASE_HEIGHT) == ((234.0, 180.0, 160.0) if case.EXPANDED_ACCESSORY_STORAGE else (234.0, 158.0, 97.8))
     print(
         "FIELD_CASE_FAN_ANGLE_REGRESSION_PASS "
-        "preview_yaws=-15,+15 supported_yaws=0..-30,0..+30 source_defaults=0,31 "
+        "preview_yaws=-7.5,+7.5 supported_yaws=0..-15,0..+15 source_defaults=0,31 "
         f"runtime_profile_delta={profile_delta:.3f} "
         f"projection_oracle_deviation={projection_deviation:.6f} "
         "rear_depth_allowances="
