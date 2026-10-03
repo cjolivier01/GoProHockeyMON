@@ -1723,6 +1723,10 @@ HINGE_LID_SEGMENT_END_TRIM = 0.4
 HINGE_LID_ROOT_CASEWARD_OFFSET = 4.2
 HINGE_LID_ROOT_FLOOR_Z = 0.20
 HINGE_LID_ROOT_SPINE_OFFSET = 3.1
+# Continue the expanded lid's shoulder buttress into the roof-side half of
+# each receiver. Keep its outboard edge at the existing mouth tip so the
+# fixed base's swing pockets and the overall print footprint stay unchanged.
+HINGE_LID_SHOULDER_JOIN_Z = LID_WALL_HEIGHT - HINGE_LID_OUTER_DIAMETER / 2.0 / math.sqrt(2.0)
 HINGE_LID_RIM_RADIAL_CLEARANCE = 0.7
 HINGE_LID_RIM_AXIAL_CLEARANCE = 0.6
 HINGE_ROD_DIAMETER = 3.8
@@ -10217,6 +10221,18 @@ def create_lid(
             union_into(lid, extrude_loop_x("Lid_Hinge_Shoulder_Web",
                 ((root_y, -LID_DOME_RISE), (outer_y, .4),
                  (root_y, .4)), dx + x0, dx + x1))
+        # Fill the re-entrant notch between the shoulder web and the receiver
+        # root. Previously the web ended at Z=0.4 while the outboard jaw began
+        # at Z=6.84, concentrating bending across the narrow plate-level neck.
+        # This full-bank web overlaps both solids and reaches into the barrel;
+        # the receiver and TPU flex-gap cutters below retain the working jaws.
+        for x0, x1 in lid_hinge_bank_bounds():
+            inner_y = -HINGE_AXIS_Y + HINGE_LID_ROOT_CASEWARD_OFFSET
+            union_into(lid, extrude_loop_x("Lid_Hinge_Continuous_Shoulder_Join",
+                ((outer_y + .25, .2), (outer_y, .45),
+                 (outer_y, HINGE_LID_SHOULDER_JOIN_Z),
+                 (inner_y, HINGE_LID_SHOULDER_JOIN_Z), (inner_y, .2)),
+                dx + x0, dx + x1))
     else:
         # The compact plate's rounded bed edge stops inboard of the receiver
         # roots. Give each bank a bed-level foot so its Z=0.2 mm root cannot
@@ -14319,6 +14335,7 @@ def validate_lid_hinge_reinforcement(base, lid, profile):
     fills = []
     root_fills = []
     spine_fills = []
+    shoulder_fills = []
 
     def require_solid(name, size, center, results, angle=0.0):
         probe = add_rounded_box(name, size, center, bevel=0.0)
@@ -14363,6 +14380,16 @@ def validate_lid_hinge_reinforcement(base, lid, profile):
                 (center_x, -HINGE_AXIS_Y + offset_y, LID_WALL_HEIGHT + offset_z),
                 root_fills,
             )
+        if LID_DOME_RISE:
+            # Sample the former notch through successive print layers, on
+            # every receiver clip. Jaw/root checks alone missed this weak neck.
+            for z in (0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5):
+                require_solid(
+                    f"TEMPORARY_{profile}_{index}_Shoulder_Join_{z}",
+                    (width, 1.6, 0.4),
+                    (center_x, -HINGE_AXIS_Y - 1.2, z),
+                    shoulder_fills,
+                )
     for index, (x0, x1) in enumerate(lid_hinge_relief_gaps(profile), start=1):
         require_solid(
             f"TEMPORARY_TPU_Continuous_Root_Spine_{index}",
@@ -14399,6 +14426,7 @@ def validate_lid_hinge_reinforcement(base, lid, profile):
         "FIELD_CASE_LID_HINGE_REINFORCEMENT_VALID "
         f"profile={profile} jaw_probes={len(fills)} jaw_fill_min={min(fills):.6f} "
         f"root_fill_min={min(root_fills):.6f} continuous_spines={len(spine_fills)} "
+        f"shoulder_join_probes={len(shoulder_fills)} "
         f"clearance_envelope=0.50 clearance_overlap={maximum_clearance_overlap:.6f}"
     )
 
@@ -17301,6 +17329,13 @@ LID_SUPPORT_SETTINGS = {
     # their otherwise printable 45-degree ramps.
     "support_threshold_angle": "30",
 }
+RIGID_LID_SETTINGS = {
+    **LID_SUPPORT_SETTINGS,
+    # Six perimeter roads reinforce the widened hinge root instead of leaving
+    # it to the generic two-wall process preset. Keep the compact kit's preset.
+    **({"wall_loops": "6", "sparse_infill_density": "45%"}
+       if EXPANDED_ACCESSORY_STORAGE else {}),
+}
 PROJECT_OBJECT_SETTING_KEYS = frozenset(
     {
         *TPU_FOR_AMS_LID_SETTINGS,
@@ -18182,11 +18217,13 @@ def field_case_3mf_groups():
         rigid_lid_sources,
         rigid_lid_extruders,
         new_plate(
-            "02 - Rigid AMS Lid - Supports On at 30deg "
+            "02 - Rigid AMS Lid - "
+            + ("6 Walls - 45% Infill - " if EXPANDED_ACCESSORY_STORAGE else "")
+            + "Supports On at 30deg "
             "(Choose This or Plate 03)"
         ),
         role="rigid_lid",
-        process_overrides=LID_SUPPORT_SETTINGS,
+        process_overrides=RIGID_LID_SETTINGS,
         print_rotations={key: (0.0, 0.0, math.pi / 2.0) for key in rigid_lid_keys} if EXPANDED_ACCESSORY_STORAGE else {},
     )
     add_group(
@@ -18988,6 +19025,8 @@ def validate_3mf_project(path: Path) -> None:
         )
     for object_id, group in groups_by_object_id.items():
         overrides = group["process_overrides"]
+        if group["role"] == "rigid_lid" and overrides != RIGID_LID_SETTINGS:
+            raise ValueError("Rigid lid must retain its reinforced wall/infill and support settings")
         if group["role"] == "tpu_95a_tray":
             if overrides != TPU_95A_TRAY_SETTINGS:
                 raise ValueError(
