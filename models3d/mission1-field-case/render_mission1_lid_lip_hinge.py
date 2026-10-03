@@ -1,4 +1,4 @@
-"""Render actual before/after lid sections and the Sports AI lid artwork.
+"""Render actual before/after lid sections and the HockeyMON lid artwork.
 
 blender --background --factory-startup --python this_file.py -- \
   --scene current-case.blend --baseline previous-case.blend --review-round 1
@@ -150,8 +150,8 @@ def main():
 
     copy(parts['lid'], (.09, .12, .16, 1), pose=case.installed_lid_pose(0))
     copy(parts['logo_orange_inlay'], (1, .34, .025, 1), pose=case.installed_lid_pose(0))
-    render('mission1_sports_ai_lid.png', (0, -180, 600), (0, 0, 166), 440,
-           [('SPORTS AI / same Neuropol lettering style', -202, 113, 8),
+    render('mission1_hockeymon_lid.png', (0, -180, 600), (0, 0, 166), 440,
+           [('HOCKEYMON / same Neuropol lettering style', -202, 113, 8),
             ('Flush orange inlay shared by the rigid and 68D TPU lids', -202, -99, 6)])
     print('LID_LIP_HINGE_PREVIEWS_PASS', flush=True)
 

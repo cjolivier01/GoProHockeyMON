@@ -24,7 +24,7 @@ parting rim; local pockets in the base guards clear the reinforced latch lips.
 ![Supplied hardcase reference](renderings/mission1_hardcase_reference.png)
 
 The reference's shape is adapted to the existing 250 mm print bed and equipment
-stack. It retains the Sports AI inlay, two-piece latches, M3 latch/handle screws
+stack. It retains the HockeyMON inlay, two-piece latches, M3 latch/handle screws
 and existing 3.8 mm hinge rod. The reference uses interleaved knuckles and axial
 pins; this revision retains the calibrated removable rigid and TPU-for-AMS
 hinge options.
@@ -65,9 +65,9 @@ TPU-compatible adhesive. The asymmetrical key determines its orientation.
 ![Form-fitting raised roof pad and matching lid interior](renderings/mission1_hardcase_lid_and_spacer.png)
 
 **The rounded-case, latch, and fan-angle updates preserve the case and tray
-outer envelopes.** The fan-angle update described below changes the lower
-insert and adds local upward-open clearance passages with inward return walls
-at the front bin's rear rim; the mount
+outer envelopes.** The current fan-angle update changes the lower insert.
+The narrower sweep clears the front bin without the local rear-rim passages
+needed by the earlier 0–30-degree range; the mount
 tray, organizer, form-fitting roof pad, handle, gasket, inlay, and hinge hardware remain usable. Upgrading
 from the previous 40.96 mm / M3 × 50 latch station requires the matching base,
 chosen lid, levers, and hooks described in [Wider latches and handle](#wider-latches-and-handle).
@@ -109,13 +109,12 @@ regenerated coupon when qualifying this lid revision.
 ![TPU lid latch-station coupon outer-protector shoulder connection](renderings/mission1_tpu_lid_latch_coupon_outer_profile.png)
 
 The lower insert uses the battery-door pockets raised level with the inserted
-battery tops, swept 0-to-±30-degree fan clearances, deeper rear fan-inlet
+battery tops, swept 0-to-±15-degree fan clearances, deeper rear fan-inlet
 reliefs, cable corridors and load-bearing webs inside the reshaped liner. The
-front utility bin keeps its existing outer dimensions and receives two local
-upward-open rear-rim passages that preserve at least 0.7 mm clearance through
-the complete angle range. A 2 mm inward return wall around each passage keeps
-the storage bay enclosed; reprint that bin with the lower insert when using the
-full fan-angle range.
+front utility bin keeps its existing outer dimensions. The current sweep's
+cover-clearance envelope misses the bin entirely, so its rear wall needs no
+local passages or inward returns. Existing bins remain compatible; reprint
+the lower insert for the revised fan sweep.
 
 ## What fits
 

@@ -71,7 +71,7 @@ def add_slot_depth_overlay(panel_name, delta, band_color):
 
     # Cyan is the complete rectangular inlet slot. The colored strip is only
     # the additional 1.5 mm at its back edge, shown at true scale and in the
-    # actual -15 degree installed pose.
+    # actual -7.5 degree installed pose.
     for edge_name, size, center in (
         ("Front", (slot_width + line_width, line_width, 0.7),
          (center_x, front_y, 0.0)),

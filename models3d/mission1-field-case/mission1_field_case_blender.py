@@ -499,12 +499,12 @@ FAN_CASE_STORAGE_COUNT = 2
 FAN_CASE_STORAGE_CENTERS_X = (-52.0, 52.0)
 # The two upright cameras use outward-handed fan pads: left negative X,
 # right positive X.  The removable insert molds a sampled swept envelope from
-# the straight pose out through 30 degrees on each side.  Twenty-five live
+# the straight pose out through 15 degrees on each side.  Thirteen live
 # source poses per side are joined with a small interpolation allowance.  The
 # farthest cover corner moves less than the existing 1 mm running clearance
 # between a sample and the midpoint to its neighbor.
 FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES = 0.0
-FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES = 30.0
+FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES = 15.0
 FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES = 1.25
 FAN_CASE_STORAGE_SWEEP_INTERPOLATION_ALLOWANCE = 0.05
 FAN_CASE_STORAGE_SWEEP_PROFILE_SIMPLIFY = 0.005
@@ -512,11 +512,10 @@ FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES = 1.25
 FAN_CASE_STORAGE_REAR_RELIEF_STEP_DEGREES = 0.05
 FAN_CASE_STORAGE_REAR_RELIEF_INTERPOLATION_ALLOWANCE = 0.00002
 # One representative mid-range pose drives the visible reference pair, the
-# preview cable exits, and the upper-tray split.  It is deliberately not the
-# range minimum: a straight pair would hide the handed layout and pull the
-# tray division forward into the swept cover envelope.  It must remain one of
+# preview cable exits. It is deliberately not the range minimum: a straight
+# pair would hide the handed layout. It must remain one of
 # the sampled poses below so no separate source build is needed for it.
-FAN_CASE_STORAGE_FAN_YAW_DEGREES = 15.0
+FAN_CASE_STORAGE_FAN_YAW_DEGREES = 7.5
 FAN_CASE_STORAGE_FAN_ANGLES = (
     (-FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
     (FAN_CASE_STORAGE_FAN_YAW_DEGREES, 0.0),
@@ -698,6 +697,9 @@ FAN_CASE_PAIR_STORAGE_BIN_FLOOR = 3.0
 FAN_CASE_PAIR_DEEP_TRAY_BATTERY_CLEARANCE = 1.5
 FAN_CASE_PAIR_DEEP_TRAY_CABLE_CLEARANCE = 1.0
 FAN_CASE_PAIR_TRAY_SEPARATION = 1.5
+# Established tray interface in case coordinates, shared by both profiles.
+# Keep printed bins/carriers compatible when the preview fan yaw changes.
+FAN_CASE_PAIR_TRAY_DIVISION_Y = -40.97508
 FAN_CASE_PAIR_CRADLE_WALL_CLEARANCE = 0.6
 FAN_CASE_PAIR_CRADLE_SHELL_PRELOAD = 0.25
 
@@ -1293,11 +1295,7 @@ def fan_case_pair_overhead_storage_geometry():
     # Preserve the established upper-tray split and every tray outer envelope.
     # Larger fan angles receive local cover-clearance notches in the front
     # tray's rear wall instead of moving this boundary.
-    division_y = (
-        min(route[-2][1] for route in FAN_CASE_PAIR_STORAGE["cable_route_points"])
-        - FAN_CASE_CABLE_DIAMETER / 2.0
-        - FAN_CASE_PAIR_DEEP_TRAY_CABLE_CLEARANCE
-    )
+    division_y = FAN_CASE_PAIR_TRAY_DIVISION_Y
     rear_y0 = division_y + FAN_CASE_PAIR_TRAY_SEPARATION
     rear_y1 = inner_depth / 2.0 - EQUIPMENT_TRAY_SIDE_CLEARANCE
     front_y0 = -inner_depth / 2.0 + EQUIPMENT_TRAY_SIDE_CLEARANCE
@@ -3987,46 +3985,117 @@ LID_HOCKEY_PUCK_SIZE = (14.0, 6.0)
 LID_INLAY_DEPTH = 0.8
 LID_INLAY_CUTTER_OVERTRAVEL = 0.2
 
-# Embedded CC0 Neuropol 3.100 subset, including Sports AI and the prior title.
+# Embedded CC0 Neuropol 3.100 subset covering every letter and digit, so the
+# lid text can be retyped without rebuilding the blob.  Blender substitutes a
+# hollow rectangle for any character the loaded font lacks instead of failing,
+# so LID_LOGO_TEXT is checked against this coverage below rather than silently
+# engraving boxes.  Regenerate with:
+#   pyftsubset Neuropol.otf --text="<characters>" \
+#       --name-IDs='*' --name-legacy --name-languages='*'
 # Source: https://dl.dafont.com/dl/?f=neuropol (Neuropol.otf by Ray Larabie).
+NEUROPOL_LID_TEXT_CHARACTERS = (
+    " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+)
+NEUROPOL_LID_TEXT_OTF_BYTES = 10720
 NEUROPOL_LID_TEXT_OTF_GZIP_BASE64 = (
-    "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"
-    "nIf4/wCAs0suYBAAAA=="
+    "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"
 )
 
 ROUNDED_RECT_SEGMENTS = 16 if EXPANDED_ACCESSORY_STORAGE else 10
@@ -4801,8 +4870,16 @@ def load_embedded_logo_font():
     if _embedded_logo_font is not None:
         return _embedded_logo_font
     payload = gzip.decompress(base64.b64decode(NEUROPOL_LID_TEXT_OTF_GZIP_BASE64))
-    if len(payload) != 4192:
+    if len(payload) != NEUROPOL_LID_TEXT_OTF_BYTES:
         raise RuntimeError("Embedded Neuropol subset failed its size check")
+    missing = sorted(set(LID_LOGO_TEXT) - set(NEUROPOL_LID_TEXT_CHARACTERS))
+    if missing:
+        raise RuntimeError(
+            f"LID_LOGO_TEXT {LID_LOGO_TEXT!r} uses characters the embedded "
+            f"Neuropol subset does not carry: {''.join(missing)!r}. Blender "
+            "would engrave a hollow rectangle for each one. Regenerate "
+            "NEUROPOL_LID_TEXT_OTF_GZIP_BASE64 with those characters included."
+        )
     with tempfile.NamedTemporaryFile(
         prefix="mission1-neuropol-",
         suffix=".otf",
@@ -5110,7 +5187,7 @@ def validate_configuration() -> None:
         and FAN_CASE_STORAGE_SUPPORTED_YAW_MAGNITUDES[-1]
         == FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES
         and FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES == 0.0
-        and FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES == 30.0
+        and FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES == 15.0
         and FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES <= 1.25
         and FAN_CASE_STORAGE_CABLE_ROUTE_STEP_DEGREES
         <= FAN_CASE_STORAGE_FAN_YAW_SAMPLE_STEP_DEGREES
@@ -5126,13 +5203,10 @@ def validate_configuration() -> None:
             for angles in FAN_CASE_STORAGE_SUPPORTED_FAN_ANGLES
         )
     ):
-        raise ValueError("Fan-case insert must cover both handed 0-to-30-degree yaw ranges")
-    # The reference pair drives the preview cable exits and the upper-tray
-    # split, and it is resolved inside the sampled sweeps by value. At the
-    # range minimum it would pull the tray division into the swept cover
-    # envelope; at the maximum it would lose the sweep's outer endpoint; off
-    # either grid the by-value lookups fail. Diagnose those separately from
-    # the range itself.
+        raise ValueError("Fan-case insert must cover both handed 0-to-15-degree yaw ranges")
+    # The reference pair drives the preview cable exits and is resolved inside
+    # the sampled sweeps by value. Keep a representative interior pose on both
+    # grids so the by-value lookups succeed.
     if not (
         FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
         < FAN_CASE_STORAGE_FAN_YAW_DEGREES
@@ -8017,7 +8091,7 @@ def fan_case_pair_extraction_profiles(
                 bpy.data.objects.remove(obj, do_unlink=True)
                 if mesh.users == 0:
                     bpy.data.meshes.remove(mesh)
-        # Overlaying twenty-five almost-identical high-resolution silhouettes and
+        # Overlaying thirteen almost-identical high-resolution silhouettes and
         # buffering their union can create sub-micron boundary segments. Those
         # are valid in Shapely but poorly conditioned after float32 mesh
         # extrusion and repeated Blender Booleans. The extra outward allowance
@@ -8638,7 +8712,7 @@ def create_fan_case_pair_standalone_tray(material, key, name):
         difference_from(cavity, return_keepout)
     difference_from(tray, cavity)
     if key == "bin_bounds":
-        # The 30-degree cover corners reach slightly into the established rear
+        # The 15-degree cover corners reach slightly into the established rear
         # wall of this tray. Remove only their swept local clearance volume;
         # the tray retains its width, depth, height, and enclosed storage bay.
         clearance_region, clearance_z0, _clearance_z1 = cover_clearance_data

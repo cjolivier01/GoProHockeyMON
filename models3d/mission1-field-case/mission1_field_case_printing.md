@@ -149,29 +149,31 @@ and their 10 mm-diameter, nominally 2.5 mm-thick low-profile thumb-nuts.
 Generation temporarily disables the fan-case generator's
 optional 60 mm rear adapter because the 40 mm fan uses the shell's direct
 32 x 32 mm mounting pattern. Using the current angled companion generator,
-the left fan may point from straight ahead through 30 degrees left and the
-right fan from straight ahead through 30 degrees right, always with zero
-vertical tilt. The visible reference pair remains at the mid-range -15/+15
+the left fan may point from straight ahead through 15 degrees left and the
+right fan from straight ahead through 15 degrees right, always with zero
+vertical tilt. The visible reference pair remains at the mid-range -7.5/+7.5
 degrees, independently of the companion's default angle; a straight pair
-would hide the handed layout and pull the upper-tray split into the swept
-cover envelope. The insert cavity is cut from live source builds every 1.25
-degrees from 0 through 30 degrees on each side, plus a 0.05 mm interpolation
+would hide the handed layout. The upper-tray split stays fixed at Y = -40.97508 mm
+to preserve the printed bin and carrier dimensions as the preview angle changes.
+The insert cavity is cut from live source builds every 1.25
+degrees from 0 through 15 degrees on each side, plus a 0.05 mm interpolation
 allowance. The farthest cover corner moves less than the 1 mm running clearance
 between each sample and the midpoint to its neighbor. Each shell, fan, cover, and
 cable exit uses its sampled pad transform. Temporary source settings are
-restored even when generation fails. The complete supported envelope is
-approximately 97.77 x 112.38 x 68.57 mm per assembly.
+restored even when generation fails. The nominal assembly envelope is
+approximately 97.77 x 98.92 x 68.57 mm per assembly at the preview pose.
 Both fit side-by-side with the existing internal width, depth, and height
 unchanged. The angle-capable companion is included in this revision, so a clean
 checkout generates the same handed loadout without editing its default pose.
 
 ![Supported handed fan-angle range](renderings/mission1_fan_angle_range.png)
 
-Lowering the supported minimum from 15 degrees to the straight pose releases
-4.47 cm3 of TPU from the cradle walls inboard of each assembly and from the
-shared cable mouth, taking the insert from 815.48 cm3 to 811.08 cm3. The outer
-envelope, the assembly centers and every tray dimension are unchanged. Compare
-a previously exported lower insert against the current one with:
+The historical comparison below shows the earlier expansion from 15–30 degrees
+to 0–30 degrees. That revision released 4.47 cm3 of TPU from the cradle walls
+and shared cable mouth; its reported volumes do not describe the current
+0–15-degree insert. The current case envelope, assembly centers, and tray
+dimensions remain preserved. To compare an archived 15–30-degree lower insert
+against the current one, regenerate a scene and run:
 
 ```sh
 blender --background --factory-startup --python-exit-code 1 \
@@ -180,7 +182,7 @@ blender --background --factory-startup --python-exit-code 1 \
   --baseline-insert previous/mission1_field_case_fan_case_pair_lower_insert_tpu.stl
 ```
 
-![Lower insert before and after the wider sweep](renderings/mission1_fan_angle_insert_comparison.png)
+![Historical comparison: 15–30-degree versus 0–30-degree inserts, before the current 0–15-degree range](renderings/mission1_fan_angle_insert_comparison.png)
 
 The bolt length is resolved from the fan-case geometry rather than represented
 by a generic front allowance. The current captured hex-head bearing seat is at
@@ -205,7 +207,7 @@ cradles rise to 58 mm and engage 54.5 mm of each assembly. Broad, curved support
 masses fill all four spaces beside the rear domes, on the outer sides and
 between cameras. They grow continuously from the deck rather than forming
 thin rings around rectangular voids. The cavity is cut from the evaluated
-meshes of each complete generated assembly: the union of its twenty-five curved,
+meshes of each complete generated assembly: the union of its thirteen curved,
 non-convex XY outlines is expanded by the 1 mm running clearance and extended
 vertically for straight-up removal. Internal
 shell/grille holes are filled in the cutting profile, preventing TPU posts
@@ -216,8 +218,8 @@ points are copied into the field-case generator. Source dimension changes rebuil
 that cannot fit the preserved case fail validation instead of resizing it.
 In addition to the 1 mm running clearance, the back edge of each rectangular
 fan-inlet slot extends **1.5 mm farther outward along every fan axis from 0
-through ±30 degrees**. A dense analytical sweep fills the angles between the
-twenty-five live source poses. This accepts a fan that is 1.5 mm deeper than the
+through ±15 degrees**. A dense analytical sweep fills the angles between the
+thirteen live source poses. This accepts a fan that is 1.5 mm deeper than the
 nominal 20 mm reference without flexing the insert. The camera seats, assembly
 locations, and the case's internal width, depth, and height remain unchanged.
 About 14 mm of assembly remains exposed for lifting. Local 1.4 mm-floor
@@ -234,7 +236,7 @@ The two reliefs join in a shared rounded mouth, removing the narrow upright
 strip that separate slots would leave in front of the fan. The broad curved
 dome-side supports remain connected to the outer and center cradle masses.
 Routes use the live sleeve dimensions and absolute `CABLE_NOTCH_OFFSET`, then
-pad transforms every 1.25 degrees from 0 through -30 and 0 through +30.
+pad transforms every 1.25 degrees from 0 through -15 and 0 through +15.
 Their shared mouths cover every live source pose. Each lead passes beneath its cover
 before descending into the well; it no longer loops over the fan. There is
 approximately 12.9 mm between the cover bottom and the cradle's cavity floor,
@@ -267,15 +269,14 @@ leave 7 mm proud, and use the same 0.15 mm local retention. Their floors are
 25.56 mm above the insert underside and their retaining rims reach 36.56 mm.
 Each sideways door now tops out at 43.56 mm, exactly level with the top of its
 adjacent inserted battery and 11.76 mm above the previous door position.
-The raised door pockets change only the lower TPU insert. The wider fan-angle
-range adds local upward-open cover-clearance passages at the existing front
-tray's rear rim and floor edge without changing that tray's outer width, depth,
-or height. Each passage retains at least 0.7 mm clearance across the continuous
-angle range and has a 2 mm inward return wall that keeps the storage bay enclosed. Reprint
-the lower insert and front tray when using the full angle range. The rear tray,
-case shell, camera seats, lid pad, and lids remain unchanged. In the expanded
-case, the full-footprint mount tray and organizer remain reusable; only its
-dimensionally unchanged front utility bin receives the same local notches.
+The raised door pockets change only the lower TPU insert. The earlier
+0–30-degree range required local cover-clearance passages with inward return
+walls at the front tray's rear rim. With the current 0–15-degree range and
+preserved tray split, the cover-clearance envelope misses the bin entirely,
+so the regenerated bin retains its ordinary rear wall. The tray outer
+dimensions, case shell, camera seats, lid pad, and lids remain unchanged.
+Existing trays remain compatible; reprint the lower insert for the revised
+fan sweep. In the expanded case, the mount tray and organizer remain reusable.
 
 ![Raised battery-door pockets](renderings/mission1_raised_battery_door_pockets.png)
 
@@ -315,11 +316,10 @@ trays on one another.
 Across the complete handed fan-angle range, the rear tray's nominal usable
 interior remains 217 x 106.98 x 23.13 mm (537 mL); the front tray's remains
 217 x 26.52 x 50.84 mm (293 mL). Together they provide approximately 830 mL
-to the rims, before allowing for rounded corners, the open finger scallops,
-and the two local upward-open cover-clearance passages and inward return walls
-at the front tray's rear rim. The two return walls displace approximately
-1.03 mL from the front tray's nominal rectangular envelope. The tray split and
-every outer dimension remain unchanged.
+to the rims, before allowing for rounded corners and the open finger scallops.
+The current 0–15-degree sweep needs no local cover-clearance passages or inward
+return walls in the bin; their displacement is zero. The tray split and every
+outer dimension remain unchanged.
 The legacy `overhead_carrier` filename now contains the complete shallow rear
 tray, not a flat carrier panel.
 
@@ -398,11 +398,12 @@ instead of silently producing an incompatible storage insert.
 Finished-mesh probes check both visible fans' seating planes, all eight
 shell-pad corners, and both cover grille planes against their handed mount
 transforms. The swept profile and cable checks use every 1.25-degree live
-source pose from 0 through 30 degrees on both sides. The rear-depth band uses
+source pose from 0 through 15 degrees on both sides. The rear-depth band uses
 a 0.05-degree analytical sweep with segment hulls between samples. The tray
-notch regression runs 1202 handed cover checks at 0.05-degree spacing, covering
-1201 distinct poses because both sides share the straight one; it measures its
-minimum 0.7 mm running clearance, and the finished 2 mm return walls. Run the handed-loadout regression,
+notch regression runs 602 handed cover checks at 0.05-degree spacing, covering
+601 distinct poses because both sides share the straight one; it measures its
+minimum 0.7 mm running clearance and verifies the finished rear wall. Where a
+notch is required, it instead checks the 2 mm inward return. Run the handed-loadout regression,
 including intentional bad fan placement, an intentionally blocked door-removal
 path, and source-setting restoration after a build failure, with:
 
@@ -426,8 +427,10 @@ with the assemblies removed for visibility. Only one lead per fan is installed.
 
 ## Lid logo
 
-The lid text is `Sports AI`, set in the compact embedded Neuropol
-GoPro-style face. Its minimum stroke is widened from 1.475 mm to 2.2125 mm,
+The lid text is `HockeyMON`, set in the compact embedded Neuropol
+GoPro-style face. The embedded subset carries every letter and digit, so the
+text can be retyped without rebuilding the font; a character outside that set
+is rejected at build time rather than engraved as a hollow rectangle. Its minimum stroke is widened from 1.475 mm to 2.2125 mm,
 exactly 50% thicker than the original. Two broad, rounded hockey sticks cross
 above the text with opposing blades and a compact rounded puck centered below
 them, while four small blocks below the text follow the familiar GoPro layout.
@@ -450,7 +453,7 @@ Each lid-choice plate is an independently printable, aligned three-material
 compound object:
 
 - rigid black or hard-TPU shell, according to the chosen plate
-- orange hockey artwork, `Sports AI` text, and four orange blocks
+- orange hockey artwork, `HockeyMON` text, and four orange blocks
 - hollow hard-TPU lid gasket
 
 The inlay and gasket meshes intentionally appear in both lid groups so either

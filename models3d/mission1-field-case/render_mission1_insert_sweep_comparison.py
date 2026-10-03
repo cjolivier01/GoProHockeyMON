@@ -18,6 +18,9 @@ import bpy
 from mathutils import Vector
 
 DIRECTORY = Path(__file__).resolve().parent
+# Swept yaw range of the exported baseline insert this renderer compares against.
+BASELINE_LOW = 15.0
+BASELINE_HIGH = 30.0
 sys.path.insert(0, str(DIRECTORY))
 import mission1_field_case_blender as case
 from render_mission1_latch_previews import aim, label
@@ -130,10 +133,14 @@ def main():
 
     low = case.FAN_CASE_STORAGE_MIN_FAN_YAW_DEGREES
     high = case.FAN_CASE_STORAGE_MAX_FAN_YAW_DEGREES
+    # The baseline STL predates the current constants, so its own swept range
+    # is a fixed property of that export rather than something to read back
+    # from the module.
     captions = (
-        ('LOWER TPU INSERT / SAME PART, WIDER SWEPT CAVITY', -246, 137, 7.4),
+        ('LOWER TPU INSERT / CHANGED SWEPT CAVITY', -246, 137, 7.4),
         ('BEFORE', -226, 110, 6.4),
-        (f'swept {high:g} degrees down to 15 degrees per side', -226, 99, 4.6),
+        (f'swept {BASELINE_HIGH:g} degrees down to {BASELINE_LOW:g} degrees per side',
+         -226, 99, 4.6),
         ('AFTER', 24, 110, 6.4),
         (f'swept {high:g} degrees down to {low:g} degrees per side',
          24, 99, 4.6),

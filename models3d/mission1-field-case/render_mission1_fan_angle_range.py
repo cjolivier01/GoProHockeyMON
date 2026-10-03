@@ -1,4 +1,4 @@
-"""Render the actual straight and handed 30-degree fan-case endpoint assemblies.
+"""Render the actual straight and handed 15-degree fan-case endpoint assemblies.
 
 blender --background --factory-startup --python this_file.py -- \
   --scene current-case.blend
