@@ -48,7 +48,10 @@ def main():
     validate_fixed_part_compatibility('base', parts['base'])
     for key in ('lid', 'tpu_snap_lid'):
         lid = parts[key]
+        profile = (case.HINGE_PROFILE_RIGID_SLIDE if key == 'lid'
+                   else case.HINGE_PROFILE_TPU_68D_SNAP)
         case.validate_built_part(key, lid)
+        case.validate_lid_hinge_reinforcement(parts['base'], lid, profile)
         case.validate_built_lid_capture_rails(lid)
         case.validate_installed_case_closure({**parts, 'lid': lid})
         case.validate_installed_case_hinge_sweep({**parts, 'lid': lid})
@@ -66,6 +69,23 @@ def main():
             must_reject(lambda: case.validate_built_lid_capture_rails(weak), 'full')
         finally:
             case.bpy.data.objects.remove(weak, do_unlink=True)
+        if case.LID_DOME_RISE:
+            weak = lid.copy()
+            weak.data = lid.data.copy()
+            case.bpy.context.collection.objects.link(weak)
+            x0, x1 = case.lid_hinge_segments(profile)[0]
+            # Reintroduce a local gap in the old shoulder-to-barrel neck.
+            # The jaw and plate-root probes still pass; continuity must fail.
+            cutter = case.add_rounded_box('REGRESSION_Notched_Hinge_Shoulder',
+                (x1 - x0 - .6, 3.0, 2.0),
+                (case.LID_DISPLAY_OFFSET_X + (x0 + x1) / 2,
+                 -case.HINGE_AXIS_Y - 1.2, case.LID_DOME_RISE + 2.0), bevel=0)
+            case.difference_from(weak, cutter)
+            try:
+                must_reject(lambda: case.validate_lid_hinge_reinforcement(
+                    parts['base'], weak, profile), 'Shoulder_Join')
+            finally:
+                case.bpy.data.objects.remove(weak, do_unlink=True)
     case.validate_tpu_snap_lid(parts['tpu_snap_lid'])
     case.validate_tpu_hinge_coupon(parts['tpu_hinge_coupon'])
     wide = parts['tpu_snap_lid'].copy()
