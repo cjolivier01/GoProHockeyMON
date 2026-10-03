@@ -870,6 +870,37 @@ the circular profile's thin, easily damaged tips: the rigid slot retains at
 least 1.85 mm of material at each jaw end, and the TPU mouth retains 1.65 mm.
 A broad tapered root joins each receiver to the lid plate; the TPU banks also
 have a continuous caseward spine between their independently flexing jaws.
+
+On the expanded case, both lids now carry the sloping roof-side shoulder web
+continuously into each 22 mm receiver bank. The former web ended at print
+Z=0.4 mm (before the raised-roof offset), while the rigid jaw started at
+Z=6.84 mm, leaving a deep inward notch and a narrow neck between them. The
+new web fills that notch and overlaps the barrel up to Z=7.61 mm. Its small
+45-degree foot overlaps the existing shoulder, so it does not begin as an
+unsupported shelf. The TPU clip reliefs and calibrated mouth are cut after
+the reinforcement is added.
+
+![Actual lid sections with the added shoulder support highlighted](docs/images/mission1_lid_hinge_shoulder_support.png)
+
+| Previous hinge support | Continuous hinge support |
+| --- | --- |
+| ![Previous shoulder notch above the hinge](docs/images/mission1_lid_hinge_shoulder_before.png) | ![Reinforced shoulder joining the hinge](docs/images/mission1_lid_hinge_shoulder_after.png) |
+
+The base, hinge axis, rod openings, lid height, internal dimensions, and print
+orientation are unchanged. Moving the hinge would require matching changes
+to the existing base; increasing the lid height is unnecessary for filling
+this notch. The added section distributes bending through a broader root,
+but does not change the layer direction or establish a measured strength
+rating. Test a replacement lid with the intended filament and repeated
+opening before relying on it. The compact lid and the throat-calibration
+coupon retain their existing geometry; the coupon checks snap fit, not the
+expanded shoulder's strength.
+The expanded rigid-lid 3MF plate now explicitly uses **6 wall loops and 45%
+infill**, instead of inheriting the generic process preset's wall count. The
+TPU lid retains its existing 6 walls and 45% grid infill. These settings add
+perimeter material through the wider hinge roots; they do not remove layer
+anisotropy. The base's print settings are unchanged.
+
 The rod openings now reduce clearance around the measured **3.8 mm rod by
 25%**. This scales the gap, not the hole diameter:
 
@@ -902,6 +933,9 @@ the continuous seated rod path, and a 1-degree base/lid rotation sweep from 0
 through 110 degrees. Separate solid probes check both jaw ends and plate roots
 on every receiver, plus all four TPU root-spine connections. A barrel envelope
 expanded by 0.5 mm radially and axially must clear the unchanged base.
+Additional solid probes cross the former shoulder notch at seven successive
+heights on every expanded-lid receiver. The regression check deliberately
+cuts a gap back into that support and requires both lid variants to reject it.
 
 Two 6 mm-diameter by 3 mm-long solid bosses are part of the lid just outside
 the outer faces of the base's end knuckles. The straight rod is cut to 151 mm,
@@ -987,6 +1021,7 @@ the selected lid is complete.
 ## Suggested printing
 
 - Base, rigid lid, latch pieces, handle bar, and hinge pin: Bambu PETG HF. The
+  expanded rigid lid uses **6 wall loops and 45% sparse infill**. The
   latch lever, latch hook, and handle use **4 wall loops and 45% sparse
   infill**. The lever and hook have supports enabled; the base, rigid handle,
   and hinge pin remain support-free.
