@@ -174,6 +174,8 @@ The UI is organized after the GoPro rear screen:
 
 The settings list is based on the Open GoPro setting groups available over BLE/Wi-Fi. Because legal options vary by camera model, firmware, current preset, and whether the camera is recording, the firmware queries the camera before showing options. Tapping a setting opens an option sheet. The remote queries the current value, asks the camera for currently available options, shows those options, and sends `/gopro/camera/setting?setting=<id>&option=<option>` when you choose one.
 
+The capture page displays the camera's active preset name, including custom names such as `Hockey`. While connected over Wi-Fi and idle, the remote checks for profile changes about every five seconds.
+
 `Sync State` refreshes the current values from `/gopro/camera/state`. `Sync Presets` refreshes the current preset tree from `/gopro/camera/presets/get?include-hidden=1`.
 
 See [gopro_ui_research.md](gopro_ui_research.md).
@@ -184,10 +186,11 @@ The preview area is a manual JPEG snapshot path, not full real-time video decode
 
 Current behavior:
 
-- Double-click the lower side button while not recording to sync the current Video settings, take one temporary GoPro photo, download its JPEG preview, crop it to the current Video aspect/framing with a HyperSmooth crop estimate, display it fullscreen, restore Video mode, and delete the captured JPEG from the camera.
+- Double-click the lower side button while not recording to save the active camera preset and sync its settings, take one temporary GoPro photo, download its JPEG preview, crop it to the current Video aspect/framing with a HyperSmooth crop estimate, display it fullscreen, restore the exact saved preset (including a custom video profile such as `Hockey`), and delete the captured JPEG from the camera.
+- An existing GoPro Wi-Fi connection is reused for snapshots. The remote checks camera status over that connection; Bluetooth/Wi-Fi reconnection is only needed when the connection is unavailable.
 - Swipe down from the normal capture page to expand the current preview fullscreen.
 - Swipe up or single-click the lower side button while the snapshot is fullscreen to return to the normal capture page.
-- While recording, snapshots are disabled.
+- While recording, snapshots are disabled. If the current preset cannot be identified, the snapshot is cancelled before changing modes. A failed snapshot also attempts to restore the saved preset; restoration failures are reported.
 
 The crop is based on the camera state returned by Open GoPro plus the active Video preset's `settingArray`, including video aspect/framing, resolution fallback, digital lens, HyperSmooth, horizon leveling, and Max Lens settings when the camera reports them. Dynamic stabilization can still change the live recording crop slightly while the camera is moving, because Open GoPro does not publish an exact per-frame stabilization rectangle.
 

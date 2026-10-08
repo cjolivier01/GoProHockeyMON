@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include "camera_presets.h"
 #include <lvgl.h>
 
 #include <ctype.h>
@@ -135,6 +136,8 @@ bool readStatusInt(JsonObjectConst status, const char *idKey,
          jsonVariantToInt(status[nameKey], out);
 }
 
+#include "camera_presets.inc"
+
 void applyGoProBatteryStatus(JsonObjectConst status) {
   if (status.isNull()) {
     return;
@@ -168,156 +171,26 @@ void applyGoProBatteryStatus(JsonObjectConst status) {
   }
 }
 
-void applyCameraStatusState(JsonObjectConst status, bool *wifiHandoffOk = nullptr) {
-  if (status.isNull()) {
-    return;
-  }
-
-  if (wifiHandoffOk != nullptr) {
-    *wifiHandoffOk = false;
-  }
-
-  applyGoProBatteryStatus(status);
-
-  int32_t encoding = 0;
-  int32_t duration = 0;
-  bool encodingKnown =
-      readStatusInt(status, "10", "StatusId.ENCODING", "encoding", encoding);
-  bool durationKnown =
-      readStatusInt(status, "13", "StatusId.VIDEO_ENCODING_DURATION",
-                    "video_encoding_duration", duration);
-  if (!encodingKnown && !durationKnown) {
-    return;
-  }
-
-  bool cameraRecording = encodingKnown ? encoding != 0 : duration > 0;
-  if (duration < 0) {
-    duration = 0;
-  }
-  applyRecordingUiState(cameraRecording, static_cast<uint32_t>(duration),
-                        durationKnown);
-  if (cameraRecording) {
-    bool handoffOk = bleConnected;
-    if (WiFi.status() == WL_CONNECTED) {
-      // Render the confirmed recording state before the WiFi-to-BLE handoff can
-      // spend several seconds shutting down WiFi and reconnecting over BLE.
-      serviceLvgl();
-      handoffOk = suspendGoProWifiForRecording("camera state recording");
-    }
-    if (wifiHandoffOk != nullptr) {
-      *wifiHandoffOk = handoffOk;
-    }
-  }
-  Serial.printf(
-      "Camera recording state synced: recording=%u duration=%ld known=%u\n",
-      cameraRecording ? 1 : 0, static_cast<long>(duration),
-      durationKnown ? 1 : 0);
-}
-
-bool parseCameraState(const String &body, bool *wifiHandoffOk = nullptr) {
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, body);
-  if (error) {
-    setAction("Camera state JSON parse failed");
-    return false;
-  }
-
-  JsonObjectConst status = doc["status"].as<JsonObjectConst>();
-  if (status.isNull()) {
-    status = doc["statuses"].as<JsonObjectConst>();
-  }
-  applyCameraStatusState(status, wifiHandoffOk);
-
-  JsonObject settings = doc["settings"].as<JsonObject>();
-  if (settings.isNull()) {
-    settings = doc["setting"].as<JsonObject>();
-  }
-  if (settings.isNull()) {
-    if (status.isNull()) {
-      setAction("Camera state has no settings/status object");
-      return false;
-    }
-    setAction("Camera status synced");
-    return true;
-  }
-
-  for (JsonPair pair : settings) {
-    const char *key = pair.key().c_str();
-    if (!key) {
-      continue;
-    }
-    int id = atoi(key);
-    if (id <= 0) {
-      continue;
-    }
-    if (pair.value().is<int>()) {
-      storeSettingValue(id, pair.value().as<int>());
-    } else if (pair.value()["option"].is<int>()) {
-      storeSettingValue(id, pair.value()["option"].as<int>());
-    }
-  }
-  refreshCaptureOverlayFromState();
-  setAction("Camera state synced");
-  return true;
-}
+#include "camera_state_parse.inc"
 
 bool syncCameraState() {
+  cancelCameraPresetPoll();
   String body;
   int status = httpGetGoProBody("/gopro/camera/state", body);
   if (status != 200) {
     setAction("Camera state sync failed");
     return false;
   }
-  return parseCameraState(body);
-}
-
-bool startRecordingOverWifiAndVerify(bool &commandAccepted) {
-  commandAccepted = false;
-  setAction("Starting recording over WiFi");
-  int shutterStatus = httpGetGoProStatusWithTimeout(
-      "/gopro/camera/shutter/start", kRecordingStartCommandTimeoutMs);
-  if (shutterStatus < 200 || shutterStatus >= 300) {
-    Serial.printf("WiFi shutter start failed: status=%d\n", shutterStatus);
-    setAction("WiFi recording command failed");
+  if (!parseCameraState(body)) {
     return false;
   }
-  commandAccepted = true;
-
-  Serial.println("WiFi shutter start accepted; waiting for recording state");
-  uint32_t verifyStartedMs = millis();
-  while (isLikelyGoProWifiConnected()) {
-    uint32_t elapsedMs = millis() - verifyStartedMs;
-    if (elapsedMs >= kRecordingStartVerifyTimeoutMs) {
-      break;
-    }
-    serviceLvgl();
-
-    String body;
-    uint32_t remainingMs = kRecordingStartVerifyTimeoutMs - elapsedMs;
-    uint32_t requestTimeoutMs = min(remainingMs, kRecordingStartVerifyRequestTimeoutMs);
-    int stateStatus = httpGetGoProBodyWithTimeout(
-        "/gopro/camera/state", body, requestTimeoutMs);
-    bool wifiHandoffOk = false;
-    if (stateStatus == 200 && parseCameraState(body, &wifiHandoffOk) && recording) {
-      if (!wifiHandoffOk) {
-        Serial.println("Recording verified; retrying incomplete BLE handoff");
-        wifiHandoffOk = setGoProWifiApBle(false);
-        if (!wifiHandoffOk) {
-          setAction("Recording; BLE reconnect failed");
-        }
-      }
-      Serial.printf("Recording verified over WiFi; BLE handoff=%u connected=%u\n",
-                    wifiHandoffOk ? 1 : 0, bleConnected ? 1 : 0);
-      return true;
-    }
-
-    delay(kRecordingStartVerifyPollMs);
+  if (!recording && isLikelyGoProWifiConnected()) {
+    syncCameraPresets();
   }
-
-  Serial.println("WiFi recording start was not verified; BLE reconciliation required");
-  setAction("Reconciling recording over BLE");
-  return false;
+  return true;
 }
+
+#include "recording_start.inc"
 
 bool aspectFromSettingOption(int settingId, int option, uint16_t &aspectW,
                              uint16_t &aspectH) {
@@ -819,252 +692,6 @@ void alignTemporaryPhotoPresetForSnapshot() {
     Serial.printf("Temporary photo lens align failed option=%d\n", photoLens);
   }
 }
-
-int32_t readPresetInt(JsonObjectConst object, const char *camelKey,
-                      const char *snakeKey, int32_t fallback = -1) {
-  int32_t value = fallback;
-  if (jsonVariantToInt(object[camelKey], value)) {
-    return value;
-  }
-  if (jsonVariantToInt(object[snakeKey], value)) {
-    return value;
-  }
-  return fallback;
-}
-
-JsonArrayConst readPresetArray(JsonObjectConst object, const char *camelKey,
-                               const char *snakeKey) {
-  JsonArrayConst value = object[camelKey].as<JsonArrayConst>();
-  if (!value.isNull()) {
-    return value;
-  }
-  return object[snakeKey].as<JsonArrayConst>();
-}
-
-JsonArrayConst readPresetSettingsArray(JsonObjectConst preset) {
-  JsonArrayConst settings =
-      readPresetArray(preset, "settingArray", "setting_array");
-  if (!settings.isNull()) {
-    return settings;
-  }
-  settings = preset["settings"].as<JsonArrayConst>();
-  if (!settings.isNull()) {
-    return settings;
-  }
-  return preset["setting"].as<JsonArrayConst>();
-}
-
-const char *presetObjectName(JsonObjectConst object) {
-  const char *name = object["display_name"] | object["displayName"] |
-                     object["name"] | object["title"] | nullptr;
-  return name;
-}
-
-bool stringContainsIgnoreCase(const char *text, const char *needle) {
-  if (text == nullptr || needle == nullptr || *needle == '\0') {
-    return false;
-  }
-  size_t needleLen = strlen(needle);
-  for (const char *cursor = text; *cursor != '\0'; ++cursor) {
-    if (strncasecmp(cursor, needle, needleLen) == 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool storePresetSettings(JsonArrayConst settings, const char *context) {
-  if (settings.isNull()) {
-    return false;
-  }
-  uint16_t count = 0;
-  for (JsonObjectConst setting : settings) {
-    int32_t id = readPresetInt(setting, "id", "id");
-    if (id <= 0) {
-      id = readPresetInt(setting, "settingId", "setting_id");
-    }
-    int32_t value = readPresetInt(setting, "value", "value");
-    if (value < 0) {
-      value = readPresetInt(setting, "option", "option");
-    }
-    if (value < 0) {
-      value = readPresetInt(setting, "optionId", "option_id");
-    }
-    if (id <= 0 || value < 0) {
-      continue;
-    }
-    storeSettingValue(static_cast<uint16_t>(id), static_cast<int>(value));
-    ++count;
-  }
-  if (count == 0) {
-    return false;
-  }
-  refreshCaptureOverlayFromState();
-  Serial.printf("Stored %u settings from %s\n", count, context);
-  return true;
-}
-
-bool presetMarkedActive(JsonObjectConst preset) {
-  int32_t active = 0;
-  return jsonVariantToInt(preset["active"], active)
-             ? active != 0
-             : (jsonVariantToInt(preset["isActive"], active)
-                    ? active != 0
-                    : (jsonVariantToInt(preset["is_active"], active)
-                           ? active != 0
-                           : false));
-}
-
-int32_t readPresetGroupId(JsonObjectConst group) {
-  int32_t id = readPresetInt(group, "id", "id");
-  if (id < 0) {
-    id = readPresetInt(group, "presetGroupId", "preset_group_id");
-  }
-  if (id < 0) {
-    id = readPresetInt(group, "groupId", "group_id");
-  }
-  return id;
-}
-
-int32_t readPresetId(JsonObjectConst preset) {
-  int32_t id = readPresetInt(preset, "id", "id");
-  if (id < 0) {
-    id = readPresetInt(preset, "presetId", "preset_id");
-  }
-  return id;
-}
-
-int32_t readActivePresetId(JsonObjectConst group) {
-  int32_t id = readPresetInt(group, "activePresetId", "active_preset_id");
-  if (id < 0) {
-    id = readPresetInt(group, "activePresetID", "active_preset");
-  }
-  if (id < 0) {
-    id = readPresetInt(group, "activePreset", "activePreset");
-  }
-  return id;
-}
-
-bool tryStoreActivePresetFromGroup(JsonObjectConst group, const char *context) {
-  int32_t activePresetId = readActivePresetId(group);
-  JsonArrayConst presets =
-      readPresetArray(group, "presetArray", "preset_array");
-  if (presets.isNull()) {
-    presets = group["presets"].as<JsonArrayConst>();
-  }
-
-  JsonObjectConst fallbackPreset;
-  for (JsonObjectConst preset : presets) {
-    int32_t presetId = readPresetId(preset);
-    bool active = (activePresetId >= 0 && presetId == activePresetId) ||
-                  (activePresetId < 0 && presetMarkedActive(preset));
-    if (!active) {
-      if (fallbackPreset.isNull() &&
-          !readPresetSettingsArray(preset).isNull()) {
-        fallbackPreset = preset;
-      }
-      continue;
-    }
-    JsonArrayConst settings = readPresetSettingsArray(preset);
-    if (storePresetSettings(settings, context)) {
-      setAction("Video preset settings synced");
-      return true;
-    }
-  }
-
-  if (activePresetId < 0 && !fallbackPreset.isNull()) {
-    return storePresetSettings(readPresetSettingsArray(fallbackPreset),
-                               context);
-  }
-
-  Serial.printf("Active preset settings not found in %s: activePresetId=%ld\n",
-                context, static_cast<long>(activePresetId));
-  return false;
-}
-
-bool syncActiveVideoPresetSettings() {
-  String body;
-  const char *paths[] = {
-      "/gopro/camera/presets/get?include-hidden=1",
-      "/gopro/camera/presets/get?include-hidden=0",
-      "/gopro/camera/presets/get",
-  };
-  int status = -1;
-  const char *usedPath = nullptr;
-  for (const char *path : paths) {
-    status = httpGetGoProBody(path, body);
-    if (status == 200) {
-      usedPath = path;
-      break;
-    }
-    if (status < 0) {
-      break;
-    }
-  }
-  if (status != 200) {
-    setAction("Preset sync failed");
-    return false;
-  }
-  Serial.printf("Preset sync response from %s\n",
-                usedPath == nullptr ? "(unknown)" : usedPath);
-  JsonDocument doc;
-  if (deserializeJson(doc, body)) {
-    setAction("Preset JSON parse failed");
-    return false;
-  }
-
-  JsonArrayConst groups = readPresetArray(
-      doc.as<JsonObjectConst>(), "presetGroupArray", "preset_group_array");
-  if (groups.isNull()) {
-    setAction("Preset JSON has no groups");
-    return false;
-  }
-
-  JsonObjectConst firstPresetGroup;
-  JsonObjectConst namedVideoGroup;
-  for (JsonObjectConst group : groups) {
-    int32_t groupId = readPresetGroupId(group);
-    JsonArrayConst presets =
-        readPresetArray(group, "presetArray", "preset_array");
-    if (presets.isNull()) {
-      presets = group["presets"].as<JsonArrayConst>();
-    }
-    const char *groupName = presetObjectName(group);
-    Serial.printf("Preset group id=%ld name=%s presets=%u\n",
-                  static_cast<long>(groupId),
-                  groupName == nullptr ? "(none)" : groupName,
-                  static_cast<unsigned>(presets.size()));
-
-    if (firstPresetGroup.isNull() && !presets.isNull() && presets.size() > 0) {
-      firstPresetGroup = group;
-    }
-    if (namedVideoGroup.isNull() &&
-        stringContainsIgnoreCase(groupName, "video")) {
-      namedVideoGroup = group;
-    }
-
-    if (groupId == kGoProVideoPresetGroup &&
-        tryStoreActivePresetFromGroup(group, "active video preset")) {
-      return true;
-    }
-  }
-
-  if (!namedVideoGroup.isNull() &&
-      tryStoreActivePresetFromGroup(namedVideoGroup,
-                                    "named video preset group")) {
-    return true;
-  }
-  if (!firstPresetGroup.isNull() &&
-      tryStoreActivePresetFromGroup(firstPresetGroup,
-                                    "first preset group fallback")) {
-    return true;
-  }
-
-  setAction("Preset settings not found");
-  return false;
-}
-
-bool syncCameraPresets() { return syncActiveVideoPresetSettings(); }
 
 const char *knownOptionName(uint16_t settingId, int option) {
   switch (settingId) {

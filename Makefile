@@ -30,7 +30,7 @@ endef
 
 all: print_targets
 
-.PHONY: all print_targets bld build amoled upload monitor upload-monitor ports clean distclean erase check compiledb build-all radio sim ble-dump serial status connect rescan snapshot lower-double pair cancel FORCE
+.PHONY: all print_targets bld build amoled upload monitor upload-monitor ports clean distclean erase check compiledb build-all radio sim ble-dump serial status connect rescan snapshot lower-double pair cancel test-presets FORCE
 
 bld build amoled:
 	$(PIO) run -e $(ENV) $(PIO_ARGS)
@@ -88,6 +88,9 @@ serial:
 	@test -n "$(CMD)" || { printf 'Set CMD, for example: make serial CMD=status\n' >&2; exit 2; }
 	@$(call with_port,exec $(PIO_PYTHON) "$(TOPDIR)/tools/serial_cmd.py" --port "$$port" --baud $(BAUD) --timeout "$(SERIAL_TIMEOUT)" --quiet-after "$(SERIAL_QUIET_AFTER)" --pre-drain "$(SERIAL_PRE_DRAIN)" "$(CMD)")
 
+test-presets:
+	python3 "$(TOPDIR)/tools/test_camera_presets.py"
+
 status:
 	@$(MAKE) serial CMD=status
 
@@ -141,6 +144,7 @@ print_targets:
 		'distclean       Remove .pio/build/ENV for a fresh local rebuild.' \
 		'erase           Erase flash on the selected board.' \
 		'check           Run PlatformIO static checks for ENV.' \
+		'test-presets    Run native preset and simulated snapshot regression tests.' \
 		'compile_commands.json  Generate root compile database for clangd.' \
 		'compiledb       Alias for compile_commands.json.' \
 		'' \

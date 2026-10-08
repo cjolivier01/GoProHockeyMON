@@ -408,6 +408,9 @@ void setConnectRetryAvailable(bool available) {
 }
 
 void setHomeCameraConnected(bool connected) {
+  if (!connected) {
+    cancelCameraPresetPoll();
+  }
   homeCameraConnected = connected;
   if (connected) {
     connectRetryAvailable = false;
@@ -953,10 +956,13 @@ void setAction(const char *message) {
 }
 
 void logMemory(const char *label) {
-  Serial.printf("%s heap=%u internal=%u psram=%u\n", label,
+  Serial.printf("%s heap=%u internal=%u psram=%u largestInternal=%u stackFree=%u tasks=%u\n", label,
                 ESP.getFreeHeap(),
                 heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+                heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+                heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
+                static_cast<unsigned>(uxTaskGetNumberOfTasks()));
 }
 
 const char *resetReasonName(esp_reset_reason_t reason) {

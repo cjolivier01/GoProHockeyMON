@@ -42,24 +42,7 @@ void configureBleSecurity() {
   bleSecurity->setForceAuthentication(false);
 }
 
-void initBleStack() {
-  if (BLEDevice::getInitialized()) {
-    bleStackReady = true;
-    configureBleSecurity();
-    return;
-  }
-  if (WiFi.getMode() != WIFI_MODE_NULL) {
-    WiFi.disconnect(true, true);
-    WiFi.mode(WIFI_OFF);
-    delay(250);
-    logMemory("After WiFi shutdown for BLE");
-  }
-  BLEDevice::init("ESP32-GoPro-Remote");
-  configureBleSecurity();
-  bleStackReady = true;
-  Serial.println("BLE security bonding enabled");
-  logMemory("After BLE init");
-}
+#include "ble_initialization.inc"
 
 void shutdownBleForWifi() {
   if (!BLEDevice::getInitialized()) {
@@ -290,7 +273,9 @@ void saveCameraBinding(BLEAdvertisedDevice &device) {
 
 int clearBleBondStore() {
   int removed = 0;
-  initBleStack();
+  if (!initBleStack()) {
+    return -1;
+  }
 #if defined(CONFIG_BLUEDROID_ENABLED)
   int devCount = esp_ble_get_bond_device_num();
   if (devCount > 0) {
@@ -462,51 +447,7 @@ bool delayWithConnectionUi(uint32_t durationMs) {
   return true;
 }
 
-void resetBleClientForPairing() {
-  if (bleClient != nullptr && bleClient->isConnected()) {
-    bleClient->disconnect();
-    delay(150);
-  }
-  bleClient = nullptr;
-  bleConnected = false;
-  if (bleIndicator) {
-    lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
-  }
-  clearBleScanDevices();
-}
-
-void disconnectCurrentCameraForPairing() {
-  setAction("Disconnecting current camera");
-  setHomeCameraConnected(false);
-  previewStreamRequested = false;
-  previewUdpListening = false;
-  snapshotPreviewPrepared = false;
-  previewUdp.stop();
-
-  if (bleClient != nullptr && bleClient->isConnected()) {
-    bleClient->disconnect();
-    delay(150);
-  }
-  bleClient = nullptr;
-  bleConnected = false;
-  if (bleIndicator) {
-    lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
-  }
-  clearBleScanDevices();
-
-  if (WiFi.getMode() != WIFI_MODE_NULL || WiFi.status() == WL_CONNECTED) {
-    WiFi.disconnect(true, true);
-    WiFi.mode(WIFI_OFF);
-    delay(250);
-  }
-  if (wifiLabel) {
-    lv_label_set_text(wifiLabel, "WiFi: disconnected");
-  }
-  if (wifiIndicator) {
-    lv_label_set_text(wifiIndicator, LV_SYMBOL_WIFI);
-    lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x5a6472), 0);
-  }
-}
+#include "ble_pairing_reset.inc"
 
 String bytesToString(const String &bytes) {
   String value;
@@ -1026,7 +967,10 @@ bool scanForCamera() {
     return false;
   }
 
-  initBleStack();
+  BLEScan *scan = getGoProBleScanner();
+  if (!scan) {
+    return false;
+  }
   clearBleScanDevices();
   selectedBleFallback = false;
   bleScanCandidateCount = 0;
@@ -1044,7 +988,6 @@ bool scanForCamera() {
                 : "Scanning for bound GoPro");
   serviceLvgl();
 
-  BLEScan *scan = BLEDevice::getScan();
   ScanCallbacks callbacks;
   scan->setAdvertisedDeviceCallbacks(&callbacks, false);
   scan->setActiveScan(true);
@@ -1109,99 +1052,7 @@ bool scanForCamera() {
   return true;
 }
 
-bool connectBle() {
-  initBleStack();
-  if (operationCancelled()) {
-    return false;
-  }
-  if (bleConnected && bleClient != nullptr && bleClient->isConnected()) {
-    return true;
-  }
-
-  if (bestBleDevice == nullptr && !scanForCamera()) {
-    return false;
-  }
-  if (operationCancelled()) {
-    return false;
-  }
-
-  if (bleClient == nullptr) {
-    bleClient = BLEDevice::createClient();
-  }
-
-  lv_label_set_text(statusLabel, "Connecting BLE");
-  if (pairingInProgress) {
-    showPairingPopup("Pairing New Camera\n\nConnecting GoPro BLE...\nPress lower button to cancel.");
-  }
-  setAction("Connecting GoPro BLE");
-  serviceConnectionUi();
-  logMemory("Before BLE connect");
-  uint32_t connectTimeoutMs = pairingInProgress ? kPairBleConnectTimeoutMs
-                                                : (cameraWakeInProgress
-                                                       ? kBleWakeConnectTimeoutMs
-                                                       : kBleConnectTimeoutMs);
-  if (!bleClient->connectTimeout(bestBleDevice, connectTimeoutMs)) {
-    bool savedCameraFound = !selectedBleFallback && !allowAnyCameraScan && !boundBleAddress.isEmpty();
-    bleConnected = false;
-    if (bleIndicator) {
-      lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
-    }
-    delete bleClient;
-    bleClient = nullptr;
-    clearBleScanDevices();
-    lv_label_set_text(cameraLabel,
-                      savedCameraFound ? "Camera: found, power may be off"
-                                       : "Camera: BLE connect failed");
-    if (selectedBleFallback) {
-      setCameraWakeAvailable(false);
-      setAction("No GoPro BLE advertisement found");
-    } else if (!boundBleAddress.isEmpty() && !allowAnyCameraScan) {
-      setConnectRetryAvailable(true);
-      setCameraWakeAvailable(true);
-      setAction("GoPro found; tap ON to wake");
-    } else {
-      setCameraWakeAvailable(false);
-      setAction("BLE connect failed");
-    }
-    return false;
-  }
-  if (operationCancelled()) {
-    if (bleClient != nullptr && bleClient->isConnected()) {
-      bleClient->disconnect();
-    }
-    bleConnected = false;
-    setAction("Pairing cancelled");
-    return false;
-  }
-
-  bleConnected = true;
-  connectRetryAvailable = false;
-  setCameraWakeAvailable(false);
-  if (bleIndicator) {
-    lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x2c7be5), 0);
-  }
-  logMemory("After BLE connect");
-  BLERemoteService *control = bleClient->getService(kControlService);
-  if (control != nullptr) {
-    BLERemoteCharacteristic *response = control->getCharacteristic(kCommandResponse);
-    if (response != nullptr && response->canNotify()) {
-      response->registerForNotify(commandResponseNotify);
-    }
-    BLERemoteCharacteristic *settingsResponse = control->getCharacteristic(kSettingsResponse);
-    if (settingsResponse != nullptr && settingsResponse->canNotify()) {
-      settingsResponse->registerForNotify(commandResponseNotify);
-    }
-    BLERemoteCharacteristic *queryResponse = control->getCharacteristic(kQueryResponse);
-    if (queryResponse != nullptr && queryResponse->canNotify()) {
-      queryResponse->registerForNotify(commandResponseNotify);
-    }
-  }
-
-  lv_label_set_text(statusLabel, "BLE connected");
-  setAction("BLE connected");
-  serviceLvgl();
-  return true;
-}
+#include "ble_connection.inc"
 
 bool readGoProWifiCredentials() {
   if (!connectBle()) {
@@ -1596,64 +1447,7 @@ bool pairGoPro() {
   return ok;
 }
 
-void markGoProWifiDisconnectedForRecording() {
-  previewStreamRequested = false;
-  snapshotPreviewPrepared = false;
-  if (previewUdpListening) {
-    previewUdp.stop();
-    previewUdpListening = false;
-  }
-  if (WiFi.status() == WL_CONNECTED || WiFi.getMode() != WIFI_MODE_NULL) {
-    WiFi.disconnect(false, false);
-    WiFi.mode(WIFI_OFF);
-    delay(250);
-  }
-  if (wifiLabel) {
-    lv_label_set_text(wifiLabel, "WiFi: recording off");
-  }
-  if (wifiIndicator) {
-    lv_label_set_text(wifiIndicator, LV_SYMBOL_WIFI);
-    lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x5a6472), 0);
-  }
-  setHomeCameraConnected(recording || bleConnected);
-  goProWifiSuspendedForRecording = true;
-}
-
-bool suspendGoProWifiForRecording(const char *reason) {
-  Serial.print("Suspending GoPro WiFi for recording");
-  if (reason != nullptr && reason[0]) {
-    Serial.print(": ");
-    Serial.print(reason);
-  }
-  Serial.println();
-
-  markGoProWifiDisconnectedForRecording();
-  bool bleHandoffOk = setGoProWifiApBle(false);
-  if (bleHandoffOk) {
-    setAction("Recording; WiFi AP off");
-  } else {
-    setAction("Recording; local WiFi off");
-  }
-  serviceLvgl();
-  return bleHandoffOk;
-}
-
-bool ensureNotRecordingForWifi(const char *reason) {
-  if (!refreshRecordingStateBle()) {
-    if (recording) {
-      suspendGoProWifiForRecording(reason);
-    } else {
-      markGoProWifiDisconnectedForRecording();
-      setAction("Recording check failed");
-    }
-    return false;
-  }
-  if (recording) {
-    suspendGoProWifiForRecording(reason);
-    return false;
-  }
-  return true;
-}
+#include "recording_radio_handoff.inc"
 
 bool enableGoProWifiAp() {
   if (!ensureNotRecordingForWifi("recording active")) {
@@ -1829,13 +1623,6 @@ bool isLikelyGoProWifiConnected() {
   return ip[0] == 10 && ip[1] == 5 && ip[2] == 5;
 }
 
-bool goProHttpReachable() {
-  int status = httpGetGoProStatus("/gopro/camera/state");
-  bool ok = status == 200;
-  Serial.printf("GoPro HTTP reachability status=%d\n", status);
-  return ok;
-}
-
 void markExistingGoProWifiConnected() {
   if (wifiLabel) {
     String text = "WiFi: ";
@@ -1905,95 +1692,7 @@ bool connectGoProWifiWithCurrentCredentials(const char *reason) {
   return true;
 }
 
-bool connectGoProWifiFromBle() {
-  if (operationCancelled()) {
-    return false;
-  }
-  if (boundBleAddress.isEmpty() && !allowAnyCameraScan) {
-    if (cameraLabel) {
-      lv_label_set_text(cameraLabel, "Camera: not paired");
-    }
-    if (wifiLabel) {
-      lv_label_set_text(wifiLabel, "WiFi: idle");
-    }
-    setHomeCameraConnected(false);
-    setConnectRetryAvailable(false);
-    setAction("No saved camera; tap Pair New");
-    Serial.println("GoPro WiFi connect blocked: no saved camera binding");
-    return false;
-  }
-  if (!ensureNotRecordingForWifi("camera already recording")) {
-    return false;
-  }
-  if (isLikelyGoProWifiConnected()) {
-    goProWifiSuspendedForRecording = false;
-    markExistingGoProWifiConnected();
-    refreshCameraHardwareInfoHttp();
-    syncCameraState();
-    if (recording) {
-      suspendGoProWifiForRecording("camera already recording");
-      return false;
-    }
-    setAction("Using existing GoPro WiFi");
-    return true;
-  }
-  if (!readGoProWifiCredentials()) {
-    return false;
-  }
-  String verifiedBleAddress;
-  String verifiedBleName;
-  if (bestBleDevice != nullptr) {
-    verifiedBleAddress = bestBleDevice->getAddress().toString().c_str();
-    verifiedBleAddress.toLowerCase();
-    verifiedBleName = bestBleDevice->haveName() ? String(bestBleDevice->getName().c_str()) : "";
-  }
-  if (!verifiedBleAddress.isEmpty()) {
-    saveCameraBindingValues(verifiedBleAddress, verifiedBleName);
-  }
-  if (operationCancelled()) {
-    return false;
-  }
-  if (!enableGoProWifiAp()) {
-    return false;
-  }
-  if (operationCancelled()) {
-    return false;
-  }
-
-  if (!connectGoProWifiWithCurrentCredentials("BLE handoff")) {
-    return false;
-  }
-  return true;
-}
-
-bool ensureGoProWifiReady(const char *reason) {
-  if (!ensureNotRecordingForWifi("recording active")) {
-    return false;
-  }
-  if (isLikelyGoProWifiConnected()) {
-    markExistingGoProWifiConnected();
-    if (goProHttpReachable()) {
-      refreshCameraHardwareInfoHttp();
-      syncCameraState();
-      if (recording) {
-        suspendGoProWifiForRecording("camera already recording");
-        return false;
-      }
-      setAction(reason == nullptr ? "Using existing GoPro WiFi" : reason);
-      return true;
-    }
-    setAction("GoPro HTTP stale; reconnecting WiFi");
-    Serial.println("GoPro WiFi association is stale; forcing BLE WiFi handoff");
-    WiFi.disconnect(false, false);
-    delay(300);
-    setHomeCameraConnected(false);
-  }
-  if (!goProWifiSuspendedForRecording && !goProSsid.isEmpty() && !goProPassword.isEmpty() &&
-      connectGoProWifiWithCurrentCredentials("known credentials")) {
-    return true;
-  }
-  return connectGoProWifiFromBle();
-}
+#include "wifi_connection.inc"
 
 bool blockHttpWhileRecording() {
   if (!recording) {

@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <atomic>
+#include <new>
 #include <ctype.h>
 #include <strings.h>
 #include <BLEDevice.h>
@@ -12,6 +14,7 @@
 
 #include <Adafruit_XCA9554.h>
 #include <ArduinoJson.h>
+#include "parts/camera_presets.h"
 #include <Arduino_DriveBus_Library.h>
 #include <Arduino_GFX_Library.h>
 #include <JPEGDEC.h>
@@ -98,8 +101,10 @@ bool toggleRecording();
 void runPairNewAction();
 bool runRecordAction();
 void runSnapshotAction();
-void initBleStack();
+bool initBleStack();
 bool syncCameraState();
+void cancelCameraPresetPoll();
+bool stopCameraPresetPoll();
 bool startRecordingOverWifiAndVerify(bool &commandAccepted);
 bool fetchSnapshotPreview();
 int httpGetGoProStatus(const String &path);
@@ -269,7 +274,9 @@ String cameraSerialNumber;
 String cameraApSsid;
 String cameraApMacAddress;
 String lastSnapshotMediaPath;
-String captureMode = "Video";
+int32_t activeCameraPresetId = -1;
+int32_t activeCameraPresetGroup = -1;
+String captureMode = "Camera";
 String captureSetting = "Sync camera state";
 IPAddress cameraIp;
 WiFiUDP previewUdp;
@@ -384,6 +391,7 @@ bool lvglTimerHandlerDeferred = false;
 #include "parts/display_input_preview.inc"
 #include "parts/ble_wifi_http.inc"
 #include "parts/camera_state_settings.inc"
+#include "parts/camera_preset_poll.inc"
 #include "parts/actions_snapshot.inc"
 #include "parts/ui_build.inc"
 #include "parts/buttons_serial.inc"
@@ -498,5 +506,6 @@ void loop() {
   updateBatteryStatus();
   updateWifiStatus();
   updateRecordingOverlay();
+  refreshCameraPresetWhileIdle();
   delay(5);
 }
