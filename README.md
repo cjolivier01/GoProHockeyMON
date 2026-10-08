@@ -20,7 +20,7 @@ The current hardware path is the ESP32-S3 remote with the integrated 1.8-inch AM
 - Connects over BLE and reads the camera Wi-Fi AP SSID/password from Open GoPro characteristics.
 - Sends the BLE Wi-Fi enable command `03:17:01:01` only when HTTP/JPEG transfer is needed.
 - Joins the camera AP for HTTP camera control and snapshot transfer.
-- On the AMOLED UI target, the lower/action side button double-click syncs the current Video preset settings, takes one temporary photo snapshot, downloads/displays the larger JPEG screennail preview fullscreen through the current video framing crop, restores Video mode, and deletes the captured JPEG from the camera.
+- On the AMOLED UI target, the remote shows the selected camera profile, including custom names such as Hockey. The lower/action side button double-click reuses an active GoPro Wi-Fi connection, saves the selected preset, takes one temporary photo snapshot, downloads/displays its JPEG preview fullscreen, restores that exact preset, and deletes the captured JPEG from the camera.
 - The top-right side button starts video recording over the currently active camera link: Wi-Fi if the remote is already joined to the GoPro AP, otherwise BLE. After recording starts, the remote disconnects its Wi-Fi STA and asks the GoPro over BLE to turn off the camera AP. While recording, a long press stops recording over BLE and the preview area shows a local elapsed-time `RECORDING` overlay without polling the camera.
 - After reconnect, `/gopro/camera/state` restores the remote's recording overlay from the camera Encoding flag and Video Encoding Duration.
 - The top banner shows the last synced GoPro battery percentage to the left of the Bluetooth icon; a lightning bolt is shown when the camera reports charging or USB plugged in.
@@ -86,6 +86,8 @@ pio run -e esp32s3_amoled_ui
 pio run -e ui_esp32dev_sim
 ```
 
+AMOLED builds apply `scripts/patch_ble_discovery.py` to build-directory copies of the framework's BLE discovery code. This fixes a multicore completion race and descriptor searches that extend into later characteristics, both of which can leak objects and exhaust internal RAM during repeated radio handoffs. An unfamiliar framework implementation stops the build so the workaround can be reviewed after an upgrade. `make test-presets` runs the native sanitizer suites, including regressions using the installed framework's discovery methods.
+
 ## S3 1.8-inch AMOLED Architecture
 
 The S3 1.8-inch AMOLED board owns the LCD, touch, buttons, battery UI, GoPro menu, BLE pairing, GoPro Wi-Fi, HTTP camera control, and JPEG snapshot preview display.
@@ -149,7 +151,7 @@ The simulator receives:
 
 The active UI target is the ESP32-S3 Touch AMOLED 1.8 board. The firmware uses the board's QSPI AMOLED display, FT3168 touch controller, AXP2101 PMU, and side buttons through the board support libraries referenced by `platformio.ini`.
 
-The preview is intentionally JPEG snapshot based. The remote does not decode the GoPro H.264 live stream on the S3; the lower/action button captures one still image, displays it through the active Video preset's aspect/framing plus an estimated HyperSmooth crop, restores Video mode, and deletes the captured JPEG from the GoPro. GoPro does not expose a precise dynamic stabilization crop rectangle through the public Open GoPro HTTP state, so the remote uses the active preset settings to approximate the frame that recording will use. Recording start uses the current connection: HTTP over GoPro Wi-Fi if already connected, otherwise BLE shutter. After recording starts, the remote turns off its Wi-Fi connection and disables the GoPro AP over BLE until a later snapshot or HTTP sync requires it again.
+The preview is intentionally JPEG snapshot based. The remote does not decode the GoPro H.264 live stream on the S3; the lower/action button captures one still image, displays it through the active video preset's aspect/framing plus an estimated HyperSmooth crop, restores the exact original preset (including custom profiles), and deletes the captured JPEG from the GoPro. GoPro does not expose a precise dynamic stabilization crop rectangle through the public Open GoPro HTTP state, so the remote uses the active preset settings to approximate the frame that recording will use. Recording start uses the current connection: HTTP over GoPro Wi-Fi if already connected, otherwise BLE shutter. After recording starts, the remote turns off its Wi-Fi connection and disables the GoPro AP over BLE until a later snapshot or HTTP sync requires it again.
 
 ## Radio Firmware Physical Controls
 

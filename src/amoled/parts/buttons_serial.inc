@@ -486,6 +486,12 @@ void printSerialStatus() {
   String ssid = WiFi.SSID();
   String ip = WiFi.localIP().toString();
   Serial.println("SERIAL STATUS");
+  Serial.printf("  uptimeMs=%lu reset=%s stackFree=%u internalFree=%u largestInternal=%u tasks=%u\n",
+                static_cast<unsigned long>(millis()), resetReasonName(esp_reset_reason()),
+                static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)),
+                static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
+                static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)),
+                static_cast<unsigned>(uxTaskGetNumberOfTasks()));
   Serial.printf("  displayOn=%u recording=%u fullscreen=%u maintenance=%u buttons=%u previewImage=%u\n",
                 displayOn ? 1 : 0, recording ? 1 : 0, previewFullscreen ? 1 : 0,
                 maintenancePageVisible ? 1 : 0, buttonGuidePageVisible ? 1 : 0,
@@ -521,6 +527,9 @@ void printSerialStatus() {
   Serial.printf("  capture='%s' setting='%s' actionClicks=%u due=%u\n",
                 captureMode.c_str(), captureSetting.c_str(), actionButtonShortClickCount,
                 actionButtonShortClickDueMs);
+  Serial.printf("  presetId=%ld presetGroup=%ld\n",
+                static_cast<long>(activeCameraPresetId),
+                static_cast<long>(activeCameraPresetGroup));
   Serial.printf("  snapshotFrame valid=%u aspect=%u:%u aspectCrop=%u%% previewVisible=%u%% cameraVisible=%u%% lens=%d hs=%d crop=%d,%d %dx%d\n",
                 snapshotVideoFraming.valid ? 1 : 0, snapshotVideoFraming.aspectW,
                 snapshotVideoFraming.aspectH,
