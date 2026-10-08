@@ -35,23 +35,25 @@ ExistingGoProWifi reuseExistingGoProWifi(const char *reason) {
   // HTTP success alone does not establish that capture is idle. A partial or
   // malformed state response must not let a snapshot change modes while the
   // recording state is unknown.
-  JsonDocument doc;
-  if (deserializeJson(doc, body)) {
-    setAction("Camera state JSON parse failed");
-    return ExistingGoProWifi::Blocked;
-  }
-  JsonObjectConst status = doc["status"].as<JsonObjectConst>();
-  if (status.isNull()) {
-    status = doc["statuses"].as<JsonObjectConst>();
-  }
-  int32_t encoding = 0;
-  int32_t duration = 0;
-  if (!readStatusInt(status, "10", "StatusId.ENCODING", "encoding", encoding) &&
-      !readStatusInt(status, "13", "StatusId.VIDEO_ENCODING_DURATION",
-                     "video_encoding_duration", duration)) {
-    setAction("Recording check failed");
-    return ExistingGoProWifi::Blocked;
-  }
+  {
+    JsonDocument doc;
+    if (deserializeJson(doc, body)) {
+      setAction("Camera state JSON parse failed");
+      return ExistingGoProWifi::Blocked;
+    }
+    JsonObjectConst status = doc["status"].as<JsonObjectConst>();
+    if (status.isNull()) {
+      status = doc["statuses"].as<JsonObjectConst>();
+    }
+    int32_t encoding = 0;
+    int32_t duration = 0;
+    if (!readStatusInt(status, "10", "StatusId.ENCODING", "encoding", encoding) &&
+        !readStatusInt(status, "13", "StatusId.VIDEO_ENCODING_DURATION",
+                       "video_encoding_duration", duration)) {
+      setAction("Recording check failed");
+      return ExistingGoProWifi::Blocked;
+    }
+  } // Release the preliminary JSON pools before parsing can initialize BLE.
   // This applies the same recording UI and Wi-Fi suspension as a full sync,
   // using the response we already have instead of another HTTP/BLE round trip.
   if (!parseCameraState(body, nullptr, false) || recording || operationCancelled()) {

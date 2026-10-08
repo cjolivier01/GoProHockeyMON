@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdint>
 #include <iostream>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -20,35 +21,55 @@ struct BLERemoteCharacteristic {
 struct BLERemoteService {
   BLERemoteCharacteristic *getCharacteristic(int) { return nullptr; }
 };
-int createdClients, deletedClients, connectCalls, scanCalls;
-bool connectSucceeds, initSucceeds, clientAvailable, pollStopped, cancelled;
+int createdClients, deletedClients, connectCalls, scanCalls, liveServiceCaches;
+bool connectSucceeds, initSucceeds, clientAvailable, pollStopped, cancelled, cancelOnConnect;
+std::string selectedCamera = "camera-a";
 struct BLEClient {
+  static std::set<BLEClient *> live;
   bool connected = false;
-  BLEClient() { ++createdClients; }
-  ~BLEClient() { ++deletedClients; }
+  std::string cachedCamera;
+  BLEClient() { ++createdClients; live.insert(this); }
+  ~BLEClient() {
+    assert(live.erase(this) == 1);
+    if (!cachedCamera.empty()) --liveServiceCaches;
+    ++deletedClients;
+  }
   bool isConnected() const { return connected; }
   bool connectTimeout(BLEAdvertisedDevice *device, uint32_t) {
-    assert(device); ++connectCalls; connected = connectSucceeds; return connected;
+    assert(device);
+    assert(cachedCamera.empty() || cachedCamera == selectedCamera);
+    ++connectCalls; connected = connectSucceeds;
+    if (cancelOnConnect) cancelled = true;
+    return connected;
   }
   void disconnect() { connected = false; }
-  BLERemoteService *getService(int) { return nullptr; }
+  BLERemoteService *getService(int) {
+    if (cachedCamera.empty()) { cachedCamera = selectedCamera; ++liveServiceCaches; }
+    return nullptr;
+  }
 };
+std::set<BLEClient *> BLEClient::live;
 BLEClient *bleClient;
 BLEAdvertisedDevice *bestBleDevice;
 bool recording, bleConnected, bleStackReady, stackInitialized;
 bool pairingInProgress, cameraWakeInProgress, selectedBleFallback, allowAnyCameraScan;
 bool connectRetryAvailable, wakeAvailable;
+bool homeCameraConnected, previewStreamRequested, previewUdpListening, snapshotPreviewPrepared;
 String boundBleAddress;
 int label;
 int *statusLabel = &label, *cameraLabel = &label, *bleIndicator = &label;
+int *wifiLabel = &label, *wifiIndicator = &label;
 constexpr int kControlService = 1, kCommandResponse = 2, kSettingsResponse = 3, kQueryResponse = 4;
 constexpr uint32_t kPairBleConnectTimeoutMs = 30000, kBleWakeConnectTimeoutMs = 5000, kBleConnectTimeoutMs = 15000;
-constexpr int WIFI_MODE_NULL = 0, WIFI_OFF = 0;
+constexpr int WIFI_MODE_NULL = 0, WIFI_OFF = 0, WL_CONNECTED = 3;
+constexpr const char *LV_SYMBOL_WIFI = "wifi";
 struct WifiMock {
   int getMode() { return WIFI_MODE_NULL; }
+  int status() { return 0; }
   void disconnect(bool, bool) {}
   void mode(int) {}
 } WiFi;
+struct UdpMock { void stop() {} } previewUdp;
 struct SerialMock { void println(const char *) {} } Serial;
 std::string action;
 void setAction(const char *message) { action = message; }
@@ -65,6 +86,7 @@ uint32_t lv_color_hex(uint32_t value) { return value; }
 void showPairingPopup(const char *) {}
 void setCameraWakeAvailable(bool available) { wakeAvailable = available; }
 void setConnectRetryAvailable(bool available) { connectRetryAvailable = available; }
+void setHomeCameraConnected(bool connected) { homeCameraConnected = connected; }
 void commandResponseNotify() {}
 void clearBleScanDevices() { delete bestBleDevice; bestBleDevice = nullptr; }
 bool scanForCamera() {
@@ -100,14 +122,27 @@ void deinit() {
   BLEDevice::deinit(false);
   bleStackReady = false;
 }
+void shutdownBleForWifi() {
+  if (!BLEDevice::getInitialized()) return;
+  // Model the existing shutdown owner boundary. A reset must reach it before
+  // clearing its application pointer, and BLEDevice destroys the GATT cache.
+  assert(bleClient == BLEDevice::ownedClient);
+  if (bleClient && bleClient->isConnected()) bleClient->disconnect();
+  clearBleScanDevices();
+  deinit();
+}
+#include "src/amoled/parts/ble_pairing_reset.inc"
+
 void reset() {
   deinit(); clearBleScanDevices();
+  assert(BLEClient::live.empty() && liveServiceCaches == 0);
   createdClients = deletedClients = connectCalls = scanCalls = 0;
   initSucceeds = clientAvailable = pollStopped = true;
-  connectSucceeds = cancelled = recording = false;
+  connectSucceeds = cancelled = cancelOnConnect = recording = false;
   pairingInProgress = cameraWakeInProgress = selectedBleFallback = allowAnyCameraScan = false;
   connectRetryAvailable = wakeAvailable = false;
   boundBleAddress = "aa:bb:cc:dd:ee:ff";
+  selectedCamera = "camera-a";
   action.clear();
 }
 int main() {
@@ -145,5 +180,52 @@ int main() {
   reset(); connectSucceeds = true; assert(connectBle());
   assert(connectBle()); assert(createdClients == 1 && connectCalls == 1);
   deinit(); clearBleScanDevices(); assert(deletedClients == 1);
-  std::cout << "BLE connection ownership tests passed (8 scenarios)\n";
+  // Pair New failure cleanup must dispose of the retained failed client before
+  // another attempt can call BLEDevice::createClient and replace its owner.
+  reset();
+  for (int attempt = 0; attempt < 20; ++attempt) {
+    assert(!connectBle());
+    resetBleClientForPairing();
+    assert(!bleClient && !BLEDevice::ownedClient && !stackInitialized);
+    assert(createdClients == deletedClients && BLEClient::live.empty());
+  }
+
+  // Switching cameras must also delete discovered services: NimBLE connect()
+  // retains its GATT cache, so a disconnected client cannot simply be reused.
+  reset(); connectSucceeds = true; assert(connectBle());
+  assert(liveServiceCaches == 1);
+  disconnectCurrentCameraForPairing();
+  assert(!homeCameraConnected && !previewStreamRequested && !previewUdpListening && !snapshotPreviewPrepared);
+  assert(liveServiceCaches == 0 && createdClients == deletedClients);
+  resetBleClientForPairing(); // Pair New calls both cleanup paths consecutively.
+  selectedCamera = "camera-b";
+  assert(connectBle());
+  assert(bleClient->cachedCamera == "camera-b" && createdClients == 2);
+  resetBleClientForPairing();
+  assert(liveServiceCaches == 0 && createdClients == deletedClients);
+
+  // Forget disconnects, initializes BLE to clear bonds, then resets again.
+  reset(); connectSucceeds = true; assert(connectBle());
+  disconnectCurrentCameraForPairing();
+  assert(initBleStack());
+  resetBleClientForPairing();
+  assert(!stackInitialized && !bleClient && !BLEDevice::ownedClient);
+  assert(createdClients == deletedClients && liveServiceCaches == 0);
+  assert(connectBle()); resetBleClientForPairing();
+  assert(createdClients == deletedClients);
+
+  // Cancellation after connect keeps the owner alive until pairing cleanup;
+  // cancellation before a retry must likewise leave cleanup safe to repeat.
+  reset(); connectSucceeds = cancelOnConnect = true;
+  assert(!connectBle());
+  assert(bleClient && !bleClient->isConnected() && deletedClients == 0);
+  resetBleClientForPairing();
+  disconnectCurrentCameraForPairing();
+  assert(createdClients == deletedClients && BLEClient::live.empty());
+  cancelled = cancelOnConnect = false;
+  assert(connectBle());
+  cancelled = true; assert(!connectBle());
+  resetBleClientForPairing();
+  assert(createdClients == deletedClients && liveServiceCaches == 0);
+  std::cout << "BLE connection ownership tests passed (12 scenarios, 20 failed pairing retries)\n";
 }

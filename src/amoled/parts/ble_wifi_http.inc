@@ -447,51 +447,7 @@ bool delayWithConnectionUi(uint32_t durationMs) {
   return true;
 }
 
-void resetBleClientForPairing() {
-  if (bleClient != nullptr && bleClient->isConnected()) {
-    bleClient->disconnect();
-    delay(150);
-  }
-  bleClient = nullptr;
-  bleConnected = false;
-  if (bleIndicator) {
-    lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
-  }
-  clearBleScanDevices();
-}
-
-void disconnectCurrentCameraForPairing() {
-  setAction("Disconnecting current camera");
-  setHomeCameraConnected(false);
-  previewStreamRequested = false;
-  previewUdpListening = false;
-  snapshotPreviewPrepared = false;
-  previewUdp.stop();
-
-  if (bleClient != nullptr && bleClient->isConnected()) {
-    bleClient->disconnect();
-    delay(150);
-  }
-  bleClient = nullptr;
-  bleConnected = false;
-  if (bleIndicator) {
-    lv_obj_set_style_text_color(bleIndicator, lv_color_hex(0x5a6472), 0);
-  }
-  clearBleScanDevices();
-
-  if (WiFi.getMode() != WIFI_MODE_NULL || WiFi.status() == WL_CONNECTED) {
-    WiFi.disconnect(true, true);
-    WiFi.mode(WIFI_OFF);
-    delay(250);
-  }
-  if (wifiLabel) {
-    lv_label_set_text(wifiLabel, "WiFi: disconnected");
-  }
-  if (wifiIndicator) {
-    lv_label_set_text(wifiIndicator, LV_SYMBOL_WIFI);
-    lv_obj_set_style_text_color(wifiIndicator, lv_color_hex(0x5a6472), 0);
-  }
-}
+#include "ble_pairing_reset.inc"
 
 String bytesToString(const String &bytes) {
   String value;

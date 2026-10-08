@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cctype>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -28,6 +29,32 @@ bool readStatusInt(JsonObjectConst status, const char *id, const char *sdk,
          CameraPresets::integer(status[sdk], out) ||
          CameraPresets::integer(status[name], out);
 }
+
+// Observe the real ArduinoJson pool allocations in the production preflight.
+// BLE startup must not inherit those pools when the camera is already recording.
+struct TrackedJsonAllocator : ArduinoJson::Allocator {
+  size_t liveAllocations = 0, totalAllocations = 0;
+  void *allocate(size_t size) override {
+    void *result = std::malloc(size);
+    if (result) { ++liveAllocations; ++totalAllocations; }
+    return result;
+  }
+  void deallocate(void *pointer) override {
+    if (pointer) { assert(liveAllocations > 0); --liveAllocations; }
+    std::free(pointer);
+  }
+  void *reallocate(void *pointer, size_t size) override {
+    assert(size > 0);
+    bool wasNull = pointer == nullptr;
+    void *result = std::realloc(pointer, size);
+    if (result && wasNull) { ++liveAllocations; ++totalAllocations; }
+    return result;
+  }
+} preflightAllocator;
+class TrackedJsonDocument : public JsonDocument {
+public:
+  TrackedJsonDocument() : JsonDocument(&preflightAllocator) {}
+};
 
 bool associated, recording, goProWifiSuspendedForRecording, allowAnyCameraScan;
 bool cancelled, cancelAfterHttp, cancelAfterParse, bleIdle, credentialsOk, apOk, parseOk;
@@ -68,6 +95,7 @@ int httpGetGoProBody(const String &path, String &body) {
   return httpStatus;
 }
 bool parseCameraState(const String &body, bool *, bool) {
+  assert(preflightAllocator.liveAllocations == 0);
   ++parseCalls; events.push_back("parse state");
   if (!parseOk) return false;
   JsonDocument doc; assert(!deserializeJson(doc, body));
@@ -97,9 +125,13 @@ bool connectGoProWifiWithCurrentCredentials(const char *) {
 bool syncCameraPresets() { ++presetReads; return true; }
 bool refreshCameraHardwareInfoHttp() { ++hardwareReads; return true; }
 
+#define JsonDocument TrackedJsonDocument
 #include "src/amoled/parts/wifi_connection.inc"
+#undef JsonDocument
 
 void reset() {
+  assert(preflightAllocator.liveAllocations == 0);
+  preflightAllocator.totalAllocations = 0;
   associated = true; recording = goProWifiSuspendedForRecording = allowAnyCameraScan = false;
   cancelled = cancelAfterHttp = cancelAfterParse = false;
   bleIdle = credentialsOk = apOk = parseOk = true;
@@ -111,6 +143,8 @@ void reset() {
   action.clear(); events.clear(); joinResults = {true};
 }
 void expectReused() {
+  assert(preflightAllocator.totalAllocations > 0);
+  assert(preflightAllocator.liveAllocations == 0);
   assert(associated && !goProWifiSuspendedForRecording);
   assert(httpCalls == 1 && parseCalls == 1);
   assert(pollCancellations == 1);
