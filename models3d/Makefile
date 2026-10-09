@@ -43,6 +43,7 @@ HORN_SOURCE := $(HORN_DIR)/horn_parametric_blender.py
 HORN_RENDER_SOURCE := $(HORN_DIR)/render_horn_previews.py
 MISSION1_DUMMY_SOURCE := $(MISSION1_DUMMY_DIR)/gopro_mission1_dummy_blender.py
 MISSION1_FIELD_CASE_SOURCE := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_blender.py
+MISSION1_DUAL_FAN_LOADOUT_SOURCE := $(MISSION1_FIELD_CASE_DIR)/mission1_dual_fan_loadout.py
 MISSION1_FIELD_CASE_PDF_SOURCE := $(MISSION1_FIELD_CASE_DIR)/generate_mission1_field_case_config_dimension_pdf.py
 MISSION1_FIELD_CASE_SCENE_CHECK_SOURCE := $(MISSION1_FIELD_CASE_DIR)/check_mission1_field_case_scene_visibility.py
 MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE := $(MISSION1_FIELD_CASE_DIR)/render_3mf_plate_overview.py
@@ -74,6 +75,10 @@ MISSION1_FIELD_CASE_STLS := \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_hinge_pin.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lid_logo_orange_inlay.stl
 MISSION1_FIELD_CASE_AUXILIARY_STLS := \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lower_fan_cradle_tpu.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_upper_equipment_tray_tpu.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_dual_fan_tray_riser_tpu.stl \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_dual_fan_storage_spacer_tpu.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lid_tpu_68d_snap.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_tpu_68d_hinge_coupon.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_tpu_lid_latch_station_coupon.stl \
@@ -89,8 +94,6 @@ MISSION1_FIELD_CASE_OUTPUTS := $(MISSION1_FIELD_CASE_STLS) \
 	$(MISSION1_FIELD_CASE_AUXILIARY_STLS) $(MISSION1_FIELD_CASE_3MF)
 MISSION1_FIELD_CASE_OBSOLETE_STL_NAMES := \
 	mission1_field_case_remote_retainer_tpu.stl \
-	mission1_field_case_lower_fan_cradle_tpu.stl \
-	mission1_field_case_upper_equipment_tray_tpu.stl \
 	mission1_field_case_lid_retainer_tpu.stl \
 	mission1_field_case_fan_case_pair_overhead_carrier_tpu.stl \
 	mission1_field_case_lower_insert.stl \
@@ -442,7 +445,7 @@ $(DUAL_FAN_DIMENSION_PDF): $(DUAL_FAN_PDF_SOURCE) \
 # them changes.  It projects the auxiliary TPU and organizer parts too, which is
 # why both STL groups are listed.
 $(MISSION1_FIELD_CASE_DIMENSION_PDF): $(MISSION1_FIELD_CASE_PDF_SOURCE) \
-	$(MISSION1_FIELD_CASE_SOURCE) $(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) \
+	$(MISSION1_FIELD_CASE_SOURCE) $(MISSION1_DUAL_FAN_LOADOUT_SOURCE) $(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) \
 	$(FAN_CASE_SOURCE) $(WRAPPING_FAN_COVER_SOURCE) $(FAN_PRESET_SOURCE) \
 	$(MISSION1_FIELD_CASE_STLS) $(MISSION1_FIELD_CASE_AUXILIARY_STLS)
 	$(PDF_PYTHON) $<
@@ -484,6 +487,7 @@ $(MISSION1_DUMMY_STLS): $(MISSION1_DUMMY_SOURCE)
 # invocation updates the complete kit while retaining normal timestamp-based
 # incremental builds.
 $(MISSION1_FIELD_CASE_OUTPUTS) &: $(MISSION1_FIELD_CASE_SOURCE) \
+	$(MISSION1_DUAL_FAN_LOADOUT_SOURCE) \
 	$(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) $(FAN_CASE_SOURCE) \
 	$(WRAPPING_FAN_COVER_SOURCE) $(FAN_PRESET_SOURCE)
 	$(RM) $(MISSION1_FIELD_CASE_OUTPUTS) $(MISSION1_FIELD_CASE_OBSOLETE_STLS)

@@ -13,7 +13,7 @@ reference geometry live in [`common/`](common/).
 | [`fan-case/`](fan-case/) | Cooled GoPro shell with removable insert, controls, retainers, and optional acoustic cartridge | `fan-case` |
 | [`fan-silencer/`](fan-silencer/) | Four-hole fan silencers for 40, 60, 80, and 120 mm fans | `fan-silencer` |
 | [`hockeymon-camera-case/`](hockeymon-camera-case/) | Multi-camera HockeyMON enclosure with configurable mounts, fans, and service panels | `hockeymon-camera-case` |
-| [`mission1-field-case/`](mission1-field-case/) | [Expanded two-camera transport case](mission1-field-case/mission1_expanded_case_printing.md) with assembled mount, rolled cord, two remotes, spare storage, and multicolor lid project | `mission1-field-case` |
+| [`mission1-field-case/`](mission1-field-case/) | [Shared expanded transport case](mission1-field-case/mission1_expanded_case_printing.md) for dual-fan or paired fan-case contents, with reusable cord/five-remote organizer and multicolor lid project | `mission1-field-case` |
 | [`mission1-dummy/`](mission1-dummy/) | Printable MISSION 1 reference body used for fit checks and by other generators | `mission1-dummy` |
 | [`horn/`](horn/) | Parametric airflow horn | `horn` |
 | [`flat-fan-cover/`](flat-fan-cover/) | Low-profile fan cover | `flat-fan-cover` |

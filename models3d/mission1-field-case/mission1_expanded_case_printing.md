@@ -1,9 +1,59 @@
-# Expanded Mission 1 alternate case
+# Expanded Mission 1 field case: shared shell, two loadouts
 
 The expanded case carries the existing two complete fan-case camera assemblies,
 small fan cables, batteries and battery doors, plus the assembled goalpost mount,
 three custom remotes, two OEM backup remotes, and a large rolled cord. It replaces the compact case and inserts.
 The stronger latch, handle hardware, and 3.8 mm hinge-rod fit remain in use.
+
+Both `VISIBLE_CASE_ASSEMBLY="FAN_CASE"` and `"ORIGINAL"` now use this same
+**234 × 180 × 160 mm base** and **195 mm closed height**, with unchanged
+**225 × 171 × 156.8 mm nominal base interior**. Selecting the dual-fan
+contents no longer switches to the old compact shell. The explicit compact
+Make target remains available for previously printed compact parts.
+
+## Dual-fan contents and reusable inserts
+
+The dual-fan holder already defaults to **TPU** in its own generator. Its
+detachable two- and three-prong adapters remain rigid. Store the holder with
+its three-prong adapter screwed on and a two-prong mount interleaved at the
+GoPro pivot. The attached piece continues outward in the fork direction
+toward the front wall; it adds no vertical two-inch extension.
+
+![Attached mount direction](renderings/mission1_dual_fan_attached_mount_concept.png)
+
+The full straight **50.8 mm / 2 inch** reach would cross the existing wall.
+The generated packing moves the complete fan/camera layout back **10 mm**,
+raises the fan contact plane **12 mm** above the old compact datum, and
+reserves **36 mm / 1.42 inches from the GoPro pivot**, in a **28 × 20 mm**
+clearance envelope for the added outward continuation. The existing mating
+adapter is checked separately against the case and inserts, including its
+approximately 30 mm height.
+The screw enters from the left, opposite the stored captive nut, with clearance
+for a **20 mm diameter × 30 mm long** thumb head and an M5 shaft.
+Keep a longer third-party mount within that stated envelope; physical fit
+depends on its body and screw-head dimensions.
+
+Reuse `mission1_field_case_accessory_organizer.stl` unchanged between both
+contents: the same rolled-cord bay, three custom remote slots and two OEM
+remote slots occupy the same installed position. The shell, either lid,
+gasket, hinge rod, latches and handle are also shared.
+
+The dual-fan-only inserts are the lower fan cradle, upper camera tray, tray
+riser and storage spacer. The camera tray has **six Mission 1 battery wells**,
+two battery-door pockets and two **45 × 54 × 32 mm** general storage pockets.
+The riser seats on the shell's existing 39 mm ledges; the spacer supports
+the shared organizer on the camera tray. Both rings print upright without
+supports. The front passages let the attached mount and thumb head pass
+while lifting the inserts. Remove the shared organizer, spacer, loaded camera
+tray and riser in that order before lifting the bolted fan/mount assembly.
+
+**Glue foam into the dual-fan lid.** That assembly contains no molded lid
+retainer. The form-fitting printed roof pad is labeled for the fan-case
+loadout only. Keep foam clear of remote buttons and the lid's locating key.
+The all-parts 3MF contains the four dual-fan inserts on labeled TPU 95A plates
+and a single shared cable/remote organizer plate; install one lower insert
+set at a time. The existing fan-case lower insert and mount/utility trays
+keep their dimensions and packing.
 
 The shell exterior follows the supplied `build_hardcase.py`: **25 mm plan-view
 corners**, a rounded bottom blending over 30 mm with a 14 mm inset, narrower
@@ -34,7 +84,7 @@ make -C models3d mission1-field-case
 make -C models3d mission1-field-case-plate-overview
 ```
 
-The project contains **16 unique STLs on 11 plates**, including rigid PETG and
+The project contains **20 unique STLs on 15 plates**, including rigid PETG and
 TPU-for-AMS lid alternatives. Select one lid. The compact dual-fan kit remains separately
 available with `make -C models3d mission1-field-case-compact`; its exports go in
 `mission1-field-case/compact/`. It retains its original corner radius and lid
@@ -316,7 +366,7 @@ for this part and every other internal tray. A diagnostic
 The earlier air-channel revision required reprinting both the organizer and
 mount tray. There is no
 separate retainer STL or extra retainer plate; the complete project contains
-16 unique STLs on 11 plates.
+20 unique STLs on 15 plates.
 
 The optional snap lid, hinge coupon, and lid-latch coupon use
 `Bambu TPU for AMS @BBL P1P`. The lid and exact-crop latch coupon use **6 wall
@@ -429,6 +479,27 @@ compact compatibility and collision-rejection checks, together with the existing
 latch and handle regression scripts.
 
 ## Checks
+
+The dual-fan checks validate both adapter halves, the screw and thumb head,
+six batteries, seated tray bearings, the unchanged shared organizer, both lid
+closures and support-free print layers. Removal checks lift the inserts,
+bolted fan assembly and cameras at 1 mm intervals. The regression rejects a
+straight two-inch mount, misaligned adapter fingers, shell growth, a displaced
+tray bearing, a blocked thumb-head passage and a closed riser passage. Reuse
+a validated complete single-profile scene for these focused checks:
+
+```sh
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_dual_fan_loadout.py \
+  -- --scene /path/to/validated-field-case.blend
+blender --background --factory-startup --threads 8 --python-exit-code 1 \
+  --python models3d/mission1-field-case/check_mission1_field_case_scene_visibility.py \
+  -- --scene /path/to/validated-field-case.blend
+```
+
+The scene check verifies both contents with both lids, preserves mesh geometry,
+and checks that rerunning the scene leaves other scenes intact. Omit `--scene`
+to regenerate both loadouts before checking their visibility.
 
 ![Generated print plates](renderings/mission1_field_case_all_print_plates.png)
 
