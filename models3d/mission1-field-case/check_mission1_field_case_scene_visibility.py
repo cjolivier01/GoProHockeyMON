@@ -7,6 +7,7 @@ Run from the repository root with::
 """
 
 import hashlib
+import sys
 from array import array
 from pathlib import Path
 
@@ -15,6 +16,70 @@ from mathutils import Matrix, Vector
 
 
 SCRIPT_PATH = Path(__file__).resolve().with_name("mission1_field_case_blender.py")
+
+
+def build_from_validated_scene(scene_path):
+    """Reuse validated geometry to check scene switching and rerun isolation."""
+    namespace["clear_scene"]()
+    with bpy.data.libraries.load(str(Path(scene_path).resolve()), link=False) as (source, target):
+        target.objects = list(source.objects)
+    objects = list(target.objects)
+    for obj in objects:
+        bpy.context.scene.collection.objects.link(obj)
+    by_name = {obj.name: obj for obj in objects}
+    parts = {key: by_name[name] for key, name in {
+        "base": "Field_Case_Base", "lid": "Field_Case_Lid",
+        "logo_orange_inlay": "Lid_Sports_AI_Hockey_Artwork_Orange_Inlay",
+        "gasket": "Field_Case_Hollow_TPU_Gasket",
+        "tpu_snap_lid": "Field_Case_Lid_TPU_68D_Snap_Hinge",
+        "tpu_hinge_coupon": "Field_Case_TPU_68D_Hinge_Fit_Coupon_27_28_29_3",
+        "tpu_lid_latch_coupon": "Field_Case_TPU_Lid_Latch_Station_Coupon",
+        "latch_lever": "Field_Case_Pelican_Source_Lever_Print_Two",
+        "latch_hook": "Field_Case_Pelican_Source_Hook_Print_Two",
+        "handle_bar": "Field_Case_Pivoting_Handle_Bar", "hinge_pin": "Field_Case_Hinge_Pin",
+        "fan_case_pair_insert": "Field_Case_Fan_Case_Pair_Lower_TPU_Insert",
+        "fan_case_pair_carrier": "Field_Case_Fan_Case_Pair_Mount_Tray",
+        "fan_case_pair_storage_bin": "Field_Case_Fan_Case_Pair_Front_Deep_Tray",
+        "fan_case_pair_lid_pad": "Field_Case_Fan_Case_Pair_TPU_Lid_Pad",
+        "accessory_organizer": "Field_Case_Coil_And_Remote_Organizer",
+        "fan_cradle": "Field_Case_Expanded_Dual_Fan_Cradle",
+        "equipment_tray": "Field_Case_Removable_Upper_TPU_Equipment_Tray",
+        "dual_fan_riser": "Field_Case_Dual_Fan_Tray_Riser",
+        "dual_fan_spacer": "Field_Case_Dual_Fan_Storage_Spacer",
+    }.items()}
+    references = [o for o in objects if o.name.startswith("REFERENCE_ONLY_")]
+    for key, prefix in (("logo_orange_inlay", "TPU_LID_LOGO_REFERENCE_PREFIX"),
+                        ("gasket", "TPU_LID_GASKET_REFERENCE_PREFIX"),
+                        ("fan_case_pair_lid_pad", "TPU_LID_PAD_REFERENCE_PREFIX")):
+        obj = namespace["duplicate_reference_part"](parts[key], namespace[prefix],
+                                                   parts[key].data.materials[0])
+        references.append(obj)
+        objects.append(obj)
+    alternate_ns = {"__name__": "scene_cache_original", "__file__": str(SCRIPT_PATH),
+                    "VISIBLE_CASE_ASSEMBLY": "ORIGINAL", "EXPANDED_ACCESSORY_STORAGE": True}
+    exec(compile(SCRIPT_PATH.read_bytes(), str(SCRIPT_PATH), "exec"), alternate_ns)
+    copies = {}
+    for obj in objects:
+        copy = obj.copy()
+        if obj.data is not None:
+            copy.data = obj.data.copy()
+        bpy.context.scene.collection.objects.link(copy)
+        copies[obj.as_pointer()] = copy
+    alternate_parts = {key: copies[obj.as_pointer()] for key, obj in parts.items()}
+    alternate_references = [copies[obj.as_pointer()] for obj in references]
+    profiles = {}
+    for assembly, config, assembly_parts, assembly_refs, assembly_objects in (
+            ("FAN_CASE", namespace, parts, references, objects),
+            ("ORIGINAL", alternate_ns, alternate_parts, alternate_references, list(copies.values()))):
+        config["configure_assembled_scene_visibility"](assembly_parts, assembly_refs)
+        collection = namespace["move_objects_to_assembly_collection"](assembly_objects, assembly)
+        profiles[assembly] = {"parts": assembly_parts, "references": assembly_refs,
+                              "objects": assembly_objects, "collection": collection,
+                              "configure": config["configure_assembled_scene_visibility"]}
+    for obj in (*objects, *copies.values()):
+        namespace["set_scene_object_visibility"](obj, False)
+    namespace["configure_assembled_scene_visibility"](parts, references)
+    namespace["_LAST_CASE_ASSEMBLIES"] = profiles
 
 
 def linked_mesh_object(name, collection):
@@ -202,7 +267,10 @@ def check_separate_gasket_assembly_pose():
 
 
 check_separate_gasket_assembly_pose()
-namespace["build_all_case_assemblies"]()
+if "--scene" in sys.argv:
+    build_from_validated_scene(sys.argv[sys.argv.index("--scene") + 1])
+else:
+    namespace["build_all_case_assemblies"]()
 profiles = namespace["_LAST_CASE_ASSEMBLIES"]
 fan_case = namespace["CASE_ASSEMBLY_FAN_CASE"]
 original = namespace["CASE_ASSEMBLY_ORIGINAL"]
@@ -324,7 +392,7 @@ for case_variant, profile in profiles.items():
     ]
     if has_stored_mockups(tpu_only_references):
         raise AssertionError("TPU lid references imply stored-equipment mockups")
-    expected_stored_mockups = case_variant == original
+    expected_stored_mockups = True  # Both expanded scenes retain both insert sets.
     if has_stored_mockups(profile["references"]) != expected_stored_mockups:
         raise AssertionError(
             f"{case_variant} stored-equipment mockup detection is incorrect"
@@ -404,7 +472,7 @@ def assert_complete_lids_are_assembled(case_variant):
     rigid_pad_key = (
         "fan_case_pair_lid_pad" if case_variant == fan_case else "lid_retainer"
     )
-    for variant, pad in (
+    pads = () if case_variant == original else (
         (rigid_lid, profile["parts"][rigid_pad_key]),
         (
             tpu_lid,
@@ -412,7 +480,8 @@ def assert_complete_lids_are_assembled(case_variant):
                 profile, function_globals["TPU_LID_PAD_REFERENCE_PREFIX"]
             ),
         ),
-    ):
+    )
+    for variant, pad in pads:
         assert_vector_close(
             pad.location, pad_location, f"{case_variant}/{variant}/pad location"
         )
@@ -475,8 +544,9 @@ def check_variant(
         selected_reference_prefixes = expected_reference_prefixes + (
             function_globals["TPU_LID_LOGO_REFERENCE_PREFIX"],
             function_globals["TPU_LID_GASKET_REFERENCE_PREFIX"],
-            function_globals["TPU_LID_PAD_REFERENCE_PREFIX"],
         )
+        if case_variant == fan_case:
+            selected_reference_prefixes += (function_globals["TPU_LID_PAD_REFERENCE_PREFIX"],)
 
     actual_visible_parts = {
         key
@@ -564,13 +634,15 @@ fan_case_prefixes = hardware_prefixes + (
     "REFERENCE_ONLY_Fan_Case_Battery_Door_",
     "REFERENCE_ONLY_Field_Accessory_",
 )
-original_parts = {"fan_cradle", "equipment_tray", "lid_retainer"}
+original_parts = {"fan_cradle", "equipment_tray", "dual_fan_riser", "dual_fan_spacer", "accessory_organizer"}
 original_prefixes = hardware_prefixes + (
     "REFERENCE_ONLY_Stored_",
     "REFERENCE_ONLY_Installed_80mm_Fan_",
     "REFERENCE_ONLY_MISSION1_",
     "REFERENCE_ONLY_Enduro2_",
     "REFERENCE_ONLY_MISSION1_Battery_Cage_Door_",
+    "REFERENCE_ONLY_Field_Accessory_Remote_",
+    "REFERENCE_ONLY_Field_Accessory_Coil_",
 )
 
 # Both the selected and hidden profiles must already be fully posed by the
@@ -589,7 +661,7 @@ check_variant(
 )
 check_variant(fan_case, tpu_lid, fan_case_parts - {"fan_case_pair_lid_pad"}, fan_case_prefixes)
 check_variant(original, rigid_lid, original_parts, original_prefixes)
-check_variant(original, tpu_lid, original_parts - {"lid_retainer"}, original_prefixes)
+check_variant(original, tpu_lid, original_parts, original_prefixes)
 
 current_mesh_fingerprints = {
     pointer: mesh_fingerprint(obj) for pointer, obj in geometry_objects.items()

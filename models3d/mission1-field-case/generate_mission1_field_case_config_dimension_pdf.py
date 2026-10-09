@@ -45,6 +45,7 @@ MODELS_ROOT = HERE.parent
 COMMON = MODELS_ROOT / "common"
 
 MODEL_SOURCE = HERE / "mission1_field_case_blender.py"
+DUAL_LOADOUT_SOURCE = HERE / "mission1_dual_fan_loadout.py"
 PRESET_SOURCE = COMMON / "fan_size_presets.py"
 OUTPUT_PDF = HERE / "mission1_field_case_configuration_dimensions.pdf"
 
@@ -1464,6 +1465,16 @@ EXACT_DESCRIPTIONS = {
     "BOOLEAN_SOLVER": "Boolean modifier solver applied to every cut.",
     "BOOLEAN_CLEANUP_DISTANCE": "Merge distance used after each Boolean cut.",
     "FAN_CASE_STORAGE_LAYOUT_DEPTH": "Case depth the fan-case storage layout is drawn for.",
+    "CAMERA_PLACEMENTS": "Compact-layout camera placements; expanded dual-fan positions add the storage Y shift.",
+    "BATTERY_CENTERS": "Four compact-layout battery centers; expanded dual-fan positions use six shifted centers.",
+    "EQUIPMENT_TRAY_INSTALLED_Z": "Compact tray seat and expanded riser bottom above the case-floor datum.",
+    "DUAL_FAN_CAMERA_PLACEMENTS": "Resolved expanded dual-fan camera positions and plan rotations.",
+    "DUAL_FAN_BATTERY_CENTERS": "Resolved positions of all six expanded dual-fan battery wells.",
+    "DUAL_FAN_TRAY_INSTALLED_Z": "Expanded dual-fan camera tray bottom above the case-floor datum.",
+    "DUAL_FAN_RISER_BOTTOM_Z": "Riser bottom on the existing shell ledges, above the case-floor datum.",
+    "DUAL_FAN_RISER_TOP_Z": "Riser top supporting the camera tray, above the case-floor datum.",
+    "DUAL_FAN_SPACER_BOTTOM_Z": "Storage spacer bottom on the camera tray, above the case-floor datum.",
+    "DUAL_FAN_SPACER_TOP_Z": "Storage spacer top supporting the shared organizer, above the case-floor datum.",
 }
 
 
@@ -1586,6 +1597,10 @@ CONFIG_BY_NAME = {entry.name: entry for entry in CONFIG_ENTRIES}
 # GENERATED GEOMETRY
 
 PART_STLS = {
+    "dual_cradle": "mission1_field_case_lower_fan_cradle_tpu.stl",
+    "dual_camera_tray": "mission1_field_case_upper_equipment_tray_tpu.stl",
+    "dual_riser": "mission1_field_case_dual_fan_tray_riser_tpu.stl",
+    "dual_spacer": "mission1_field_case_dual_fan_storage_spacer_tpu.stl",
     "base": "mission1_field_case_base.stl",
     "lid": "mission1_field_case_lid.stl",
     "gasket": "mission1_field_case_gasket_tpu.stl",
@@ -1604,6 +1619,10 @@ PART_STLS = {
 }
 PART_PATHS = {part: HERE / name for part, name in PART_STLS.items()}
 PART_TITLES = {
+    "dual_cradle": "Dual-fan floor cradle",
+    "dual_camera_tray": "Dual-fan camera / six battery tray",
+    "dual_riser": "Dual-fan tray riser",
+    "dual_spacer": "Dual-fan shared-organizer spacer",
     "base": "Case base shell",
     "lid": "Rigid lid shell",
     "gasket": "Lid gasket (TPU)",
@@ -1621,6 +1640,10 @@ PART_TITLES = {
     "storage_bin": "Fan-side storage bin",
 }
 PART_COLORS = {
+    "dual_cradle": ORANGE,
+    "dual_camera_tray": ORANGE,
+    "dual_riser": CYAN,
+    "dual_spacer": CYAN,
     "base": BLUE,
     "lid": BLUE,
     "gasket": ORANGE,
@@ -1638,7 +1661,7 @@ PART_COLORS = {
     "storage_bin": CYAN,
 }
 
-SOURCE_PATHS = (MODEL_SOURCE, PRESET_SOURCE) + COMPANION_PATHS
+SOURCE_PATHS = (MODEL_SOURCE, DUAL_LOADOUT_SOURCE, PRESET_SOURCE) + COMPANION_PATHS
 
 
 def require_current_part_stls():
@@ -1880,6 +1903,11 @@ def set_drawing_bounds(axes, bounds, padding_fraction=0.12):
 # the catalog exactly once.
 
 PART_ROUTES = (
+    (("DUAL_FAN_CAMERA_", "DUAL_FAN_BATTERY_", "DUAL_FAN_TRAY_"), "dual_camera_tray"),
+    (("DUAL_FAN_RISER_",), "dual_riser"),
+    (("DUAL_FAN_SPACER_",), "dual_spacer"),
+    (("DUAL_FAN_MOUNT_",), "dual_camera_tray"),
+    (("DUAL_FAN_STORAGE_",), "dual_cradle"),
     (("LATCH_HOOK_", "LATCH_KEEPER_", "LATCH_CATCH_", "LATCH_STRIKE_"), "latch_hook"),
     (("LATCH_LEVER_", "LATCH_DETENT_", "LATCH_CAM_", "PELICAN_"), "latch_lever"),
     (("HANDLE_BAR_", "HANDLE_GRIP_", "HANDLE_TUBE_", "PIVOT_"), "handle_bar"),

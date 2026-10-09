@@ -5,7 +5,11 @@ from disk. The default expanded alternate kit holds two complete upright
 fan-case camera assemblies, their batteries/doors/cables/PWM plugs, an assembled
 approximately 205 x 140 x 35 mm mount, five remotes, and a rolled 150 x 40 mm cord.
 A lower front utility bin, TPU 95A mount tray and TPU 95A upper organizer preserve
-additional storage. The rounded base is 234 x 180 x 160 mm, the closed
+additional storage. The dual-fan loadout uses that same shell and upper cord /
+five-remote organizer, with six battery wells, two side storage pockets and an
+attached two-prong mount extending straight outward from the three-prong joint.
+It reserves 36 mm of outward reach within the fixed shell and leaves its lid
+empty for glued foam. The rounded base is 234 x 180 x 160 mm, the closed
 case is 195 mm high, and all parts fit a 250 mm bed.
 
 Set EXPANDED_ACCESSORY_STORAGE=False before executing the module (or use the
@@ -51,7 +55,7 @@ the Outliner.
 
 Set ``EXPORT_STL = True`` below, or use
 ``make -C models3d mission1-field-case`` from the repository root, to emit
-the 16-part expanded kit (18 parts for the compact profile), and
+the 20-part expanded kit (18 parts for the compact profile), and
 ``mission1_field_case_ams_project.3mf``.
 The 3MF contains every printable part on labeled plates; by default both its
 rigid and TPU-for-AMS lid alternatives are complete compound objects with one flush
@@ -224,8 +228,8 @@ TPU_LID_PAD_REFERENCE_PREFIX = "REFERENCE_ONLY_TPU_68D_Lid_Pad"
 ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD = globals().get(
     "ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD", __name__ == "__main__"
 )
-# Direct Blender/Text Editor runs build both the expanded fan-case profile and
-# the original compact profile. Importers and validators retain the historical
+# Direct Blender/Text Editor runs build both expanded loadouts in the same shell.
+# Importers and validators retain the historical
 # single-profile behavior unless they opt in explicitly.
 GENERATE_ALL_CASE_ASSEMBLIES = globals().get(
     "GENERATE_ALL_CASE_ASSEMBLIES", __name__ == "__main__"
@@ -233,13 +237,8 @@ GENERATE_ALL_CASE_ASSEMBLIES = globals().get(
 
 CLEAR_SCENE = globals().get("CLEAR_SCENE", True)
 BUILD_REFERENCE_MOCKUPS = globals().get("BUILD_REFERENCE_MOCKUPS", True)
-# Selecting ORIGINAL in an ordinary Blender run also selects the compact
-# all-loadouts profile that contains it.  Make targets and embedding scripts
-# can still override EXPANDED_ACCESSORY_STORAGE explicitly.
-EXPANDED_ACCESSORY_STORAGE = globals().get(
-    "EXPANDED_ACCESSORY_STORAGE",
-    VISIBLE_CASE_ASSEMBLY == CASE_ASSEMBLY_FAN_CASE,
-)
+# Both contents use the same expanded shell; compact is an explicit legacy option.
+EXPANDED_ACCESSORY_STORAGE = globals().get("EXPANDED_ACCESSORY_STORAGE", True)
 EXPORT_STL = globals().get("EXPORT_STL", False)
 EXPORT_DIRECTORY = globals().get("EXPORT_DIRECTORY", "")
 SAVE_BLEND = globals().get("SAVE_BLEND", False)
@@ -255,6 +254,8 @@ LID_STL_NAME = "mission1_field_case_lid.stl"
 FAN_CRADLE_STL_NAME = "mission1_field_case_lower_fan_cradle_tpu.stl"
 EQUIPMENT_TRAY_STL_NAME = "mission1_field_case_upper_equipment_tray_tpu.stl"
 LID_RETAINER_STL_NAME = "mission1_field_case_lid_retainer_tpu.stl"
+DUAL_FAN_RISER_STL_NAME = "mission1_field_case_dual_fan_tray_riser_tpu.stl"
+DUAL_FAN_SPACER_STL_NAME = "mission1_field_case_dual_fan_storage_spacer_tpu.stl"
 GASKET_STL_NAME = "mission1_field_case_gasket_tpu.stl"
 LATCH_LEVER_STL_NAME = "mission1_field_case_pelican_latch_lever_print_two.stl"
 LATCH_HOOK_STL_NAME = "mission1_field_case_pelican_latch_hook_print_two.stl"
@@ -296,7 +297,8 @@ PRINTABLE_STL_NAMES = (
 )
 if EXPANDED_ACCESSORY_STORAGE:
     PRINTABLE_STL_NAMES = tuple(name for name in PRINTABLE_STL_NAMES
-                               if name not in (FAN_CRADLE_STL_NAME, EQUIPMENT_TRAY_STL_NAME, LID_RETAINER_STL_NAME))
+                               if name != LID_RETAINER_STL_NAME)
+    PRINTABLE_STL_NAMES += (DUAL_FAN_RISER_STL_NAME, DUAL_FAN_SPACER_STL_NAME)
 
 
 # These mutually exclusive loadout/calibration parts are exported beside the
@@ -338,6 +340,13 @@ ACCESSORY_COIL_ENVELOPE = (154.0, 42.0)
 ACCESSORY_REMOTE_BODY = (37.5, 45.5, 14.5)
 ACCESSORY_REMOTE_BUTTON_PROJECTION = 1.5
 ACCESSORY_ORGANIZER_BOTTOM_Z = 118.0
+DUAL_FAN_STORAGE_LIFT = 12.0
+DUAL_FAN_STORAGE_Y_SHIFT = 10.0
+# Straight outward reach from the GoPro pivot. The full 50.8 mm target would
+# cross the wall; 36 mm fits the fixed shell and preserves the shared organizer.
+DUAL_FAN_MOUNT_REACH = 36.0
+DUAL_FAN_MOUNT_CLEARANCE_WIDTH = 28.0
+DUAL_FAN_MOUNT_CLEARANCE_HEIGHT = 20.0
 ACCESSORY_ORGANIZER_STL_NAME = "mission1_field_case_accessory_organizer.stl"
 ACCESSORY_OEM_REMOTE_BODY = (66.0, 40.0, 19.0)
 # Battery-style pockets are integral with the entire TPU 95A organizer.
@@ -1677,6 +1686,21 @@ BATTERY_DOOR_LID_HOLD_DOWN_EXTENSION = (
     + mission1.BODY_HEIGHT
     - (BATTERY_DOOR_SLOT_FLOOR_Z + BATTERY_DOOR_SIZE[2])
 )
+
+# Resolved expanded dual-fan layout, measured above the case-floor datum.
+# CAMERA_PLACEMENTS and BATTERY_CENTERS above remain the compact inputs.
+DUAL_FAN_CAMERA_PLACEMENTS = tuple(
+    (x, y + DUAL_FAN_STORAGE_Y_SHIFT, angle) for x, y, angle in CAMERA_PLACEMENTS
+)
+DUAL_FAN_BATTERY_CENTERS = tuple(
+    (x, y + DUAL_FAN_STORAGE_Y_SHIFT)
+    for x, y in (*BATTERY_CENTERS, (-92.0, -48.0), (92.0, -48.0))
+)
+DUAL_FAN_TRAY_INSTALLED_Z = EQUIPMENT_TRAY_INSTALLED_Z + DUAL_FAN_STORAGE_LIFT
+DUAL_FAN_RISER_BOTTOM_Z = EQUIPMENT_TRAY_INSTALLED_Z
+DUAL_FAN_RISER_TOP_Z = DUAL_FAN_TRAY_INSTALLED_Z
+DUAL_FAN_SPACER_BOTTOM_Z = DUAL_FAN_TRAY_INSTALLED_Z + TRAY_HEIGHT
+DUAL_FAN_SPACER_TOP_Z = ACCESSORY_ORGANIZER_BOTTOM_Z
 
 LID_RETAINER_HEIGHT = 12.4
 LID_BUTTON_RELIEF_DEPTH = 4.2
@@ -5054,20 +5078,6 @@ def validate_configuration() -> None:
     if not 0.0 <= ASSEMBLED_LID_OPEN_ANGLE_DEGREES <= 110.0:
         raise ValueError(
             "ASSEMBLED_LID_OPEN_ANGLE_DEGREES must be between 0 and 110"
-        )
-    if GENERATE_ALL_CASE_ASSEMBLIES and EXPANDED_ACCESSORY_STORAGE != (
-        VISIBLE_CASE_ASSEMBLY == CASE_ASSEMBLY_FAN_CASE
-    ):
-        raise ValueError(
-            "Generating all assemblies requires FAN_CASE with "
-            "EXPANDED_ACCESSORY_STORAGE=True or ORIGINAL with it False"
-        )
-    if (
-        EXPANDED_ACCESSORY_STORAGE
-        and VISIBLE_CASE_ASSEMBLY == CASE_ASSEMBLY_ORIGINAL
-    ):
-        raise ValueError(
-            "The ORIGINAL assembly requires EXPANDED_ACCESSORY_STORAGE=False"
         )
     inner_width = CASE_WIDTH - 2.0 * WALL_THICKNESS
     inner_depth = CASE_DEPTH - 2.0 * WALL_THICKNESS
@@ -9626,7 +9636,7 @@ def create_equipment_tray(material):
             f"Battery_{index}_Finger_Scoop",
             6.0,
             12.0,
-            (center[0], -67.0, TRAY_HEIGHT - 6.0),
+            (center[0], center[1] - 19.0, TRAY_HEIGHT - 6.0),
             vertices=40,
         )
         difference_from(tray, scoop)
@@ -18275,6 +18285,14 @@ def field_case_3mf_groups():
             LID_RETAINER_STL_NAME,
         ),
         (
+            "Dual Fan - Camera Tray Riser - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "Dual Fan Camera Tray Riser", "dual_fan_riser", DUAL_FAN_RISER_STL_NAME,
+        ),
+        (
+            "Dual Fan - Storage Spacer - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "Dual Fan Storage Spacer", "dual_fan_spacer", DUAL_FAN_SPACER_STL_NAME,
+        ),
+        (
             "Alternate Fan-Case - Lower Insert - TPU 95A HF - 2 Walls - 2% Gyroid",
             "Alternate TPU 95A HF Fan-Case Pair Lower Insert",
             "fan_case_pair_insert",
@@ -18298,7 +18316,7 @@ def field_case_3mf_groups():
             FAN_CASE_PAIR_STORAGE_BIN_STL_NAME,
         ),
         (
-            "Alternate Fan-Case - Coil and Five Remote Slots - TPU 95A HF - 2 Walls - 2% Gyroid",
+            "Shared Both Loadouts - Coil and Five Remote Slots - TPU 95A HF - 2 Walls - 2% Gyroid",
             "TPU 95A HF Coil and Five Remote Slot Organizer",
             "accessory_organizer",
             ACCESSORY_ORGANIZER_STL_NAME,
@@ -18314,8 +18332,9 @@ def field_case_3mf_groups():
             FAN_CASE_PAIR_LID_PAD_STL_NAME,
         ),
     ):
-        if ((EXPANDED_ACCESSORY_STORAGE and key in ("fan_cradle", "equipment_tray", "lid_retainer"))
-                or (not EXPANDED_ACCESSORY_STORAGE and key == "accessory_organizer")):
+        if ((EXPANDED_ACCESSORY_STORAGE and key == "lid_retainer")
+                or (not EXPANDED_ACCESSORY_STORAGE and key in
+                    ("accessory_organizer", "dual_fan_riser", "dual_fan_spacer"))):
             continue
         add_group(
             name,
@@ -20144,7 +20163,7 @@ def pose_lid_variant(parts, reference_objects, lid_variant, lid_pad_key):
         lid = parts["lid"]
         logo = parts["logo_orange_inlay"]
         gasket = parts["gasket"]
-        lid_pad = parts[lid_pad_key]
+        lid_pad = parts[lid_pad_key] if lid_pad_key else None
     else:
         lid = parts["tpu_snap_lid"]
         logo = reference_object_with_prefix(
@@ -20155,7 +20174,7 @@ def pose_lid_variant(parts, reference_objects, lid_variant, lid_pad_key):
         )
         lid_pad = reference_object_with_prefix(
             reference_objects, TPU_LID_PAD_REFERENCE_PREFIX
-        )
+        ) if lid_pad_key else None
 
     lid_location, lid_rotation = installed_lid_pose(
         ASSEMBLED_LID_OPEN_ANGLE_DEGREES
@@ -20167,8 +20186,9 @@ def pose_lid_variant(parts, reference_objects, lid_variant, lid_pad_key):
     pad_location, pad_rotation = installed_flat_lid_pad_pose(
         ASSEMBLED_LID_OPEN_ANGLE_DEGREES
     )
-    lid_pad.location = pad_location
-    lid_pad.rotation_euler = pad_rotation
+    if lid_pad is not None:
+        lid_pad.location = pad_location
+        lid_pad.rotation_euler = pad_rotation
 
 
 def configure_assembled_scene_visibility(parts, reference_objects):
@@ -20212,14 +20232,18 @@ def configure_assembled_scene_visibility(parts, reference_objects):
             "fan_cradle",
             "equipment_tray",
         }
+        if EXPANDED_ACCESSORY_STORAGE:
+            visible_part_keys.update(("dual_fan_riser", "dual_fan_spacer", "accessory_organizer"))
         visible_reference_prefixes = common_reference_prefixes + (
             "REFERENCE_ONLY_Stored_",
             "REFERENCE_ONLY_Installed_80mm_Fan_",
             "REFERENCE_ONLY_MISSION1_",
             "REFERENCE_ONLY_Enduro2_",
             "REFERENCE_ONLY_MISSION1_Battery_Cage_Door_",
+            "REFERENCE_ONLY_Field_Accessory_Remote_",
+            "REFERENCE_ONLY_Field_Accessory_Coil_",
         )
-        lid_pad_key = "lid_retainer"
+        lid_pad_key = None if EXPANDED_ACCESSORY_STORAGE else "lid_retainer"
 
     pose_lid_variant(parts, reference_objects, LID_VARIANT_RIGID, lid_pad_key)
     pose_lid_variant(parts, reference_objects, LID_VARIANT_TPU_68D, lid_pad_key)
@@ -20232,16 +20256,17 @@ def configure_assembled_scene_visibility(parts, reference_objects):
     hinge_pin.rotation_euler = (0.0, 0.0, 0.0)
 
     if VISIBLE_LID_VARIANT == LID_VARIANT_RIGID:
-        visible_part_keys.update(
-            ("lid", "logo_orange_inlay", "gasket", lid_pad_key)
-        )
+        visible_part_keys.update(("lid", "logo_orange_inlay", "gasket"))
+        if lid_pad_key:
+            visible_part_keys.add(lid_pad_key)
     else:
         visible_part_keys.add("tpu_snap_lid")
         visible_reference_prefixes += (
             TPU_LID_LOGO_REFERENCE_PREFIX,
             TPU_LID_GASKET_REFERENCE_PREFIX,
-            TPU_LID_PAD_REFERENCE_PREFIX,
         )
+        if lid_pad_key:
+            visible_reference_prefixes += (TPU_LID_PAD_REFERENCE_PREFIX,)
     for key in visible_part_keys:
         obj = parts.get(key)
         if obj is not None:
@@ -20493,6 +20518,17 @@ def build_mission1_field_case():
     if BUILD_REFERENCE_MOCKUPS:
         reference_objects.extend(fan_case_references)
 
+    if EXPANDED_ACCESSORY_STORAGE:
+        dual_loadout, _directory = import_companion_module(
+            "mission1_dual_fan_loadout", "mission1-field-case"
+        )
+        _added_parts, dual_references = dual_loadout.build_loadout(globals(), parts, tpu_material)
+        if BUILD_REFERENCE_MOCKUPS:
+            reference_objects.extend(dual_references)
+        else:
+            for obj in dual_references:
+                bpy.data.objects.remove(obj, do_unlink=True)
+
     for name, obj in parts.items():
         validate_built_part(name, obj)
     validate_preserved_case_and_tray_envelopes(parts)
@@ -20583,6 +20619,8 @@ def build_mission1_field_case():
             (FAN_CRADLE_STL_NAME, parts.get("fan_cradle")),
             (EQUIPMENT_TRAY_STL_NAME, parts.get("equipment_tray")),
             (LID_RETAINER_STL_NAME, parts.get("lid_retainer")),
+            (DUAL_FAN_RISER_STL_NAME, parts.get("dual_fan_riser")),
+            (DUAL_FAN_SPACER_STL_NAME, parts.get("dual_fan_spacer")),
             (GASKET_STL_NAME, parts.get("gasket")),
             (LATCH_LEVER_STL_NAME, parts.get("latch_lever")),
             (LATCH_HOOK_STL_NAME, parts.get("latch_hook")),
@@ -20615,7 +20653,9 @@ def build_mission1_field_case():
             print_origin = None
             print_rotation = None
             expected_minimum_z = 0.0
-            if obj is parts.get("accessory_organizer"):
+            if "print_origin_z" in obj:
+                print_origin = Vector((0.0, 0.0, obj["print_origin_z"]))
+            elif obj is parts.get("accessory_organizer"):
                 print_origin = Vector((0.0, 0.0, ACCESSORY_ORGANIZER_BOTTOM_Z))
             elif obj is parts.get("fan_cradle"):
                 print_origin = Vector((0.0, 0.0, FAN_CRADLE_INSTALLED_Z))
@@ -20713,9 +20753,7 @@ def build_all_case_assemblies():
         "ASSEMBLED_LID_OPEN_ANGLE_DEGREES": ASSEMBLED_LID_OPEN_ANGLE_DEGREES,
         "ASSEMBLE_VISIBLE_SCENE_AFTER_BUILD": True,
         "GENERATE_ALL_CASE_ASSEMBLIES": False,
-        "EXPANDED_ACCESSORY_STORAGE": (
-            alternate_assembly == CASE_ASSEMBLY_FAN_CASE
-        ),
+        "EXPANDED_ACCESSORY_STORAGE": EXPANDED_ACCESSORY_STORAGE,
         "CLEAR_SCENE": False,
         "BUILD_REFERENCE_MOCKUPS": BUILD_REFERENCE_MOCKUPS,
         "EXPORT_STL": False,
