@@ -55,7 +55,7 @@ the Outliner.
 
 Set ``EXPORT_STL = True`` below, or use
 ``make -C models3d mission1-field-case`` from the repository root, to emit
-the 20-part expanded kit (18 parts for the compact profile), and
+the 21-part expanded kit (19 parts for the compact profile), and
 ``mission1_field_case_ams_project.3mf``.
 The 3MF contains every printable part on labeled plates; by default both its
 rigid and TPU-for-AMS lid alternatives are complete compound objects with one flush
@@ -201,6 +201,9 @@ wrapping_fan_cover, WRAPPING_FAN_COVER_SOURCE_DIRECTORY = import_companion_modul
     "wrapping-fan-cover",
     source_filename="wrapping-fan-cover.py",
 )
+lens_cap, LENS_CAP_SOURCE_DIRECTORY = import_companion_module(
+    "mission1_lens_cap", "mission1-field-case"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -283,6 +286,7 @@ FAN_CASE_PAIR_STORAGE_BIN_STL_NAME = (
 )
 
 PRINTABLE_STL_NAMES = (
+    lens_cap.STL_NAME,
     BASE_STL_NAME,
     LID_STL_NAME,
     FAN_CRADLE_STL_NAME,
@@ -624,6 +628,23 @@ FAN_CASE_CABLE_WELL_CENTERS = ((-64.0, -54.0), (54.0, -54.0))
 FAN_CASE_CABLE_WELL_FLOOR = 2.5
 FAN_CASE_CABLE_WELL_CORNER_RADIUS = 8.0
 FAN_CASE_CABLE_THROAT_WIDTH = 8.0
+# Derived measurements expose the geometric companion in the dimension guide.
+LENS_CAP_SIZE = (lens_cap.OUTER_WIDTH, lens_cap.OUTER_WIDTH, lens_cap.HEIGHT)
+LENS_CAP_INNER_WIDTH = lens_cap.INNER_WIDTH
+LENS_CAP_INNER_CORNER_RADIUS = lens_cap.INNER_RADIUS
+LENS_CAP_FLOOR_THICKNESS = lens_cap.FLOOR
+LENS_CAP_SEAT_HEIGHT = lens_cap.SEAT_Z
+# One continuous well joins both camera leads. The raised door holders have
+# 45-degree arch undersides, leaving the coil and plug space open beneath them.
+FAN_CASE_SHARED_CABLE_CENTER = (-5.0, -54.0)
+FAN_CASE_SHARED_CABLE_SIZE = (182.0, 36.0)
+FAN_CASE_Y_CABLE_LENGTH = 304.8
+FAN_CASE_Y_CABLE_COIL_CENTER = (-4.0, -47.5)
+FAN_CASE_Y_CABLE_COIL_SIZE = (58.0, 22.0)
+FAN_CASE_Y_CABLE_LAYER_PITCH = 4.5
+FAN_CASE_USB_A_ENVELOPE = (32.0, 16.0, 9.0)
+FAN_CASE_Y_SPLITTER_ENVELOPE = (22.0, 12.0, 8.0)
+FAN_CASE_DOOR_ARCH_ROOF = 1.0
 # Both bottom corners remain usable on each fan. Render the outer corner on
 # each assembly; validation also builds the other corner with its matching
 # sleeve notch. Left/right are measured in the case's installed X direction.
@@ -8346,21 +8367,17 @@ def create_fan_case_pair_insert(
             FAN_CASE_PAIR_INSERT_FLOOR, FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 1.0)
         difference_from(insert, mold)
 
+    shared_well = add_rounded_prism(
+        "Fan_Case_Shared_Cable_Well", *FAN_CASE_SHARED_CABLE_SIZE,
+        FAN_CASE_CABLE_WELL_FLOOR,
+        FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 0.3,
+        FAN_CASE_CABLE_WELL_CORNER_RADIUS, FAN_CASE_SHARED_CABLE_CENTER)
+    difference_from(insert, shared_well)
+
     for index, (center_x, center_y) in enumerate(
         FAN_CASE_CABLE_WELL_CENTERS,
         start=1,
     ):
-        well = add_rounded_prism(
-            f"Fan_Case_{index}_Six_Inch_Cable_Coil_Well",
-            FAN_CASE_CABLE_WELL_SIZE[0],
-            FAN_CASE_CABLE_WELL_SIZE[1],
-            FAN_CASE_CABLE_WELL_FLOOR,
-            FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 0.3,
-            FAN_CASE_CABLE_WELL_CORNER_RADIUS,
-            (center_x, center_y),
-        )
-        difference_from(insert, well)
-
         battery_tower_size = tuple(
             value + 2.0 * FAN_CASE_BATTERY_TOWER_WALL
             for value in FAN_CASE_BATTERY_POCKET_SIZE
@@ -8438,11 +8455,23 @@ def create_fan_case_pair_insert(
             f"Fan_Case_Battery_Door_{index}_Pocket_Wall",
             door_tower_size[0],
             door_tower_size[1],
-            FAN_CASE_PAIR_INSERT_HEIGHT - 0.2,
+            FAN_CASE_CABLE_WELL_FLOOR - 0.2,
             FAN_CASE_BATTERY_DOOR_WALL_HEIGHT,
             2.0,
             center,
         )
+        arch_peak = FAN_CASE_BATTERY_DOOR_FLOOR_Z - FAN_CASE_DOOR_ARCH_ROOF
+        arch_run = arch_peak - FAN_CASE_CABLE_WELL_FLOOR
+        half_opening = door_tower_size[1] / 2 - 1.5
+        half_bridge = half_opening - arch_run
+        arch = extrude_loop_x(f"Door_{index}_Open_Cable_Arch", (
+            (center[1] - half_opening, FAN_CASE_CABLE_WELL_FLOOR),
+            (center[1] - half_bridge, arch_peak),
+            (center[1] + half_bridge, arch_peak),
+            (center[1] + half_opening, FAN_CASE_CABLE_WELL_FLOOR),
+        ), center[0] - door_tower_size[0] / 2 - .2,
+           center[0] + door_tower_size[0] / 2 + .2)
+        difference_from(door_tower, arch)
         union_into(insert, door_tower)
         door_pocket = add_rounded_prism(
             f"Fan_Case_Battery_Door_{index}_Pocket",
@@ -8597,7 +8626,39 @@ def create_fan_case_pair_insert(
         tuple((y, z - FAN_CASE_PAIR_INSERT_INSTALLED_Z)
               for y, z in FAN_CASE_PAIR_CARRIER_SUPPORT["center_web_yz"]),
         *FAN_CASE_PAIR_CARRIER_SUPPORT["center_x_bounds"])
+    difference_from(center_spine, add_rounded_prism(
+        "Remove_Cable_Bay_Center_Divider", *FAN_CASE_SHARED_CABLE_SIZE,
+        FAN_CASE_CABLE_WELL_FLOOR,
+        FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 1.0,
+        FAN_CASE_CABLE_WELL_CORNER_RADIUS, FAN_CASE_SHARED_CABLE_CENTER))
     union_into(insert, center_spine)
+    # Retain a rear center bearing for the existing utility tray as a short
+    # overhead cantilever. Its 45-degree underside leaves the shared cable
+    # passage open; the front bearing remains outside the cable well.
+    bearing_top = (FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bottom_z"]
+                   - FAN_CASE_PAIR_INSERT_INSTALLED_Z)
+    bearing_rear = FAN_CASE_SHARED_CABLE_CENTER[1] + FAN_CASE_SHARED_CABLE_SIZE[1] / 2 + .2
+    bearing_front = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bounds"][3] - 10.0
+    bearing = extrude_loop_x("Shared_Cable_Bay_Overhead_Tray_Bearing", (
+        (bearing_rear, bearing_top - 2.0 - (bearing_rear - bearing_front)),
+        (bearing_front, bearing_top - 2.0),
+        (bearing_front, bearing_top),
+        (bearing_rear, bearing_top),
+    ), *FAN_CASE_PAIR_CARRIER_SUPPORT["center_x_bounds"])
+    union_into(insert, bearing)
+    if not EXPANDED_ACCESSORY_STORAGE:
+        # The compact front rim is only 1.75 mm ahead of the cable bay.
+        # Extend its bearing inward above the cables instead of replacing
+        # the removed divider or moving the already-printed compact tray.
+        root_y = FAN_CASE_SHARED_CABLE_CENTER[1] - FAN_CASE_SHARED_CABLE_SIZE[1] / 2 - .2
+        tip_y = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bounds"][2] + 10.0
+        front_bearing = extrude_loop_x("Compact_Shared_Cable_Front_Tray_Bearing", (
+            (root_y, bearing_top - 2.0 - (tip_y - root_y)),
+            (tip_y, bearing_top - 2.0),
+            (tip_y, bearing_top),
+            (root_y, bearing_top),
+        ), *FAN_CASE_PAIR_CARRIER_SUPPORT["center_x_bounds"])
+        union_into(insert, front_bearing)
 
     # Only material initially below the fixed rails must pass their opening.
     # Above them a 45-degree shoulder widens the cradle to the shell walls;
@@ -8681,6 +8742,20 @@ def create_fan_case_pair_insert(
 
     for spec in fan_case_pair_shell_retention_specs():
         union_into(insert, create_fan_case_shell_retention_rib(spec, local=True))
+
+    # Cut the actual cap silhouette last so later guide unions cannot refill
+    # its straight insertion/removal path. Camera and shell datums stay fixed.
+    for index in range(1, FAN_CASE_STORAGE_COUNT + 1):
+        cap = create_stored_lens_cap(index)
+        minimum, _maximum = object_world_bounds(cap)
+        profile = fan_case_assembly_extraction_profile(
+            (cap,), clearance=FAN_CASE_STORAGE_CLEARANCE)
+        relief = extrude_planar_region(f"Lens_Cap_{index}_Straight_Lift_Relief",
+            profile, minimum.z - FAN_CASE_PAIR_INSERT_INSTALLED_Z
+            - FAN_CASE_STORAGE_CLEARANCE,
+            FAN_CASE_PAIR_CARRIER_SUPPORT["web_top_z"] + 1.0)
+        difference_from(insert, relief)
+        bpy.data.objects.remove(cap, do_unlink=True)
 
     if EXPANDED_ACCESSORY_STORAGE:
         envelope = rounded_profile_prism("Insert_Rounded_Floor_Clearance",
@@ -15014,6 +15089,57 @@ def create_fan_case_source_reference_mockups(
     return source_objects
 
 
+def create_stored_lens_cap(index, material=None):
+    """Seat the source cap's two lands on the lens face in camera coordinates."""
+    cap = lens_cap.build(globals(), f"REFERENCE_ONLY_Fan_Case_Lens_Cap_{index}")
+    cap.rotation_euler.x = math.pi / 2.0
+    placement = FAN_CASE_PAIR_STORAGE["placements"][index - 1]
+    cap.location = (
+        placement[0] + mission1.LENS_CENTER_X,
+        placement[1] + fan_case.camera_stop_end_y() + mission1.LENS_FACE_Y
+        + LENS_CAP_SEAT_HEIGHT,
+        placement[2] + mission1.LENS_CENTER_Z,
+    )
+    bpy.context.view_layer.update()
+    if material is not None:
+        assign_material(cap, material)
+    return cap
+
+
+def create_shared_y_cable_references(material):
+    """Reserve three loose turns plus the plug and splitter above their sides.
+
+    The reference envelopes also leave both original six-inch fan coils in
+    place. Rounded rings conservatively reserve more than twelve inches.
+    """
+    outer = FAN_CASE_Y_CABLE_COIL_SIZE
+    diameter = FAN_CASE_CABLE_DIAMETER
+    inner = tuple(size - 2 * diameter for size in outer)
+    radius = outer[1] / 2.0
+    bottom = FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_CABLE_WELL_FLOOR + .3
+    objects = []
+    for layer in range(3):
+        z = bottom + layer * FAN_CASE_Y_CABLE_LAYER_PITCH
+        objects.append(rounded_ring(f"REFERENCE_ONLY_Shared_Y_Cable_Coil_{layer + 1}",
+            outer, inner, z, z + diameter, radius, radius - diameter,
+            FAN_CASE_Y_CABLE_COIL_CENTER))
+    plug_floor = bottom + 2 * FAN_CASE_Y_CABLE_LAYER_PITCH + diameter + 1.0
+    for label, envelope, center_x in (
+        ("USB_A", FAN_CASE_USB_A_ENVELOPE, -29.0),
+        ("Splitter", FAN_CASE_Y_SPLITTER_ENVELOPE, 26.0),
+    ):
+        length, width, height = envelope
+        center_y = (FAN_CASE_SHARED_CABLE_CENTER[1] if label == "USB_A"
+                    else FAN_CASE_Y_CABLE_COIL_CENTER[1])
+        objects.append(add_rounded_box(f"REFERENCE_ONLY_Shared_Y_Cable_{label}",
+            (width, length, height),
+            (center_x, center_y, plug_floor + height / 2),
+            bevel=1.0))
+    for obj in objects:
+        assign_material(obj, material)
+    return objects
+
+
 def create_fan_case_pair_reference_mockups(
     case_material,
     camera_material,
@@ -15026,10 +15152,12 @@ def create_fan_case_pair_reference_mockups(
     """Build both handed assemblies, then their independent cable/accessory sets."""
 
     objects = []
+    objects.extend(create_shared_y_cable_references(cable_material))
     for assembly_index, placement in enumerate(
         FAN_CASE_PAIR_STORAGE["placements"],
         start=1,
     ):
+        objects.append(create_stored_lens_cap(assembly_index, cover_material))
         source_objects = create_fan_case_source_reference_mockups(
             case_material, camera_material, battery_material, fan_material,
             cover_material, cable_material, hardware_material, assembly_index,
@@ -15696,6 +15824,7 @@ def validate_supported_fan_case_source_pose(
                 "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
                 "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
                 "REFERENCE_ONLY_Fan_Case_Battery_Door_",
+                "REFERENCE_ONLY_Shared_Y_Cable_",
             )
         )
     ]
@@ -15776,7 +15905,8 @@ def validate_fan_case_bottom_cable_routes(parts, reference_objects, assembly_gro
     overlaps = []
     accessories = [obj for obj in reference_objects if any(obj.name.startswith(prefix) for prefix in (
         "REFERENCE_ONLY_Fan_Case_PWM_Plug_", "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
-        "REFERENCE_ONLY_Fan_Case_Battery_Door_"))]
+        "REFERENCE_ONLY_Fan_Case_Battery_Door_",
+        "REFERENCE_ONLY_Shared_Y_Cable_"))]
     checked_routes = 0
     for index, angle_routes in enumerate(
         FAN_CASE_PAIR_STORAGE["supported_cable_route_options"], 1
@@ -15972,6 +16102,69 @@ def validate_alternate_lid_closure(parts, reference_objects=()) -> None:
           f"maximum_overlap={maximum:.6f}", flush=True)
 
 
+def validate_caps_and_shared_cable(parts, reference_objects, assembly_groups):
+    """Check fitted caps, continuous lift clearance, and simultaneous cable storage."""
+    caps = [obj for obj in reference_objects
+            if obj.name.startswith("REFERENCE_ONLY_Fan_Case_Lens_Cap_")]
+    cables = [obj for obj in reference_objects
+              if obj.name.startswith("REFERENCE_ONLY_Shared_Y_Cable_")]
+    if len(caps) != 2 or len(cables) != 5:
+        raise ValueError("Missing capped-camera or shared Y-cable references")
+    obstacles = [parts[key] for key in ("base", "fan_case_pair_insert",
+                 "fan_case_pair_carrier", "fan_case_pair_storage_bin")]
+    accessories = [obj for obj in reference_objects if any(obj.name.startswith(prefix)
+        for prefix in ("REFERENCE_ONLY_Fan_Case_Cable_", "REFERENCE_ONLY_Fan_Case_PWM_",
+                       "REFERENCE_ONLY_Fan_Case_Enduro_", "REFERENCE_ONLY_Fan_Case_Battery_Door_"))]
+    for index, cap in enumerate(caps):
+        # The supplied cap is the fitting reference. The approximate camera
+        # dummy has a different corner radius, so do not use that dummy to
+        # alter the cap's measured cavity. Check all surrounding real hardware.
+        hardware = [obj for group in assembly_groups for obj in group
+                    if "Installed_MISSION1_Camera" not in obj.name]
+        for obstacle in (*obstacles, *hardware, *accessories, *caps[index + 1:]):
+            overlap = static_objects_overlap(cap, obstacle)
+            if overlap > 1e-5:
+                raise ValueError(f"Lens cap obstructed: {cap.name}/{obstacle.name} {overlap}")
+        minimum, _maximum = object_world_bounds(cap)
+        profile = fan_case_assembly_extraction_profile((cap,), clearance=0.0)
+        lift = extrude_planar_region("TEMPORARY_Capped_Lens_Continuous_Lift",
+            profile, minimum.z, BASE_HEIGHT + 100)
+        try:
+            for obstacle in (parts["base"], parts["fan_case_pair_insert"],
+                             *assembly_groups[1 - index]):
+                if static_objects_overlap(lift, obstacle) > 1e-5:
+                    raise ValueError("Capped camera lift blocked by " + obstacle.name)
+        finally:
+            bpy.data.objects.remove(lift, do_unlink=True)
+    for index, cable in enumerate(cables):
+        for obstacle in (*obstacles, *accessories, *cables[index + 1:],
+                         *(obj for group in assembly_groups for obj in group)):
+            overlap = static_objects_overlap(cable, obstacle)
+            if overlap > 1e-5:
+                raise ValueError(f"Shared cable storage obstructed: {cable.name}/{obstacle.name} {overlap}")
+    # Sweep the USB-A body across the bay before laying in the coil, with
+    # 1 mm clearance in width/height. A connected cable can be fed beneath
+    # both door holders without unplugging its ends or crossing a divider.
+    corridor_height = FAN_CASE_USB_A_ENVELOPE[2] + 2.0
+    corridor = add_rounded_box("TEMPORARY_Continuous_Shared_Cable_Corridor",
+        (72.0, FAN_CASE_USB_A_ENVELOPE[1] + 2.0, corridor_height), (-5.0, -47.0,
+         FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_CABLE_WELL_FLOOR
+         + .3 + corridor_height / 2), bevel=0)
+    try:
+        if static_objects_overlap(corridor, parts["fan_case_pair_insert"]) > 1e-5:
+            raise ValueError("A partition still separates the camera cable wells")
+    finally:
+        bpy.data.objects.remove(corridor, do_unlink=True)
+    width, depth = (value - FAN_CASE_CABLE_DIAMETER
+                    for value in FAN_CASE_Y_CABLE_COIL_SIZE)
+    capacity = 3 * (2 * (width - depth) + math.pi * depth)
+    if capacity < FAN_CASE_Y_CABLE_LENGTH:
+        raise ValueError("Shared cable coil cannot hold twelve inches")
+    print(f"FIELD_CASE_CAPS_AND_Y_CABLE_VALID caps={len(caps)} "
+          f"length={FAN_CASE_Y_CABLE_LENGTH:.1f} capacity={capacity:.1f}mm "
+          f"usb={FAN_CASE_USB_A_ENVELOPE} divider=absent", flush=True)
+
+
 def validate_fan_case_pair_loadout(
     parts,
     reference_objects,
@@ -15992,6 +16185,7 @@ def validate_fan_case_pair_loadout(
         assembly_groups.append(group)
 
     validate_fan_case_bottom_cable_routes(parts, reference_objects, assembly_groups)
+    validate_caps_and_shared_cable(parts, reference_objects, assembly_groups)
 
     actual_bounds = []
     fastener_orientations = []
@@ -16302,10 +16496,13 @@ def validate_fan_case_pair_loadout(
     ):
         x0, x1, y0, y1, z0, z1 = FAN_CASE_PAIR_OVERHEAD_STORAGE[bounds_key]
         for bearing_x in (-107.0, 0.0, 107.0):
-            for fraction in (0.25, 0.75):
+            bearing_ys = ((y0 + 5.0, y1 - 5.0)
+                          if part_key == "fan_case_pair_storage_bin" and bearing_x == 0
+                          else tuple(y0 + fraction * (y1 - y0) for fraction in (.25, .75)))
+            for bearing_y in bearing_ys:
                 size = (3.0 if bearing_x == 0.0 else 5.0, 8.0, 0.3)
                 probe = add_rounded_box("TEMPORARY_Independent_Tray_Bearing", size,
-                    (bearing_x, y0 + fraction * (y1 - y0), z0), bevel=0.0)
+                    (bearing_x, bearing_y, z0), bevel=0.0)
                 try:
                     lower_fill = probe_fill_volume(parts["fan_case_pair_insert"], probe)
                     tray_fill = probe_fill_volume(parts[part_key], probe)
@@ -18356,6 +18553,13 @@ def field_case_3mf_groups():
         process_overrides=TPU_FOR_AMS_HINGE_COUPON_SETTINGS,
     )
     add_group(
+        "MISSION 1 Lens Caps - TPU for AMS - Print Two",
+        ("lens_cap",), (lens_cap.STL_NAME,), (TPU_FOR_AMS_EXTRUDER,),
+        new_plate("MISSION 1 Lens Caps - TPU for AMS - Two Copies"),
+        copies=2, copy_offsets=((90.0, 125.0), (155.0, 125.0)),
+        role="lens_caps", process_overrides={"enable_support": "0"},
+    )
+    add_group(
         "TPU for AMS Lid Latch Station Coupon",
         ("tpu_lid_latch_coupon",),
         (TPU_LID_LATCH_COUPON_STL_NAME,),
@@ -19063,6 +19267,11 @@ def validate_3mf_project(path: Path) -> None:
                 )
             if group["extruders"] != (TPU_FOR_AMS_EXTRUDER,):
                 raise ValueError("TPU for AMS hinge coupon has an incorrect filament")
+        if group["role"] == "lens_caps":
+            if (group["extruders"] != (TPU_FOR_AMS_EXTRUDER,)
+                    or group["copies"] != 2
+                    or overrides != {"enable_support": "0"}):
+                raise ValueError("Lens caps require two support-free TPU for AMS copies")
         if group["role"] == "tpu_lid":
             expected = {
                 **TPU_FOR_AMS_LID_SETTINGS,
@@ -20224,6 +20433,8 @@ def configure_assembled_scene_visibility(parts, reference_objects):
             "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
             "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
             "REFERENCE_ONLY_Fan_Case_Battery_Door_",
+            "REFERENCE_ONLY_Fan_Case_Lens_Cap_",
+            "REFERENCE_ONLY_Shared_Y_Cable_",
             "REFERENCE_ONLY_Field_Accessory_",
         )
         lid_pad_key = "fan_case_pair_lid_pad"
@@ -20395,6 +20606,8 @@ def build_mission1_field_case():
         "TPU_68D_Optional_Lid", (0.11, 0.13, 0.17), roughness=0.52
     )
     parts = {}
+    parts["lens_cap"] = lens_cap.build(globals())
+    assign_material(parts["lens_cap"], tpu_lid_material)
     parts["base"] = create_base(shell_material)
     if not EXPANDED_ACCESSORY_STORAGE:
         parts["fan_cradle"] = create_fan_cradle(tpu_material)
@@ -20613,6 +20826,7 @@ def build_mission1_field_case():
         # Remove the superseded loose liner when generating the integrated tray.
         export_path("mission1_field_case_remote_retainer_tpu.stl").unlink(missing_ok=True)
         exports = (
+            (lens_cap.STL_NAME, parts["lens_cap"]),
             (BASE_STL_NAME, parts.get("base")),
             (ACCESSORY_ORGANIZER_STL_NAME, parts.get("accessory_organizer")),
             (LID_STL_NAME, parts.get("lid")),

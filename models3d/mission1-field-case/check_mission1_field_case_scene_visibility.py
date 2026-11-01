@@ -28,6 +28,7 @@ def build_from_validated_scene(scene_path):
         bpy.context.scene.collection.objects.link(obj)
     by_name = {obj.name: obj for obj in objects}
     parts = {key: by_name[name] for key, name in {
+        "lens_cap": "MISSION1_Lens_Cap_TPU_For_AMS",
         "base": "Field_Case_Base", "lid": "Field_Case_Lid",
         "logo_orange_inlay": "Lid_Sports_AI_Hockey_Artwork_Orange_Inlay",
         "gasket": "Field_Case_Hollow_TPU_Gasket",
@@ -632,6 +633,8 @@ fan_case_prefixes = hardware_prefixes + (
     "REFERENCE_ONLY_Fan_Case_PWM_Plug_",
     "REFERENCE_ONLY_Fan_Case_Enduro_Battery_",
     "REFERENCE_ONLY_Fan_Case_Battery_Door_",
+    "REFERENCE_ONLY_Fan_Case_Lens_Cap_",
+    "REFERENCE_ONLY_Shared_Y_Cable_",
     "REFERENCE_ONLY_Field_Accessory_",
 )
 original_parts = {"fan_cradle", "equipment_tray", "dual_fan_riser", "dual_fan_spacer", "accessory_organizer"}

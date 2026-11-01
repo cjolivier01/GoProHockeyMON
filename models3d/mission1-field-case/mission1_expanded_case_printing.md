@@ -11,6 +11,52 @@ Both `VISIBLE_CASE_ASSEMBLY="FAN_CASE"` and `"ORIGINAL"` now use this same
 contents no longer switches to the old compact shell. The explicit compact
 Make target remains available for previously printed compact parts.
 
+## Capped lenses and connected fan cables
+
+![Capped camera pockets and shared cable bay](renderings/mission1_caps_shared_cable_insert.png)
+
+The paired fan-case lower insert now accepts a lens cap on each camera. The
+camera seating positions, shell interior, tray heights and other printed case
+parts remain unchanged. Only the lower insert needs replacement for this fit.
+Both cap pockets include 1 mm clearance and an open vertical removal path.
+
+`mission1_lens_cap.py` reconstructs the supplied `M1_lens_cap.stl` from geometric
+profiles: a **48 × 48 × 11 mm** rounded shell, 10° exterior taper, 42 mm cavity
+with a 15° entry flare, 1.5 mm recessed floor, two 3 mm seating lands and the
+source's 2 mm-wide, 0.15 mm-deep internal retention rib.
+Generation never loads the reference STL or embeds its mesh. Export
+`mission1_lens_cap_tpu_for_ams_print_two.stl` twice, closed face down. The
+all-parts 3MF already includes **two caps on one plate assigned to TPU for AMS**,
+with supports disabled. The supplied cap's fitting dimensions are preserved;
+its 10 mm internal corner radius differs from the simplified camera dummy's
+5 mm radius, so that dummy cannot establish physical cap-to-lens fit.
+
+![Geometric lens cap](renderings/mission1_geometric_lens_cap.png)
+
+The **182 × 36 mm shared cable well** replaces the two divided wells. The center
+partition is removed through the bay. Both battery pockets remain in place,
+and the raised door holders now have open undersides with 45° ramps and short
+6.7 mm roof bridges. The full-width passage under those holders connects the
+camera cable areas. Short overhead bearings retain support for the existing
+utility tray without a divider below them. Remove that tray to access storage.
+
+![Open cable passage under the door holders](renderings/mission1_shared_cable_arches.png)
+
+Packing checks retain both six-inch fan leads and reserve a further **304.8 mm
+/ 12 inches of 4 mm cable** in a 58 × 22 mm, three-layer coil below the door
+holders. The USB-A allowance is **32 × 16 × 9 mm** and the splitter allowance is
+**22 × 12 × 8 mm**; these sit alongside the door holders, above the coil sides.
+They are clearance envelopes, not measurements of a particular purchased cable.
+Feed the connected lead through the open arches and lay in loose turns, keeping
+the plug and splitter in their side spaces. Check the actual cable against
+these allowances before printing.
+
+Regenerate with `make -C models3d mission1-field-case`, then refresh
+`mission1-field-case-plate-overview` and `mission1-field-case-dim-pdf`.
+The generator checks cap lift paths, cable/connector packing, retained accessory
+positions, manifold parts, unchanged case envelopes and the cap plate's material.
+`check_mission1_caps_and_cable.py` also verifies rejection of a reintroduced divider.
+
 ## Dual-fan contents and reusable inserts
 
 The dual-fan holder already defaults to **TPU** in its own generator. Its

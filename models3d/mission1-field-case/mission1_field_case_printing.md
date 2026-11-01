@@ -228,7 +228,11 @@ so the thin hardware does not carry the case weight.
 
 ![Rear fan depth clearance](renderings/mission1_fan_rear_clearance.png)
 
-Two 64 x 36 mm rounded wells each carry one coiled fan lead. The modeled cable
+The former two 64 x 36 mm wells are joined into one 182 x 36 mm cable bay,
+with no center divider through the bay. Each side still carries a coiled fan
+lead, and the space under the raised door holders accepts the connected
+12-inch USB-A Y cable. See [cap and shared cable dimensions](mission1_expanded_case_printing.md#capped-lenses-and-connected-fan-cables)
+for the coil and connector allowances. The modeled fan cable
 centerline is 52 x 28 mm with a 4 mm corner radius, for 153.1 mm of path around
 the loop versus the required 152.4 mm (6 inches). Both bottom-corner exits on
 each fan have an 8 mm-wide, rounded, upward-open relief to that fan's well.
@@ -264,7 +268,7 @@ still has at least 2.75 mm clearance from each 38.5 x 17.5 mm battery tower.
 Approximately 18.8 mm of each battery remains exposed for removal; small
 opposed nubs create only 0.15 mm nominal local interference instead of making
 the full pocket a friction fit. Two 11 x 50.8 x 11 mm battery-door pockets run
-lengthwise on opposite sides of the center spine. They store two 50 x 10 x 18 mm doors,
+lengthwise on either side of the centerline, above open cable arches. They store two 50 x 10 x 18 mm doors,
 leave 7 mm proud, and use the same 0.15 mm local retention. Their floors are
 25.56 mm above the insert underside and their retaining rims reach 36.56 mm.
 Each sideways door now tops out at 43.56 mm, exactly level with the top of its
