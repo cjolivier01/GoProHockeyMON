@@ -228,7 +228,12 @@ so the thin hardware does not carry the case weight.
 
 ![Rear fan depth clearance](renderings/mission1_fan_rear_clearance.png)
 
-Two 64 x 36 mm rounded wells each carry one coiled fan lead. The modeled cable
+The former two 64 x 36 mm wells are joined into one 182 x 36 mm cable bay,
+with no center divider through the bay. Each side still carries a coiled fan
+lead, and the open center accepts the connected 12-inch USB-A Y cable beneath
+two short 45-degree retaining lips. The door holders sit along the front
+perimeter, leaving the coil accessible from above. See [cap and shared cable dimensions](mission1_expanded_case_printing.md#capped-lenses-and-connected-fan-cables)
+for the coil and connector allowances. The modeled fan cable
 centerline is 52 x 28 mm with a 4 mm corner radius, for 153.1 mm of path around
 the loop versus the required 152.4 mm (6 inches). Both bottom-corner exits on
 each fan have an 8 mm-wide, rounded, upward-open relief to that fan's well.
@@ -260,11 +265,12 @@ before printing if necessary.
 
 The unused center of each cable loop contains one rotated 34.5 x 13.5 x 21.8 mm
 battery pocket, for exactly two batteries in this alternate loadout. The cable
-still has at least 2.75 mm clearance from each 38.5 x 17.5 mm battery tower.
+still has at least 2 mm clearance from each 38.5 x 17.5 mm battery tower,
+whose center is shifted 1.25 mm rearward to clear the perimeter door holder.
 Approximately 18.8 mm of each battery remains exposed for removal; small
 opposed nubs create only 0.15 mm nominal local interference instead of making
-the full pocket a friction fit. Two 11 x 50.8 x 11 mm battery-door pockets run
-lengthwise on opposite sides of the center spine. They store two 50 x 10 x 18 mm doors,
+the full pocket a friction fit. Two 50.8 x 11 x 11 mm battery-door pockets run
+across the front perimeter on 45-degree cantilevers. They store two 50 x 10 x 18 mm doors,
 leave 7 mm proud, and use the same 0.15 mm local retention. Their floors are
 25.56 mm above the insert underside and their retaining rims reach 36.56 mm.
 Each sideways door now tops out at 43.56 mm, exactly level with the top of its
@@ -278,7 +284,7 @@ dimensions, case shell, camera seats, lid pad, and lids remain unchanged.
 Existing trays remain compatible; reprint the lower insert for the revised
 fan sweep. In the expanded case, the mount tray and organizer remain reusable.
 
-![Raised battery-door pockets](renderings/mission1_raised_battery_door_pockets.png)
+![Perimeter battery-door pockets](renderings/mission1_shared_cable_retaining_lips.png)
 
 The exposed camera tops and cable wells give access for lifting the assemblies and
 insert. Unclip the PWM plugs and free the coiled leads before lifting a camera
@@ -435,14 +441,16 @@ exactly 50% thicker than the original. Two broad, rounded hockey sticks cross
 above the text with opposing blades and a compact rounded puck centered below
 them, while four small blocks below the text follow the familiar GoPro layout.
 The artwork, lettering, and blocks use the same orange material and are joined
-into one shallow 0.8 mm flush-inlay STL.
+into one shallow 0.8 mm flush-inlay STL. The complete artwork and both lids'
+matching recesses are rotated 180° so the symbol and text read upright when
+carrying the case with its handle at the top.
 
 With the default `PRINT_TPU_GASKET_WITH_LID = True`,
-`mission1_field_case_ams_project.3mf` contains all 18 unique printable STL
-deliverables, including two copies each of the latch lever and hook. They are
-arranged across 13 labeled 250 x 250 mm plates: base; rigid lid; optional TPU-for-AMS
+`mission1_field_case_ams_project.3mf` contains all 19 unique printable STL
+deliverables, including two copies each of the lens cap, latch lever and hook. They are
+arranged across 14 labeled 250 x 250 mm plates: base; rigid lid; optional TPU-for-AMS
 TPU lid; three default-loadout TPU plates; four alternate fan-case/loadout
-plates; hinge coupon; lid-latch coupon; and printed hardware. The rigid and TPU lid plates are
+plates; lens caps; hinge coupon; lid-latch coupon; and printed hardware. The rigid and TPU lid plates are
 clearly marked as alternatives, so print one lid plate for a normal case or
 both only if both lid variants are wanted. Every loadout part remains in the
 same project even when it is not used with the selected lid or insert set.
