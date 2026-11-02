@@ -92,6 +92,22 @@ def main():
     finally:
         parts["fan_case_pair_insert"] = original
         case.bpy.data.objects.remove(divider, do_unlink=True)
+    # A roof can clear the stored coil yet prevent dropping it in from above.
+    # Protect the loading path separately from static packing.
+    roof = case.add_rounded_box("REGRESSION_Coil_Loading_Roof", (25, 12, 2),
+        (-5, -55.5, case.FAN_CASE_PAIR_INSERT_INSTALLED_Z + 40), bevel=0)
+    parts["fan_case_pair_insert"] = roof
+    try:
+        try:
+            case.validate_caps_and_shared_cable(parts, references, groups)
+        except ValueError as error:
+            if "Y cable cannot load from above" not in str(error):
+                raise
+        else:
+            raise AssertionError("Packing check accepted an obstructed coil loading path")
+    finally:
+        parts["fan_case_pair_insert"] = original
+        case.bpy.data.objects.remove(roof, do_unlink=True)
     print("FIELD_CASE_CAP_CABLE_REGRESSION_VALID", flush=True)
 
 

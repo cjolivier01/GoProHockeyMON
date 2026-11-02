@@ -52,6 +52,11 @@ def build_from_validated_scene(scene_path):
     for key, prefix in (("logo_orange_inlay", "TPU_LID_LOGO_REFERENCE_PREFIX"),
                         ("gasket", "TPU_LID_GASKET_REFERENCE_PREFIX"),
                         ("fan_case_pair_lid_pad", "TPU_LID_PAD_REFERENCE_PREFIX")):
+        existing = [obj for obj in references if obj.name.startswith(namespace[prefix])]
+        if len(existing) > 1:
+            raise AssertionError(f"Duplicate cached reference: {namespace[prefix]}")
+        if existing:
+            continue
         obj = namespace["duplicate_reference_part"](parts[key], namespace[prefix],
                                                    parts[key].data.materials[0])
         references.append(obj)

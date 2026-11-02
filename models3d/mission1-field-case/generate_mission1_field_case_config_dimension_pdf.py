@@ -1908,7 +1908,9 @@ def set_drawing_bounds(axes, bounds, padding_fraction=0.12):
 
 PART_ROUTES = (
     (("LENS_CAP_",), "lens_cap"),
-    (("FAN_CASE_SHARED_", "FAN_CASE_Y_", "FAN_CASE_USB_A_", "FAN_CASE_DOOR_ARCH_"), "fan_insert"),
+    (("FAN_CASE_SHARED_", "FAN_CASE_Y_", "FAN_CASE_USB_A_", "FAN_CASE_CABLE_LIP_",
+      "FAN_CASE_CABLE_REAR_BEARING_", "FAN_CASE_CABLE_FRONT_BEARING_",
+      "FAN_CASE_BATTERY_CENTERS"), "fan_insert"),
     (("DUAL_FAN_CAMERA_", "DUAL_FAN_BATTERY_", "DUAL_FAN_TRAY_"), "dual_camera_tray"),
     (("DUAL_FAN_RISER_",), "dual_riser"),
     (("DUAL_FAN_SPACER_",), "dual_spacer"),

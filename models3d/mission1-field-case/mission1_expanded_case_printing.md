@@ -24,7 +24,7 @@ Both cap pockets include 1 mm clearance and an open vertical removal path.
 profiles: a **48 × 48 × 11 mm** rounded shell, 10° exterior taper, 42 mm cavity
 with a 15° entry flare, 1.5 mm recessed floor, two 3 mm seating lands and the
 source's 2 mm-wide, 0.15 mm-deep internal retention rib.
-Generation never loads the reference STL or embeds its mesh. Export
+Generation never loads the reference STL or embeds its mesh. Print
 `mission1_lens_cap_tpu_for_ams_print_two.stl` twice, closed face down. The
 all-parts 3MF already includes **two caps on one plate assigned to TPU for AMS**,
 with supports disabled. The supplied cap's fitting dimensions are preserved;
@@ -34,28 +34,47 @@ its 10 mm internal corner radius differs from the simplified camera dummy's
 ![Geometric lens cap](renderings/mission1_geometric_lens_cap.png)
 
 The **182 × 36 mm shared cable well** replaces the two divided wells. The center
-partition is removed through the bay. Both battery pockets remain in place,
-and the raised door holders now have open undersides with 45° ramps and short
-6.7 mm roof bridges. The full-width passage under those holders connects the
-camera cable areas. Short overhead bearings retain support for the existing
-utility tray without a divider below them. Remove that tray to access storage.
+partition is removed through the bay. The two door holders run across the
+**front perimeter, one in front of each battery**, leaving the middle open.
+The battery pockets move 1.25 mm rearward to clear the door-holder walls;
+their seating heights stay unchanged. The door holders cantilever from the
+front rim with 45° undersides, leaving space for the original fan leads below.
 
-![Open cable passage under the door holders](renderings/mission1_shared_cable_arches.png)
+Two short lips project inward from the battery walls over the central coil.
+Their undersides rise at **45°**, so they print without supports. Each lip
+overlaps the relaxed coil by about **2.75 mm** to restrain unwinding, while
+leaving a **51.5 mm gap** between the tips. The tray bearings leave at least
+**24.2 mm** between them and still support the existing utility tray.
+
+![Perimeter door holders and central retaining lips](renderings/mission1_shared_cable_retaining_lips.png)
 
 Packing checks retain both six-inch fan leads and reserve a further **304.8 mm
-/ 12 inches of 4 mm cable** in a 58 × 22 mm, three-layer coil below the door
-holders. The USB-A allowance is **32 × 16 × 9 mm** and the splitter allowance is
-**22 × 12 × 8 mm**; these sit alongside the door holders, above the coil sides.
+/ 12 inches of 4 mm cable** in a **57 × 22 mm**, three-layer coil in the open
+center. Remove the upper trays, gather the coil to about **49 × 22 mm**, lower
+it through the opening, then let its edges spread beneath the two lips.
+The compressed coil still has 331.6 mm of modeled cable capacity. The Y coil
+does not need to pass underneath a door holder.
+
+The USB-A allowance is **32 × 16 × 9 mm** and the splitter allowance is
+**22 × 12 × 8 mm**; both load from above and rest over the coil in the center.
 They are clearance envelopes, not measurements of a particular purchased cable.
-Feed the connected lead through the open arches and lay in loose turns, keeping
-the plug and splitter in their side spaces. Check the actual cable against
-these allowances before printing.
+Check the actual cable and its bend flexibility against these allowances before printing.
 
 Regenerate with `make -C models3d mission1-field-case`, then refresh
 `mission1-field-case-plate-overview` and `mission1-field-case-dim-pdf`.
-The generator checks cap lift paths, cable/connector packing, retained accessory
-positions, manifold parts, unchanged case envelopes and the cap plate's material.
-`check_mission1_caps_and_cable.py` also verifies rejection of a reintroduced divider.
+The generator checks cap lift paths, cable/connector packing and top-loading
+paths, retained accessories, lip overhang angles, manifold parts, unchanged case
+envelopes and the cap plate's material. `check_mission1_caps_and_cable.py` also
+rejects a reintroduced divider and a roof that blocks loading above a fitted coil.
+
+## Lid artwork while carrying
+
+The complete symbol, text and four blocks are rotated 180° so they read upright
+when carrying the closed case by its handle. Both lid alternatives have matching
+rotated recesses; the inlay stays flush. Reprint the selected lid and its inlay
+to use this orientation. The case dimensions and lid hardware fit are unchanged.
+
+![Lid artwork with the handle at the top](renderings/mission1_lid_carry_orientation.png)
 
 ## Dual-fan contents and reusable inserts
 
@@ -130,7 +149,7 @@ make -C models3d mission1-field-case
 make -C models3d mission1-field-case-plate-overview
 ```
 
-The project contains **20 unique STLs on 15 plates**, including rigid PETG and
+The project contains **21 unique STLs on 16 plates**, including rigid PETG and
 TPU-for-AMS lid alternatives. Select one lid. The compact dual-fan kit remains separately
 available with `make -C models3d mission1-field-case-compact`; its exports go in
 `mission1-field-case/compact/`. It retains its original corner radius and lid
@@ -412,7 +431,7 @@ for this part and every other internal tray. A diagnostic
 The earlier air-channel revision required reprinting both the organizer and
 mount tray. There is no
 separate retainer STL or extra retainer plate; the complete project contains
-20 unique STLs on 15 plates.
+21 unique STLs on 16 plates.
 
 The optional snap lid, hinge coupon, and lid-latch coupon use
 `Bambu TPU for AMS @BBL P1P`. The lid and exact-crop latch coupon use **6 wall

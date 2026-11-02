@@ -634,17 +634,23 @@ LENS_CAP_INNER_WIDTH = lens_cap.INNER_WIDTH
 LENS_CAP_INNER_CORNER_RADIUS = lens_cap.INNER_RADIUS
 LENS_CAP_FLOOR_THICKNESS = lens_cap.FLOOR
 LENS_CAP_SEAT_HEIGHT = lens_cap.SEAT_Z
-# One continuous well joins both camera leads. The raised door holders have
-# 45-degree arch undersides, leaving the coil and plug space open beneath them.
+# One continuous well joins both camera leads. Perimeter door holders leave
+# the central coil accessible from above, between two short retaining lips.
 FAN_CASE_SHARED_CABLE_CENTER = (-5.0, -54.0)
 FAN_CASE_SHARED_CABLE_SIZE = (182.0, 36.0)
 FAN_CASE_Y_CABLE_LENGTH = 304.8
-FAN_CASE_Y_CABLE_COIL_CENTER = (-4.0, -47.5)
-FAN_CASE_Y_CABLE_COIL_SIZE = (58.0, 22.0)
+FAN_CASE_Y_CABLE_COIL_CENTER = (-5.0, -55.5)
+FAN_CASE_Y_CABLE_COIL_SIZE = (57.0, 22.0)
+FAN_CASE_Y_CABLE_LOADING_WIDTH = 49.0
 FAN_CASE_Y_CABLE_LAYER_PITCH = 4.5
 FAN_CASE_USB_A_ENVELOPE = (32.0, 16.0, 9.0)
 FAN_CASE_Y_SPLITTER_ENVELOPE = (22.0, 12.0, 8.0)
-FAN_CASE_DOOR_ARCH_ROOF = 1.0
+FAN_CASE_CABLE_LIP_REACH = 14.0
+FAN_CASE_CABLE_LIP_WIDTH = 6.0
+FAN_CASE_CABLE_LIP_ROOT_Z = 7.0
+FAN_CASE_CABLE_LIP_TIP_THICKNESS = 2.0
+FAN_CASE_CABLE_REAR_BEARING_Y = -43.4
+FAN_CASE_CABLE_FRONT_BEARING_Y = -67.6
 # Both bottom corners remain usable on each fan. Render the outer corner on
 # each assembly; validation also builds the other corner with its matching
 # sleeve notch. Left/right are measured in the case's installed X direction.
@@ -653,6 +659,7 @@ FAN_CASE_CABLE_PREVIEW_CORNERS = (-1, 1)
 # cable loop.  Small opposed nubs deflect locally in 68D TPU and provide light
 # retention without making the full 21.8 mm-deep pocket a friction fit.
 FAN_CASE_BATTERY_COUNT = 2
+FAN_CASE_BATTERY_CENTERS = ((-64.0, -52.75), (54.0, -52.75))
 # User-measured height, shared with the default equipment tray below.
 BATTERY_HEIGHT = 40.56
 FAN_CASE_BATTERY_POCKET_SIZE = (34.5, 13.5)
@@ -662,14 +669,14 @@ FAN_CASE_BATTERY_FLOOR_Z = 3.0
 FAN_CASE_BATTERY_NUB_WIDTH = 8.0
 FAN_CASE_BATTERY_NUB_HEIGHT = 2.0
 FAN_CASE_BATTERY_NUB_INTRUSION = 0.65
-# Turn the two 50 x 10 x 18 mm doors lengthwise, one on either side of the
-# center spine. Their vertical removal paths stay open with both trays lifted.
+# Turn the two 50 x 10 x 18 mm doors across the front perimeter, one in front
+# of each battery. The center remains open for loading a coiled Y cable.
 # Raise the complete pockets until the upper edge of each sideways door is
 # level with the top of the adjacent upright battery.  Retain 11 mm seating
 # depth and 7 mm of exposed door above the front retaining wall.
 FAN_CASE_BATTERY_DOOR_COUNT = 2
-FAN_CASE_BATTERY_DOOR_SLOT_SIZE = (11.0, 50.8)
-FAN_CASE_BATTERY_DOOR_CENTERS = ((-12.0, -47.0), (12.0, -47.0))
+FAN_CASE_BATTERY_DOOR_SLOT_SIZE = (50.8, 11.0)
+FAN_CASE_BATTERY_DOOR_CENTERS = ((-64.0, -66.5), (54.0, -66.5))
 FAN_CASE_BATTERY_DOOR_WALL = 1.5
 FAN_CASE_BATTERY_DOOR_HEIGHT = 18.0
 FAN_CASE_BATTERY_DOOR_SEATING_DEPTH = 11.0
@@ -4021,8 +4028,8 @@ LID_LOGO_BLOCK_SIZE = (14.0, 5.0)
 LID_LOGO_BLOCK_GAP = 2.0
 LID_LOGO_BLOCK_CENTER_Y = 18.0
 # Two broad, rounded hockey sticks cross above opposing blades, with a round
-# puck centered below them.  Coordinates are lid-local and appear upright when
-# viewed through the installed outer face.
+# puck centered below them. These are layout coordinates before the complete
+# artwork is turned 180 degrees to read upright with the carry handle on top.
 LID_HOCKEY_ICON_CENTER_Y = -46.5
 LID_HOCKEY_STICK_SHAFT_WIDTH = 5.0
 LID_HOCKEY_STICK_HANDLES_XY = ((-22.0, -20.0), (22.0, -20.0))
@@ -4442,6 +4449,12 @@ def extrude_loop_x(name: str, loop_yz, x0: float, x1: float):
         next_index = (index + 1) % count
         faces.append((index, next_index, count + next_index, count + index))
     return create_mesh_object(name, vertices, faces)
+
+
+def extrude_loop_y(name: str, loop_xz, y0: float, y1: float):
+    obj = extrude_loop_x(name, loop_xz, -y1, -y0)
+    obj.data.transform(Matrix.Rotation(-math.pi / 2.0, 4, "Z"))
+    return obj
 
 
 def bridge_loops_x(name: str, loop0_yz, loop1_yz, x0: float, x1: float):
@@ -5380,7 +5393,7 @@ def validate_configuration() -> None:
     )
     battery_to_coil_clearances = []
     for battery_center, coil_center in zip(
-        FAN_CASE_CABLE_WELL_CENTERS,
+        FAN_CASE_BATTERY_CENTERS,
         dock_support["coil_centers"],
     ):
         battery_to_coil_clearances.extend(
@@ -5439,7 +5452,7 @@ def validate_configuration() -> None:
         )
         and 0.1
         <= FAN_CASE_BATTERY_DOOR_NUB_INTRUSION
-        - (FAN_CASE_BATTERY_DOOR_SLOT_SIZE[1] - BATTERY_DOOR_SIZE[0]) / 2.0
+        - (FAN_CASE_BATTERY_DOOR_SLOT_SIZE[0] - BATTERY_DOOR_SIZE[0]) / 2.0
         <= 0.25
     ):
         raise ValueError(
@@ -5457,18 +5470,8 @@ def validate_configuration() -> None:
             > alternate_insert_half_depth
         ):
             raise ValueError("A battery-door pocket exceeds the alternate insert")
-        if any(
-            rectangles_overlap(
-                center,
-                door_tower_size,
-                well_center,
-                FAN_CASE_CABLE_WELL_SIZE,
-            )
-            for well_center in FAN_CASE_CABLE_WELL_CENTERS
-        ):
-            raise ValueError("A battery-door wall enters a cable well")
-        if abs(center[0]) - door_tower_size[0] / 2.0 < 4.0:
-            raise ValueError("A lengthwise battery-door pocket crowds the center spine")
+        if abs(center[0] - FAN_CASE_Y_CABLE_COIL_CENTER[0]) - door_tower_size[0] / 2.0 < FAN_CASE_Y_CABLE_LOADING_WIDTH / 2.0 + 1.0:
+            raise ValueError("A perimeter door holder obstructs the central loading opening")
     ordered_fasteners = sorted(
         fan_case.CASE_FASTENER_POSITIONS_XZ,
         key=lambda point: point[1],
@@ -8278,6 +8281,23 @@ def fan_case_supported_cover_tray_return_region(clearance_region=None):
     )
 
 
+def create_shared_cable_retaining_lip(index):
+    """A short inward finger, bonded to the battery wall, with a 45-degree underside."""
+    direction = 1.0 if index == 1 else -1.0
+    root_x = FAN_CASE_BATTERY_CENTERS[index - 1][0] + direction * (
+        FAN_CASE_BATTERY_POCKET_SIZE[0] / 2 + FAN_CASE_BATTERY_TOWER_WALL)
+    tip_x = root_x + direction * FAN_CASE_CABLE_LIP_REACH
+    tip_z = FAN_CASE_CABLE_LIP_ROOT_Z + FAN_CASE_CABLE_LIP_REACH
+    top_z = tip_z + FAN_CASE_CABLE_LIP_TIP_THICKNESS
+    center_y = FAN_CASE_Y_CABLE_COIL_CENTER[1]
+    return extrude_loop_y(f"Shared_Cable_Inward_Retaining_Lip_{index}", (
+        (root_x - direction * .2, FAN_CASE_CABLE_LIP_ROOT_Z - .2),
+        (tip_x, tip_z), (tip_x, top_z),
+        (root_x - direction * .2, top_z),
+    ), center_y - FAN_CASE_CABLE_LIP_WIDTH / 2,
+       center_y + FAN_CASE_CABLE_LIP_WIDTH / 2)
+
+
 def create_fan_case_pair_insert(
     material,
     reference_objects=None,
@@ -8378,6 +8398,7 @@ def create_fan_case_pair_insert(
         FAN_CASE_CABLE_WELL_CENTERS,
         start=1,
     ):
+        battery_x, battery_y = FAN_CASE_BATTERY_CENTERS[index - 1]
         battery_tower_size = tuple(
             value + 2.0 * FAN_CASE_BATTERY_TOWER_WALL
             for value in FAN_CASE_BATTERY_POCKET_SIZE
@@ -8389,7 +8410,7 @@ def create_fan_case_pair_insert(
             FAN_CASE_CABLE_WELL_FLOOR - 0.2,
             FAN_CASE_BATTERY_TOWER_HEIGHT,
             3.0,
-            (center_x, center_y),
+            (battery_x, battery_y),
         )
         union_into(insert, battery_tower)
         battery_pocket = add_rounded_prism(
@@ -8399,7 +8420,7 @@ def create_fan_case_pair_insert(
             FAN_CASE_BATTERY_FLOOR_Z,
             FAN_CASE_BATTERY_TOWER_HEIGHT + 0.3,
             2.0,
-            (center_x, center_y),
+            (battery_x, battery_y),
         )
         difference_from(insert, battery_pocket)
         for side in (-1.0, 1.0):
@@ -8415,8 +8436,8 @@ def create_fan_case_pair_insert(
                     FAN_CASE_BATTERY_NUB_HEIGHT,
                 ),
                 (
-                    center_x,
-                    center_y
+                    battery_x,
+                    battery_y
                     + side
                     * (
                         FAN_CASE_BATTERY_POCKET_SIZE[1] / 2.0
@@ -8460,15 +8481,17 @@ def create_fan_case_pair_insert(
             2.0,
             center,
         )
-        arch_peak = FAN_CASE_BATTERY_DOOR_FLOOR_Z - FAN_CASE_DOOR_ARCH_ROOF
-        arch_run = arch_peak - FAN_CASE_CABLE_WELL_FLOOR
-        half_opening = door_tower_size[1] / 2 - 1.5
-        half_bridge = half_opening - arch_run
-        arch = extrude_loop_x(f"Door_{index}_Open_Cable_Arch", (
-            (center[1] - half_opening, FAN_CASE_CABLE_WELL_FLOOR),
-            (center[1] - half_bridge, arch_peak),
-            (center[1] + half_bridge, arch_peak),
-            (center[1] + half_opening, FAN_CASE_CABLE_WELL_FLOOR),
+        # Cantilever from the front perimeter with a 45-degree underside.
+        # The original fan lead still passes below; the Y coil is in the
+        # open center and never has to be fed through this small passage.
+        root_y = center[1] - door_tower_size[1] / 2 + FAN_CASE_BATTERY_DOOR_WALL
+        back_y = center[1] + door_tower_size[1] / 2
+        underside_z = FAN_CASE_BATTERY_DOOR_FLOOR_Z - 1.0
+        arch = extrude_loop_x(f"Door_{index}_Perimeter_Cantilever_Clearance", (
+            (root_y, FAN_CASE_CABLE_WELL_FLOOR),
+            (root_y, underside_z - (back_y - root_y)),
+            (back_y + .2, underside_z + .2),
+            (back_y + .2, FAN_CASE_CABLE_WELL_FLOOR),
         ), center[0] - door_tower_size[0] / 2 - .2,
            center[0] + door_tower_size[0] / 2 + .2)
         difference_from(door_tower, arch)
@@ -8491,28 +8514,31 @@ def create_fan_case_pair_insert(
             door_nub = add_rounded_box(
                 f"Fan_Case_Battery_Door_{index}_Retention_Nub_{'Front' if side < 0 else 'Rear'}",
                 (
-                    FAN_CASE_BATTERY_DOOR_NUB_WIDTH,
                     nub_depth,
+                    FAN_CASE_BATTERY_DOOR_NUB_WIDTH,
                     FAN_CASE_BATTERY_DOOR_NUB_HEIGHT,
                 ),
                 (
-                    center[0],
-                    center[1]
+                    center[0]
                     + side
                     * (
-                        FAN_CASE_BATTERY_DOOR_SLOT_SIZE[1] / 2.0
+                        FAN_CASE_BATTERY_DOOR_SLOT_SIZE[0] / 2.0
                         + (
                             FAN_CASE_BATTERY_DOOR_WALL
                             - FAN_CASE_BATTERY_DOOR_NUB_INTRUSION
                         )
                         / 2.0
                     ),
+                    center[1],
                     FAN_CASE_BATTERY_DOOR_WALL_HEIGHT
                     - FAN_CASE_BATTERY_DOOR_NUB_HEIGHT / 2.0,
                 ),
                 bevel=0.4,
             )
             union_into(insert, door_nub)
+
+    for index in (1, 2):
+        union_into(insert, create_shared_cable_retaining_lip(index))
 
     connector_length = PWM_CONNECTOR_ENVELOPE[0] + 2.0 * PWM_CONNECTOR_CLEARANCE
     connector_height = PWM_CONNECTOR_ENVELOPE[2] + PWM_CONNECTOR_CLEARANCE
@@ -8638,7 +8664,7 @@ def create_fan_case_pair_insert(
     bearing_top = (FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bottom_z"]
                    - FAN_CASE_PAIR_INSERT_INSTALLED_Z)
     bearing_rear = FAN_CASE_SHARED_CABLE_CENTER[1] + FAN_CASE_SHARED_CABLE_SIZE[1] / 2 + .2
-    bearing_front = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bounds"][3] - 10.0
+    bearing_front = FAN_CASE_CABLE_REAR_BEARING_Y
     bearing = extrude_loop_x("Shared_Cable_Bay_Overhead_Tray_Bearing", (
         (bearing_rear, bearing_top - 2.0 - (bearing_rear - bearing_front)),
         (bearing_front, bearing_top - 2.0),
@@ -8651,7 +8677,7 @@ def create_fan_case_pair_insert(
         # Extend its bearing inward above the cables instead of replacing
         # the removed divider or moving the already-printed compact tray.
         root_y = FAN_CASE_SHARED_CABLE_CENTER[1] - FAN_CASE_SHARED_CABLE_SIZE[1] / 2 - .2
-        tip_y = FAN_CASE_PAIR_OVERHEAD_STORAGE["bin_bounds"][2] + 10.0
+        tip_y = FAN_CASE_CABLE_FRONT_BEARING_Y
         front_bearing = extrude_loop_x("Compact_Shared_Cable_Front_Tray_Bearing", (
             (root_y, bearing_top - 2.0 - (tip_y - root_y)),
             (tip_y, bearing_top - 2.0),
@@ -10623,6 +10649,10 @@ def create_lid(
     select_only(logo_orange)
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     for vertex in logo_orange.data.vertices:
+        # Turn the complete artwork toward the handle, keeping the exterior
+        # face readable. Use an exact half-turn before cutting matching pockets.
+        vertex.co.x = 2.0 * dx - vertex.co.x
+        vertex.co.y = -vertex.co.y
         vertex.co.z -= LID_DOME_RISE
     logo_orange.data.update()
     inlay_pocket_cutter = logo_orange.copy()
@@ -15107,7 +15137,7 @@ def create_stored_lens_cap(index, material=None):
 
 
 def create_shared_y_cable_references(material):
-    """Reserve three loose turns plus the plug and splitter above their sides.
+    """Reserve three loose turns, with the plug and splitter in the open center.
 
     The reference envelopes also leave both original six-inch fan coils in
     place. Rounded rings conservatively reserve more than twelve inches.
@@ -15125,14 +15155,13 @@ def create_shared_y_cable_references(material):
             FAN_CASE_Y_CABLE_COIL_CENTER))
     plug_floor = bottom + 2 * FAN_CASE_Y_CABLE_LAYER_PITCH + diameter + 1.0
     for label, envelope, center_x in (
-        ("USB_A", FAN_CASE_USB_A_ENVELOPE, -29.0),
-        ("Splitter", FAN_CASE_Y_SPLITTER_ENVELOPE, 26.0),
+        ("USB_A", FAN_CASE_USB_A_ENVELOPE, -13.0),
+        ("Splitter", FAN_CASE_Y_SPLITTER_ENVELOPE, 12.0),
     ):
         length, width, height = envelope
-        center_y = (FAN_CASE_SHARED_CABLE_CENTER[1] if label == "USB_A"
-                    else FAN_CASE_Y_CABLE_COIL_CENTER[1])
+        center_y = FAN_CASE_Y_CABLE_COIL_CENTER[1]
         objects.append(add_rounded_box(f"REFERENCE_ONLY_Shared_Y_Cable_{label}",
-            (width, length, height),
+            (length, width, height) if label == "USB_A" else (width, length, height),
             (center_x, center_y, plug_floor + height / 2),
             bevel=1.0))
     for obj in objects:
@@ -15217,7 +15246,7 @@ def create_fan_case_pair_reference_mockups(
         assign_material(connector, cable_material)
         objects.append(connector)
 
-        battery_center = FAN_CASE_CABLE_WELL_CENTERS[assembly_index - 1]
+        battery_center = FAN_CASE_BATTERY_CENTERS[assembly_index - 1]
         battery = add_rounded_prism(
             f"REFERENCE_ONLY_Fan_Case_Enduro_Battery_{assembly_index}",
             BATTERY_WIDTH,
@@ -15238,8 +15267,8 @@ def create_fan_case_pair_reference_mockups(
     ):
         door = add_rounded_prism(
             f"REFERENCE_ONLY_Fan_Case_Battery_Door_{door_index}",
-            BATTERY_DOOR_SIZE[1],
             BATTERY_DOOR_SIZE[0],
+            BATTERY_DOOR_SIZE[1],
             FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_BATTERY_DOOR_FLOOR_Z,
             FAN_CASE_PAIR_INSERT_INSTALLED_Z
             + FAN_CASE_BATTERY_DOOR_FLOOR_Z
@@ -16102,6 +16131,31 @@ def validate_alternate_lid_closure(parts, reference_objects=()) -> None:
           f"maximum_overlap={maximum:.6f}", flush=True)
 
 
+def validate_cable_retaining_lips(insert):
+    """Check attached retaining fingers and their actual 45-degree undersides."""
+    for index in (1, 2):
+        lip = create_shared_cable_retaining_lip(index)
+        lip.location.z = FAN_CASE_PAIR_INSERT_INSTALLED_Z
+        try:
+            if static_objects_overlap(lip, insert) < mesh_object_volume(lip) * .999:
+                raise ValueError("A cable retaining lip is missing from the insert")
+            lip.data.calc_loop_triangles()
+            for triangle in lip.data.loop_triangles:
+                points = [lip.data.vertices[i].co for i in triangle.vertices]
+                normal = (points[1] - points[0]).cross(points[2] - points[0])
+                if normal.length > 1e-6 and normal.z / normal.length < -math.sin(math.radians(45.1)):
+                    raise ValueError("A cable retaining lip needs support underneath")
+            minimum, maximum = object_world_bounds(lip)
+            direction = 1 if index == 1 else -1
+            tip_x = maximum.x if index == 1 else minimum.x
+            coil_edge = FAN_CASE_Y_CABLE_COIL_CENTER[0] - direction * FAN_CASE_Y_CABLE_COIL_SIZE[0] / 2
+            if direction * (tip_x - coil_edge) < 2.0:
+                raise ValueError("Cable retaining lip does not overlap the relaxed coil")
+        finally:
+            bpy.data.objects.remove(lip, do_unlink=True)
+    print("FIELD_CASE_CABLE_LIPS_VALID count=2 underside<=45deg", flush=True)
+
+
 def validate_caps_and_shared_cable(parts, reference_objects, assembly_groups):
     """Check fitted caps, continuous lift clearance, and simultaneous cable storage."""
     caps = [obj for obj in reference_objects
@@ -16142,12 +16196,12 @@ def validate_caps_and_shared_cable(parts, reference_objects, assembly_groups):
             overlap = static_objects_overlap(cable, obstacle)
             if overlap > 1e-5:
                 raise ValueError(f"Shared cable storage obstructed: {cable.name}/{obstacle.name} {overlap}")
-    # Sweep the USB-A body across the bay before laying in the coil, with
-    # 1 mm clearance in width/height. A connected cable can be fed beneath
-    # both door holders without unplugging its ends or crossing a divider.
-    corridor_height = FAN_CASE_USB_A_ENVELOPE[2] + 2.0
+    # The leads still have a continuous passage between both wells. The
+    # larger Y coil and connectors load from above, without threading them
+    # below the perimeter door holders or the tray bearings.
+    corridor_height = FAN_CASE_CABLE_DIAMETER + 2.0
     corridor = add_rounded_box("TEMPORARY_Continuous_Shared_Cable_Corridor",
-        (72.0, FAN_CASE_USB_A_ENVELOPE[1] + 2.0, corridor_height), (-5.0, -47.0,
+        (72.0, FAN_CASE_CABLE_DIAMETER + 2.0, corridor_height), (*FAN_CASE_Y_CABLE_COIL_CENTER,
          FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_CABLE_WELL_FLOOR
          + .3 + corridor_height / 2), bevel=0)
     try:
@@ -16155,14 +16209,49 @@ def validate_caps_and_shared_cable(parts, reference_objects, assembly_groups):
             raise ValueError("A partition still separates the camera cable wells")
     finally:
         bpy.data.objects.remove(corridor, do_unlink=True)
+    loading_bottom = FAN_CASE_PAIR_INSERT_INSTALLED_Z + FAN_CASE_CABLE_WELL_FLOOR + .3
+    loading_top = BASE_HEIGHT + 100.0
+    loading = add_rounded_box("TEMPORARY_Y_Coil_Top_Loading_Path",
+        (FAN_CASE_Y_CABLE_LOADING_WIDTH + 2.0, FAN_CASE_Y_CABLE_COIL_SIZE[1] + 2.0,
+         loading_top - loading_bottom), (*FAN_CASE_Y_CABLE_COIL_CENTER,
+         (loading_bottom + loading_top) / 2), bevel=0)
+    try:
+        for obstacle in (parts["base"], parts["fan_case_pair_insert"], *accessories,
+                         *(obj for group in assembly_groups for obj in group)):
+            if static_objects_overlap(loading, obstacle) > 1e-5:
+                raise ValueError("Y cable cannot load from above: " + obstacle.name)
+    finally:
+        bpy.data.objects.remove(loading, do_unlink=True)
+    for connector in cables:
+        if "Coil_" in connector.name:
+            continue
+        minimum, maximum = object_world_bounds(connector)
+        lift = add_rounded_box("TEMPORARY_Y_Connector_Top_Loading_Path",
+            (maximum.x - minimum.x + 1.0, maximum.y - minimum.y + 1.0,
+             loading_top - minimum.z), ((minimum.x + maximum.x) / 2,
+             (minimum.y + maximum.y) / 2, (minimum.z + loading_top) / 2), bevel=0)
+        try:
+            for obstacle in (parts["base"], parts["fan_case_pair_insert"], *accessories,
+                             *(obj for group in assembly_groups for obj in group)):
+                if static_objects_overlap(lift, obstacle) > 1e-5:
+                    raise ValueError("Y connector cannot load from above: " + obstacle.name)
+        finally:
+            bpy.data.objects.remove(lift, do_unlink=True)
     width, depth = (value - FAN_CASE_CABLE_DIAMETER
                     for value in FAN_CASE_Y_CABLE_COIL_SIZE)
     capacity = 3 * (2 * (width - depth) + math.pi * depth)
     if capacity < FAN_CASE_Y_CABLE_LENGTH:
         raise ValueError("Shared cable coil cannot hold twelve inches")
+    loading_capacity = 3 * (2 * (FAN_CASE_Y_CABLE_LOADING_WIDTH
+        - FAN_CASE_CABLE_DIAMETER - depth) + math.pi * depth)
+    if loading_capacity < FAN_CASE_Y_CABLE_LENGTH:
+        raise ValueError("Coil cannot hold twelve inches while squeezed through the opening")
+    validate_cable_retaining_lips(parts["fan_case_pair_insert"])
     print(f"FIELD_CASE_CAPS_AND_Y_CABLE_VALID caps={len(caps)} "
           f"length={FAN_CASE_Y_CABLE_LENGTH:.1f} capacity={capacity:.1f}mm "
-          f"usb={FAN_CASE_USB_A_ENVELOPE} divider=absent", flush=True)
+          f"usb={FAN_CASE_USB_A_ENVELOPE} divider=absent "
+          f"top_loading={FAN_CASE_Y_CABLE_LOADING_WIDTH:.1f}x{FAN_CASE_Y_CABLE_COIL_SIZE[1]:.1f}mm "
+          f"loading_capacity={loading_capacity:.1f}mm", flush=True)
 
 
 def validate_fan_case_pair_loadout(
@@ -16496,11 +16585,17 @@ def validate_fan_case_pair_loadout(
     ):
         x0, x1, y0, y1, z0, z1 = FAN_CASE_PAIR_OVERHEAD_STORAGE[bounds_key]
         for bearing_x in (-107.0, 0.0, 107.0):
-            bearing_ys = ((y0 + 5.0, y1 - 5.0)
-                          if part_key == "fan_case_pair_storage_bin" and bearing_x == 0
-                          else tuple(y0 + fraction * (y1 - y0) for fraction in (.25, .75)))
-            for bearing_y in bearing_ys:
-                size = (3.0 if bearing_x == 0.0 else 5.0, 8.0, 0.3)
+            bearing_samples = tuple((y0 + fraction * (y1 - y0), 8.0)
+                                    for fraction in (.25, .75))
+            if part_key == "fan_case_pair_storage_bin" and bearing_x == 0:
+                # Probe the real shortened front/rear bearing patches; the
+                # opening between them is independently swept by a coil.
+                bearing_samples = (
+                    (y0 + 5.0, 8.0) if EXPANDED_ACCESSORY_STORAGE else (-70.0, 4.0),
+                    (y1 - 1.275, 3.0),
+                )
+            for bearing_y, probe_depth in bearing_samples:
+                size = (3.0 if bearing_x == 0.0 else 5.0, probe_depth, 0.3)
                 probe = add_rounded_box("TEMPORARY_Independent_Tray_Bearing", size,
                     (bearing_x, bearing_y, z0), bevel=0.0)
                 try:
@@ -20015,11 +20110,11 @@ def validate_built_lid_hockey_inlay(parts) -> None:
             shaft_probe_width / 2.0,
         )
         shaft_probe.location = (
-            LID_DISPLAY_OFFSET_X + (handle_xy[0] + heel_xy[0]) / 2.0,
-            LID_HOCKEY_ICON_CENTER_Y + (handle_xy[1] + heel_xy[1]) / 2.0,
+            LID_DISPLAY_OFFSET_X - (handle_xy[0] + heel_xy[0]) / 2.0,
+            -(LID_HOCKEY_ICON_CENTER_Y + (handle_xy[1] + heel_xy[1]) / 2.0),
             0.0,
         )
-        shaft_probe.rotation_euler.z = math.atan2(shaft_delta_y, shaft_delta_x)
+        shaft_probe.rotation_euler.z = math.atan2(shaft_delta_y, shaft_delta_x) + math.pi
         try:
             _faces, shaft_volume = exact_transformed_intersection(
                 logo,
@@ -20039,8 +20134,8 @@ def validate_built_lid_hockey_inlay(parts) -> None:
             f"TEMPORARY_Lid_Hockey_Stick_{stick_index}_Blade_Core_Probe",
             blade_probe_dimensions,
             (
-                LID_DISPLAY_OFFSET_X + blade_center_xy[0],
-                LID_HOCKEY_ICON_CENTER_Y + blade_center_xy[1],
+                LID_DISPLAY_OFFSET_X - blade_center_xy[0],
+                -(LID_HOCKEY_ICON_CENTER_Y + blade_center_xy[1]),
                 LID_INLAY_DEPTH / 2.0,
             ),
             bevel=0.0,
@@ -20065,8 +20160,8 @@ def validate_built_lid_hockey_inlay(parts) -> None:
         "TEMPORARY_Lid_Hockey_Puck_Core_Probe",
         puck_probe_dimensions,
         (
-            LID_DISPLAY_OFFSET_X + LID_HOCKEY_PUCK_CENTER_XY[0],
-            LID_HOCKEY_ICON_CENTER_Y + LID_HOCKEY_PUCK_CENTER_XY[1],
+            LID_DISPLAY_OFFSET_X - LID_HOCKEY_PUCK_CENTER_XY[0],
+            -(LID_HOCKEY_ICON_CENTER_Y + LID_HOCKEY_PUCK_CENTER_XY[1]),
             LID_INLAY_DEPTH / 2.0,
         ),
         bevel=0.0,
