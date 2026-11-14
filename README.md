@@ -57,6 +57,21 @@ The `esp32s3_amoled_ui` target accepts USB serial commands at `115200` for repea
 
 `lower shutdown` intentionally exercises the low-power shutdown path. `lower long` is ignored over serial so an accidental command does not power the device down.
 
+## Development Dependencies
+
+On Debian/Ubuntu, install the system tools and Python packages from the repository root:
+
+```sh
+make deps
+source .venv/bin/activate
+```
+
+`make deps` uses `sudo` for apt unless already running as root; run make as your normal user so `.venv` stays user-owned. It installs Python with venv/pip, the native C++ build tools used by regression tests, Git, Blender, DejaVu fonts, and `rsvg-convert`. Python dependencies (including the PlatformIO CLI) are listed in [requirements.txt](requirements.txt) and installed into `.venv`, leaving system Python untouched. Activate that environment before running `pio`, Python scripts, or the model Makefiles.
+
+Use `make deps-system` for only the apt packages, or `make deps-python` if system tools are already installed or you are on another OS. Override `PYTHON` or `VENV` as needed. In an existing Python environment, use `python -m pip install -r requirements.txt` directly.
+
+Blender supplies `bpy`, `bmesh`, and `mathutils`. Some model scripts additionally import NumPy, Shapely 2.1+, or Pillow **inside Blender**; a standalone Blender installation may use a separate bundled Python that does not see `.venv`. Install those packages with that interpreter's `-m pip install 'shapely>=2.1' numpy Pillow` when needed. The distro Blender version may be older than a model requires (the goalie recommends Blender 4.4+); select a newer installation with `make -C models3d BLENDER=/path/to/blender` or the equivalent goalie command.
+
 ## Build Targets
 
 - `esp32dev`: radio firmware for the currently attached ESP32 dev board.

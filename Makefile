@@ -2,6 +2,10 @@ SHELL := /bin/bash
 
 TOPDIR := $(shell pwd)
 COMPILE_COMMANDS := compile_commands.json
+PYTHON ?= python3
+VENV ?= $(TOPDIR)/.venv
+SUDO ?= $(shell if [ "$$(id -u)" != 0 ]; then printf '%s' sudo; fi)
+DEB_PACKAGES := python3 python3-venv python3-pip build-essential git blender fonts-dejavu-core librsvg2-bin
 
 PIO ?= pio
 PIO_BIN := $(shell command -v $(PIO) 2>/dev/null)
@@ -30,7 +34,20 @@ endef
 
 all: print_targets
 
-.PHONY: all print_targets bld build amoled upload monitor upload-monitor ports clean distclean erase check compiledb build-all radio sim ble-dump serial status connect rescan snapshot lower-double pair cancel test-presets FORCE
+.PHONY: all print_targets deps deps-system deps-python bld build amoled upload monitor upload-monitor ports clean distclean erase check compiledb build-all radio sim ble-dump serial status connect rescan snapshot lower-double pair cancel test-presets FORCE
+
+deps: deps-system
+	$(MAKE) deps-python
+
+deps-system:
+	@command -v apt-get >/dev/null || { printf 'apt-get is required; install system tools manually and run make deps-python.\n' >&2; exit 1; }
+	$(SUDO) apt-get update
+	$(SUDO) apt-get install -y $(DEB_PACKAGES)
+
+deps-python:
+	$(PYTHON) -m venv "$(VENV)"
+	"$(VENV)/bin/python" -m pip install -r "$(TOPDIR)/requirements.txt"
+	@printf 'Activate the environment: source "%s/bin/activate"\n' "$(VENV)"
 
 bld build amoled:
 	$(PIO) run -e $(ENV) $(PIO_ARGS)
@@ -119,6 +136,9 @@ print_targets:
 		'Primary ESP32-S3 AMOLED Workflow' \
 		'--------------------------------' \
 		'all             Show this help text (same as print_targets).' \
+		'deps            Install Debian/Ubuntu system tools and Python packages in .venv.' \
+		'deps-system     Install only Debian/Ubuntu system tools (uses sudo unless root).' \
+		'deps-python     Install only Python packages in .venv (override PYTHON or VENV).' \
 		'build           Build the selected PlatformIO environment.' \
 		'bld             Alias for build.' \
 		'amoled          Alias for build; defaults to the AMOLED UI firmware.' \

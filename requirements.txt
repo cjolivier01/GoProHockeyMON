@@ -1,0 +1,15 @@
+# Firmware build CLI and USB serial helpers.
+platformio>=6.1,<7
+pyserial>=3.5,<4
+
+# Dimension PDFs, review images, and mesh-processing scripts.
+matplotlib>=3.6
+numpy>=1.23
+Pillow>=9
+shapely>=2.1
+trimesh>=4
+manifold3d>=2.5
+scipy>=1.9
+networkx>=2.8
+
+# bpy, bmesh, and mathutils are supplied by Blender, not pip.
