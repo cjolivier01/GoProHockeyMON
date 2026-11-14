@@ -331,6 +331,7 @@ print_targets:
 		'' \
 		'Print Builds' \
 		'------------' \
+		'diy-lapdock               Build and validate the folding monitor/keyboard case, 3MF, and previews.' \
 		'all                       Build all print files and synchronized dimension PDFs.' \
 		'flat-fan-cover            Build the flat fan cover STL.' \
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
@@ -629,3 +630,29 @@ clean-fan-case-dim-pdf:
 
 clean-mission1-field-case-dim-pdf:
 	$(RM) $(MISSION1_FIELD_CASE_DIMENSION_PDF)
+
+# Independent electronics project; keep it opt-in rather than extending camera builds.
+DIY_LAPDOCK_DIR := diy-lapdock
+DIY_LAPDOCK_GENERATED := $(DIY_LAPDOCK_DIR)/generated
+DIY_LAPDOCK_PARTS := base_shell_left base_shell_right keyboard_deck_left keyboard_deck_right \
+	base_splice_front base_splice_rear lid_shell_left lid_shell_right display_bezel_left \
+	display_bezel_right lid_splice_front lid_splice_rear lid_stay_left lid_stay_right fastener_fit_coupon
+DIY_LAPDOCK_OUTPUTS := $(addprefix $(DIY_LAPDOCK_GENERATED)/,$(addsuffix .stl,$(DIY_LAPDOCK_PARTS))) \
+	$(DIY_LAPDOCK_GENERATED)/diy_lapdock.3mf $(DIY_LAPDOCK_GENERATED)/diy_lapdock.blend \
+	$(DIY_LAPDOCK_GENERATED)/build_report.json $(DIY_LAPDOCK_GENERATED)/assembly_open.png \
+	$(DIY_LAPDOCK_GENERATED)/assembly_closed.png
+
+.PHONY: diy-lapdock check-diy-lapdock diy-lapdock-plate-overview
+diy-lapdock: $(DIY_LAPDOCK_OUTPUTS) diy-lapdock-plate-overview check-diy-lapdock
+
+$(DIY_LAPDOCK_OUTPUTS) &: $(DIY_LAPDOCK_DIR)/diy_lapdock_blender.py common/print_3mf.py
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python $< -- --render
+
+check-diy-lapdock: $(DIY_LAPDOCK_OUTPUTS)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python $(DIY_LAPDOCK_DIR)/check_lapdock.py
+
+diy-lapdock-plate-overview: $(DIY_LAPDOCK_GENERATED)/plate_overview.png
+
+$(DIY_LAPDOCK_GENERATED)/plate_overview.png: $(DIY_LAPDOCK_GENERATED)/diy_lapdock.3mf \
+	$(DIY_LAPDOCK_DIR)/render_plate_overview.py $(MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python $(DIY_LAPDOCK_DIR)/render_plate_overview.py

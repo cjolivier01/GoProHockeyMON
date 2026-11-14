@@ -74,13 +74,6 @@ height.  Every default printable part validates below 250 x 250 mm in XY.
 
 from __future__ import annotations
 
-# BLENDER SCENE SELECTION: edit these values, then run the whole script.
-VISIBLE_CASE_ASSEMBLY = globals().get("VISIBLE_CASE_ASSEMBLY", "FAN_CASE")
-VISIBLE_LID_VARIANT = globals().get("VISIBLE_LID_VARIANT", "RIGID")
-ASSEMBLED_LID_OPEN_ANGLE_DEGREES = globals().get(
-    "ASSEMBLED_LID_OPEN_ANGLE_DEGREES", 110.0
-)
-
 import base64
 import gzip
 import importlib.util
@@ -214,6 +207,15 @@ lens_cap, LENS_CAP_SOURCE_DIRECTORY = import_companion_module(
 # visibility and which profile is exported when EXPORT_STL is enabled.
 CASE_ASSEMBLY_FAN_CASE = "FAN_CASE"
 CASE_ASSEMBLY_ORIGINAL = "ORIGINAL"
+
+# BLENDER SCENE SELECTION: edit these values, then run the whole script.
+#VISIBLE_CASE_ASSEMBLY = globals().get("VISIBLE_CASE_ASSEMBLY", "FAN_CASE")
+VISIBLE_CASE_ASSEMBLY = globals().get("VISIBLE_CASE_ASSEMBLY", "ORIGINAL")
+VISIBLE_LID_VARIANT = globals().get("VISIBLE_LID_VARIANT", "RIGID")
+ASSEMBLED_LID_OPEN_ANGLE_DEGREES = globals().get(
+    "ASSEMBLED_LID_OPEN_ANGLE_DEGREES", 110.0
+)
+
 
 # Both complete lid variants are always generated.  Select which one is fitted
 # to the visible assembly; the other remains in the scene but hidden.
