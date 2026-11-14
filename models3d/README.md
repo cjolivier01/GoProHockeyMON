@@ -9,6 +9,7 @@ reference geometry live in [`common/`](common/).
 
 | Model | Purpose | Build target |
 | --- | --- | --- |
+| [`diy-lapdock/`](diy-lapdock/) | Folding 10.1-inch HDMI display and keyboard enclosure, split for a 220 mm printer bed | `diy-lapdock` |
 | [`dual-fan/`](dual-fan/) | Parametric one-to-three-fan holder with detachable two- and three-prong GoPro adapters | `dual-fan` |
 | [`fan-case/`](fan-case/) | Cooled GoPro shell with removable insert, controls, retainers, and optional acoustic cartridge | `fan-case` |
 | [`fan-silencer/`](fan-silencer/) | Four-hole fan silencers for 40, 60, 80, and 120 mm fans | `fan-silencer` |

@@ -53,6 +53,7 @@ OUTPUT_PDF = HERE / "mission1_field_case_configuration_dimensions.pdf"
 # ``import_companion_module`` helper.  Each entry maps the module name the model
 # asks for onto the sibling directory and file name that provide it.
 COMPANION_SOURCES = {
+    "mission1_lens_cap": ("mission1-field-case", "mission1_lens_cap.py"),
     "gopro_mission1_dummy_blender": (
         "mission1-dummy",
         "gopro_mission1_dummy_blender.py",
@@ -1597,6 +1598,7 @@ CONFIG_BY_NAME = {entry.name: entry for entry in CONFIG_ENTRIES}
 # GENERATED GEOMETRY
 
 PART_STLS = {
+    "lens_cap": "mission1_lens_cap_tpu_for_ams_print_two.stl",
     "dual_cradle": "mission1_field_case_lower_fan_cradle_tpu.stl",
     "dual_camera_tray": "mission1_field_case_upper_equipment_tray_tpu.stl",
     "dual_riser": "mission1_field_case_dual_fan_tray_riser_tpu.stl",
@@ -1619,6 +1621,7 @@ PART_STLS = {
 }
 PART_PATHS = {part: HERE / name for part, name in PART_STLS.items()}
 PART_TITLES = {
+    "lens_cap": "MISSION 1 lens cap (TPU for AMS)",
     "dual_cradle": "Dual-fan floor cradle",
     "dual_camera_tray": "Dual-fan camera / six battery tray",
     "dual_riser": "Dual-fan tray riser",
@@ -1640,6 +1643,7 @@ PART_TITLES = {
     "storage_bin": "Fan-side storage bin",
 }
 PART_COLORS = {
+    "lens_cap": CYAN,
     "dual_cradle": ORANGE,
     "dual_camera_tray": ORANGE,
     "dual_riser": CYAN,
@@ -1903,6 +1907,10 @@ def set_drawing_bounds(axes, bounds, padding_fraction=0.12):
 # the catalog exactly once.
 
 PART_ROUTES = (
+    (("LENS_CAP_",), "lens_cap"),
+    (("FAN_CASE_SHARED_", "FAN_CASE_Y_", "FAN_CASE_USB_A_", "FAN_CASE_CABLE_LIP_",
+      "FAN_CASE_CABLE_REAR_BEARING_", "FAN_CASE_CABLE_FRONT_BEARING_",
+      "FAN_CASE_BATTERY_CENTERS"), "fan_insert"),
     (("DUAL_FAN_CAMERA_", "DUAL_FAN_BATTERY_", "DUAL_FAN_TRAY_"), "dual_camera_tray"),
     (("DUAL_FAN_RISER_",), "dual_riser"),
     (("DUAL_FAN_SPACER_",), "dual_spacer"),

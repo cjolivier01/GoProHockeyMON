@@ -44,6 +44,7 @@ HORN_RENDER_SOURCE := $(HORN_DIR)/render_horn_previews.py
 MISSION1_DUMMY_SOURCE := $(MISSION1_DUMMY_DIR)/gopro_mission1_dummy_blender.py
 MISSION1_FIELD_CASE_SOURCE := $(MISSION1_FIELD_CASE_DIR)/mission1_field_case_blender.py
 MISSION1_DUAL_FAN_LOADOUT_SOURCE := $(MISSION1_FIELD_CASE_DIR)/mission1_dual_fan_loadout.py
+MISSION1_LENS_CAP_SOURCE := $(MISSION1_FIELD_CASE_DIR)/mission1_lens_cap.py
 MISSION1_FIELD_CASE_PDF_SOURCE := $(MISSION1_FIELD_CASE_DIR)/generate_mission1_field_case_config_dimension_pdf.py
 MISSION1_FIELD_CASE_SCENE_CHECK_SOURCE := $(MISSION1_FIELD_CASE_DIR)/check_mission1_field_case_scene_visibility.py
 MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE := $(MISSION1_FIELD_CASE_DIR)/render_3mf_plate_overview.py
@@ -66,6 +67,7 @@ HORN_RENDERINGS := \
 	$(HORN_DIR)/renderings/horn_standard_40_to_80.png
 MISSION1_DUMMY_STLS := $(MISSION1_DUMMY_DIR)/gopro_mission1_dummy_recreated.stl
 MISSION1_FIELD_CASE_STLS := \
+	$(MISSION1_FIELD_CASE_DIR)/mission1_lens_cap_tpu_for_ams_print_two.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_base.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_lid.stl \
 	$(MISSION1_FIELD_CASE_DIR)/mission1_field_case_gasket_tpu.stl \
@@ -329,6 +331,7 @@ print_targets:
 		'' \
 		'Print Builds' \
 		'------------' \
+		'diy-lapdock               Build and validate the folding monitor/keyboard case, 3MF, and previews.' \
 		'all                       Build all print files and synchronized dimension PDFs.' \
 		'flat-fan-cover            Build the flat fan cover STL.' \
 		'wrapping-fan-cover        Build the wrapping fan cover STL.' \
@@ -445,7 +448,7 @@ $(DUAL_FAN_DIMENSION_PDF): $(DUAL_FAN_PDF_SOURCE) \
 # them changes.  It projects the auxiliary TPU and organizer parts too, which is
 # why both STL groups are listed.
 $(MISSION1_FIELD_CASE_DIMENSION_PDF): $(MISSION1_FIELD_CASE_PDF_SOURCE) \
-	$(MISSION1_FIELD_CASE_SOURCE) $(MISSION1_DUAL_FAN_LOADOUT_SOURCE) $(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) \
+	$(MISSION1_FIELD_CASE_SOURCE) $(MISSION1_DUAL_FAN_LOADOUT_SOURCE) $(MISSION1_LENS_CAP_SOURCE) $(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) \
 	$(FAN_CASE_SOURCE) $(WRAPPING_FAN_COVER_SOURCE) $(FAN_PRESET_SOURCE) \
 	$(MISSION1_FIELD_CASE_STLS) $(MISSION1_FIELD_CASE_AUXILIARY_STLS)
 	$(PDF_PYTHON) $<
@@ -487,7 +490,7 @@ $(MISSION1_DUMMY_STLS): $(MISSION1_DUMMY_SOURCE)
 # invocation updates the complete kit while retaining normal timestamp-based
 # incremental builds.
 $(MISSION1_FIELD_CASE_OUTPUTS) &: $(MISSION1_FIELD_CASE_SOURCE) \
-	$(MISSION1_DUAL_FAN_LOADOUT_SOURCE) \
+	$(MISSION1_DUAL_FAN_LOADOUT_SOURCE) $(MISSION1_LENS_CAP_SOURCE) \
 	$(MISSION1_DUMMY_SOURCE) $(DUAL_FAN_SOURCE) $(FAN_CASE_SOURCE) \
 	$(WRAPPING_FAN_COVER_SOURCE) $(FAN_PRESET_SOURCE)
 	$(RM) $(MISSION1_FIELD_CASE_OUTPUTS) $(MISSION1_FIELD_CASE_OBSOLETE_STLS)
@@ -627,3 +630,29 @@ clean-fan-case-dim-pdf:
 
 clean-mission1-field-case-dim-pdf:
 	$(RM) $(MISSION1_FIELD_CASE_DIMENSION_PDF)
+
+# Independent electronics project; keep it opt-in rather than extending camera builds.
+DIY_LAPDOCK_DIR := diy-lapdock
+DIY_LAPDOCK_GENERATED := $(DIY_LAPDOCK_DIR)/generated
+DIY_LAPDOCK_PARTS := base_shell_left base_shell_right keyboard_deck_left keyboard_deck_right \
+	base_splice_front base_splice_rear lid_shell_left lid_shell_right display_bezel_left \
+	display_bezel_right lid_splice_front lid_splice_rear lid_stay_left lid_stay_right fastener_fit_coupon
+DIY_LAPDOCK_OUTPUTS := $(addprefix $(DIY_LAPDOCK_GENERATED)/,$(addsuffix .stl,$(DIY_LAPDOCK_PARTS))) \
+	$(DIY_LAPDOCK_GENERATED)/diy_lapdock.3mf $(DIY_LAPDOCK_GENERATED)/diy_lapdock.blend \
+	$(DIY_LAPDOCK_GENERATED)/build_report.json $(DIY_LAPDOCK_GENERATED)/assembly_open.png \
+	$(DIY_LAPDOCK_GENERATED)/assembly_closed.png
+
+.PHONY: diy-lapdock check-diy-lapdock diy-lapdock-plate-overview
+diy-lapdock: $(DIY_LAPDOCK_OUTPUTS) diy-lapdock-plate-overview check-diy-lapdock
+
+$(DIY_LAPDOCK_OUTPUTS) &: $(DIY_LAPDOCK_DIR)/diy_lapdock_blender.py common/print_3mf.py
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python $< -- --render
+
+check-diy-lapdock: $(DIY_LAPDOCK_OUTPUTS)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python $(DIY_LAPDOCK_DIR)/check_lapdock.py
+
+diy-lapdock-plate-overview: $(DIY_LAPDOCK_GENERATED)/plate_overview.png
+
+$(DIY_LAPDOCK_GENERATED)/plate_overview.png: $(DIY_LAPDOCK_GENERATED)/diy_lapdock.3mf \
+	$(DIY_LAPDOCK_DIR)/render_plate_overview.py $(MISSION1_FIELD_CASE_PLATE_RENDER_SOURCE)
+	$(BLENDER) $(BLENDER_FLAGS) --python-exit-code 1 --python $(DIY_LAPDOCK_DIR)/render_plate_overview.py
